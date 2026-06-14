@@ -1,16 +1,19 @@
 // tests/integration/setup.ts — L2 integration test infrastructure
 // Ref: 04b §六维质量体系 — L2 Integration: 真 HTTP, 100% Worker API 端点覆盖
 //
-// Auto-starts Cloudflare Worker on port 8787 before tests,
-// waits for it to be ready, and kills it after tests complete.
+// The Worker is started externally by scripts/run-l2.ts on the port given
+// via process.env.L2_PORT. This module only provides URL/auth helpers and
+// a thin readiness check.
 
 // ─── Configuration ─────────────────────────────────────────────
-//
-// The Worker is started externally by scripts/run-l2.ts. This module only
-// provides URL/auth helpers and a thin readiness check.
 
-/** Worker default port (wrangler dev) */
-const WORKER_PORT = 8787;
+/**
+ * Worker port. Defaults to 17031 (nmem 万位档 1 = project main 7031 + 10000)
+ * so direct `bun test tests/integration/http/...` invocations (no runner)
+ * still hit the right port. scripts/run-l2.ts overrides this via L2_PORT
+ * when it falls back to an anonymous port due to a collision.
+ */
+const WORKER_PORT = Number(process.env.L2_PORT ?? "17031");
 const WORKER_URL = `http://localhost:${WORKER_PORT}`;
 const READINESS_TIMEOUT_MS = 5_000;
 

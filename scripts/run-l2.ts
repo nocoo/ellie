@@ -23,13 +23,19 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "bun";
+import { findOpenPort } from "./lib/find-port";
 import { initLocalD1, type Subprocess } from "./lib/local-d1";
 import { startLocalWorker, stopLocalWorker, waitForWorker } from "./lib/local-worker";
 
 // ─── Configuration ─────────────────────────────────────────────
 
-const TEST_PORT = 8787;
-const BASE_URL = `http://localhost:${TEST_PORT}`;
+// L2 worker port — nmem 万位档 1 (project main port 7031 + 10000).
+// Pinned default; if the port is occupied (another local wrangler dev),
+// findOpenPort falls back to an OS-assigned anonymous port so the runner
+// never crashes on collision. See docs/23-local-test-stack.md §2.6.
+const PREFERRED_PORT = 17031;
+let TEST_PORT = PREFERRED_PORT;
+let BASE_URL = `http://localhost:${TEST_PORT}`;
 const WORKER_READY_TIMEOUT_MS = 60_000;
 const DB_INIT_TIMEOUT_MS = 60_000;
 
@@ -48,6 +54,13 @@ let workerProcess: Subprocess | null = null;
 // ─── Steps ─────────────────────────────────────────────────────
 
 async function startWorker(): Promise<void> {
+	TEST_PORT = await findOpenPort([PREFERRED_PORT, 0]);
+	BASE_URL = `http://localhost:${TEST_PORT}`;
+	if (TEST_PORT !== PREFERRED_PORT) {
+		console.log(
+			`ℹ️  port ${PREFERRED_PORT} busy, using ${TEST_PORT} (L2_PORT env will be set so tests follow)`,
+		);
+	}
 	workerProcess = startLocalWorker({
 		persistTo: PERSIST_TO,
 		port: TEST_PORT,
@@ -83,6 +96,8 @@ async function runTests(): Promise<number> {
 		stdin: "inherit",
 		env: {
 			...process.env,
+			// Tell tests/integration/setup.ts which port the local worker is on.
+			L2_PORT: String(TEST_PORT),
 			// Mirror TEST_WORKER_VARS into the test env so workerFetch/setup.ts
 			// helpers sign requests with the same secrets the worker accepts.
 			API_KEY: "test-api-key",

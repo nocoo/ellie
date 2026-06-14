@@ -2,7 +2,7 @@
 // Tests all public endpoints that require only Key A (no JWT)
 
 import { describe, expect, test } from "bun:test";
-import { workerFetch } from "../setup";
+import { getWorkerUrl, workerFetch } from "../setup";
 
 describe("L2: Worker Public API", () => {
 	// ─── Forums ────────────────────────────────────────────────────
@@ -458,7 +458,7 @@ describe("L2: Worker Public API", () => {
 	describe("GET /api/live", () => {
 		test("returns 200", async () => {
 			// Health check doesn't need API key
-			const res = await fetch("http://localhost:8787/api/live");
+			const res = await fetch(`${getWorkerUrl()}/api/live`);
 			expect(res.status).toBe(200);
 		});
 	});
