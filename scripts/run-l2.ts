@@ -65,8 +65,18 @@ function stopWorker(): void {
 
 async function runTests(): Promise<number> {
 	console.log("🧪 Running integration tests…");
+	// Run worker/ + proxy/ explicitly; fast/ runs under `bun run test:l2:fast`
+	// (in-process Worker, doesn't need wrangler) and is excluded here to
+	// keep this lifecycle focused on the wrangler-dev path.
 	const tests = spawn({
-		cmd: ["bun", "test", "tests/integration/", "--timeout", "30000"],
+		cmd: [
+			"bun",
+			"test",
+			"tests/integration/worker/",
+			"tests/integration/proxy/",
+			"--timeout",
+			"30000",
+		],
 		cwd: REPO_ROOT,
 		stdout: "inherit",
 		stderr: "inherit",
