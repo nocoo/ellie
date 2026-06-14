@@ -55,11 +55,15 @@ export function spawnDetached(
 	});
 }
 
-function isAlive(pid: number): boolean {
+function isGroupAlive(pgid: number): boolean {
 	try {
-		// Signal 0 is a permission/existence probe — no signal is delivered,
-		// but ESRCH is thrown if the process is gone.
-		process.kill(pid, 0);
+		// `process.kill(-pgid, 0)` with signal 0 is a POSIX existence probe
+		// against the whole process group: it returns ESRCH only when no
+		// process in the group exists. We deliberately probe the GROUP, not
+		// the leader pid — the leader may exit first while a grandchild
+		// (next-server, workerd) outlives it inside the same pgid, and the
+		// caller's intent is "is anything in this tree still alive?".
+		process.kill(-pgid, 0);
 		return true;
 	} catch {
 		return false;
@@ -94,7 +98,7 @@ export async function killTree(
 
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		if (!isAlive(pid)) return;
+		if (!isGroupAlive(pid)) return;
 		await new Promise((r) => setTimeout(r, 100));
 	}
 
