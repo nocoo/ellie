@@ -292,33 +292,36 @@ test.skip(gate.skip, gate.reason);
 
 ### Forum Specs (23 → 7)
 
-| 目标 BDD Spec | 合并来源 (旧 spec → 取用测试数) | 原测试数 | 预估 BDD 测试数 |
+| 目标 BDD Spec | 合并来源 (旧 spec → 取用测试数) | 原测试数 | 新 BDD 测试数 |
 |---------------|-----------------------------|---------|----------------|
-| `auth.spec.ts` | already-logged-in(2) + auth(3) + redirect(3) | 8 | 7 |
+| `auth.spec.ts` | already-logged-in(2) + auth(3) + redirect(3) | 8 | 8 |
 | `navigation.spec.ts` | navigation(6) + navigation-extra(4) + header-actions(4) + not-found(4) | 18 | 14 |
 | `search.spec.ts` | search(1) + search-interaction(2) | 3 | 3 |
 | `content.spec.ts` | thread(1) + thread-crud(2) + post(1) + post-crud(3) + post-comments(2) + pagination(2) + digest-filter(1) | 12 | 10 |
-| `social.spec.ts` | message(2) + user-actions(2) + user-journey(3) | 7 | 6 |
+| `social.spec.ts` | message(2) + user-actions(2) + user-journey(3) | 7 | 7 |
 | `system.spec.ts` | system(5) + dialog-layout(2) + misc-coverage(4) | 11 | 9 |
 | `mobile.spec.ts` | mobile-layout(15) | 15 | 12 |
-| **Forum 小计** | **23 → 7** | **74** | **~61** |
+| **Forum 小计** | **23 → 7** | **74** | **63** |
 
 ### Admin Specs (6 → 2)
 
-| 目标 BDD Spec | 合并来源 (旧 spec → 取用测试数) | 原测试数 | 预估 BDD 测试数 |
+| 目标 BDD Spec | 合并来源 (旧 spec → 取用测试数) | 原测试数 | 新 BDD 测试数 |
 |---------------|-----------------------------|---------|----------------|
 | `admin/admin-auth.spec.ts` | admin-auth(3) | 3 | 3 |
 | `admin/admin-crud.spec.ts` | admin-users(9) + admin-logs(4) + admin-reports(2) + admin-forums(1) + admin-threads(1) | 17 | 14 |
-| **Admin 小计** | **6 → 2** | **20** | **~17** |
+| **Admin 小计** | **6 → 2** | **20** | **17** |
 
 ### 合计
 
 | | 旧 | 新 |
 |-|----|----|
 | Spec 文件 | 29 | **9** |
-| 测试数 | 94 | **~78** |
+| 测试数 | 94 | **80** |
 
 **合计来源核对**：8+18+3+12+7+11+15+3+17 = 94 ✅
+
+**新 BDD 测试数核对**（reproducible from `bunx playwright test --list --project=<p>`）：
+8+14+3+10+7+9+12 = 63 forum，3+14 = 17 admin，合计 80 ✅
 
 预估测试数减少原因：
 - 合并 navigation + navigation-extra + header-actions 中重复的导航验证
@@ -333,12 +336,12 @@ test.skip(gate.skip, gate.reason);
 
 ellie 的 4 个 Playwright project 必须在 BDD 目录中保持等价分组：
 
-| Project | 当前 testMatch (17 文件) | BDD testMatch |
-|---------|------------------------|---------------|
-| `stateless` | `navigation`, `navigation-extra`, `auth`, `search`, `system`, `redirect`, `pagination`, `message`, `user-journey`, `search-interaction`, `digest-filter`, `dialog-layout`, `not-found`, `user-actions`, `misc-coverage`, `already-logged-in`, `header-actions` | `bdd/auth.spec.ts`, `bdd/navigation.spec.ts`, `bdd/search.spec.ts`, `bdd/system.spec.ts` |
-| `stateful` | `thread`, `post`, `post-comments`, `thread-crud`, `post-crud` (5 文件) | `bdd/content.spec.ts`, `bdd/social.spec.ts` |
-| `mobile` | `mobile-layout.spec.ts` | `bdd/mobile.spec.ts` |
-| `admin` | `tests/e2e/admin/*.spec.ts`（独立 testDir） | `tests/e2e/bdd/admin/*.spec.ts`（admin project 的 `testDir` 改为 `tests/e2e/bdd/admin`） |
+| Project | Stage 1 testMatch (旧/新并存) | Stage 2 testMatch (纯 BDD) |
+|---------|-------------------------------|----------------------------|
+| `stateless` | `navigation`, `navigation-extra`, `auth`, `search`, `system`, `redirect`, `pagination`, `message`, `user-journey`, `search-interaction`, `digest-filter`, `dialog-layout`, `not-found`, `user-actions`, `misc-coverage`, `already-logged-in`, `header-actions` (17 文件) | `bdd/auth.spec.ts`, `bdd/navigation.spec.ts`, `bdd/search.spec.ts`, `bdd/system.spec.ts` |
+| `stateful` | `thread`, `post`, `post-comments`, `thread-crud`, `post-crud`, `content`, `social` (Stage 1 兼容) | `bdd/content.spec.ts`, `bdd/social.spec.ts` |
+| `mobile` | `mobile-layout`, `mobile`（Stage 1 兼容） | `bdd/mobile.spec.ts` |
+| `admin` | `tests/e2e/admin/*.spec.ts` + `tests/e2e/bdd/admin/*.spec.ts`（Stage 1 broadened testDir） | `tests/e2e/bdd/admin/*.spec.ts`（testDir 收敛到 `tests/e2e/bdd/admin`） |
 
 Stage 1 迁移期需同时匹配旧/新路径，Stage 2 收敛到纯 BDD 路径。
 
@@ -439,8 +442,8 @@ test.describe("Feature: Forum Content", () => {
 
 | 批次 | Spec | 测试数 (旧→新) | 工作量 | 理由 |
 |------|------|--------|--------|------|
-| 2.1 | `auth.spec.ts` | 8 → 7 | 小 | 合并 3 个 spec，有 loginAs fixture |
-| 2.2 | `social.spec.ts` | 7 → 6 | 中 | 合并 3 个 spec，有 message/user flows |
+| 2.1 | `auth.spec.ts` | 8 → 8 | 小 | 合并 3 个 spec，有 loginAs fixture |
+| 2.2 | `social.spec.ts` | 7 → 7 | 中 | 合并 3 个 spec，有 message/user flows |
 
 ### 5.5 Phase 3：有状态内容 + 移动端
 
@@ -518,11 +521,11 @@ Stage 2 完成后，在 `package.json` 添加别名，**同时覆盖 forum 与 a
 |-------|---------|--------|---------|-------------|
 | 准备工作 | 0 | 0 | 0.5h | 1 |
 | Phase 1 | 3 | 26 | 2h | 3 |
-| Phase 2 | 2 | 13 | 1.5h | 2 |
+| Phase 2 | 2 | 15 | 1.5h | 2 |
 | Phase 3 | 2 | 22 | 2.5h | 2 |
 | Phase 4 | 2 | 17 | 2h | 2 |
 | 收尾 | 0 | 0 | 0.5h | 1 |
-| **合计** | **9** | **~78** | **~9.5h** | **11** |
+| **合计** | **9** | **80** | **~9.5h** | **11** |
 
 ## 9. 约束与风险
 
