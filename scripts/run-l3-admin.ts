@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * L3 Admin Browser E2E Test Runner
  *
@@ -29,10 +30,10 @@
  *   NEXT_PUBLIC_CAP_API_ENDPOINT — optional, forwarded if set.
  */
 
+import { type ChildProcess, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Subprocess, spawn } from "bun";
 import {
 	L3_API_KEY,
 	L3_JWT_SECRET,
@@ -40,6 +41,7 @@ import {
 	type LocalWorkerHandle,
 	startLocalL3Worker,
 } from "./lib/l3-local-worker";
+import { killTree, spawnDetached } from "./lib/process-tree";
 
 // ─── Configuration ─────────────────────────────────────────────
 
@@ -51,8 +53,12 @@ const TEST_ADMIN_EMAIL_DEFAULT = "e2e-admin@test.local";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
+// Same rationale as scripts/run-l3.ts: skip the `bun run dev:admin → bun run
+// --filter admin dev` wrapper chain and call apps/admin's next directly so
+// killTree() can reach the next-server worker.
+const NEXT_BIN = resolve(REPO_ROOT, "apps/admin/node_modules/.bin/next");
 
-let serverProcess: Subprocess | null = null;
+let serverProcess: ChildProcess | null = null;
 let workerHandle: LocalWorkerHandle | null = null;
 
 // ─── Env loading ───────────────────────────────────────────────
@@ -116,11 +122,8 @@ function resolveAdminEnv(): { email: string; whitelist: string } {
 
 async function startServer(adminEnv: { email: string; whitelist: string }): Promise<void> {
 	console.log(`🚀 Starting Admin Next.js on port ${TEST_PORT}…`);
-	serverProcess = spawn({
-		cmd: ["bun", "run", "dev:admin", "--", "--port", String(TEST_PORT)],
-		cwd: REPO_ROOT,
-		stdout: "inherit",
-		stderr: "inherit",
+	serverProcess = spawnDetached(NEXT_BIN, ["dev", "--turbopack", "-p", String(TEST_PORT)], {
+		cwd: resolve(REPO_ROOT, "apps/admin"),
 		env: {
 			...process.env,
 			NODE_ENV: "test",
@@ -156,14 +159,9 @@ async function waitForServer(): Promise<void> {
 	throw new Error(`Admin dev server did not become ready within ${SERVER_READY_TIMEOUT_MS}ms`);
 }
 
-function stopServer(): void {
+async function stopServer(): Promise<void> {
 	if (!serverProcess) return;
-	console.log("🛑 Stopping Admin dev server…");
-	try {
-		serverProcess.kill();
-	} catch {
-		// ignore
-	}
+	await killTree(serverProcess, "Next.js dev server (admin)");
 	serverProcess = null;
 }
 
@@ -171,9 +169,9 @@ function stopServer(): void {
 
 async function runPlaywright(adminEnv: { email: string; whitelist: string }): Promise<number> {
 	console.log("🎭 Running Playwright (admin project only)…");
-	const proc = spawn({
-		cmd: [
-			"bunx",
+	const result = spawnSync(
+		"bunx",
+		[
 			"playwright",
 			"test",
 			"-c",
@@ -183,27 +181,35 @@ async function runPlaywright(adminEnv: { email: string; whitelist: string }): Pr
 			// callers can target a single spec like the forum runner does.
 			...process.argv.slice(2),
 		],
-		cwd: REPO_ROOT,
-		stdout: "inherit",
-		stderr: "inherit",
-		stdin: "inherit",
-		// NODE_ENV must reach the Playwright worker process — the loginAsAdmin
-		// fixture's hard guard checks it before minting a session cookie. The
-		// AUTH_SECRET / ADMIN_EMAILS / E2E_ADMIN_EMAIL must also reach the
-		// fixture so the cookie verifies against the same secret the server uses.
-		env: {
-			...process.env,
-			NODE_ENV: "test",
-			AUTH_SECRET: L3_JWT_SECRET,
-			ADMIN_EMAILS: adminEnv.whitelist,
-			E2E_ADMIN_EMAIL: adminEnv.email,
+		{
+			cwd: REPO_ROOT,
+			stdio: "inherit",
+			// NODE_ENV must reach the Playwright worker process — the loginAsAdmin
+			// fixture's hard guard checks it before minting a session cookie. The
+			// AUTH_SECRET / ADMIN_EMAILS / E2E_ADMIN_EMAIL must also reach the
+			// fixture so the cookie verifies against the same secret the server uses.
+			env: {
+				...process.env,
+				NODE_ENV: "test",
+				AUTH_SECRET: L3_JWT_SECRET,
+				ADMIN_EMAILS: adminEnv.whitelist,
+				E2E_ADMIN_EMAIL: adminEnv.email,
+			},
 		},
-	});
-	const code = await proc.exited;
-	return typeof code === "number" ? code : 1;
+	);
+	if (result.error) {
+		console.error("playwright spawn error:", result.error);
+		return 1;
+	}
+	return result.status ?? 1;
 }
 
 // ─── Main ──────────────────────────────────────────────────────
+
+async function cleanup(): Promise<void> {
+	await stopServer();
+	await workerHandle?.stop();
+}
 
 async function main(): Promise<void> {
 	let exitCode = 1;
@@ -217,17 +223,14 @@ async function main(): Promise<void> {
 		console.error("❌ Admin L3 runner failed:", err instanceof Error ? err.message : err);
 		exitCode = 1;
 	} finally {
-		stopServer();
-		workerHandle?.stop();
+		await cleanup();
 	}
 	process.exit(exitCode);
 }
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
 	process.on(sig, () => {
-		stopServer();
-		workerHandle?.stop();
-		process.exit(130);
+		cleanup().finally(() => process.exit(130));
 	});
 }
 

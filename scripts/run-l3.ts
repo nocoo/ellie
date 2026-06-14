@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * L3 Browser E2E Test Runner — Forum app
  *
@@ -25,9 +26,9 @@
  *   bun run scripts/run-l3.ts tests/e2e/bdd/navigation.spec.ts  # forwarded
  */
 
+import { type ChildProcess, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Subprocess, spawn } from "bun";
 import {
 	L3_API_KEY,
 	L3_JWT_SECRET,
@@ -35,6 +36,7 @@ import {
 	type LocalWorkerHandle,
 	startLocalL3Worker,
 } from "./lib/l3-local-worker";
+import { killTree, spawnDetached } from "./lib/process-tree";
 
 const TEST_PORT = 27031; // Forum dev port — see docs/e2e-test-design.md
 const BASE_URL = `http://localhost:${TEST_PORT}`;
@@ -42,19 +44,22 @@ const SERVER_READY_TIMEOUT_MS = 90_000;
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
+// Skip the `bun run dev → bun run dev:forum → bun run --filter web dev`
+// wrapper chain and call next directly. The wrapper chain hides next-server
+// behind two intermediate bun processes that drop signals; spawning next
+// directly (still in a new process group) means killTree() reaches the
+// next-server worker that next forks for HMR.
+const NEXT_BIN = resolve(REPO_ROOT, "apps/web/node_modules/.bin/next");
 
-let serverProcess: Subprocess | null = null;
+let serverProcess: ChildProcess | null = null;
 let workerHandle: LocalWorkerHandle | null = null;
 
 // ─── Server lifecycle ──────────────────────────────────────────
 
 async function startServer(): Promise<void> {
 	console.log(`🚀 Starting Next.js (forum) on port ${TEST_PORT}…`);
-	serverProcess = spawn({
-		cmd: ["bun", "run", "dev", "--port", String(TEST_PORT)],
-		cwd: REPO_ROOT,
-		stdout: "inherit",
-		stderr: "inherit",
+	serverProcess = spawnDetached(NEXT_BIN, ["dev", "--turbopack", "-p", String(TEST_PORT)], {
+		cwd: resolve(REPO_ROOT, "apps/web"),
 		env: {
 			...process.env,
 			NODE_ENV: "test",
@@ -96,14 +101,11 @@ async function waitForServer(): Promise<void> {
 	throw new Error(`Dev server did not become ready within ${SERVER_READY_TIMEOUT_MS}ms`);
 }
 
-function stopServer(): void {
+async function stopServer(): Promise<void> {
 	if (!serverProcess) return;
-	console.log("🛑 Stopping dev server…");
-	try {
-		serverProcess.kill();
-	} catch {
-		// ignore
-	}
+	// next dev forks a next-server worker; killTree signals the whole
+	// process group so the worker dies with its parent.
+	await killTree(serverProcess, "Next.js dev server (forum)");
 	serverProcess = null;
 }
 
@@ -152,9 +154,9 @@ async function prewarmRoutes(): Promise<void> {
 
 async function runPlaywright(): Promise<number> {
 	console.log("🎭 Running Playwright…");
-	const proc = spawn({
-		cmd: [
-			"bunx",
+	const result = spawnSync(
+		"bunx",
+		[
 			"playwright",
 			"test",
 			"-c",
@@ -173,17 +175,25 @@ async function runPlaywright(): Promise<number> {
 			// server lifecycle code here.
 			...process.argv.slice(2),
 		],
-		cwd: REPO_ROOT,
-		stdout: "inherit",
-		stderr: "inherit",
-		stdin: "inherit",
-		env: process.env,
-	});
-	const code = await proc.exited;
-	return typeof code === "number" ? code : 1;
+		{
+			cwd: REPO_ROOT,
+			stdio: "inherit",
+			env: process.env,
+		},
+	);
+	if (result.error) {
+		console.error("playwright spawn error:", result.error);
+		return 1;
+	}
+	return result.status ?? 1;
 }
 
 // ─── Main ──────────────────────────────────────────────────────
+
+async function cleanup(): Promise<void> {
+	await stopServer();
+	await workerHandle?.stop();
+}
 
 async function main(): Promise<void> {
 	let exitCode = 1;
@@ -196,17 +206,16 @@ async function main(): Promise<void> {
 		console.error("❌ L3 runner failed:", err instanceof Error ? err.message : err);
 		exitCode = 1;
 	} finally {
-		stopServer();
-		workerHandle?.stop();
+		await cleanup();
 	}
 	process.exit(exitCode);
 }
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
 	process.on(sig, () => {
-		stopServer();
-		workerHandle?.stop();
-		process.exit(130);
+		// Fire-and-forget; the await chain inside cleanup() still gives
+		// killTree time to escalate to SIGKILL before the parent exits.
+		cleanup().finally(() => process.exit(130));
 	});
 }
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Shared local Worker lifecycle for L3 forum + admin runners.
  *
@@ -18,10 +19,12 @@
  *     the persist dir on each start to guarantee determinism.
  */
 
+import type { ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Subprocess, spawn } from "bun";
+import { spawn } from "bun";
+import { killTree, spawnDetached } from "./process-tree";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 // scripts/lib/l3-local-worker.ts → repo root is two levels up.
@@ -52,7 +55,7 @@ export const L3_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 
 export type LocalWorkerHandle = {
 	url: string;
-	stop: () => void;
+	stop: () => Promise<void>;
 };
 
 function cleanupState(): void {
@@ -134,7 +137,7 @@ async function seedDatabase(): Promise<void> {
 	);
 }
 
-async function waitForWorker(proc: Subprocess): Promise<void> {
+async function waitForWorker(proc: ChildProcess): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < WORKER_READY_TIMEOUT_MS) {
 		if (proc.exitCode != null) {
@@ -176,9 +179,9 @@ export async function startLocalL3Worker(): Promise<LocalWorkerHandle> {
 	await seedDatabase();
 
 	console.log(`🚀 Starting L3 Worker (wrangler dev --local) on port ${L3_WORKER_PORT}…`);
-	const proc = spawn({
-		cmd: [
-			WRANGLER_BIN,
+	const proc = spawnDetached(
+		WRANGLER_BIN,
+		[
 			"dev",
 			"-c",
 			WRANGLER_CONFIG,
@@ -194,35 +197,29 @@ export async function startLocalL3Worker(): Promise<LocalWorkerHandle> {
 			"--var",
 			`JWT_SECRET:${L3_JWT_SECRET}`,
 		],
-		cwd: REPO_ROOT,
-		stdout: "inherit",
-		stderr: "inherit",
-		env: { ...process.env, NODE_ENV: "test" },
-	});
+		{
+			cwd: REPO_ROOT,
+			env: { ...process.env, NODE_ENV: "test" },
+		},
+	);
 
 	try {
 		await waitForWorker(proc);
 	} catch (err) {
-		try {
-			proc.kill();
-		} catch {
-			// ignore
-		}
+		await killTree(proc, "L3 Worker (startup failure)");
 		throw err;
 	}
 
 	let stopped = false;
 	return {
 		url: L3_WORKER_URL,
-		stop() {
+		async stop() {
 			if (stopped) return;
 			stopped = true;
-			console.log("🛑 Stopping L3 Worker…");
-			try {
-				proc.kill();
-			} catch {
-				// ignore
-			}
+			// wrangler dev spawns a workerd grandchild; killing only the
+			// immediate child leaves workerd holding port 8788. killTree
+			// signals the whole process group so the grandchild dies too.
+			await killTree(proc, "L3 Worker");
 		},
 	};
 }
