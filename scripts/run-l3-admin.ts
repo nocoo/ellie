@@ -5,33 +5,41 @@
  * Mirrors scripts/run-l3.ts but boots the Admin app on port 7032 and only
  * runs Playwright's `admin` project. Kept as a separate runner so the forum
  * L3 loop and the admin L3 loop can run independently — neither needs the
- * other's dev server up.
+ * other's dev server up. Both reuse the shared local-Worker lifecycle
+ * (scripts/lib/l3-local-worker.ts) so the Worker side stays in lockstep.
  *
- *   1. Load .env.local → .env.test → apps/admin/.env.local → apps/admin/.env.test
- *      (later wins). Admin-scoped env files are loaded after the root files
- *      so the admin app can override shared vars (e.g. ADMIN_EMAILS).
- *   2. Validate D1 test isolation (Worker URL must point at a *-test worker)
- *      + presence of AUTH_SECRET / FORUM_API_KEY / ADMIN_EMAILS.
- *   3. Boot `bun run dev:admin --port 7032` with NODE_ENV=test.
- *   4. Poll http://localhost:7032/login until 200 (max 90s) — the login page
- *      renders without a session, so it's a stable readiness probe.
- *   5. Run Playwright with `--project=admin` and forward the exit code.
- *   6. Tear down the dev server.
+ *   1. Start a clean local Worker via `wrangler dev --local` (shared helper).
+ *   2. Boot `bun run dev:admin --port 7032` with NODE_ENV=test, WORKER_API_URL
+ *      pointed at the local Worker, and admin-specific env (ADMIN_EMAILS +
+ *      AUTH_SECRET) injected.
+ *   3. Poll http://localhost:7032/login until 200 (max 90s).
+ *   4. Run Playwright with `--project=admin` and forward the exit code.
+ *   5. Tear down the dev server and the local Worker.
  *
- * Required env (typically supplied by .env.test in dev or CI secrets):
- *   AUTH_SECRET     — NextAuth JWT signing key (must match what loginAsAdmin
- *                     fixture uses to mint the session cookie)
- *   ADMIN_EMAILS    — comma-separated whitelist; MUST include the fixture's
- *                     test admin email (default: e2e-admin@test.local)
- *   WORKER_API_URL  — must contain "-test" (D1 isolation guard); admin server
- *                     components hit Worker via this URL
- *   FORUM_API_KEY   — admin proxy uses this Key A to call Worker admin routes
+ * Ref: docs/23-l3-bdd-refactor.md §Phase 0.2 (task #14). Removed the
+ * remote-test-Worker dependency: L3 admin is now fully local — no
+ * `WORKER_URL_TEST` env required.
+ *
+ * Admin-only env that still matters:
+ *   ADMIN_EMAILS    — comma-separated whitelist. Defaults to the built-in
+ *                     test admin email so a fresh checkout can run admin L3
+ *                     without any .env edits; override via env to add more.
+ *   E2E_ADMIN_EMAIL — optional override for the admin email the
+ *                     loginAsAdmin fixture mints a session for.
+ *   NEXT_PUBLIC_CAP_API_ENDPOINT — optional, forwarded if set.
  */
 
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Subprocess, spawn } from "bun";
+import {
+	L3_API_KEY,
+	L3_JWT_SECRET,
+	L3_WORKER_URL,
+	type LocalWorkerHandle,
+	startLocalL3Worker,
+} from "./lib/l3-local-worker";
 
 // ─── Configuration ─────────────────────────────────────────────
 
@@ -45,6 +53,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 
 let serverProcess: Subprocess | null = null;
+let workerHandle: LocalWorkerHandle | null = null;
 
 // ─── Env loading ───────────────────────────────────────────────
 
@@ -75,61 +84,37 @@ async function loadEnvFile(path: string): Promise<void> {
 }
 
 async function loadEnv(): Promise<void> {
-	console.log("📦 Loading env files…");
-	// Root-scoped first (shared with forum L3), then admin-scoped overrides.
+	console.log("📦 Loading admin env files (optional overrides)…");
+	// Root + admin-scoped overrides. None are required — the runner supplies
+	// safe defaults for ADMIN_EMAILS so a fresh checkout works; these files
+	// just let teams override the whitelist or attach a Cap.js endpoint.
 	await loadEnvFile(resolve(REPO_ROOT, ".env.local"));
 	await loadEnvFile(resolve(REPO_ROOT, ".env.test"));
 	await loadEnvFile(resolve(REPO_ROOT, "apps/admin/.env.local"));
 	await loadEnvFile(resolve(REPO_ROOT, "apps/admin/.env.test"));
 }
 
-// ─── Pre-flight validation ─────────────────────────────────────
+// ─── Pre-flight ────────────────────────────────────────────────
 
-function validateAndOverride(): void {
-	console.log("🔒 Validating admin L3 pre-flight…");
-
-	const workerUrl = process.env.WORKER_API_URL ?? "";
-	if (!workerUrl) {
-		throw new Error(
-			"WORKER_API_URL is not set. Admin L3 requires a deployed test Worker " +
-				"(set WORKER_API_URL or supply WORKER_URL_TEST in CI).",
-		);
-	}
-	if (!/-test(\.|\/|$)/.test(workerUrl) && !workerUrl.includes("ellie-test")) {
-		throw new Error(
-			`WORKER_API_URL=${workerUrl} does not look like a TEST worker. Refusing to run L3 against a non-test backend (D1 isolation).`,
-		);
-	}
-	console.log(`   ✅ Worker URL points at test backend: ${workerUrl}`);
-
-	for (const key of ["AUTH_SECRET", "FORUM_API_KEY", "ADMIN_EMAILS"] as const) {
-		if (!process.env[key]) {
-			throw new Error(`Required env var ${key} is missing.`);
-		}
-	}
-	console.log("   ✅ AUTH_SECRET, FORUM_API_KEY, ADMIN_EMAILS present");
-
-	// The admin-auth smoke spec mints a session cookie for this email; if it's
-	// not in the whitelist the gate will redirect and the spec will fail with
-	// a confusing message instead of an explicit pre-flight error.
-	const testAdminEmail = process.env.E2E_ADMIN_EMAIL ?? TEST_ADMIN_EMAIL_DEFAULT;
-	const whitelist = new Set(
-		(process.env.ADMIN_EMAILS ?? "")
-			.split(",")
-			.map((e) => e.trim().toLowerCase())
-			.filter(Boolean),
-	);
-	if (!whitelist.has(testAdminEmail.toLowerCase())) {
-		throw new Error(
-			`ADMIN_EMAILS does not include the test admin email "${testAdminEmail}". Add it to .env.test (or apps/admin/.env.test) so the loginAsAdmin fixture can pass the admin gate.`,
-		);
-	}
-	console.log(`   ✅ ADMIN_EMAILS contains test admin "${testAdminEmail}"`);
+function resolveAdminEnv(): { email: string; whitelist: string } {
+	const email = (process.env.E2E_ADMIN_EMAIL ?? TEST_ADMIN_EMAIL_DEFAULT).trim().toLowerCase();
+	// If ADMIN_EMAILS is unset OR doesn't include the test admin, default to
+	// the test admin so the admin gate lets loginAsAdmin through. This used
+	// to require an explicit .env entry, which made fresh-checkout L3 fail
+	// with a confusing redirect; safe defaults keep the runner self-contained.
+	const declared = (process.env.ADMIN_EMAILS ?? "")
+		.split(",")
+		.map((e) => e.trim().toLowerCase())
+		.filter(Boolean);
+	if (!declared.includes(email)) declared.push(email);
+	const whitelist = declared.join(",");
+	console.log(`   ✅ admin email "${email}" present in ADMIN_EMAILS whitelist`);
+	return { email, whitelist };
 }
 
 // ─── Server lifecycle ──────────────────────────────────────────
 
-async function startServer(): Promise<void> {
+async function startServer(adminEnv: { email: string; whitelist: string }): Promise<void> {
 	console.log(`🚀 Starting Admin Next.js on port ${TEST_PORT}…`);
 	serverProcess = spawn({
 		cmd: ["bun", "run", "dev:admin", "--", "--port", String(TEST_PORT)],
@@ -139,6 +124,13 @@ async function startServer(): Promise<void> {
 		env: {
 			...process.env,
 			NODE_ENV: "test",
+			WORKER_API_URL: L3_WORKER_URL,
+			FORUM_API_KEY: L3_API_KEY,
+			AUTH_SECRET: L3_JWT_SECRET,
+			JWT_SECRET: L3_JWT_SECRET,
+			ADMIN_EMAILS: adminEnv.whitelist,
+			E2E_ADMIN_EMAIL: adminEnv.email,
+			NEXT_PUBLIC_CAP_API_ENDPOINT: process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "",
 		},
 	});
 	await waitForServer();
@@ -177,19 +169,35 @@ function stopServer(): void {
 
 // ─── Playwright ────────────────────────────────────────────────
 
-async function runPlaywright(): Promise<number> {
+async function runPlaywright(adminEnv: { email: string; whitelist: string }): Promise<number> {
 	console.log("🎭 Running Playwright (admin project only)…");
 	const proc = spawn({
-		cmd: ["bunx", "playwright", "test", "-c", "playwright.config.ts", "--project=admin"],
+		cmd: [
+			"bunx",
+			"playwright",
+			"test",
+			"-c",
+			"playwright.config.ts",
+			"--project=admin",
+			// Forward extra CLI args (file filters, --reporter=json, etc.) so
+			// callers can target a single spec like the forum runner does.
+			...process.argv.slice(2),
+		],
 		cwd: REPO_ROOT,
 		stdout: "inherit",
 		stderr: "inherit",
 		stdin: "inherit",
 		// NODE_ENV must reach the Playwright worker process — the loginAsAdmin
 		// fixture's hard guard checks it before minting a session cookie. The
-		// parent runner doesn't set its own NODE_ENV, so we inject it here too
-		// (same as we do for the dev server in startServer()).
-		env: { ...process.env, NODE_ENV: "test" },
+		// AUTH_SECRET / ADMIN_EMAILS / E2E_ADMIN_EMAIL must also reach the
+		// fixture so the cookie verifies against the same secret the server uses.
+		env: {
+			...process.env,
+			NODE_ENV: "test",
+			AUTH_SECRET: L3_JWT_SECRET,
+			ADMIN_EMAILS: adminEnv.whitelist,
+			E2E_ADMIN_EMAIL: adminEnv.email,
+		},
 	});
 	const code = await proc.exited;
 	return typeof code === "number" ? code : 1;
@@ -201,14 +209,16 @@ async function main(): Promise<void> {
 	let exitCode = 1;
 	try {
 		await loadEnv();
-		validateAndOverride();
-		await startServer();
-		exitCode = await runPlaywright();
+		const adminEnv = resolveAdminEnv();
+		workerHandle = await startLocalL3Worker();
+		await startServer(adminEnv);
+		exitCode = await runPlaywright(adminEnv);
 	} catch (err) {
 		console.error("❌ Admin L3 runner failed:", err instanceof Error ? err.message : err);
 		exitCode = 1;
 	} finally {
 		stopServer();
+		workerHandle?.stop();
 	}
 	process.exit(exitCode);
 }
@@ -216,6 +226,7 @@ async function main(): Promise<void> {
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
 	process.on(sig, () => {
 		stopServer();
+		workerHandle?.stop();
 		process.exit(130);
 	});
 }
