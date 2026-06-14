@@ -7,6 +7,14 @@ set -euo pipefail
 # `next dev` or `next build`. If app/ source is newer than the generated
 # types, tsc silently skips route type validation. This script detects
 # staleness and rebuilds types before running tsc.
+#
+# Also gates: INIT_SQL freshness — when migrations change without a
+# matching `bun run prepare:test-sql`, fail here so L2-fast keeps in sync.
+# (See docs/23-local-test-stack.md §2.2.1.)
+
+# INIT_SQL freshness check — fails fast if apps/worker/src/test-support/
+# init-sql.generated.ts is out of sync with apps/worker/migrations/.
+bun run prepare:test-sql --check
 
 check_route_types() {
   local app_dir="$1"

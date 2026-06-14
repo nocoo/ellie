@@ -56,6 +56,7 @@
 		"test:e2e:admin": "bun run scripts/run-l3-admin.ts",
 		"test:e2e:bdd": "bun run test:e2e:browser && bun run test:e2e:admin",
 		"typecheck": "bash scripts/typecheck.sh",
+		"prepare:test-sql": "bun run scripts/build-init-sql.ts",
 		"lint": "biome check --error-on-warnings .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",

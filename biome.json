@@ -73,7 +73,8 @@
 			"!**/*.tsbuildinfo",
 			"!**/packages/**/*/src/**/*.js",
 			"!**/packages/**/*/src/**/*.js.map",
-			"!**/packages/**/*/src/**/*.d.ts"
+			"!**/packages/**/*/src/**/*.d.ts",
+			"!**/test-support/init-sql.generated.ts"
 		]
 	},
 	"overrides": [

@@ -14,10 +14,10 @@ export interface Repositories {
  */
 export declare function resetStore(): void;
 export declare function createRepositories(): Repositories;
-export * from "./types";
-export { createMockDataStore, type MockDataStore } from "./mock/store";
 export { createMockAttachmentRepository } from "./attachment.repository";
 export { createMockForumRepository } from "./forum.repository";
+export { createMockDataStore, type MockDataStore } from "./mock/store";
 export { createMockPostRepository } from "./post.repository";
 export { createMockThreadRepository } from "./thread.repository";
+export * from "./types";
 export { createMockUserRepository } from "./user.repository";
