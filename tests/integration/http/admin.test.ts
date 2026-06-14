@@ -1,4 +1,4 @@
-// tests/integration/worker/admin.test.ts — L2 Worker Admin API Tests
+// tests/integration/http/admin.test.ts — L2 Worker Admin API Tests
 // Tests admin endpoints: forums, threads, posts, users, settings, etc.
 
 import { describe, expect, test } from "bun:test";

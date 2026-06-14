@@ -1,4 +1,4 @@
-// tests/integration/worker/thread-types.test.ts — L2 forum_thread_types coverage
+// tests/integration/http/thread-types.test.ts — L2 forum_thread_types coverage
 //
 // Pins the route × method surface for the per-forum "主题分类" feature:
 //

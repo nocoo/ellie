@@ -1,4 +1,4 @@
-// tests/integration/worker/messaging.test.ts — L2 Worker Messaging API Tests
+// tests/integration/http/messaging.test.ts — L2 Worker Messaging API Tests
 // Tests private messaging: list, create, get, delete, unread-count, mark-all-read
 
 import { describe, expect, test } from "bun:test";

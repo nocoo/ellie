@@ -1,4 +1,4 @@
-// tests/integration/worker/auth.test.ts — L2 Worker Auth API Tests
+// tests/integration/http/auth.test.ts — L2 Worker Auth API Tests
 // Tests auth endpoints: login, register, refresh, logout, me, check-username
 
 import { describe, expect, test } from "bun:test";

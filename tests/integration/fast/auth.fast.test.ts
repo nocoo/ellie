@@ -1,7 +1,7 @@
 /**
  * tests/integration/fast/auth.fast.test.ts — auth endpoint 4xx edges.
  *
- * Mirrors tests/integration/worker/auth.test.ts using the in-process
+ * Mirrors tests/integration/http/auth.test.ts using the in-process
  * Worker. Covers credential validation, missing fields, and the JWT
  * gate on /api/v1/auth/me.
  */

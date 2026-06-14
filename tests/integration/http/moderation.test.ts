@@ -1,4 +1,4 @@
-// tests/integration/worker/moderation.test.ts — L2 Worker Moderation API Tests
+// tests/integration/http/moderation.test.ts — L2 Worker Moderation API Tests
 // Tests moderation endpoints: thread actions, post actions, user moderation
 
 import { describe, expect, test } from "bun:test";

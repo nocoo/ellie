@@ -1,4 +1,4 @@
-// tests/integration/worker/user-content.test.ts — L2 Worker User Content Tests
+// tests/integration/http/user-content.test.ts — L2 Worker User Content Tests
 // Tests user content CRUD: create thread/post, edit/delete own content
 
 import { describe, expect, test } from "bun:test";

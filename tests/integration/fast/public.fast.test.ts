@@ -2,7 +2,7 @@
  * tests/integration/fast/public.fast.test.ts — read-side public endpoints,
  * 4xx edge cases that don't need fixtures.
  *
- * Mirrors the corresponding paths in tests/integration/worker/public.test.ts
+ * Mirrors the corresponding paths in tests/integration/http/public.test.ts
  * but runs in-process (no wrangler). Covers the API gate's pass-through
  * for /api/v1/* + the handlers' 404/400 emission shape on missing rows.
  */

@@ -1,4 +1,4 @@
-// tests/integration/worker/analytics.test.ts — L2 analytics coverage
+// tests/integration/http/analytics.test.ts — L2 analytics coverage
 //
 // Pins the route × method surface for the admin analytics + login/visits
 // audit + internal page-view ingest endpoints:

@@ -1,4 +1,4 @@
-// tests/integration/worker/post-rating.test.ts — L2 post-rating coverage
+// tests/integration/http/post-rating.test.ts — L2 post-rating coverage
 //
 // Pins the route × method surface for the post 评分 feature:
 //

@@ -1,4 +1,4 @@
-// tests/integration/worker/ip-lookup.test.ts — L2 Worker admin ip-lookup
+// tests/integration/http/ip-lookup.test.ts — L2 Worker admin ip-lookup
 // Covers GET /api/admin/ip-lookup added in Phase G.6.
 //
 // L2 environment does NOT set `IP_LOOKUP_API_KEY` (the upstream secret

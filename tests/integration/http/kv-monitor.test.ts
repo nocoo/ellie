@@ -1,4 +1,4 @@
-// tests/integration/worker/kv-monitor.test.ts — L2 Worker KV monitor admin
+// tests/integration/http/kv-monitor.test.ts — L2 Worker KV monitor admin
 // Covers the routes added in the kv-monitor track (commits A → C):
 //   GET  /api/admin/kv/overview
 //   GET  /api/admin/kv/list

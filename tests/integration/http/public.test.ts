@@ -1,4 +1,4 @@
-// tests/integration/worker/public.test.ts — L2 Worker Public API Tests
+// tests/integration/http/public.test.ts — L2 Worker Public API Tests
 // Tests all public endpoints that require only Key A (no JWT)
 
 import { describe, expect, test } from "bun:test";

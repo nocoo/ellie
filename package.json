@@ -46,7 +46,7 @@
 		"test:coverage:types": "vitest run -c packages/types/vitest.config.ts --coverage",
 		"test:coverage:migrate": "vitest run -c packages/migrate/vitest.config.ts --coverage",
 		"test:integration": "bun test --preload ./tests/integration/preload.ts tests/integration/",
-		"test:integration:worker": "bun test --preload ./tests/integration/preload.ts tests/integration/worker/",
+		"test:integration:http": "bun test --preload ./tests/integration/preload.ts tests/integration/http/",
 		"test:integration:proxy": "bun test tests/integration/proxy/",
 		"test:l2:fast": "bun test tests/integration/fast/",
 		"test:l2": "bun run scripts/run-l2.ts",
