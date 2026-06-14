@@ -66,6 +66,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 const ROUTER_FILE = resolve(REPO_ROOT, "apps/worker/src/index.ts");
 const L2_TEST_DIR = resolve(REPO_ROOT, "tests/integration/http");
+const L2_FAST_DIR = resolve(REPO_ROOT, "tests/integration/fast");
 const MATRIX_DOC = resolve(REPO_ROOT, "docs/18-l2-coverage-matrix.md");
 
 /**
@@ -243,32 +244,44 @@ function countDelta(line: string, open: string, close: string): number {
 
 // ─── L2 test scanner ──────────────────────────────────────────────
 
-function listTestFiles(): string[] {
+function listFiles(dir: string): string[] {
 	const out: string[] = [];
-	for (const name of readdirSync(L2_TEST_DIR)) {
-		if (name.endsWith(".test.ts")) out.push(join(L2_TEST_DIR, name));
+	let entries: string[] = [];
+	try {
+		entries = readdirSync(dir);
+	} catch {
+		return out;
+	}
+	for (const name of entries) {
+		if (name.endsWith(".test.ts")) out.push(join(dir, name));
 	}
 	return out.sort();
 }
 
-function parseL2Calls(): L2Call[] {
+function listTestFiles(): string[] {
+	return listFiles(L2_TEST_DIR);
+}
+
+function listFastFiles(): string[] {
+	// L2-fast specs: tests/integration/fast/**/*.fast.test.ts
+	return listFiles(L2_FAST_DIR).filter((f) => f.endsWith(".fast.test.ts"));
+}
+
+function parseCalls(files: string[], layer: "http" | "fast"): L2Call[] {
 	const calls: L2Call[] = [];
 	const helperUnion = Object.keys(HELPER_METHOD).join("|");
-	// Match e.g. workerPost("/api/v1/threads", { … or adminGet(`/api/admin/users/${id}`)
-	// Capture up to the next top-level comma or close-paren so we can sniff
-	// `{ method: "..." }` overrides for workerFetch / workerAuthFetch / adminFetch.
-	const callRe = new RegExp(`\\b(${helperUnion})\\s*\\(\\s*([\`"'])(.*?)\\2([^)]*)`, "g");
-	// Raw `fetch(<worker-url>, init?)` calls used by a small number of L2
-	// suites that target the Worker without going through a helper. We accept
-	// either the literal `http://localhost:8787` prefix the L2 runner boots
-	// against, or a `${getWorkerUrl()}` / `${WORKER_URL}` template prefix, so
-	// that a future helper rename does not silently regress detection.
-	// Same `{ method: "..." }` lookahead applies; default is GET.
+	// http: workerPost("/api/v1/threads", ...); fast: workerFetch(env, "/api/...", ...)
+	// We capture the first string literal/template that starts with "/" so both
+	// signatures work.
+	const callRe = new RegExp(
+		`\\b(${helperUnion})\\s*\\(\\s*(?:\\w+\\s*,\\s*)?([\`"'])(\\/[^\`"']*)\\2([^)]*)`,
+		"g",
+	);
 	const rawFetchRe =
-		/\bfetch\s*\(\s*([`"'])(?:http:\/\/localhost:8787|\$\{(?:getWorkerUrl\(\)|WORKER_URL)\})(\/[^`"'\s]*)\1([^)]*)/g;
+		/\bfetch\s*\(\s*([`"'])(?:http:\/\/localhost:(?:8787|17031)|\$\{(?:getWorkerUrl\(\)|WORKER_URL)\})(\/[^`"'\s]*)\1([^)]*)/g;
 	const methodOverrideRe = /\bmethod\s*:\s*["']([A-Z]+)["']/;
 
-	for (const file of listTestFiles()) {
+	for (const file of files) {
 		const src = readFileSync(file, "utf8");
 		const lines = src.split("\n");
 		for (let i = 0; i < lines.length; i++) {
@@ -280,8 +293,6 @@ function parseL2Calls(): L2Call[] {
 				const rawPath = m[3];
 				const trailing = m[4] ?? "";
 				let method = HELPER_METHOD[helper];
-				// Look ahead a few lines for a `{ method: "..." }` override —
-				// `workerFetch` / `workerAuthFetch` / `adminFetch` accept `init`.
 				const lookahead = [
 					trailing,
 					lines[i + 1] ?? "",
@@ -292,7 +303,7 @@ function parseL2Calls(): L2Call[] {
 				if (ov) method = ov[1];
 				const templatePath = templatize(rawPath);
 				calls.push({
-					helper,
+					helper: `${helper}@${layer}`,
 					method,
 					rawPath,
 					templatePath,
@@ -302,9 +313,6 @@ function parseL2Calls(): L2Call[] {
 				m = callRe.exec(line);
 			}
 
-			// Raw `fetch("http://localhost:8787/...", init?)` — only matches
-			// Worker URLs (literal localhost:8787 prefix or known template
-			// helper). External URLs and non-Worker fetches are ignored.
 			rawFetchRe.lastIndex = 0;
 			let rm: RegExpExecArray | null = rawFetchRe.exec(line);
 			while (rm) {
@@ -321,7 +329,7 @@ function parseL2Calls(): L2Call[] {
 				if (ov) method = ov[1];
 				const templatePath = templatize(rawPath);
 				calls.push({
-					helper: "fetch",
+					helper: `fetch@${layer}`,
 					method,
 					rawPath,
 					templatePath,
@@ -379,6 +387,10 @@ interface CoverageReport {
 	unmatchedCalls: L2Call[];
 }
 
+function parseL2Calls(): L2Call[] {
+	return [...parseCalls(listTestFiles(), "http"), ...parseCalls(listFastFiles(), "fast")];
+}
+
 function buildReport(): CoverageReport {
 	const routes = parseRouter();
 	const calls = parseL2Calls();
@@ -419,10 +431,14 @@ function printSummary(rep: CoverageReport): void {
 	console.log("L2 route × method coverage audit");
 	console.log("─".repeat(60));
 	console.log(`Router file       : ${ROUTER_FILE.replace(`${REPO_ROOT}/`, "")}`);
-	console.log("Test glob         : tests/integration/http/*.test.ts");
+	console.log(
+		"Test glob         : tests/integration/http/*.test.ts + tests/integration/fast/*.fast.test.ts",
+	);
 	console.log(`Total routes      : ${rep.totalRoutes}`);
 	console.log(`Method breakdown  : ${methodLine}`);
-	console.log(`L2 calls scanned  : ${rep.calls.length}`);
+	const fastCalls = rep.calls.filter((c) => c.helper.endsWith("@fast")).length;
+	const httpCalls = rep.calls.length - fastCalls;
+	console.log(`L2 calls scanned  : ${rep.calls.length} (http=${httpCalls}, fast=${fastCalls})`);
 	console.log(`Routes hit        : ${rep.hitRoutes.length}`);
 	console.log(`Routes uncovered  : ${rep.missRoutes.length}`);
 	console.log(`Exemptions        : ${rep.exempt.length}`);
@@ -473,7 +489,9 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push("");
 	lines.push("> **Generated by `scripts/audit-l2-coverage.ts`. Do not edit by hand.**");
 	lines.push("> Re-run with `bun run scripts/audit-l2-coverage.ts --write` after any change");
-	lines.push("> to `apps/worker/src/index.ts` or `tests/integration/http/*.test.ts`.");
+	lines.push(
+		"> to `apps/worker/src/index.ts`, `tests/integration/http/*.test.ts`, or `tests/integration/fast/*.fast.test.ts`.",
+	);
 	lines.push("");
 	lines.push(`Last audit: **${date}**`);
 	lines.push("");
