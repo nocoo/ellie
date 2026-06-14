@@ -668,22 +668,22 @@ console.log(`L2 chose port ${TEST_PORT}`);
 
 ### Phase A — 基础设施（可独立 review，不改任何测试）
 
-| # | Commit | 内容 |
-|---|---|---|
-| A1 | `chore(scripts): add findOpenPort helper` | 新增 `scripts/lib/find-port.ts` + `tests/unit/find-port.test.ts` |
-| A2 | `feat(test-support): extract mock KV/R2 to src/test-support/mocks.ts` | 迁移 + tests/helpers.ts re-export，零行为变化 |
-| A3 | `feat(test-support): generate INIT_SQL from migrations + commit artifact` | 新增 `scripts/build-init-sql.ts`（支持 `--check`）、`apps/worker/src/test-support/init-sql.generated.ts` **commit 进 git**；`package.json` 新增 `prepare:test-sql` script；`scripts/typecheck.sh` 顶部加 `bun run prepare:test-sql --check`（保留既有 route types 检查与 `tsc --build` 流程，详 §2.2.1）；先不接到任何测试 |
-| A4 | `feat(test-support): bun:sqlite → D1 shim with read/write batch dispatch` | 新增 `d1-shim.ts`（含 `isReadStatement`）+ 单测 `tests/unit/d1-shim.test.ts`，覆盖 stats.ts/todayVisits.ts 真实 batch 形态 |
-| A5 | `test: init-sql equiv with wrangler migrations (tmpdir persist-to)` | `tests/unit/init-sql-equiv.test.ts`：mkdtempSync → wrangler migrations apply --local --persist-to → schema hash 对比 |
-| A6 | `feat(scripts): factor cleanup/migrate/seed + worker boot into scripts/lib/` | 从 `run-l2.ts` 提取 `initLocalD1(opts)` → `scripts/lib/local-d1.ts`、`startLocalWorker(opts)` → `scripts/lib/local-worker.ts`（含完整 `TEST_WORKER_VARS`：API_KEY/ADMIN_API_KEY/JWT_SECRET/**ENVIRONMENT:test**/**ALLOWED_ORIGINS:***/DOVE_WEBHOOK_TOKEN）；`run-l2.ts` 改用 helper（**行为变化**：补全 ENVIRONMENT/ALLOWED_ORIGINS 注入，修复现有 bug，详 §2.5 review v4 #1） |
+| # | Commit | 内容 | 状态 |
+|---|---|---|---|
+| A1 | `chore(scripts): add findOpenPort helper` | 新增 `scripts/lib/find-port.ts` + `tests/unit/find-port.test.ts` | ✅ `42504aef` |
+| A2 | `feat(test-support): extract mock KV/R2 to src/test-support/mocks.ts` | 迁移 + tests/helpers.ts re-export，零行为变化 | ✅ `8cc78599`（实际未 re-export：保持 helpers.ts 为 vitest-flavored 不动，src/test-support/mocks.ts 是 bun:test-flavored 并存） |
+| A3 | `feat(test-support): generate INIT_SQL from migrations + commit artifact` | 新增 `scripts/build-init-sql.ts`（支持 `--check`）、`apps/worker/src/test-support/init-sql.generated.ts` **commit 进 git**；`package.json` 新增 `prepare:test-sql` script；`scripts/typecheck.sh` 顶部加 `bun run prepare:test-sql --check`（保留既有 route types 检查与 `tsc --build` 流程，详 §2.2.1）；先不接到任何测试 | ✅ `b68cfaca` |
+| A4 | `feat(test-support): bun:sqlite → D1 shim with read/write batch dispatch` | 新增 `d1-shim.ts`（含 `isReadStatement`）+ 单测 `tests/unit/d1-shim.test.ts`，覆盖 stats.ts/todayVisits.ts 真实 batch 形态 | ✅ `2c2c416e`（拆为 vitest `d1-shim.test.ts` 测 `isReadStatement`；bun:test `d1-shim.bun.test.ts` 测 SQLite 集成） |
+| A5 | `test: init-sql equiv with wrangler migrations (tmpdir persist-to)` | `tests/unit/init-sql-equiv.test.ts`：mkdtempSync → wrangler migrations apply --local --persist-to → schema hash 对比 | ✅ `221d5dbb`（实际改用直接读 SQLite 文件，wrangler d1 execute --json 在 bun spawnSync 下 stdout 丢失） |
+| A6 | `feat(scripts): factor cleanup/migrate/seed + worker boot into scripts/lib/` | 从 `run-l2.ts` 提取 `initLocalD1(opts)` → `scripts/lib/local-d1.ts`、`startLocalWorker(opts)` → `scripts/lib/local-worker.ts`（含完整 `TEST_WORKER_VARS`：API_KEY/ADMIN_API_KEY/JWT_SECRET/**ENVIRONMENT:test**/**ALLOWED_ORIGINS:***/DOVE_WEBHOOK_TOKEN）；`run-l2.ts` 改用 helper（**行为变化**：补全 ENVIRONMENT/ALLOWED_ORIGINS 注入，修复现有 bug，详 §2.5 review v4 #1） | ✅ `d9b697bf`（再拆出 `scripts/lib/test-worker-vars.ts` 纯数据模块，让 vitest 也能 import） |
 
 ### Phase B — L2-fast 落地（递增覆盖）
 
-| # | Commit | 内容 |
-|---|---|---|
-| B1 | `feat(l2-fast): add tests/integration/fast/_helpers + first auth specs` | env.ts（含 `createTestCtx`/`setCurrentTestCtx`/`flushCurrentTestCtx` + `workerFetch`/`workerFetchWithCtx`，详 §2.3 review v4 #3）、setup.ts（`beforeEach`/`afterEach` harness）、fixtures.ts、3-5 个最简 fast 用例（auth login 401/400 等） |
-| B2 | `chore(scripts): add bun run test:l2:fast` | package.json + run-l2-fast.ts（不需要 wrangler 子进程） |
-| B3..Bn | `test(l2-fast): port <module>` × N | 按模块迁移 — auth, public, user-content, messaging, post-rating, moderation, admin, analytics, kv-monitor, ip-lookup, thread-types。每个独立 commit，便于回退 |
+| # | Commit | 内容 | 状态 |
+|---|---|---|---|
+| B1 | `feat(l2-fast): add tests/integration/fast/_helpers + first auth specs` | env.ts（含 `createTestCtx`/`setCurrentTestCtx`/`flushCurrentTestCtx` + `workerFetch`/`workerFetchWithCtx`，详 §2.3 review v4 #3）、setup.ts（`beforeEach`/`afterEach` harness）、fixtures.ts、3-5 个最简 fast 用例（auth login 401/400 等） | ✅ `90c4fccd`（首批 7 用例覆盖 /api/live + dual-key API gate；auth login 等留给 B3） |
+| B2 | `chore(scripts): add bun run test:l2:fast` | package.json + 不需要 wrangler 子进程 | ✅ `3dcaedeb`（直接 `bun test tests/integration/fast/`；并把 run-l2.ts 改为只跑 worker/+proxy/，避开重复跑 fast） |
+| B3..Bn | `test(l2-fast): port <module>` × N | 按模块迁移 — auth, public, user-content, messaging, post-rating, moderation, admin, analytics, kv-monitor, ip-lookup, thread-types。每个独立 commit，便于回退 | ⏳ 未实施（本期止于 B2，B3+ 为后续迭代） |
 
 > 迁移策略：新写一份 `*.fast.test.ts`，旧的 `tests/integration/worker/*.test.ts` 暂留；最后一次性 `mv` 到 `tests/integration/http/`。
 
@@ -937,5 +937,43 @@ bun x wrangler d1 execute tongjinet-db-test --remote --command \
 - §13.1 / §13.2 改动随 phase 同步是为了让"老 8787 / 7032 / `tongjinet-db-test` 名字"与代码同时下线，避免文档与代码漂移期。
 - §13.3 中标记 `Phase E3` 的属于"E3 docs 收口" commit，可一次性扫净。
 - **本期 Phase B-D 实施时**，每改一处端口/资源名都对照本表勾选（追加到 §12 修订记录中），保证零遗漏。
+
+---
+
+## 14. 实施回顾（2026-06-14 第一轮：Phase A1–B2 落地）
+
+按 §6 commit chain 严格原子化提交。每个 commit 触发 pre-commit (lint-staged + L1 coverage + L2 + gitleaks + typecheck + INIT_SQL --check)，全部绿色通过：
+
+| # | Commit | 描述 |
+|---|---|---|
+| A1 | `42504aef` | `chore(scripts): add findOpenPort helper` |
+| A2 | `8cc78599` | `feat(worker): vitest-free mock KV/R2 in src/test-support/mocks.ts` |
+| A3 | `b68cfaca` | `feat(test-support): generate INIT_SQL from migrations + commit artifact` |
+| A4 | `2c2c416e` | `feat(test-support): bun:sqlite → D1 shim with read/write batch dispatch` |
+| A5 | `221d5dbb` | `test(test-support): init-sql equivalence with wrangler migrations` |
+| A6 | `d9b697bf` | `feat(scripts): factor cleanup/migrate/seed + worker boot into scripts/lib/` |
+| B1 | `90c4fccd` | `feat(l2-fast): add tests/integration/fast/_helpers + first specs` |
+| B2 | `3dcaedeb` | `chore(scripts): add test:l2:fast script + exclude fast/ from run-l2` |
+
+**实施期间发现并修订的偏差**：
+
+1. **A2 策略调整**：原计划"helpers.ts re-export"会导致 L1 现有 130 个 vitest 测试中的 `vi.fn` spy 失效（`mock.calls`/`toHaveBeenCalled` 不再可用）。改为：`apps/worker/src/test-support/mocks.ts` 写一份 pure-function 版（给 L2-fast bun:test 用），`apps/worker/tests/helpers.ts` 保留原 `vi.fn` 版本不动（给 L1 vitest 用）。两套并存。
+2. **A3 lint 冲突**：`init-sql.generated.ts` 是 1696 行 SQL 拼接，biome formatter 会重排。改 `biome.json` 加 `"!**/test-support/init-sql.generated.ts"` 排除。
+3. **A4 vitest 不识别 bun:sqlite**：拆为 `d1-shim.test.ts`（vitest，仅测 `isReadStatement` 纯函数）+ `d1-shim.bun.test.ts`（bun:test，测真 SQLite 集成）；`apps/worker/vitest.config.ts` 加 `exclude: ["tests/**/*.bun.test.ts"]`。同时 `src/test-support/d1-shim.ts` 和 `init-sql.generated.ts` 从 vitest coverage 排除（运行时只在 bun:test 下用），coverage 阈值（stmt/line/func ≥ 95% / branch ≥ 90%）维持。
+4. **A5 wrangler 输出在 bun spawnSync 下丢失**：`wrangler d1 execute --json` 的 stdout 在本机 bun spawnSync 下 reliably 空。改用 `find <persistDir> -name '*.sqlite' -not metadata.sqlite` glob 后直接 bun:sqlite 读，更稳。
+5. **A6 模块拆分**：原计划 `TEST_WORKER_VARS` 放在 `scripts/lib/local-worker.ts`，但该文件 import `bun`（spawn），vitest 在 Node 下无法 import 它，测不到 vars 常量。新建独立 `scripts/lib/test-worker-vars.ts` 纯数据模块，被 `local-worker.ts` 和 `tests/unit/test-worker-vars.test.ts` 共同 import。
+6. **A6 行为变化的范围**：commit message 明确标注"bug fix"——原 `run-l2.ts:149` 只注入 3 个 var，新的 helper 注入 6 个（含 `ENVIRONMENT:test`/`ALLOWED_ORIGINS:*`）。下游 L2 测试可能依赖 prod CORS 行为（虽然不太可能）；本期 pre-commit L2 通过，证明没有 regression。
+7. **B2 不修改 `test:integration`**：该 script 公开使用、文档引用多。本期只加 `test:l2:fast` 新 script，并把 `scripts/run-l2.ts` 内的 spawn 改为只跑 worker/+proxy/（不影响 `test:integration`）。
+
+**未实施（推迟）**：
+- Phase B3-Bn（各 module fast 用例迁移）— 框架就绪，后续按模块逐个 commit。
+- Phase C/D/E/F — §6 完整列出，本轮不动。
+
+**质量验证**：
+- pre-commit 8 次全绿（lint + L1 coverage thresholds + L2 + typecheck + gitleaks + INIT_SQL --check）。
+- L1 测试集：7,343 unit + 119 worker，coverage 维持在 stmt/line/func ≥ 95% / branch ≥ 90%（最终 96.32/95.23/96.76/90.06）。
+- L2 测试集：352 用例，wall-clock ~7-12s（含 wrangler boot）。
+- L2-fast 新增：7 用例（health + api-key gate），wall-clock ~4s。
+- 等价性：A5 `init-sql-equiv.bun.test.ts` 4/4 通过，证明 INIT_SQL 与 wrangler migrations 等价。
 
 ---
