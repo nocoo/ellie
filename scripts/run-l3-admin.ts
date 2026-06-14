@@ -35,6 +35,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	L3_ADMIN_API_KEY,
 	L3_API_KEY,
 	L3_JWT_SECRET,
 	L3_WORKER_URL,
@@ -129,6 +130,7 @@ async function startServer(adminEnv: { email: string; whitelist: string }): Prom
 			NODE_ENV: "test",
 			WORKER_API_URL: L3_WORKER_URL,
 			FORUM_API_KEY: L3_API_KEY,
+			ADMIN_API_KEY: L3_ADMIN_API_KEY,
 			AUTH_SECRET: L3_JWT_SECRET,
 			JWT_SECRET: L3_JWT_SECRET,
 			ADMIN_EMAILS: adminEnv.whitelist,
