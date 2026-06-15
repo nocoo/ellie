@@ -76,5 +76,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bunx playwright install --with-deps chromium
-      - name: "L3: Playwright E2E tests"
-        run: bun run test:e2e:browser
+      - name: "L3: Playwright E2E tests (forum + admin BDD)"
+        run: bun run test:e2e:bdd
