@@ -12,7 +12,7 @@
 		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
-		"@cloudflare/workers-types": "4.20260613.1",
+		"@cloudflare/workers-types": "4.20260615.1",
 		"@ellie/types": "workspace:*",
 		"crypto-js": "^4.2.0"
 	},
