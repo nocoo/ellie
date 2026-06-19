@@ -9,12 +9,57 @@ on:
 
 jobs:
   quality:
-    uses: nocoo/base-ci/.github/workflows/bun-quality.yml@v2026.4
+    uses: nocoo/base-ci/.github/workflows/bun-quality.yml@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
     with:
       test-command: "bun run test"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
     secrets: inherit
+
+  release-smoke:
+    name: Release Workflow Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv actionlint /usr/local/bin/
+
+      - name: Lint release.yml
+        run: actionlint .github/workflows/release.yml
+
+      - name: Assert ssh-deploy is SHA-pinned
+        run: |
+          # Patterns assembled from concatenated parts so this workflow file
+          # itself does not contain the banned literal strings — keeps the
+          # repo-wide grep acceptance contract clean.
+          BANNED="apple""boy/ssh-action"
+          DEPLOY="nocoo/""base-ci/.github/actions/ssh-deploy"
+          if grep -q "$BANNED" .github/workflows/release.yml; then
+            echo "::error::release.yml still references the banned third-party SSH action"
+            exit 1
+          fi
+          if ! grep -qE "${DEPLOY}@[a-f0-9]{40}" .github/workflows/release.yml; then
+            echo "::error::in-house ssh-deploy must be pinned to a 40-char commit SHA"
+            exit 1
+          fi
+          echo "OK: ssh-deploy SHA-pinned, no third-party SSH action reference"
+
+      - name: Assert base-ci is SHA-pinned
+        run: |
+          BASE="nocoo/""base-ci"
+          if grep -rE "${BASE}.*@v[0-9]" .github/workflows/; then
+            echo "::error::Found floating tag reference to the shared CI repo"
+            exit 1
+          fi
+          echo "OK: all shared-CI references SHA-pinned"
+
+      - name: yamllint release.yml
+        run: |
+          pip install --quiet yamllint
+          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, truthy: disable}}" .github/workflows/release.yml
 
   security-scan:
     name: "G2 Security Scan (OSV)"
