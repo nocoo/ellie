@@ -103,7 +103,7 @@
 		]
 	},
 	"dependencies": {
-		"@base-ui/react": "^1.5.0",
+		"@base-ui/react": "^1.6.0",
 		"@cap.js/widget": "^0.1.56",
 		"@cloudflare/workers-types": "4.20260619.1",
 		"@radix-ui/react-avatar": "^1.2.0",
