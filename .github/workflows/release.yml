@@ -111,7 +111,7 @@ jobs:
               exit 0
             fi
             echo "attempt $i: SSH not reachable yet"
-            sleep 10
+            if [ "$i" != "6" ]; then sleep 10; fi
           done
           echo "❌ SSH host unreachable after 6 attempts"
           exit 1
