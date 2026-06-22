@@ -96,6 +96,26 @@ jobs:
           cache-to: type=gha,mode=max,scope=ellie-admin
 
       # ── Deploy ──
+      # Pre-flight TCP probe: rides over a transient blip and fails fast (~60s)
+      # when the box is genuinely unreachable, instead of letting ssh sit in
+      # the kernel SYN backoff for ~2 minutes before the action errors out.
+      - name: Wait for SSH reachability
+        env:
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6; do
+            if nc -z -w 5 "$SSH_HOST" "$SSH_PORT" 2>/dev/null; then
+              echo "✅ SSH reachable on attempt $i"
+              exit 0
+            fi
+            echo "attempt $i: SSH not reachable yet"
+            sleep 10
+          done
+          echo "❌ SSH host unreachable after 6 attempts"
+          exit 1
+
       - name: Deploy to production server
         uses: nocoo/base-ci/.github/actions/ssh-deploy@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
         env:
