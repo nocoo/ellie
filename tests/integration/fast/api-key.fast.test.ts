@@ -68,4 +68,30 @@ describe("L2-fast: API key gate", () => {
 		// supplied. We just need to confirm the call reached the gate output.
 		expect([200, 401, 403]).toContain(res.status);
 	});
+
+	// ── Fail-closed allowlist (STU-1103) ─────────────────────────────
+	//
+	// `validateApiKey` is an explicit allowlist of `/api/v1/*` and
+	// `/api/admin/*` only. Paths outside those prefixes must reject at the
+	// gate even when the caller presents a valid Key A — they must NOT
+	// fall through to the Key-A branch. Guards against CVE-2026-29045
+	// style path-startsWith desync.
+
+	test("non-prefixed path with valid Key A → 401 (not handler-level 404)", async () => {
+		const env = createTestEnv();
+		const res = await workerFetch(env, "/foo/bar", {
+			method: "GET",
+			headers: { "X-API-Key": env.API_KEY },
+		});
+		expect(res.status).toBe(401);
+	});
+
+	test("non-prefixed path with valid Key B → 401 (cross-prefix not implicit)", async () => {
+		const env = createTestEnv();
+		const res = await workerFetch(env, "/foo/bar", {
+			method: "GET",
+			headers: { "X-API-Key": env.ADMIN_API_KEY },
+		});
+		expect(res.status).toBe(401);
+	});
 });

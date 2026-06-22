@@ -690,6 +690,36 @@ describe("router (src/index.ts)", () => {
 
 			expect(response.status).toBe(404);
 		});
+
+		// ─── Fail-closed allowlist ──────────────────────────────────
+		//
+		// `validateApiKey` is an explicit allowlist: only `/api/v1/*` and
+		// `/api/admin/*` are accepted. Any non-prefixed path is rejected
+		// with 401 even when the caller presents a valid Key A — it must
+		// NOT fall through to the 404 NOT_FOUND branch. This is the
+		// CVE-2026-29045-style fail-closed default (see STU-1103).
+
+		it("should return 401 (not 404) for non-prefixed path with valid Key A", async () => {
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = makeRequest("GET", "/foo/bar");
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(401);
+			const data = await response.json();
+			expect(data.error.code).toBe("UNAUTHORIZED");
+		});
+
+		it("should return 401 for /api (no version segment) with valid Key A", async () => {
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = makeRequest("GET", "/api");
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(401);
+		});
 	});
 
 	// ─── Error Handler ──────────────────────────────────────────────
@@ -876,17 +906,19 @@ describe("router (src/index.ts)", () => {
 			expect(ingest.analyticsIngestHandler).toHaveBeenCalledTimes(1);
 		});
 
-		it("returns 404 for non-POST on the ingest path (not handled by router)", async () => {
-			// Only POST is wired. GET falls through to the API-key gate
-			// → 401, or, with a key, to the 404 fallback — the handler
-			// MUST NOT be invoked.
+		it("returns 401 for non-POST on the ingest path (not handled by router)", async () => {
+			// Only POST is wired. GET falls through to the API-key gate,
+			// where `validateApiKey` rejects fail-closed because
+			// `/api/internal/*` is not in the allowlist (Key A / Key B
+			// allowlist covers `/api/v1/*` and `/api/admin/*` only). The
+			// ingest handler MUST NOT be invoked.
 			const env = makeEnv();
 			const ctx = makeCtx();
 			const request = makeRequest("GET", "/api/internal/analytics/ingest");
 
 			const response = await worker.fetch(request, env, ctx);
 
-			expect(response.status).toBe(404);
+			expect(response.status).toBe(401);
 			const ingest = await import("../../src/handlers/internal/analyticsIngest");
 			expect(ingest.analyticsIngestHandler).not.toHaveBeenCalled();
 		});
