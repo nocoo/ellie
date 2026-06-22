@@ -9,7 +9,17 @@ import { errorResponse } from "./error";
  *
  * - `/api/v1/*` routes require Key A (`env.API_KEY`)
  * - `/api/admin/*` routes require Key B (`env.ADMIN_API_KEY`)
- * - Cross-key access is rejected (Key A can't access admin, Key B can't access v1)
+ * - Any other path (or a cross-key attempt) is rejected with 401.
+ *
+ * The allowlist is explicit and fail-closed: paths outside the two prefixes
+ * do not fall through to Key A. This prevents a future router/proxy change
+ * that exposes a non-prefixed path from silently inheriting Key-A semantics,
+ * and matches the CVE-2026-29045-style guidance to avoid path-startsWith
+ * default branches that grant the wider permission.
+ *
+ * Routes that intentionally bypass this gate (e.g. `/api/live`,
+ * `/api/internal/analytics/ingest`) must be dispatched before
+ * `validateApiKey` is called — they are not whitelisted here.
  *
  * Returns null on success (pass-through), or a 401 Response on failure.
  */
@@ -22,16 +32,18 @@ export function validateApiKey(request: Request, env: Env, origin?: string): Res
 	const path = new URL(request.url).pathname;
 
 	if (path.startsWith("/api/admin/")) {
-		// Admin routes require Key B (ADMIN_API_KEY)
 		if (key !== env.ADMIN_API_KEY) {
 			return errorResponse("UNAUTHORIZED", 401, undefined, origin);
 		}
 		return null;
 	}
 
-	// All other routes (including /api/v1/*) require Key A (API_KEY)
-	if (key !== env.API_KEY) {
-		return errorResponse("UNAUTHORIZED", 401, undefined, origin);
+	if (path.startsWith("/api/v1/")) {
+		if (key !== env.API_KEY) {
+			return errorResponse("UNAUTHORIZED", 401, undefined, origin);
+		}
+		return null;
 	}
-	return null;
+
+	return errorResponse("UNAUTHORIZED", 401, undefined, origin);
 }
