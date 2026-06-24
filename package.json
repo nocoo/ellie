@@ -120,7 +120,7 @@
 		"@radix-ui/react-tooltip": "1.2.10",
 		"dompurify": "3.4.11",
 		"fast-uri": "^3.1.2",
-		"hono": "^4.12.26",
+		"hono": "^4.12.27",
 		"lucide-react": "^1.21.0",
 		"tailwind-merge": "^3.6.0"
 	},
@@ -134,7 +134,7 @@
 		"dompurify": "^3.4.11",
 		"esbuild": "^0.28.1",
 		"fast-uri": "^3.1.2",
-		"hono": "^4.12.26",
+		"hono": "^4.12.27",
 		"ip-address": "^10.1.1",
 		"postcss": "^8.5.10",
 		"undici": "^6.27.0",
