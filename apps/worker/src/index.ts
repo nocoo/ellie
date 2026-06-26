@@ -4,6 +4,7 @@ import { cleanupAnalyticsDailyTargets } from "./lib/analytics/cleanup";
 import { setFlushSink } from "./lib/analytics/collect";
 import { d1FlushSink } from "./lib/analytics/flushSink-d1";
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
+import { cleanupKvCacheMetricsMinute } from "./lib/cache/cleanup";
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
 import { checkAndRolloverDailyStats } from "./lib/stats-rollover";
@@ -891,6 +892,15 @@ export default {
 						// `last_seen_at` is older than DEFAULT_RETENTION_HOURS (48h).
 						// Same operational-only failure contract.
 						console.warn("[cron] cleanupAnalyticsDailyTargets failed", err);
+					}),
+				);
+				ctx.waitUntil(
+					cleanupKvCacheMetricsMinute(env).catch((err) => {
+						// Prune `kv_cache_metrics_minute` rows older than
+						// DEFAULT_RETENTION_DAYS (7). Same operational-only
+						// failure contract — admin KV monitor only needs short
+						// history, anything older is dead weight.
+						console.warn("[cron] cleanupKvCacheMetricsMinute failed", err);
 					}),
 				);
 				return;
