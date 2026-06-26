@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.10] - 2026-06-27
+
+### Added
+
+- **Worker: `kv_cache_metrics_minute` retention sweep.** Migration 0035 created the table with a TODO for a "future scheduled job" that never landed — the table grew to ~530k rows over 46 days in prod. Adds `cleanupKvCacheMetricsMinute(env, retentionDays=7)` and wires it into the existing 19:00 UTC daily cron alongside `cleanupLoginHistory` + `cleanupAnalyticsDailyTargets`. Each retention job runs in its own `ctx.waitUntil` with an independent `.catch` so a D1 failure in one never blocks the others.
+
+### Fixed
+
+- **Cutoff unit mismatch guard.** `ts_minute` is stored as `floor(unix_seconds/60)` — the helper computes the cutoff in **minutes**, not seconds, and refuses to run for non-finite or `<=0` retention values. A seconds-based cutoff would have silently nuked the entire table.
+
+### Verified
+
+- L1: 7400 tests pass (10 new unit + 1 new scheduled-handler assertion)
+- L2: 352/352 integration tests pass
+- Typecheck pass
+
 ## [1.6.9] - 2026-06-06
 
 ### Changed
