@@ -21,7 +21,7 @@
         "@radix-ui/react-tabs": "^1.1.15",
         "@radix-ui/react-tooltip": "1.2.10",
         "dompurify": "3.4.11",
-        "fast-uri": "^3.1.2",
+        "fast-uri": "^4.1.0",
         "hono": "^4.12.27",
         "lucide-react": "^1.22.0",
         "tailwind-merge": "^3.6.0",
@@ -224,7 +224,7 @@
     "defu": "^6.1.7",
     "dompurify": "^3.4.11",
     "esbuild": "^0.28.1",
-    "fast-uri": "^3.1.2",
+    "fast-uri": "^4.1.0",
     "hono": "^4.12.27",
     "ip-address": "^10.1.1",
     "postcss": "^8.5.10",
@@ -915,7 +915,7 @@
 
     "fast-equals": ["fast-equals@5.4.0", "", {}, "sha512-jt2DW/aNFNwke7AUd+Z+e6pz39KO5rzdbbFCg2sGafS4mk13MI7Z8O5z9cADNn5lhGODIgLwug6TZO2ctf7kcw=="],
 
-    "fast-uri": ["fast-uri@3.1.2", "", {}, "sha512-rVjf7ArG3LTk+FS6Yw81V1DLuZl1bRbNrev6Tmd/9RaroeeRRJhAt7jg/6YFxbvAQXUCavSoZhPPj6oOx+5KjQ=="],
+    "fast-uri": ["fast-uri@4.1.0", "", {}, "sha512-ZodJ2cRiLVWGi9IgPb3mbgSqM4CD3LexCHkuv0FfBXHJI1ADfucTD06m6clO2Cy5RZYsw/SiCVl/dyrFI/SYWA=="],
 
     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 
