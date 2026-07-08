@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-07-09
+
+### Added
+
+- **Admin: write-permission visibility for user moderation.** The forum enforces a six-layer write gate (account status → email verified → site switches → registration days → avatar) but the admin console previously surfaced none of it, so operators couldn't tell why a spam account was silently failing to post. New surfaces:
+  - **User detail dialog · "写权限体检" card** — pure evaluator (`viewmodels/admin/write-permission.ts`) mirrors `postingPermission.ts` + `requireVerifiedEmail` precedence and renders each layer as pass / fail / skip / staff-bypass with a plain-language conclusion. 19 unit tests pin the truth table.
+  - **Users list · "写权限" column** — condenses the same evaluator into a badge stack (`邮箱未验证` / `无头像` / `新注册` / `已封禁` / …), or a single green `✓ 可发布` pill when every layer passes.
+  - **High-level filters** — `emailVerified` (worker `positive` filter on `email_verified_at`) and `hasAvatar` (new worker `expr` filter type that mirrors the runtime `avatar_path OR has_avatar` predicate). Together they let an operator one-click surface a whole spam batch.
+- **User detail dialog condensed into a four-column grid.** 基本资料 / 元信息 / 用户内容 / 写权限体检 now sit side by side on `xl`, collapse to 2×2 on `lg`, single column below. Action buttons (编辑 / 封禁 / 彻底清除) moved from a bottom "danger zone" up to the header row so the most consequential controls sit above the fold. 签到 panel split 3:1 internally (timeline left, streak-override right). Dialog width raised to `min(1440px, 100vw - 2rem)` so four columns have breathing room on wide monitors.
+
+### Changed
+
+- **Worker: admin user payload now exposes `has_avatar`.** `USER_COLUMNS` selects it and `toUser` projects `hasAvatar: boolean` so admin views mirror `postingPermission.ts`'s effective avatar rule (avatar_path OR has_avatar). Legacy Discuz-migrated users whose `avatar_path` is empty but `has_avatar = 1` no longer get mislabelled as "无头像".
+- **`crud.ts`: new `expr` filter type.** Lets an `EntityConfig` declare a preauthored WHERE fragment (`trueExpr` / `falseExpr`) for boolean-style filters that span more than one column, without leaking user input into raw SQL. Used by the `hasAvatar` filter above.
+- **Local dev environment surface.** Three tracked `.example` files (`apps/worker/.dev.vars.example`, `apps/web/.env.local.example`, `apps/admin/.env.local.example`) with per-variable comments explaining which gate fails when the value is missing. Downgraded root `/.env.example` to a nav file pointing at the three. `CLAUDE.md`'s "Secrets & Environment" section rewritten around the three files with an explicit Key A (`API_KEY`) vs Key B (`ADMIN_API_KEY`) split.
+
+### Verified
+
+- L1: 803 admin + 3125 worker + Rust workspace green
+- L2: 352 integration pass
+- G1: typecheck + lint (biome) green
+- Manual: end-to-end walkthrough on `https://ellie-admin.dev.hexly.ai` — users list new column + high-level filters, user detail dialog four-column grid, apple58 profile correctly shows both `邮箱验证` + `用户头像` failures.
+
 ## [1.6.10] - 2026-06-27
 
 ### Added
