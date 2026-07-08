@@ -158,6 +158,24 @@ const userConfig: EntityConfig = {
 		{ param: "posts", column: "posts", type: "range" },
 		{ param: "credits", column: "credits", type: "range" },
 		{ param: "coins", column: "coins", type: "range" },
+		// Write-gate visibility filters — surface the same rules the worker
+		// enforces at post/reply/DM time (see lib/postingPermission.ts +
+		// requireVerifiedEmail). Both accept `true`/`1` / `false`/`0`; any
+		// other value is a no-op (matches `positive` semantics).
+		//
+		// emailVerified: users.email_verified_at is a unix timestamp — 0 iff
+		// unverified. `positive` fits exactly.
+		{ param: "emailVerified", column: "email_verified_at", type: "positive" },
+		// hasAvatar: matches postingPermission's rule of
+		// `!!avatar_path || has_avatar === 1` so operators can filter on the
+		// *effective* avatar state the write gate reads, not just one column.
+		{
+			param: "hasAvatar",
+			column: "",
+			type: "expr",
+			trueExpr: "(avatar_path != '' OR has_avatar = 1)",
+			falseExpr: "(avatar_path = '' AND (has_avatar IS NULL OR has_avatar = 0))",
+		},
 	],
 	listSort: "id DESC",
 

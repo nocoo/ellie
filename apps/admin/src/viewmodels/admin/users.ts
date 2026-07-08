@@ -88,6 +88,14 @@ export interface UserFilters {
 	role?: number | null;
 	regIp?: string;
 	lastIp?: string;
+	/**
+	 * Write-gate visibility filters — mirror worker `positive` / `expr`
+	 * filters on the same param names. `"true"` / `"false"` are the on-wire
+	 * values; `undefined` = filter not applied. Kept as strings because
+	 * AdminFilters emits string-typed select values.
+	 */
+	emailVerified?: string;
+	hasAvatar?: string;
 	page?: number;
 	limit?: number;
 }
@@ -191,6 +199,8 @@ export function buildUserSearchParams(
 		role: filters.role ?? undefined,
 		regIp: filters.regIp || undefined,
 		lastIp: filters.lastIp || undefined,
+		emailVerified: filters.emailVerified || undefined,
+		hasAvatar: filters.hasAvatar || undefined,
 	};
 }
 

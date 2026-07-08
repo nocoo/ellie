@@ -110,6 +110,29 @@ const ADVANCED_FILTERS: FilterDef[] = [
 		label: "积分",
 		type: "numrange",
 	},
+	// Write-gate visibility filters — mirror the worker `positive` / `expr`
+	// user filters wired in apps/worker/src/handlers/admin/user.ts. Two
+	// discrete "yes / no" selects rather than a segmented switch so they
+	// stay consistent with the existing status / role select controls and
+	// clear to the same empty-string sentinel via handleClearFilters.
+	{
+		key: "emailVerified",
+		label: "邮箱验证",
+		type: "select",
+		options: [
+			{ value: "true", label: "已验证" },
+			{ value: "false", label: "未验证" },
+		],
+	},
+	{
+		key: "hasAvatar",
+		label: "有头像",
+		type: "select",
+		options: [
+			{ value: "true", label: "是" },
+			{ value: "false", label: "否" },
+		],
+	},
 ];
 
 // ---------------------------------------------------------------------------

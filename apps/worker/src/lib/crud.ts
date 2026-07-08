@@ -31,14 +31,28 @@ export interface FilterDef {
 	 *   each side independent. Reads two query params (see `minParam`/`maxParam`).
 	 *   Defaults to integer parsing; floats via `parse: "float"`. Invalid /
 	 *   non-finite values are ignored. `0` is a valid bound.
+	 * - `expr` — boolean-style filter with two hand-written WHERE fragments
+	 *   (`trueExpr` / `falseExpr`). Used when a single column can't express
+	 *   the intent — e.g. "has avatar" = `avatar_path != '' OR has_avatar = 1`
+	 *   which spans two columns. Column is ignored for this type; put the
+	 *   full parenthesised fragment in trueExpr/falseExpr.
 	 */
-	type: "exact" | "like" | "positive" | "range";
+	type: "exact" | "like" | "positive" | "range" | "expr";
 	/** Value parser — defaults to string passthrough (or `int` for `range`) */
 	parse?: "int" | "boolean" | "float";
 	/** Range only: query param for the lower bound (default `${param}Min`). */
 	minParam?: string;
 	/** Range only: query param for the upper bound (default `${param}Max`). */
 	maxParam?: string;
+	/**
+	 * `expr` only — SQL fragment emitted verbatim when raw is `true`/`1`.
+	 * MUST be a self-contained boolean expression (wrap in parens if it
+	 * contains OR / AND at the top level). Never parameterised; write only
+	 * static SQL here.
+	 */
+	trueExpr?: string;
+	/** `expr` only — SQL fragment emitted verbatim when raw is `false`/`0`. */
+	falseExpr?: string;
 }
 
 /** Field definition for create/update */
@@ -187,25 +201,58 @@ function applyRangeFilter(f: FilterDef, url: URL, conditions: string[], params: 
 
 function applyFilter(f: FilterDef, raw: string, conditions: string[], params: unknown[]): void {
 	if (f.type === "positive") {
-		if (raw === "true" || raw === "1") conditions.push(`${f.column} > 0`);
-		else if (raw === "false" || raw === "0") conditions.push(`${f.column} = 0`);
+		applyPositiveFilter(f, raw, conditions);
+		return;
+	}
+	if (f.type === "expr") {
+		applyExprFilter(f, raw, conditions);
 		return;
 	}
 	if (f.parse === "int") {
-		const num = Number.parseInt(raw, 10);
-		if (Number.isNaN(num)) return;
-		conditions.push(`${f.column} = ?`);
-		params.push(num);
-	} else if (f.parse === "boolean") {
-		if (raw === "true" || raw === "1") conditions.push(`${f.column} = 1`);
-		else if (raw === "false" || raw === "0") conditions.push(`${f.column} = 0`);
-	} else if (f.type === "like") {
+		applyExactIntFilter(f, raw, conditions, params);
+		return;
+	}
+	if (f.parse === "boolean") {
+		applyBooleanFilter(f, raw, conditions);
+		return;
+	}
+	if (f.type === "like") {
 		conditions.push(`${f.column} LIKE ?`);
 		params.push(`%${raw}%`);
-	} else {
-		conditions.push(`${f.column} = ?`);
-		params.push(raw);
+		return;
 	}
+	conditions.push(`${f.column} = ?`);
+	params.push(raw);
+}
+
+function applyPositiveFilter(f: FilterDef, raw: string, conditions: string[]): void {
+	if (raw === "true" || raw === "1") conditions.push(`${f.column} > 0`);
+	else if (raw === "false" || raw === "0") conditions.push(`${f.column} = 0`);
+}
+
+function applyExprFilter(f: FilterDef, raw: string, conditions: string[]): void {
+	// `expr` fragments come from EntityConfig authors (never user input),
+	// so we emit them verbatim without parameterisation. Raw values
+	// outside {true|1|false|0} are ignored — matches `positive`.
+	if ((raw === "true" || raw === "1") && f.trueExpr) conditions.push(f.trueExpr);
+	else if ((raw === "false" || raw === "0") && f.falseExpr) conditions.push(f.falseExpr);
+}
+
+function applyExactIntFilter(
+	f: FilterDef,
+	raw: string,
+	conditions: string[],
+	params: unknown[],
+): void {
+	const num = Number.parseInt(raw, 10);
+	if (Number.isNaN(num)) return;
+	conditions.push(`${f.column} = ?`);
+	params.push(num);
+}
+
+function applyBooleanFilter(f: FilterDef, raw: string, conditions: string[]): void {
+	if (raw === "true" || raw === "1") conditions.push(`${f.column} = 1`);
+	else if (raw === "false" || raw === "0") conditions.push(`${f.column} = 0`);
 }
 
 function buildWhereClause(

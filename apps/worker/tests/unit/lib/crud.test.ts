@@ -31,6 +31,15 @@ function makeTestConfig(overrides?: Partial<EntityConfig>): EntityConfig {
 			{ param: "status", column: "status", type: "exact", parse: "int" },
 			{ param: "active", column: "active", type: "exact", parse: "boolean" },
 			{ param: "highlighted", column: "highlight", type: "positive" },
+			// `expr` filter — emitted verbatim when raw is true/false. Column
+			// is ignored; the fragments are self-contained boolean SQL.
+			{
+				param: "hasFoo",
+				column: "",
+				type: "expr",
+				trueExpr: "(foo != '' OR foo_flag = 1)",
+				falseExpr: "(foo = '' AND foo_flag = 0)",
+			},
 		],
 		createFields: [
 			{
@@ -361,6 +370,68 @@ describe("createListHandler", () => {
 		const handler = createListHandler(makeTestConfig());
 
 		await handler(makeRequest("/api/admin/test-items?highlighted=maybe"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).not.toContain("WHERE");
+	});
+
+	// ─── expr filter ─────────────────────────────────────────
+	// `expr` filter emits a preauthored WHERE fragment verbatim. Used when
+	// a boolean-style filter needs to reference multiple columns — the
+	// canonical case is "has avatar" (avatar_path != '' OR has_avatar = 1)
+	// which matches the runtime rule in postingPermission.ts.
+
+	it("should apply 'expr' filter with '1' as trueExpr", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?hasFoo=1"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE (foo != '' OR foo_flag = 1)");
+	});
+
+	it("should apply 'expr' filter with 'true' as trueExpr", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?hasFoo=true"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE (foo != '' OR foo_flag = 1)");
+	});
+
+	it("should apply 'expr' filter with '0' as falseExpr", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?hasFoo=0"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE (foo = '' AND foo_flag = 0)");
+	});
+
+	it("should ignore 'expr' filter with invalid value", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 0 } },
+			allResults: {},
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?hasFoo=maybe"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).not.toContain("WHERE");
