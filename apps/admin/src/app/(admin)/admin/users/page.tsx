@@ -215,7 +215,24 @@ export default function UsersPage() {
 				</button>
 			),
 		},
-		{ key: "email", header: "邮箱", cell: (row) => row.email },
+		{
+			key: "email",
+			header: "邮箱",
+			cell: (row) => (
+				<div className="flex flex-wrap items-center gap-1.5">
+					<span className="break-all">{row.email || "—"}</span>
+					{/*
+					 * emailVerifiedAt is 0 for unverified accounts (docs/17 §3).
+					 * We only badge active users (status === 0) — banned /
+					 * archived / tombstone rows already surface their state in
+					 * the 状态 column and would clutter here. Rows without an
+					 * email string at all still get the badge because "no
+					 * address" is even weaker than "unverified".
+					 */}
+					{row.status === 0 && !row.emailVerifiedAt && <Badge variant="destructive">未验证</Badge>}
+				</div>
+			),
+		},
 		{
 			key: "role",
 			header: "角色",
