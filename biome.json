@@ -65,6 +65,7 @@
 			"!**/reference",
 			"!**/output",
 			"!**/test-results",
+			"!**/playwright-report",
 			"!**/*.sql",
 			"!**/*.sql.gz",
 			"!**/.wrangler",
