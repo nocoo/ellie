@@ -52,15 +52,20 @@ export function UserWriteGateBadges({ user, settings, nowSeconds }: UserWriteGat
 	);
 
 	if (result.canWrite) {
+		// Green Badge (success variant) mirrors the red destructive Badge
+		// used for failures below — same shape / weight so the column
+		// reads as a symmetric pass/fail signal, not "loud red vs muted
+		// gray afterthought".
 		return (
-			<span
-				className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+			<Badge
+				variant="success"
+				className="text-xs font-normal"
 				title="所有写权限门槛通过"
 				data-testid="write-gate-pass"
 			>
 				<Check className="h-3 w-3" aria-hidden="true" />
 				可发布
-			</span>
+			</Badge>
 		);
 	}
 
