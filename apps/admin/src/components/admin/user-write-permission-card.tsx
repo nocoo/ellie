@@ -66,7 +66,7 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 	}, [result]);
 
 	return (
-		<Card>
+		<Card size="sm">
 			<CardHeader>
 				<CardTitle>写权限体检</CardTitle>
 			</CardHeader>
@@ -86,11 +86,17 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 								<ChecklistRow key={item.id} item={item} />
 							))}
 						</ul>
+						{/*
+						 * Conclusion sits just under the checklist without a
+						 * border-t. Divider policy (哥 2026-07-09): only the
+						 * boundary between top-level modules gets a rule; a
+						 * card's internals stay clean.
+						 */}
 						<p
 							className={
 								result.canWrite
-									? "border-t pt-3 text-sm text-green-700 dark:text-green-400"
-									: "border-t pt-3 text-sm text-destructive"
+									? "text-sm text-green-700 dark:text-green-400"
+									: "text-sm text-destructive"
 							}
 							data-testid="write-permission-conclusion"
 						>
@@ -107,7 +113,7 @@ function ChecklistRow({ item }: { item: CheckItem }) {
 	const Icon = STATUS_ICON[item.status];
 	return (
 		<li
-			className="grid grid-cols-[1.25rem_5rem_1fr] items-baseline gap-2"
+			className="grid grid-cols-[1.25rem_4rem_1fr] items-baseline gap-2"
 			data-item-id={item.id}
 			data-item-status={item.status}
 		>

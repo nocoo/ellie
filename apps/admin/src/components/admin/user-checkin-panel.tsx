@@ -158,7 +158,7 @@ export function UserCheckinPanel({ userId }: Props) {
 
 	if (loading && !detail) {
 		return (
-			<Card>
+			<Card size="sm">
 				<CardHeader>
 					<CardTitle>签到</CardTitle>
 				</CardHeader>
@@ -173,7 +173,7 @@ export function UserCheckinPanel({ userId }: Props) {
 
 	if (error) {
 		return (
-			<Card>
+			<Card size="sm">
 				<CardHeader>
 					<CardTitle>签到</CardTitle>
 				</CardHeader>
@@ -187,97 +187,114 @@ export function UserCheckinPanel({ userId }: Props) {
 	const aggregate = detail?.checkin ?? null;
 
 	return (
-		<Card>
+		<Card size="sm">
 			<CardHeader>
 				<CardTitle>签到</CardTitle>
 			</CardHeader>
 			<CardContent className="space-y-4">
 				{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
-				{/* Aggregate */}
-				<dl className="grid grid-cols-2 gap-y-2 text-sm md:grid-cols-4">
-					<dt className="text-muted-foreground">累计天数</dt>
-					<dd>{aggregate?.totalDays ?? 0}</dd>
-					<dt className="text-muted-foreground">本月</dt>
-					<dd>{aggregate?.monthDays ?? 0}</dd>
-					<dt className="text-muted-foreground">连续</dt>
-					<dd>{aggregate?.streakDays ?? 0}</dd>
-					<dt className="text-muted-foreground">累计奖励</dt>
-					<dd>{aggregate?.rewardTotal ?? 0}</dd>
-					<dt className="text-muted-foreground">最后签到</dt>
-					<dd className="col-span-3">{fmtTimestamp(aggregate?.lastCheckinAt ?? 0)}</dd>
-				</dl>
+				{/*
+				 * 3:1 split (哥 2026-07-09):
+				 *   left  (lg:col-span-3) — aggregate summary + recent-N-days grid
+				 *   right (lg:col-span-1) — manual streak override form
+				 * A vertical border (`lg:border-l lg:pl-4`) separates the right
+				 * column from the timeline instead of the old form-scoped
+				 * `border-t`, which broke the "分割线只在大模块之间" rule.
+				 * Collapses to a single column below lg.
+				 */}
+				<div className="grid gap-6 lg:grid-cols-4 lg:gap-4">
+					{/* Left 3/4 — aggregate + timeline */}
+					<div className="space-y-4 lg:col-span-3">
+						<dl className="grid grid-cols-2 gap-y-2 text-sm md:grid-cols-4">
+							<dt className="text-muted-foreground">累计天数</dt>
+							<dd>{aggregate?.totalDays ?? 0}</dd>
+							<dt className="text-muted-foreground">本月</dt>
+							<dd>{aggregate?.monthDays ?? 0}</dd>
+							<dt className="text-muted-foreground">连续</dt>
+							<dd>{aggregate?.streakDays ?? 0}</dd>
+							<dt className="text-muted-foreground">累计奖励</dt>
+							<dd>{aggregate?.rewardTotal ?? 0}</dd>
+							<dt className="text-muted-foreground">最后签到</dt>
+							<dd className="col-span-3">{fmtTimestamp(aggregate?.lastCheckinAt ?? 0)}</dd>
+						</dl>
 
-				{/* Day grid */}
-				<div>
-					<p className="mb-2 text-sm text-muted-foreground">
-						最近 {GRID_DAYS} 天（点击单元格可补签或取消签到）
-					</p>
-					<div className="grid grid-cols-7 gap-1">
-						{gridDates
-							.slice()
-							.reverse()
-							.map((date) => {
-								const checked = checkedSet.has(date);
-								const isToday = date === today;
-								const isBusy = busyDate === date;
-								return (
-									<button
-										key={date}
-										type="button"
-										onClick={() => handleToggleDay(date)}
-										disabled={isBusy || busyDate !== null}
-										title={`${date}${checked ? "（已签到）" : ""}`}
-										data-testid={`checkin-day-${date}`}
-										className={[
-											"flex h-10 flex-col items-center justify-center rounded border text-[10px] transition",
-											checked
-												? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-												: "border-border bg-background text-muted-foreground",
-											isToday ? "ring-1 ring-primary" : "",
-											isBusy ? "opacity-50" : "hover:border-primary",
-										].join(" ")}
-									>
-										<span>{date.slice(5)}</span>
-										<span className="font-medium">{checked ? "✓" : "·"}</span>
-									</button>
-								);
-							})}
+						<div>
+							<p className="mb-2 text-sm text-muted-foreground">
+								最近 {GRID_DAYS} 天（点击单元格可补签或取消签到）
+							</p>
+							<div className="grid grid-cols-7 gap-1">
+								{gridDates
+									.slice()
+									.reverse()
+									.map((date) => {
+										const checked = checkedSet.has(date);
+										const isToday = date === today;
+										const isBusy = busyDate === date;
+										return (
+											<button
+												key={date}
+												type="button"
+												onClick={() => handleToggleDay(date)}
+												disabled={isBusy || busyDate !== null}
+												title={`${date}${checked ? "（已签到）" : ""}`}
+												data-testid={`checkin-day-${date}`}
+												className={[
+													"flex h-10 flex-col items-center justify-center rounded border text-[10px] transition",
+													checked
+														? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+														: "border-border bg-background text-muted-foreground",
+													isToday ? "ring-1 ring-primary" : "",
+													isBusy ? "opacity-50" : "hover:border-primary",
+												].join(" ")}
+											>
+												<span>{date.slice(5)}</span>
+												<span className="font-medium">{checked ? "✓" : "·"}</span>
+											</button>
+										);
+									})}
+							</div>
+							{detail?.truncated && (
+								<p className="mt-2 text-xs text-muted-foreground">
+									历史记录较多，仅显示前 {detail.history.length} 行。
+								</p>
+							)}
+						</div>
 					</div>
-					{detail?.truncated && (
-						<p className="mt-2 text-xs text-muted-foreground">
-							历史记录较多，仅显示前 {detail.history.length} 行。
-						</p>
-					)}
-				</div>
 
-				{/* Streak override */}
-				<form onSubmit={handleSaveStreak} className="space-y-2 border-t pt-4">
-					<Label htmlFor={`streak-input-${userId}`}>手动设置连续天数</Label>
-					<div className="flex items-center gap-2">
-						<Input
-							id={`streak-input-${userId}`}
-							type="number"
-							min={0}
-							value={streakInput}
-							onChange={(e) => setStreakInput(e.target.value)}
-							className="max-w-[10rem]"
-							disabled={!aggregate || streakSaving}
-						/>
-						<Button type="submit" size="sm" variant="outline" disabled={!aggregate || streakSaving}>
-							{streakSaving ? "保存中..." : "保存"}
-						</Button>
-					</div>
-					{streakError && <AdminInlineMessage variant="error" text={streakError} />}
-					{!aggregate && (
+					{/* Right 1/4 — manual streak override */}
+					<form onSubmit={handleSaveStreak} className="space-y-2 lg:col-span-1 lg:border-l lg:pl-4">
+						<Label htmlFor={`streak-input-${userId}`}>手动设置连续天数</Label>
+						<div className="flex items-center gap-2">
+							<Input
+								id={`streak-input-${userId}`}
+								type="number"
+								min={0}
+								value={streakInput}
+								onChange={(e) => setStreakInput(e.target.value)}
+								className="max-w-[10rem]"
+								disabled={!aggregate || streakSaving}
+							/>
+							<Button
+								type="submit"
+								size="sm"
+								variant="outline"
+								disabled={!aggregate || streakSaving}
+							>
+								{streakSaving ? "保存中..." : "保存"}
+							</Button>
+						</div>
+						{streakError && <AdminInlineMessage variant="error" text={streakError} />}
+						{!aggregate && (
+							<p className="text-xs text-muted-foreground">
+								该用户尚无签到记录，请先在左侧补签任意一天后再设置连续天数。
+							</p>
+						)}
 						<p className="text-xs text-muted-foreground">
-							该用户尚无签到记录，请先在上方补签任意一天后再设置连续天数。
+							⚠️ 手动设置的连续天数会在下一次「按日补签 / 取消签到」时被基于历史的自动重算覆盖。
 						</p>
-					)}
-					<p className="text-xs text-muted-foreground">
-						⚠️ 手动设置的连续天数会在下一次「按日补签 / 取消签到」时被基于历史的自动重算覆盖。
-					</p>
-				</form>
+					</form>
+				</div>
 			</CardContent>
 		</Card>
 	);

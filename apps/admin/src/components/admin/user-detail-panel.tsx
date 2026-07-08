@@ -295,38 +295,72 @@ export function UserDetailPanel({
 	}
 
 	const user = state.user;
+	const tombstoned = user.status === -99;
 
 	// -----------------------------------------------------------------------
 	// Render
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-6">
 			{showBack && <BackLinkButton onClick={() => router.push("/admin/users")} />}
 
-			{/* Header */}
-			<div className="flex items-center gap-4">
+			{/*
+			 * Header row — identity on the left, action buttons on the right.
+			 * Actions moved up from a bottom "danger zone" per哥 2026-07-09
+			 * so operators can act without hunting to the fold. On sm the row
+			 * wraps and actions stack under the identity.
+			 */}
+			<div className="flex flex-wrap items-center gap-4">
 				<UserAvatar uid={user.id} username={user.username} avatarPath={user.avatarPath} size={48} />
-				<div className="flex-1">
+				<div className="min-w-0 flex-1">
 					<h1 className="text-2xl font-semibold text-foreground">{user.username}</h1>
-					<div className="mt-1 flex items-center gap-2">
+					<div className="mt-1 flex flex-wrap items-center gap-2">
 						<Badge variant={userStatusVariant(user.status)}>{statusLabel(user.status)}</Badge>
 						<Badge variant={userRoleVariant(user.role)}>{roleLabel(user.role)}</Badge>
 						<span className="text-sm text-muted-foreground">ID: {user.id}</span>
 					</div>
 				</div>
+				<div className="ml-auto">
+					<UserActionButtons
+						user={user}
+						unbanLoading={unbanLoading}
+						onEdit={() => setEditOpen(true)}
+						onOpenBan={() => {
+							setBanError(null);
+							setBanDialogOpen(true);
+						}}
+						onUnban={() => handleUnban(user)}
+						onOpenPurge={() => {
+							setPurgeError(null);
+							setPurgeDialogOpen(true);
+						}}
+					/>
+				</div>
 			</div>
 
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
-			{/* Basic info + meta cards (two columns on lg) */}
-			<div className="grid gap-4 lg:grid-cols-2">
-				<Card>
+			{/*
+			 * Divider between top-level modules only (哥 2026-07-09 rule):
+			 * "只有大的模块之间才保留分割线". Header → four-column row is
+			 * such a boundary; internals of each Card are borderless.
+			 */}
+			<hr className="border-border" />
+
+			{/*
+			 * Row 1 — four modules side by side on xl (基本资料 / 元信息 /
+			 * 用户内容 / 写权限体检). Cards use `size="sm"` for tighter
+			 * padding since we now share the horizontal space four ways.
+			 * On lg drops to 2×2, on md/sm collapses to a single column.
+			 */}
+			<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+				<Card size="sm">
 					<CardHeader>
 						<CardTitle>基本资料</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
+						<dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">邮箱</dt>
 							<dd className="break-all">{user.email || "—"}</dd>
 							<dt className="text-muted-foreground">积分</dt>
@@ -343,22 +377,15 @@ export function UserDetailPanel({
 					</CardContent>
 				</Card>
 
-				<Card>
+				<Card size="sm">
 					<CardHeader>
 						<CardTitle>元信息</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						{/* 登录 IP — persistent users.reg_ip / users.last_ip.
-						    The 搜索同 IP 用户 button only renders when the
-						    matching IP is non-empty so empty cells never
-						    produce a navigation that would land on an empty
-						    list. Dialog mode goes through `onSearchIp` (no
-						    navigation, dialog closes itself); route mode
-						    falls back to `router.push` with URL-encoded
-						    params so IPv6 colons survive. */}
-						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
+						{/* 登录 IP — persistent users.reg_ip / users.last_ip. */}
+						<dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
-							<dd>
+							<dd className="flex flex-wrap items-center gap-1">
 								<span className="font-mono">{fmtIp(user.regIp)}</span>
 								<IpLookupInline ip={user.regIp} />
 								{user.regIp && user.regIp.trim().length > 0 && (
@@ -366,7 +393,7 @@ export function UserDetailPanel({
 										type="button"
 										variant="ghost"
 										size="sm"
-										className="ml-2 h-7 px-2 text-xs"
+										className="h-7 px-2 text-xs"
 										onClick={() => handleSearchIp("regIp", user.regIp)}
 									>
 										<Search className="mr-1 h-3 w-3" />
@@ -375,7 +402,7 @@ export function UserDetailPanel({
 								)}
 							</dd>
 							<dt className="text-muted-foreground">上次登录 IP</dt>
-							<dd>
+							<dd className="flex flex-wrap items-center gap-1">
 								<span className="font-mono">{fmtIp(user.lastIp)}</span>
 								<IpLookupInline ip={user.lastIp} />
 								{user.lastIp && user.lastIp.trim().length > 0 && (
@@ -383,7 +410,7 @@ export function UserDetailPanel({
 										type="button"
 										variant="ghost"
 										size="sm"
-										className="ml-2 h-7 px-2 text-xs"
+										className="h-7 px-2 text-xs"
 										onClick={() => handleSearchIp("lastIp", user.lastIp)}
 									>
 										<Search className="mr-1 h-3 w-3" />
@@ -397,13 +424,11 @@ export function UserDetailPanel({
 						    attached a fresh `online:<uid>` KV snapshot (TTL ≤15min).
 						    Whole block hides when the user is not currently online. */}
 						{user.onlineIp && user.onlineIp.trim().length > 0 && (
-							<div className="border-t pt-3">
-								<div className="mb-2 text-xs text-muted-foreground">
-									当前在线 · 软指标 · TTL 15min
-								</div>
-								<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
-									<dt className="text-muted-foreground">当前在线 IP</dt>
-									<dd>
+							<div className="space-y-2">
+								<div className="text-xs text-muted-foreground">当前在线 · 软指标 · TTL 15min</div>
+								<dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
+									<dt className="text-muted-foreground">当前 IP</dt>
+									<dd className="flex flex-wrap items-center gap-1">
 										<span className="font-mono">{fmtIp(user.onlineIp)}</span>
 										<IpLookupInline ip={user.onlineIp} />
 									</dd>
@@ -424,141 +449,89 @@ export function UserDetailPanel({
 						)}
 					</CardContent>
 				</Card>
+
+				<Card size="sm">
+					<CardHeader>
+						<CardTitle>用户内容</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							<SegmentedSwitch
+								ariaLabel="切换用户内容视图"
+								value={activeContentTab}
+								onValueChange={setActiveContentTab}
+								options={[
+									{
+										value: "threads",
+										label: `主题（${formatNumber(user.threads)}）`,
+									},
+									{
+										value: "posts",
+										label: `帖子（${formatNumber(user.posts)}）`,
+									},
+								]}
+							/>
+
+							{activeContentTab === "threads" && (
+								<div role="tabpanel" aria-label="用户主题列表" className="space-y-2">
+									{state.threadsError && (
+										<AdminInlineMessage variant="error" text={state.threadsError} />
+									)}
+									<AdminDataTable<Thread>
+										columns={threadColumns}
+										data={state.threads}
+										getRowId={(t) => t.id}
+										loading={state.threadsLoading}
+										emptyMessage="此用户没有主题"
+									/>
+									<AdminPagination
+										pagination={state.threadsPagination}
+										onPageChange={actions.setThreadsPage}
+									/>
+								</div>
+							)}
+
+							{activeContentTab === "posts" && (
+								<div role="tabpanel" aria-label="用户帖子列表" className="space-y-2">
+									{state.postsError && (
+										<AdminInlineMessage variant="error" text={state.postsError} />
+									)}
+									<AdminDataTable<UserDetailPost>
+										columns={postColumns}
+										data={state.posts}
+										getRowId={(p) => p.id}
+										loading={state.postsLoading}
+										emptyMessage="此用户没有帖子"
+									/>
+									<AdminPagination
+										pagination={state.postsPagination}
+										onPageChange={actions.setPostsPage}
+									/>
+								</div>
+							)}
+						</div>
+					</CardContent>
+				</Card>
+
+				{/*
+				 * Write-permission checklist. Tombstone users get no card —
+				 * every row would just render "status skip" (same short-
+				 * circuit rationale as the previous <UserCheckinPanel> guard).
+				 */}
+				{!tombstoned && <UserWritePermissionCard user={user} />}
 			</div>
 
-			{/* Threads + Posts tabs */}
-			<Card>
-				<CardHeader>
-					<CardTitle>用户内容</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						<SegmentedSwitch
-							ariaLabel="切换用户内容视图"
-							value={activeContentTab}
-							onValueChange={setActiveContentTab}
-							options={[
-								{
-									value: "threads",
-									label: `主题（${formatNumber(user.threads)}）`,
-								},
-								{
-									value: "posts",
-									label: `帖子（${formatNumber(user.posts)}）`,
-								},
-							]}
-						/>
-
-						{activeContentTab === "threads" && (
-							<div role="tabpanel" aria-label="用户主题列表" className="space-y-2">
-								{state.threadsError && (
-									<AdminInlineMessage variant="error" text={state.threadsError} />
-								)}
-								<AdminDataTable<Thread>
-									columns={threadColumns}
-									data={state.threads}
-									getRowId={(t) => t.id}
-									loading={state.threadsLoading}
-									emptyMessage="此用户没有主题"
-								/>
-								<AdminPagination
-									pagination={state.threadsPagination}
-									onPageChange={actions.setThreadsPage}
-								/>
-							</div>
-						)}
-
-						{activeContentTab === "posts" && (
-							<div role="tabpanel" aria-label="用户帖子列表" className="space-y-2">
-								{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
-								<AdminDataTable<UserDetailPost>
-									columns={postColumns}
-									data={state.posts}
-									getRowId={(p) => p.id}
-									loading={state.postsLoading}
-									emptyMessage="此用户没有帖子"
-								/>
-								<AdminPagination
-									pagination={state.postsPagination}
-									onPageChange={actions.setPostsPage}
-								/>
-							</div>
-						)}
-					</div>
-				</CardContent>
-			</Card>
-
 			{/*
-			 * Check-in panel + write-permission checklist (Phase F + write-gate
-			 * visibility). Both are only meaningful for non-tombstoned users;
-			 * grouped under one guard so this render function's cognitive
-			 * complexity stays under the biome cap.
+			 * Row 2 — check-in panel. Renders its own internal 3:1 split
+			 * (aggregate + timeline on the left, streak-override on the
+			 * right) so this file just supplies it a single slot.
 			 */}
-			{user.status !== -99 && (
+			{!tombstoned && (
 				<>
-					<UserWritePermissionCard user={user} />
+					<hr className="border-border" />
 					<UserCheckinPanel userId={user.id} />
 				</>
 			)}
-
-			{/* Danger zone */}
-			<Card>
-				<CardHeader>
-					<CardTitle>操作</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-wrap gap-2">
-						{user.status === -99 ? (
-							<p className="text-sm text-muted-foreground">
-								此用户已被彻底清除，无法再编辑或封禁。
-							</p>
-						) : (
-							<>
-								<Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-									<Pencil className="mr-1 h-4 w-4" />
-									编辑资料
-								</Button>
-								{user.status !== -1 && (
-									<Button
-										variant="destructive"
-										size="sm"
-										onClick={() => {
-											setBanError(null);
-											setBanDialogOpen(true);
-										}}
-									>
-										<Shield className="mr-1 h-4 w-4" />
-										封禁用户
-									</Button>
-								)}
-								{user.status === -1 && (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => handleUnban(user)}
-										disabled={unbanLoading}
-									>
-										<ShieldOff className="mr-1 h-4 w-4" />
-										{unbanLoading ? "解除中..." : "解除封禁"}
-									</Button>
-								)}
-								<Button
-									variant="destructive"
-									size="sm"
-									onClick={() => {
-										setPurgeError(null);
-										setPurgeDialogOpen(true);
-									}}
-									data-testid="purge-user-button"
-								>
-									<Trash2 className="mr-1 h-4 w-4" />
-									彻底清除
-								</Button>
-							</>
-						)}
-					</div>
-				</CardContent>
-			</Card>
 
 			<UserEditDialog
 				open={editOpen}
@@ -620,6 +593,58 @@ function BackLinkButton({ onClick }: { onClick: () => void }) {
 			<ArrowLeft className="h-4 w-4" />
 			返回用户列表
 		</button>
+	);
+}
+
+/**
+ * Header-right action cluster. Split out from the main panel so
+ * `UserDetailPanel`'s cognitive complexity stays under biome's 25 cap
+ * even after inlining these branches. Behaviour is identical to the
+ * old bottom-of-page "操作" card — only the mount point moved.
+ */
+interface UserActionButtonsProps {
+	user: User;
+	unbanLoading: boolean;
+	onEdit: () => void;
+	onOpenBan: () => void;
+	onUnban: () => void;
+	onOpenPurge: () => void;
+}
+
+function UserActionButtons({
+	user,
+	unbanLoading,
+	onEdit,
+	onOpenBan,
+	onUnban,
+	onOpenPurge,
+}: UserActionButtonsProps) {
+	if (user.status === -99) {
+		return <p className="text-sm text-muted-foreground">此用户已被彻底清除，无法再编辑或封禁。</p>;
+	}
+	return (
+		<div className="flex flex-wrap items-center justify-end gap-2">
+			<Button variant="outline" size="sm" onClick={onEdit}>
+				<Pencil className="mr-1 h-4 w-4" />
+				编辑资料
+			</Button>
+			{user.status !== -1 && (
+				<Button variant="destructive" size="sm" onClick={onOpenBan}>
+					<Shield className="mr-1 h-4 w-4" />
+					封禁用户
+				</Button>
+			)}
+			{user.status === -1 && (
+				<Button variant="outline" size="sm" onClick={onUnban} disabled={unbanLoading}>
+					<ShieldOff className="mr-1 h-4 w-4" />
+					{unbanLoading ? "解除中..." : "解除封禁"}
+				</Button>
+			)}
+			<Button variant="destructive" size="sm" onClick={onOpenPurge} data-testid="purge-user-button">
+				<Trash2 className="mr-1 h-4 w-4" />
+				彻底清除
+			</Button>
+		</div>
 	);
 }
 

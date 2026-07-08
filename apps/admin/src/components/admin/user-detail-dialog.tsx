@@ -70,7 +70,14 @@ export function UserDetailDialog({
 	const open = userId !== null;
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-			<DialogContent className="w-[80vw] max-w-[80vw] sm:max-w-[80vw] overflow-hidden">
+			{/*
+			 * Wider than dialog-presets.ts's default (max-w-5xl) because the
+			 * refactored panel puts four modules on a single row (基本资料 /
+			 * 元信息 / 用户内容 / 写权限体检) — 5xl was cramping every column
+			 * to ~200px on 1440p screens. Padding trimmed via `p-6` to match
+			 * shadcn dialog conventions now that we own the internal grid.
+			 */}
+			<DialogContent className="w-[calc(100vw-2rem)] max-w-[min(1440px,calc(100vw-2rem))] overflow-hidden p-6 sm:max-w-[min(1440px,calc(100vw-2rem))]">
 				<DialogHeader className="min-w-0">
 					<DialogTitle>用户详情</DialogTitle>
 				</DialogHeader>
