@@ -95,7 +95,7 @@ describe("write-permission", () => {
 			const result = evaluateWritePermission(user, STRICT_SETTINGS, NOW);
 
 			expect(result.canWrite).toBe(false);
-			expect(result.blockedBy).toEqual(["邮箱验证", "头像"]);
+			expect(result.blockedBy).toEqual(["邮箱验证", "用户头像"]);
 
 			const byId = Object.fromEntries(result.items.map((i) => [i.id, i]));
 			expect(byId.L2.status).toBe("pass");
@@ -219,7 +219,7 @@ describe("write-permission", () => {
 		it("blockedBy preserves the natural top-down order (L3 before L6)", () => {
 			const user = makeUser({ emailVerifiedAt: 0, avatarPath: "", hasAvatar: false });
 			const result = evaluateWritePermission(user, STRICT_SETTINGS, NOW);
-			expect(result.blockedBy).toEqual(["邮箱验证", "头像"]);
+			expect(result.blockedBy).toEqual(["邮箱验证", "用户头像"]);
 		});
 	});
 });

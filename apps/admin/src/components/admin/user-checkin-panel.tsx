@@ -198,10 +198,9 @@ export function UserCheckinPanel({ userId }: Props) {
 				 * 3:1 split (哥 2026-07-09):
 				 *   left  (lg:col-span-3) — aggregate summary + recent-N-days grid
 				 *   right (lg:col-span-1) — manual streak override form
-				 * A vertical border (`lg:border-l lg:pl-4`) separates the right
-				 * column from the timeline instead of the old form-scoped
-				 * `border-t`, which broke the "分割线只在大模块之间" rule.
-				 * Collapses to a single column below lg.
+				 * No dividers inside the card — the outer card is already a
+				 * bounded module and 哥's rule ("分割线只在大模块之间") applies
+				 * to intra-card layouts too.
 				 */}
 				<div className="grid gap-6 lg:grid-cols-4 lg:gap-4">
 					{/* Left 3/4 — aggregate + timeline */}
@@ -263,7 +262,7 @@ export function UserCheckinPanel({ userId }: Props) {
 					</div>
 
 					{/* Right 1/4 — manual streak override */}
-					<form onSubmit={handleSaveStreak} className="space-y-2 lg:col-span-1 lg:border-l lg:pl-4">
+					<form onSubmit={handleSaveStreak} className="space-y-2 lg:col-span-1">
 						<Label htmlFor={`streak-input-${userId}`}>手动设置连续天数</Label>
 						<div className="flex items-center gap-2">
 							<Input

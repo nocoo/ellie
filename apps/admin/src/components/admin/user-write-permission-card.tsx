@@ -113,7 +113,11 @@ function ChecklistRow({ item }: { item: CheckItem }) {
 	const Icon = STATUS_ICON[item.status];
 	return (
 		<li
-			className="grid grid-cols-[1.25rem_4rem_1fr] items-baseline gap-2"
+			// 5rem label column comfortably fits any 4-CJK-char layer label
+			// (账号状态 / 邮箱验证 / 写入权限 / 注册天数 / 用户头像) even at
+			// slightly larger user font sizes, so nothing wraps in the
+			// narrow 4-up card grid.
+			className="grid grid-cols-[1.25rem_5rem_1fr] items-baseline gap-2"
 			data-item-id={item.id}
 			data-item-status={item.status}
 		>

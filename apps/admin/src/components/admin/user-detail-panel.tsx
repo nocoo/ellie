@@ -360,7 +360,7 @@ export function UserDetailPanel({
 						<CardTitle>基本资料</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
+						<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">邮箱</dt>
 							<dd className="break-all">{user.email || "—"}</dd>
 							<dt className="text-muted-foreground">积分</dt>
@@ -383,7 +383,7 @@ export function UserDetailPanel({
 					</CardHeader>
 					<CardContent className="space-y-4">
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip. */}
-						<dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
+						<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
 							<dd className="flex flex-wrap items-center gap-1">
 								<span className="font-mono">{fmtIp(user.regIp)}</span>
@@ -426,7 +426,7 @@ export function UserDetailPanel({
 						{user.onlineIp && user.onlineIp.trim().length > 0 && (
 							<div className="space-y-2">
 								<div className="text-xs text-muted-foreground">当前在线 · 软指标 · TTL 15min</div>
-								<dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
+								<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
 									<dt className="text-muted-foreground">当前 IP</dt>
 									<dd className="flex flex-wrap items-center gap-1">
 										<span className="font-mono">{fmtIp(user.onlineIp)}</span>

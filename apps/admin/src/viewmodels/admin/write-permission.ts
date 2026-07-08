@@ -215,7 +215,7 @@ function evalContentSwitches(settings: WritePermissionSettings, staff: boolean):
 	if (staff) {
 		return {
 			id: "L4",
-			label: "站点写开关",
+			label: "写入权限",
 			status: "info",
 			code: "STAFF_BYPASS",
 			detail: "员工用户，绕过站点写开关",
@@ -225,7 +225,7 @@ function evalContentSwitches(settings: WritePermissionSettings, staff: boolean):
 	if (allowNewThread && allowReply) {
 		return {
 			id: "L4",
-			label: "站点写开关",
+			label: "写入权限",
 			status: "pass",
 			code: "CONTENT_ALLOWED",
 			detail: "发新主题 + 回复 均开启",
@@ -234,7 +234,7 @@ function evalContentSwitches(settings: WritePermissionSettings, staff: boolean):
 	if (!allowNewThread && !allowReply) {
 		return {
 			id: "L4",
-			label: "站点写开关",
+			label: "写入权限",
 			status: "fail",
 			code: "CONTENT_DISABLED_BOTH",
 			detail: "发新主题 + 回复 均已关闭",
@@ -243,7 +243,7 @@ function evalContentSwitches(settings: WritePermissionSettings, staff: boolean):
 	if (!allowNewThread) {
 		return {
 			id: "L4",
-			label: "站点写开关",
+			label: "写入权限",
 			status: "fail",
 			code: "CONTENT_DISABLED_THREAD",
 			detail: "发新主题 已关闭",
@@ -251,7 +251,7 @@ function evalContentSwitches(settings: WritePermissionSettings, staff: boolean):
 	}
 	return {
 		id: "L4",
-		label: "站点写开关",
+		label: "写入权限",
 		status: "fail",
 		code: "CONTENT_DISABLED_REPLY",
 		detail: "回复 已关闭",
@@ -305,7 +305,7 @@ function evalAvatar(user: User, settings: WritePermissionSettings, staff: boolea
 	if (staff) {
 		return {
 			id: "L6",
-			label: "头像",
+			label: "用户头像",
 			status: "info",
 			code: "STAFF_BYPASS",
 			detail: "员工用户，绕过头像门槛",
@@ -314,7 +314,7 @@ function evalAvatar(user: User, settings: WritePermissionSettings, staff: boolea
 	if (!settings.postingRestrictionsEnabled) {
 		return {
 			id: "L6",
-			label: "头像",
+			label: "用户头像",
 			status: "info",
 			code: "POSTING_RESTRICTIONS_OFF",
 			detail: "发帖门槛未启用",
@@ -323,7 +323,7 @@ function evalAvatar(user: User, settings: WritePermissionSettings, staff: boolea
 	if (!settings.requireAvatar) {
 		return {
 			id: "L6",
-			label: "头像",
+			label: "用户头像",
 			status: "pass",
 			code: "AVATAR_NOT_REQUIRED",
 			detail: "未强制要求头像",
@@ -332,7 +332,7 @@ function evalAvatar(user: User, settings: WritePermissionSettings, staff: boolea
 	if (userHasAvatar(user)) {
 		return {
 			id: "L6",
-			label: "头像",
+			label: "用户头像",
 			status: "pass",
 			code: "AVATAR_PRESENT",
 			detail: "已设置",
@@ -340,7 +340,7 @@ function evalAvatar(user: User, settings: WritePermissionSettings, staff: boolea
 	}
 	return {
 		id: "L6",
-		label: "头像",
+		label: "用户头像",
 		status: "fail",
 		code: "AVATAR_MISSING",
 		detail: "未设置",
@@ -354,11 +354,11 @@ function layerLabel(id: "L3" | "L4" | "L5" | "L6"): string {
 		case "L3":
 			return "邮箱验证";
 		case "L4":
-			return "站点写开关";
+			return "写入权限";
 		case "L5":
 			return "注册天数";
 		case "L6":
-			return "头像";
+			return "用户头像";
 	}
 }
 
