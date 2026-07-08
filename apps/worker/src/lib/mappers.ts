@@ -64,6 +64,12 @@ interface D1UserRow {
 	email: string;
 	avatar: string;
 	avatar_path: string;
+	/**
+	 * Legacy Discuz-era avatar flag. 1 iff the user uploaded an avatar under
+	 * the old numeric-uid path scheme (pre-GUID). New uploads populate
+	 * `avatar_path` instead. Read only — never mutated by app code.
+	 */
+	has_avatar?: number;
 	status: number;
 	role: number;
 	reg_date: number;
@@ -238,6 +244,7 @@ export function toUser(row: Record<string, unknown>): User {
 		email: r.email,
 		avatar: r.avatar,
 		avatarPath: r.avatar_path ?? "",
+		hasAvatar: r.has_avatar === 1,
 		status: r.status,
 		role: r.role,
 		regDate: r.reg_date,

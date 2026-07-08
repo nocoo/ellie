@@ -66,6 +66,7 @@ describe("D1 row mappers", () => {
 				email: "alice@example.com",
 				avatar: "avatar.png",
 				avatarPath: "avatars/abc123.jpg",
+				hasAvatar: false,
 				status: 0,
 				role: 1,
 				regDate: 1711540800,
@@ -190,8 +191,8 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields) + campus + checkin.
-			expect(Object.keys(user)).toHaveLength(41);
+			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields) + campus + hasAvatar + checkin.
+			expect(Object.keys(user)).toHaveLength(42);
 		});
 
 		it("should default campus to empty string when column missing", () => {
@@ -230,6 +231,53 @@ describe("D1 row mappers", () => {
 			};
 			expect(toUser(row).campus).toBe("");
 			expect(toPublicUser(row).campus).toBe("");
+		});
+
+		it("should project has_avatar into hasAvatar boolean (legacy Discuz flag)", () => {
+			// Base row shared by all three assertions below. hasAvatar mirrors
+			// the has_avatar column, which packs the legacy avatar flag as
+			// INTEGER 0/1 in D1 — 1 iff the user uploaded via the pre-GUID
+			// scheme. postingPermission.ts treats `has_avatar === 1` as
+			// sufficient even when avatar_path is empty, so the boolean the
+			// mapper produces MUST match that column's presence.
+			const base = {
+				id: 1,
+				username: "alice",
+				email: "a@b.com",
+				avatar: "",
+				avatar_path: "",
+				status: 0,
+				role: 0,
+				reg_date: 0,
+				last_login: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				last_activity: 0,
+			};
+
+			expect(toUser({ ...base, has_avatar: 1 }).hasAvatar).toBe(true);
+			expect(toUser({ ...base, has_avatar: 0 }).hasAvatar).toBe(false);
+			// Legacy rows / non-admin queries omit the column entirely.
+			expect(toUser(base).hasAvatar).toBe(false);
 		});
 	});
 

@@ -44,7 +44,7 @@ import { errorResponse } from "../../middleware/error";
 // The public user mini/public caches keep reading the cached columns —
 // this change is admin-only.
 const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login," +
+	"id, username, email, avatar, avatar_path, has_avatar, status, role, reg_date, last_login," +
 	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id) AS threads," +
 	" (SELECT COUNT(*) FROM posts p WHERE p.author_id = users.id) AS posts," +
 	" credits, coins, signature, group_title, group_stars, group_color, custom_title," +
