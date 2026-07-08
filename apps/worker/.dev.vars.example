@@ -1,0 +1,61 @@
+# Ellie Cloudflare Worker — local secrets
+#
+# Copy to /.dev.vars (repo root) and fill in real values. The
+# apps/worker/.dev.vars path is a symlink → ../../.dev.vars so both
+# `wrangler dev` and any tooling that reads from apps/worker/ share the
+# same file (see CLAUDE.md > Secrets & Environment).
+#
+#   cp apps/worker/.dev.vars.example .dev.vars
+#   ln -s ../../.dev.vars apps/worker/.dev.vars
+#
+# Generate a secret of your own for each value — never reuse a
+# production secret in local dev:
+#   openssl rand -base64 32
+#
+# Production values live only in Cloudflare (set via
+# `wrangler secret put <NAME> -c apps/worker/wrangler.toml`).
+
+# ─── Required (worker refuses to boot / gates fail-closed without these) ──
+
+# Forum API key. web (FORUM_API_KEY) uses this to talk to the worker
+# from the Next.js proxy layer. MUST match apps/web/.env.local.
+API_KEY=
+
+# Admin API key. admin (ADMIN_API_KEY) uses this for the admin BFF.
+# MUST match apps/admin/.env.local. Separate from API_KEY on purpose:
+# admin routes accept ADMIN_API_KEY only, forum routes accept API_KEY
+# only — a leak of one never grants the other's scope.
+ADMIN_API_KEY=
+
+# JWT signing secret for forum user tokens (issued on login/register).
+# Rotating this invalidates every existing session.
+JWT_SECRET=
+
+# ─── Optional (feature-gated; fail-closed to 503 when unset) ──────────────
+
+# HMAC key for 6-digit email verification codes (docs/17 §6.2). Without
+# this key the /auth/email/* endpoints return 503 EMAIL_VERIFY_NOT_CONFIGURED
+# and users cannot verify email → they hit L3 EMAIL_NOT_VERIFIED and
+# cannot post.
+EMAIL_VERIFY_HMAC_KEY=
+
+# Dove email-relay bearer token. Non-secret Dove config
+# (DOVE_BASE_URL / DOVE_PROJECT_ID / DOVE_TEMPLATE_SLUG) lives in
+# wrangler.toml [vars] because those are not sensitive. Without this
+# token sendDoveEmail returns { ok: false, code: "dove_not_configured" }
+# and request-code surfaces EMAIL_PROVIDER_FAILED (no code is persisted).
+DOVE_WEBHOOK_TOKEN=
+
+# API key for the upstream IP-lookup service used by the admin panel
+# (docs/20 §ip-lookup). Sent as X-Api-Key on server-to-server calls.
+# When unset the admin IP-lookup endpoint returns 503
+# IP_LOOKUP_NOT_CONFIGURED — the UI shows a "未配置" notice instead of
+# leaking anonymous calls.
+IP_LOOKUP_API_KEY=
+
+# Shared secret for the P5 analytics page-view ingest endpoint at
+# POST /api/internal/analytics/ingest. The web proxy forwards this as
+# X-Ingest-Key. When unset the worker returns 503 INGEST_NOT_CONFIGURED
+# and the web proxy silently drops samples (ingest is opportunistic and
+# never blocks navigation).
+ANALYTICS_INGEST_KEY=

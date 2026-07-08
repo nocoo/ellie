@@ -62,14 +62,44 @@ Browser → Next.js API Routes → Cloudflare Worker → D1/KV
 
 ## Secrets & Environment
 
-**Single source of truth:** `/.dev.vars` (root directory)
-- `apps/worker/.dev.vars` is a symlink → `../../.dev.vars`
-- Both `wrangler dev` and CLI dev builds read from the same file
+Three env files, one per app. Each has a tracked `.example` sibling — copy
+those to the real names below (all gitignored) and fill in values.
 
-| Variable | Description |
-|----------|-------------|
-| `API_KEY` | Cloudflare Worker API key — shared between local dev and production |
-| `JWT_SECRET` | JWT signing secret for auth tokens |
+| Real path | Example file | Consumed by |
+|---|---|---|
+| `/.dev.vars` (root) | `apps/worker/.dev.vars.example` | `wrangler dev` — `apps/worker/.dev.vars` MUST be a symlink → `../../.dev.vars` so worker + CLI dev builds read one file |
+| `apps/web/.env.local` | `apps/web/.env.local.example` | Next.js forum (port 7031) |
+| `apps/admin/.env.local` | `apps/admin/.env.local.example` | Next.js admin console (port 7032) |
+
+### Worker secrets (in `/.dev.vars`)
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `API_KEY` | ✓ | Forum API key (Key A). Must match `apps/web/.env.local:FORUM_API_KEY` |
+| `ADMIN_API_KEY` | ✓ | Admin API key (Key B). Must match `apps/admin/.env.local:ADMIN_API_KEY` |
+| `JWT_SECRET` | ✓ | JWT signing secret for forum user tokens |
+| `EMAIL_VERIFY_HMAC_KEY` | optional | HMAC for 6-digit email codes (docs/17). Without it `/auth/email/*` → 503 |
+| `DOVE_WEBHOOK_TOKEN` | optional | Dove mail relay bearer. Non-secret Dove config lives in `wrangler.toml [vars]` |
+| `IP_LOOKUP_API_KEY` | optional | Upstream IP-lookup key for admin panel. Without it → 503 |
+| `ANALYTICS_INGEST_KEY` | optional | Shared with `apps/web/.env.local`. P5 page-view ingest bridge |
+
+### Web (`apps/web/.env.local`)
+
+`AUTH_SECRET`, `AUTH_URL`, `WORKER_API_URL`, `FORUM_API_KEY`,
+`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_CAP_API_ENDPOINT`,
+`ANALYTICS_INGEST_KEY` (optional). See `.env.local.example` for details.
+
+### Admin (`apps/admin/.env.local`)
+
+`AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`
+(admin is Google-only), `ADMIN_EMAILS` (allowlist), `WORKER_API_URL`,
+`ADMIN_API_KEY`. See `.env.local.example` for details.
+
+### Key A vs Key B
+
+Forum handlers accept `API_KEY` only; admin handlers accept
+`ADMIN_API_KEY` only. Never share the same value across both — leaking
+one must not grant the other's scope.
 
 **Wrangler commands** must specify config: `-c apps/worker/wrangler.toml`
 
