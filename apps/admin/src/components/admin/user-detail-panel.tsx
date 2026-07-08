@@ -50,6 +50,7 @@ import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserCheckinPanel } from "@/components/admin/user-checkin-panel";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
+import { UserWritePermissionCard } from "@/components/admin/user-write-permission-card";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import type { Thread } from "@/viewmodels/admin/threads";
@@ -487,8 +488,18 @@ export function UserDetailPanel({
 				</CardContent>
 			</Card>
 
-			{/* Check-in panel (Phase F) — only meaningful for non-tombstoned users */}
-			{user.status !== -99 && <UserCheckinPanel userId={user.id} />}
+			{/*
+			 * Check-in panel + write-permission checklist (Phase F + write-gate
+			 * visibility). Both are only meaningful for non-tombstoned users;
+			 * grouped under one guard so this render function's cognitive
+			 * complexity stays under the biome cap.
+			 */}
+			{user.status !== -99 && (
+				<>
+					<UserWritePermissionCard user={user} />
+					<UserCheckinPanel userId={user.id} />
+				</>
+			)}
 
 			{/* Danger zone */}
 			<Card>
