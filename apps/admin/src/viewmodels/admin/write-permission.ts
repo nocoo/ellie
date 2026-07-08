@@ -151,8 +151,19 @@ export function evaluateWritePermission(
 }
 
 function evalStatus(user: User): CheckItem {
+	// Detail strings intentionally prefixed with "账号 " so they don't collide
+	// with the header <Badge> which renders the bare statusLabel (正常 / 已封禁
+	// / …). The E2E test at tests/e2e/bdd/admin/admin-crud.spec.ts asserts
+	// getByText("正常", { exact: true }) targets exactly one element on the
+	// detail page, and a bare "正常" here would break its strict-mode locator.
 	if (user.status === 0) {
-		return { id: "L2", label: "账号状态", status: "pass", code: "STATUS_OK", detail: "正常" };
+		return {
+			id: "L2",
+			label: "账号状态",
+			status: "pass",
+			code: "STATUS_OK",
+			detail: "账号 正常",
+		};
 	}
 	if (user.status === -1) {
 		return {
@@ -160,7 +171,7 @@ function evalStatus(user: User): CheckItem {
 			label: "账号状态",
 			status: "fail",
 			code: "STATUS_BANNED",
-			detail: "已封禁",
+			detail: "账号 已封禁",
 		};
 	}
 	if (user.status === -99) {
@@ -169,7 +180,7 @@ function evalStatus(user: User): CheckItem {
 			label: "账号状态",
 			status: "fail",
 			code: "STATUS_TOMBSTONE",
-			detail: "已彻底清除",
+			detail: "账号 已彻底清除",
 		};
 	}
 	return {
@@ -177,7 +188,7 @@ function evalStatus(user: User): CheckItem {
 		label: "账号状态",
 		status: "fail",
 		code: "STATUS_ARCHIVED",
-		detail: `已归档 (status=${user.status})`,
+		detail: `账号 已归档 (status=${user.status})`,
 	};
 }
 
