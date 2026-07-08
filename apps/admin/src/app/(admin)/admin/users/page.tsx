@@ -17,9 +17,11 @@ import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserDetailDialog } from "@/components/admin/user-detail-dialog";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
+import { UserWriteGateBadges } from "@/components/admin/user-write-gate-badges";
 import { PageHeader } from "@/components/layout/page-header";
 import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import { formatPurgeBatchSummary, useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
+import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
 import { roleLabel, statusLabel, type User } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
@@ -219,6 +221,16 @@ export default function UsersPage() {
 		[actions],
 	);
 
+	// Site-level posting settings feed the "写权限" column below. Fetched
+	// once per page mount (shared with UserDetailPanel via the same hook)
+	// and cached in state; on failure the hook falls back to defaults so
+	// the badges keep rendering rather than blocking the whole table.
+	const writeSettings = useWritePermissionSettings();
+	// Snapshot "now" once per render so every row uses the same day
+	// boundary. useMemo would over-cache across data refreshes; recomputing
+	// on every render is negligible.
+	const nowSeconds = Math.floor(Date.now() / 1000);
+
 	// -----------------------------------------------------------------------
 	// Column definitions
 	// -----------------------------------------------------------------------
@@ -266,6 +278,13 @@ export default function UsersPage() {
 			header: "状态",
 			cell: (row) => (
 				<Badge variant={userStatusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+			),
+		},
+		{
+			key: "writeGate",
+			header: "写权限",
+			cell: (row) => (
+				<UserWriteGateBadges user={row} settings={writeSettings.settings} nowSeconds={nowSeconds} />
 			),
 		},
 		{

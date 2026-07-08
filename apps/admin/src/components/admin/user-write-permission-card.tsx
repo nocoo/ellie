@@ -13,14 +13,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
 import { AlertCircle, Check, Info, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { FEATURE_DEFAULTS, fetchFeatureSettings } from "@/viewmodels/admin/features";
+import { useMemo } from "react";
+import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
 import type { User } from "@/viewmodels/admin/users";
 import {
 	type CheckItem,
 	type CheckStatus,
 	evaluateWritePermission,
-	type WritePermissionSettings,
 } from "@/viewmodels/admin/write-permission";
 
 export interface UserWritePermissionCardProps {
@@ -47,72 +46,6 @@ const STATUS_ICON_CLASS: Record<CheckStatus, string> = {
 	skip: "text-muted-foreground",
 	info: "text-blue-600 dark:text-blue-400",
 };
-
-/**
- * Best-effort load of the five posting/content settings from the same
- * `/api/admin/settings?prefix=features.` endpoint the feature-settings form
- * uses. Missing keys fall through to FEATURE_DEFAULTS so a fresh install (or
- * a fetch failure) still renders a plausible checklist rather than blocking
- * the whole card.
- */
-function useWritePermissionSettings(): {
-	settings: WritePermissionSettings;
-	loading: boolean;
-	error: string | null;
-} {
-	const [state, setState] = useState<{
-		settings: WritePermissionSettings;
-		loading: boolean;
-		error: string | null;
-	}>(() => ({
-		settings: settingsFromMap({}),
-		loading: true,
-		error: null,
-	}));
-
-	useEffect(() => {
-		let cancelled = false;
-		fetchFeatureSettings()
-			.then((res) => {
-				if (cancelled) return;
-				const flat: Record<string, string> = {};
-				for (const [k, v] of Object.entries(res)) flat[k] = v.value;
-				setState({ settings: settingsFromMap(flat), loading: false, error: null });
-			})
-			.catch((err) => {
-				if (cancelled) return;
-				// Silent fallback — the checklist still renders using defaults so
-				// operators are never blocked. Surfacing the error as a small
-				// hint keeps them aware if the values might be stale.
-				setState({
-					settings: settingsFromMap({}),
-					loading: false,
-					error: err instanceof Error ? err.message : "settings 读取失败，使用默认值",
-				});
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	return state;
-}
-
-/**
- * Project the raw settings map into the shape evaluateWritePermission wants,
- * applying FEATURE_DEFAULTS as fallbacks. Extracted so both the runtime
- * fetch path and any future SSR/hard-coded caller share one converter.
- */
-function settingsFromMap(map: Record<string, string>): WritePermissionSettings {
-	const resolve = (key: string): string => map[key] ?? FEATURE_DEFAULTS[key] ?? "";
-	return {
-		allowNewThread: resolve("features.content.allow_new_thread") !== "false",
-		allowReply: resolve("features.content.allow_reply") !== "false",
-		postingRestrictionsEnabled: resolve("features.posting.enabled") === "true",
-		minRegistrationDays: Number.parseInt(resolve("features.posting.min_registration_days"), 10),
-		requireAvatar: resolve("features.posting.require_avatar") === "true",
-	};
-}
 
 export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) {
 	const { settings, loading, error } = useWritePermissionSettings();
