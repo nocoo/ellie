@@ -207,7 +207,10 @@ function evalEmail(user: User): CheckItem {
 		label: "邮箱验证",
 		status: "fail",
 		code: "EMAIL_NOT_VERIFIED",
-		detail: user.email ? `未验证 (${user.email})` : "未验证",
+		// Detail intentionally omits the email address — it's already
+		// shown in the neighbouring 基本资料 card and repeating it here
+		// clutters the four-up card grid (哥 2026-07-09 walkthrough).
+		detail: "未验证",
 	};
 }
 
