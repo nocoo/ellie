@@ -3,8 +3,7 @@
 // Admin Users Page (View layer)
 // MVVM: This is the View layer. State and logic are in useUsersAdmin hook.
 
-import { formatNumber } from "@ellie/shared";
-import { Badge, Button } from "@ellie/ui";
+import { Button } from "@ellie/ui";
 import { Eye, Pencil } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
@@ -14,15 +13,13 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
-import { UserAvatar } from "@/components/admin/user-avatar";
+import { buildUserColumns } from "@/components/admin/columns/user-columns";
 import { UserDetailDialog } from "@/components/admin/user-detail-dialog";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
-import { UserWriteGateBadges } from "@/components/admin/user-write-gate-badges";
 import { PageHeader } from "@/components/layout/page-header";
-import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import { formatPurgeBatchSummary, useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
-import { roleLabel, statusLabel, type User } from "@/viewmodels/admin/users";
+import type { User } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
@@ -235,83 +232,18 @@ export default function UsersPage() {
 	// Column definitions
 	// -----------------------------------------------------------------------
 
+	// Build the shared "full" preset once per render — the caller side stays
+	// thin. writeGate is auto-included because we pass both writeSettings and
+	// nowSeconds; the compact users list on /admin/recent skips writeGate by
+	// simply not passing these opts. Trailing actions column (Eye / Pencil)
+	// stays here since its handlers close over the useUsersAdmin hook.
 	const columns: ColumnDef<User>[] = [
-		{
-			key: "user",
-			header: "用户",
-			cell: (row) => (
-				<button
-					type="button"
-					onClick={() => actions.openDetail(row.id)}
-					className="flex items-center gap-2 text-foreground hover:underline"
-				>
-					<UserAvatar uid={row.id} username={row.username} avatarPath={row.avatarPath} size={32} />
-					<span className="font-medium">{row.username}</span>
-				</button>
-			),
-		},
-		{
-			key: "email",
-			header: "邮箱",
-			// Plain address only — verification state is surfaced in the
-			// 写权限 column so both places don't badge the same fact.
-			cell: (row) => <span className="break-all">{row.email || "—"}</span>,
-		},
-		{
-			key: "role",
-			header: "角色",
-			cell: (row) => <Badge variant={userRoleVariant(row.role)}>{roleLabel(row.role)}</Badge>,
-		},
-		{
-			key: "status",
-			header: "状态",
-			cell: (row) => (
-				<Badge variant={userStatusVariant(row.status)}>{statusLabel(row.status)}</Badge>
-			),
-		},
-		{
-			key: "writeGate",
-			header: "写权限",
-			cell: (row) => (
-				<UserWriteGateBadges user={row} settings={writeSettings.settings} nowSeconds={nowSeconds} />
-			),
-		},
-		{
-			key: "threads",
-			header: "主题",
-			cell: (row) => formatNumber(row.threads),
-			className: "text-right tabular-nums",
-		},
-		{
-			key: "posts",
-			header: "帖子",
-			cell: (row) => formatNumber(row.posts),
-			className: "text-right tabular-nums",
-		},
-		{
-			key: "messages",
-			header: "站内信",
-			// `messagesCount` is admin-list-only enrichment from
-			// `enrichListRows` (worker handlers/admin/user.ts). Worker always
-			// emits a number on the list path; the `?? 0` is belt-and-braces
-			// for transient mismatches and never shows blank cells.
-			cell: (row) => formatNumber(row.messagesCount ?? 0),
-			className: "text-right tabular-nums",
-		},
-		{
-			key: "attachments",
-			header: "附件",
-			cell: (row) => formatNumber(row.attachmentsCount ?? 0),
-			className: "text-right tabular-nums",
-		},
-		{
-			key: "registered",
-			header: "注册时间",
-			cell: (row) => {
-				const date = new Date(row.regDate * 1000);
-				return date.toLocaleDateString();
-			},
-		},
+		...buildUserColumns({
+			variant: "full",
+			onOpenDetail: actions.openDetail,
+			writeGateSettings: writeSettings.settings,
+			nowSeconds,
+		}),
 		{
 			key: "actions",
 			header: "",
