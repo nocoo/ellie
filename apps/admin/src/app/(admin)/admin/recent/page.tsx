@@ -1,22 +1,21 @@
 "use client";
 
-import { formatDate, formatNumber } from "@ellie/shared";
-import { Badge, Button, Lightbox, type LightboxImage } from "@ellie/ui";
-import { FileIcon, Loader2, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Button, Lightbox, type LightboxImage } from "@ellie/ui";
+import { Loader2, Trash2 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
-import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
+import { buildAttachmentColumns } from "@/components/admin/columns/attachment-columns";
+import { buildPostColumns } from "@/components/admin/columns/post-columns";
+import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
+import { buildUserColumns } from "@/components/admin/columns/user-columns";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
-import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
+import { getAttachmentUrl } from "@/lib/cdn";
 import type { Attachment } from "@/viewmodels/admin/attachments";
-import { formatFileSize } from "@/viewmodels/admin/attachments";
-import { userRoleVariant } from "@/viewmodels/admin/badges";
 import type { Post } from "@/viewmodels/admin/posts";
 import {
 	fetchRecentAttachments,
@@ -30,7 +29,7 @@ import {
 	timeRangeToBounds,
 } from "@/viewmodels/admin/recent";
 import type { Thread } from "@/viewmodels/admin/threads";
-import { roleLabel, type User } from "@/viewmodels/admin/users";
+import type { User } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -479,44 +478,10 @@ function UsersTab({
 	pagination: PaginationInfo;
 	onPageChange: (page: number) => void;
 }) {
-	const columns: ColumnDef<User>[] = useMemo(
-		() => [
-			{
-				key: "username",
-				header: "用户名",
-				cell: (row) => (
-					<Link
-						href={`/admin/users/${row.id}`}
-						className="font-medium text-foreground hover:underline"
-					>
-						{row.username}
-					</Link>
-				),
-			},
-			{ key: "email", header: "邮箱", cell: (row) => row.email },
-			{
-				key: "role",
-				header: "角色",
-				cell: (row) => <Badge variant={userRoleVariant(row.role)}>{roleLabel(row.role)}</Badge>,
-			},
-			{
-				key: "regDate",
-				header: "注册时间",
-				cell: (row) => formatDate(row.regDate),
-			},
-			{
-				key: "regIp",
-				header: "注册 IP",
-				cell: (row) => (
-					<div className="flex items-center gap-1">
-						<span className="font-mono text-sm">{row.regIp || "—"}</span>
-						{row.regIp && <IpLookupInline ip={row.regIp} />}
-					</div>
-				),
-			},
-		],
-		[],
-	);
+	// Compact preset — no writeGate opts, no onOpenDetail. The user cell
+	// falls back to a <Link> pointing at /admin/users/{id}, matching this
+	// tab's pre-extraction behaviour.
+	const columns = useMemo<ColumnDef<User>[]>(() => buildUserColumns({ variant: "compact" }), []);
 
 	return (
 		<div className="space-y-4">
@@ -555,64 +520,18 @@ function ThreadsTab({
 	onPageChange: (page: number) => void;
 	onDelete: (id: number, subject: string) => void;
 }) {
-	const columns: ColumnDef<Thread>[] = useMemo(
+	// Compact preset + trailing Trash2 actions column — this tab only
+	// exposes single-row delete (no edit / no lock toggle), so we splice
+	// the tail here rather than let the preset guess at every caller's
+	// action mix.
+	const columns = useMemo<ColumnDef<Thread>[]>(
 		() => [
-			{
-				key: "subject",
-				header: "主题",
-				cell: (row) => (
-					<Link
-						href={`/admin/threads/${row.id}`}
-						className="font-medium text-foreground hover:underline"
-					>
-						{row.subject}
-					</Link>
-				),
-			},
-			{
-				key: "author",
-				header: "作者",
-				cell: (row) =>
-					row.authorId > 0 ? (
-						<Link
-							href={`/admin/users/${row.authorId}`}
-							className="text-sm text-primary hover:underline"
-						>
-							{row.authorName}
-						</Link>
-					) : (
-						<span className="text-sm text-muted-foreground">{row.authorName}</span>
-					),
-			},
-			{
-				key: "createdAt",
-				header: "创建时间",
-				cell: (row) => formatDate(row.createdAt),
-			},
-			{
-				key: "replies",
-				header: "回复",
-				cell: (row) => formatNumber(row.replies ?? 0),
-				className: "text-right tabular-nums",
-			},
-			{
-				key: "views",
-				header: "浏览",
-				cell: (row) => formatNumber(row.views ?? 0),
-				className: "text-right tabular-nums",
-			},
+			...buildThreadColumns({ variant: "compact" }),
 			{
 				key: "actions",
 				header: "",
 				cell: (row) => (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8 text-destructive hover:text-destructive"
-						onClick={() => onDelete(row.id, row.subject)}
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
+					<TrashIconButton onClick={() => onDelete(row.id, row.subject)} label="删除主题" />
 				),
 				className: "w-auto whitespace-nowrap",
 			},
@@ -660,59 +579,13 @@ function PostsTab({
 	onPageChange: (page: number) => void;
 	onDelete: (id: number) => void;
 }) {
-	const columns: ColumnDef<Post>[] = useMemo(
+	const columns = useMemo<ColumnDef<Post>[]>(
 		() => [
-			{
-				key: "content",
-				header: "内容",
-				cell: (row) => (
-					<span className="line-clamp-2 text-sm">
-						{(row.content ?? "").replace(/\[.*?\]/g, "").slice(0, 120)}
-					</span>
-				),
-			},
-			{
-				key: "author",
-				header: "作者",
-				cell: (row) => (
-					<Link
-						href={`/admin/users/${row.authorId}`}
-						className="text-sm text-primary hover:underline whitespace-nowrap"
-					>
-						{row.authorName}
-					</Link>
-				),
-			},
-			{
-				key: "thread",
-				header: "所在主题",
-				cell: (row) => (
-					<Link
-						href={`/admin/threads/${row.threadId}`}
-						className="text-sm text-primary hover:underline whitespace-nowrap"
-					>
-						#{row.threadId}
-					</Link>
-				),
-			},
-			{
-				key: "createdAt",
-				header: "创建时间",
-				cell: (row) => formatDate(row.createdAt),
-			},
+			...buildPostColumns(),
 			{
 				key: "actions",
 				header: "",
-				cell: (row) => (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8 text-destructive hover:text-destructive"
-						onClick={() => onDelete(row.id)}
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
-				),
+				cell: (row) => <TrashIconButton onClick={() => onDelete(row.id)} label="删除回复" />,
 				className: "w-auto whitespace-nowrap",
 			},
 		],
@@ -775,76 +648,14 @@ function AttachmentsTab({
 		[data, onPreview],
 	);
 
-	const columns: ColumnDef<Attachment>[] = useMemo(
+	const columns = useMemo<ColumnDef<Attachment>[]>(
 		() => [
-			{
-				key: "preview",
-				header: "",
-				cell: (row) => {
-					if (row.isImage) {
-						const thumbUrl = row.hasThumb
-							? getAttachmentThumbUrl(row.filePath)
-							: getAttachmentUrl(row.filePath);
-						return (
-							<button type="button" className="block" onClick={() => handlePreview(row)}>
-								<img
-									src={thumbUrl}
-									alt={row.filename}
-									className="h-10 w-10 rounded object-cover"
-									loading="lazy"
-								/>
-							</button>
-						);
-					}
-					return <FileIcon className="h-6 w-6 text-muted-foreground" />;
-				},
-				className: "w-14",
-			},
-			{
-				key: "filename",
-				header: "文件名",
-				cell: (row) => (
-					<span className="text-sm truncate max-w-[200px] inline-block" title={row.filename}>
-						{row.filename}
-					</span>
-				),
-			},
-			{
-				key: "size",
-				header: "大小",
-				cell: (row) => (
-					<span className="text-xs text-muted-foreground">{formatFileSize(row.fileSize)}</span>
-				),
-			},
-			{
-				key: "thread",
-				header: "主题",
-				cell: (row) => (
-					<Link
-						href={`/admin/threads/${row.threadId}`}
-						className="text-sm text-primary hover:underline"
-					>
-						#{row.threadId}
-					</Link>
-				),
-			},
-			{
-				key: "createdAt",
-				header: "创建时间",
-				cell: (row) => formatDate(row.createdAt),
-			},
+			...buildAttachmentColumns({ onPreview: handlePreview }),
 			{
 				key: "actions",
 				header: "",
 				cell: (row) => (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8 text-destructive hover:text-destructive"
-						onClick={() => onDelete(row.id, row.filename)}
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
+					<TrashIconButton onClick={() => onDelete(row.id, row.filename)} label="删除附件" />
 				),
 				className: "w-auto whitespace-nowrap",
 			},
@@ -868,5 +679,29 @@ function AttachmentsTab({
 				<AdminPagination pagination={pagination} onPageChange={onPageChange} />
 			)}
 		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Shared row-action button
+// ---------------------------------------------------------------------------
+
+/**
+ * Recent's three deletable tabs (threads / posts / attachments) all use
+ * an identical Trash2 icon button — extracted here so the tab bodies
+ * don't repeat the destructive styling and aria wiring.
+ */
+function TrashIconButton({ onClick, label }: { onClick: () => void; label: string }) {
+	return (
+		<Button
+			variant="ghost"
+			size="icon"
+			className="h-8 w-8 text-destructive hover:text-destructive"
+			aria-label={label}
+			title={label}
+			onClick={onClick}
+		>
+			<Trash2 className="h-4 w-4" />
+		</Button>
 	);
 }
