@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
+import type { Thread } from "@/viewmodels/admin/threads";
 
 describe("buildThreadColumns", () => {
 	it("full variant emits the 8 main-page columns", () => {
@@ -34,5 +35,20 @@ describe("buildThreadColumns", () => {
 			const cols = buildThreadColumns({ variant });
 			expect(cols.map((c) => c.key)).not.toContain("actions");
 		}
+	});
+
+	it("replies/views cells render '0' when counters are missing (sparse payload guard)", () => {
+		// /admin/recent hits the same /api/admin/threads endpoint with a
+		// different time window and has been observed returning rows
+		// without `replies`/`views`; the preset must not blow up
+		// `formatNumber(undefined).toLocaleString`.
+		const cols = buildThreadColumns({ variant: "compact" });
+		const replies = cols.find((c) => c.key === "replies");
+		const views = cols.find((c) => c.key === "views");
+		// Cast Row to a partial so we can exercise the `?? 0` branch
+		// without fabricating a full Thread.
+		const sparse = {} as unknown as Thread;
+		expect(replies?.cell(sparse)).toBe("0");
+		expect(views?.cell(sparse)).toBe("0");
 	});
 });

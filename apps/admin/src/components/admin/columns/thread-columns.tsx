@@ -91,14 +91,20 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 	const repliesCell: ColumnDef<Thread> = {
 		key: "replies",
 		header: "回复",
-		cell: (row) => formatNumber(row.replies),
+		// `?? 0` guards against payloads where the worker omitted counters —
+		// /admin/recent (which uses the same /api/admin/threads endpoint
+		// with a different time window) can land rows whose replies/views
+		// are transiently undefined; the pre-extraction inline version in
+		// recent already had this fallback. Kept defensive here so any
+		// caller (main threads page or recent) survives sparse rows.
+		cell: (row) => formatNumber(row.replies ?? 0),
 		className: "text-right",
 	};
 
 	const viewsCell: ColumnDef<Thread> = {
 		key: "views",
 		header: "浏览",
-		cell: (row) => formatNumber(row.views),
+		cell: (row) => formatNumber(row.views ?? 0),
 		className: "text-right",
 	};
 

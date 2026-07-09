@@ -138,14 +138,17 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 	const threadsCell: ColumnDef<User> = {
 		key: "threads",
 		header: "主题",
-		cell: (row) => formatNumber(row.threads),
+		// `?? 0` mirrors the defensive fallback in thread-columns —
+		// sparse payloads from list endpoints (e.g. incremental views
+		// that don't join counters) would otherwise crash formatNumber.
+		cell: (row) => formatNumber(row.threads ?? 0),
 		className: "text-right tabular-nums",
 	};
 
 	const postsCell: ColumnDef<User> = {
 		key: "posts",
 		header: "帖子",
-		cell: (row) => formatNumber(row.posts),
+		cell: (row) => formatNumber(row.posts ?? 0),
 		className: "text-right tabular-nums",
 	};
 
