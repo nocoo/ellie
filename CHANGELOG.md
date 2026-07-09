@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] - 2026-07-10
+
+### Changed
+
+- **Admin: shared column presets for list tables.** `/admin/users`, `/admin/threads` and `/admin/recent`'s four inline tabs each hand-authored their own `ColumnDef<T>[]` arrays. When v1.7.0 grew a 写权限 column + 未验证 badge on /admin/users, /admin/recent's UsersTab was left behind because no single source of truth existed. New builders under `apps/admin/src/components/admin/columns/`:
+  - `buildUserColumns({variant, onOpenDetail?, writeGateSettings?, nowSeconds?})`
+  - `buildThreadColumns({variant, forumNameById?})`
+  - `buildPostColumns({variant?})`
+  - `buildAttachmentColumns({variant?, onPreview?})`
+  Actions column stays per-page (dialog wiring differs per caller). `variant: "full" | "compact"` picks the column set; a single cell body per column propagates to every consumer. `/admin/recent`'s UsersTab automatically inherits UserAvatar + the destructive 未验证 badge as side-effects of the extraction.
+
+### Fixed
+
+- **`/admin/recent` ThreadsTab crash** when `/api/admin/threads` returned rows without `replies`/`views` counters for the recent time window — `formatNumber(undefined).toLocaleString()` blew up the whole tab. Preset counter cells (`replies` / `views` / `threads` / `posts`) now guard with `?? 0`. New unit test pins the defensive behaviour so the guard can't quietly regress.
+
+### Maintenance
+
+- Dependency bumps (via PR #312): `@biomejs/biome` 2.5.2 → 2.5.3, `@cloudflare/workers-types` 5.20260706.1 → 5.20260708.1, `@tiptap/*` 3.27.2 → 3.27.3, `@types/node` 26.1.0 → 26.1.1, `linkedom` 0.18.12 → 0.18.13, `wrangler` 4.107.0 → 4.107.1, plus a biome 2.5.3 `noUnsafeOptionalChaining` fix.
+
+### Verified
+
+- L1: 817 admin + 3125 worker
+- L2: 352 integration
+- G1: typecheck + biome lint green
+
 ## [1.7.0] - 2026-07-09
 
 ### Added
