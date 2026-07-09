@@ -69,7 +69,7 @@
 	},
 	"devDependencies": {
 		"@auth/core": "0.41.0",
-		"@biomejs/biome": "2.5.2",
+		"@biomejs/biome": "2.5.3",
 		"@ellie/test-mocks": "workspace:*",
 		"@ellie/types": "workspace:*",
 		"@emoji-mart/data": "^1.2.1",
