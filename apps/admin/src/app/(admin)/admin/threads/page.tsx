@@ -1,9 +1,7 @@
 "use client";
 
-import { formatDate, formatNumber } from "@ellie/shared";
-import { Badge, Button } from "@ellie/ui";
+import { Button } from "@ellie/ui";
 import { Loader2, Lock, Pencil, Trash2, Unlock } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -12,28 +10,21 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
 import { ThreadBatchMoveDialog } from "@/components/admin/thread-batch-move-dialog";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
-import {
-	threadClosedVariant,
-	threadDigestVariant,
-	threadHighlightVariant,
-	threadStickyVariant,
-} from "@/viewmodels/admin/badges";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import {
 	batchDeleteThreads,
 	batchMoveThreads,
 	buildThreadsListQuery,
 	deleteThread,
-	digestLabel,
 	emptyThreadsListFilters,
 	fetchThreads,
 	forumNameById,
 	parseThreadsListQuery,
-	stickyLabel,
 	type Thread,
 	type ThreadUpdate,
 	updateThread,
@@ -442,104 +433,10 @@ function ThreadsPageInner() {
 	);
 
 	const columns: ColumnDef<Thread>[] = [
-		{
-			key: "subject",
-			header: "标题",
-			cell: (row) => (
-				<div className="flex flex-col gap-0.5">
-					<Link
-						href={`/admin/threads/${row.id}`}
-						className="font-medium text-foreground hover:underline"
-					>
-						{row.subject}
-					</Link>
-					{row.typeName && (
-						<span className="text-xs text-muted-foreground">类型：{row.typeName}</span>
-					)}
-				</div>
-			),
-		},
-		{
-			key: "forum",
-			header: "版块",
-			cell: (row) => (
-				<span className="text-sm text-muted-foreground">{forumNameById(forums, row.forumId)}</span>
-			),
-		},
-		{
-			key: "author",
-			header: "作者",
-			cell: (row) =>
-				row.authorId > 0 ? (
-					<Link href={`/admin/users/${row.authorId}`} className="text-primary hover:underline">
-						{row.authorName}
-					</Link>
-				) : (
-					row.authorName
-				),
-		},
-		{
-			key: "replies",
-			header: "回复",
-			cell: (row) => formatNumber(row.replies),
-			className: "text-right",
-		},
-		{
-			key: "views",
-			header: "浏览",
-			cell: (row) => formatNumber(row.views),
-			className: "text-right",
-		},
-		{
-			key: "status",
-			header: "状态",
-			cell: (row) => (
-				<div className="flex flex-wrap gap-1">
-					{row.sticky > 0 && (
-						<Badge variant={threadStickyVariant(row.sticky)}>{stickyLabel(row.sticky)}</Badge>
-					)}
-					{row.closed > 0 && <Badge variant={threadClosedVariant(row.closed)}>已锁定</Badge>}
-					{row.digest > 0 && (
-						<Badge variant={threadDigestVariant(row.digest)}>{digestLabel(row.digest)}</Badge>
-					)}
-					{row.highlight > 0 && <Badge variant={threadHighlightVariant(row.highlight)}>高亮</Badge>}
-				</div>
-			),
-		},
-		{
-			key: "createdAt",
-			header: "创建于",
-			cell: (row) => (
-				<span className="text-sm text-muted-foreground">{formatDate(row.createdAt) || "—"}</span>
-			),
-		},
-		{
-			key: "lastPost",
-			header: "最后回复",
-			cell: (row) => {
-				if (!row.lastPostAt) return <span className="text-muted-foreground">—</span>;
-				const date = formatDate(row.lastPostAt);
-				// `lastPoster` is "" when the worker hasn't joined the user
-				// row (e.g. user since deleted). Fall back to the date alone
-				// so we never render "by " with a blank author.
-				return (
-					<div className="flex flex-col gap-0.5 text-sm">
-						<span>{date}</span>
-						{row.lastPoster && (
-							<span className="text-xs text-muted-foreground">
-								{row.lastPosterId > 0 ? (
-									<Link href={`/admin/users/${row.lastPosterId}`} className="hover:underline">
-										{row.lastPoster}
-									</Link>
-								) : (
-									row.lastPoster
-								)}
-							</span>
-						)}
-					</div>
-				);
-			},
-		},
+		...buildThreadColumns({
+			variant: "full",
+			forumNameById: (id: number) => forumNameById(forums, id),
+		}),
 		{
 			key: "actions",
 			header: "",
