@@ -1640,7 +1640,7 @@ describe("admin/forumThreadType — G audit", () => {
 				after: { enabled: true, required: false, listable: true, prefix: false },
 			}),
 		});
-		const flags = (audited?.details as { changedFlags: string[] }).changedFlags;
+		const flags = (audited as { details: { changedFlags: string[] } }).details.changedFlags;
 		expect(new Set(flags)).toEqual(new Set(["enabled", "listable"]));
 	});
 

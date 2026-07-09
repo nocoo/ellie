@@ -133,7 +133,8 @@ describe("createMockR2", () => {
 		const obj = await r2.get("k");
 		expect(obj?.body).toBeDefined();
 		// drain the stream and confirm contents
-		const reader = (obj?.body as ReadableStream<Uint8Array>).getReader();
+		if (!obj) throw new Error("expected R2 object");
+		const reader = (obj.body as ReadableStream<Uint8Array>).getReader();
 		const chunks: Uint8Array[] = [];
 		while (true) {
 			const { done, value } = await reader.read();
