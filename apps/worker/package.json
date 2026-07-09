@@ -21,6 +21,6 @@
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
 		"typescript": "^6.0.3",
-		"wrangler": "4.107.0"
+		"wrangler": "4.107.1"
 	}
 }
