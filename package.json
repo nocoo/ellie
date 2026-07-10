@@ -121,7 +121,7 @@
 		"dompurify": "3.4.11",
 		"fast-uri": "^4.1.0",
 		"hono": "^4.12.28",
-		"lucide-react": "^1.23.0",
+		"lucide-react": "^1.24.0",
 		"tailwind-merge": "^3.6.0"
 	},
 	"overrides": {
