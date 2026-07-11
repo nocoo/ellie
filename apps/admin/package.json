@@ -39,6 +39,7 @@
 		"@types/node": "^22",
 		"@types/react": "^19.2.17",
 		"@types/react-dom": "^19.2.3",
+		"@typescript/native-preview": "7.0.0-dev.20260707.2",
 		"@vitest/coverage-v8": "^4.1.10",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"
