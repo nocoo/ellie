@@ -20,7 +20,7 @@
 		"@biomejs/biome": "2.5.3",
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
-		"typescript": "^6.0.3",
+		"typescript": "^7.0.2",
 		"wrangler": "4.110.0"
 	}
 }
