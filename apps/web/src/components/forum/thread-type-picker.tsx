@@ -36,12 +36,8 @@ export function ThreadTypePicker({
 	if (types.length === 0) return null;
 
 	return (
-		<div
-			className="px-5 pt-3"
-			data-testid="thread-type-picker"
-			role="toolbar"
-			aria-label="主题分类"
-		>
+		// biome-ignore lint/a11y/useSemanticElements: not a form control; <fieldset>/<legend> would introduce form/reset semantics we don't want. Pills already expose aria-checked for the single-select state.
+		<div className="px-5 pt-3" data-testid="thread-type-picker" role="group" aria-label="主题分类">
 			<div className="flex flex-wrap items-center gap-2">
 				<span className="text-xs text-muted-foreground">
 					分类
