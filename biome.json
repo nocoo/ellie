@@ -30,8 +30,7 @@
 			},
 			"style": {
 				"noNonNullAssertion": "error",
-				"useConst": "error",
-				"noDescendingSpecificity": "off"
+				"useConst": "error"
 			},
 			"suspicious": {
 				"noExplicitAny": "warn",

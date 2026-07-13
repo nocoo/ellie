@@ -374,7 +374,7 @@ div.quote {
 	margin: 0.75rem 0;
 	border-radius: var(--radius);
 }
-div.quote blockquote {
+div.quote :where(blockquote) {
 	margin: 0;
 	padding: 0;
 	border: none;
