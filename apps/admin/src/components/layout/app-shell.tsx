@@ -42,6 +42,16 @@ function AppShellInner({ children }: AppShellProps) {
 		};
 	}, [mobileOpen]);
 
+	// Close mobile sidebar on Escape (keyboard-only alternative to the backdrop click)
+	useEffect(() => {
+		if (!mobileOpen) return;
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setMobileOpen(false);
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [mobileOpen, setMobileOpen]);
+
 	const breadcrumbs = breadcrumbsFromPathname(pathname);
 	const breadcrumbOverride = useBreadcrumbOverrideValue();
 
@@ -59,8 +69,8 @@ function AppShellInner({ children }: AppShellProps) {
 			{/* Mobile overlay */}
 			{isMobile && mobileOpen && (
 				<>
-					{/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss overlay */}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only backdrop; keyboard users close the sidebar via Esc handled elsewhere. */}
+					{/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only backdrop; keyboard users press Escape (handler above). */}
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only backdrop; keyboard users press Escape (handler above). */}
 					<div
 						className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
 						onClick={() => setMobileOpen(false)}
