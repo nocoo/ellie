@@ -43,6 +43,7 @@ import {
 	startLocalL3Worker,
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
+import { readDotenvValue } from "./lib/read-dotenv";
 
 // ─── Configuration ─────────────────────────────────────────────
 
@@ -123,6 +124,13 @@ function resolveAdminEnv(): { email: string; whitelist: string } {
 
 async function startServer(adminEnv: { email: string; whitelist: string }): Promise<void> {
 	console.log(`🚀 Starting Admin Next.js on port ${TEST_PORT}…`);
+	// Symmetric with run-l3.ts: forward NEXT_PUBLIC_CAP_API_ENDPOINT from
+	// apps/web/.env.local when not already in process env. Admin is
+	// Google-only today, but the var is threaded through in case future
+	// admin surfaces reuse the same Cap widget.
+	const capEndpoint =
+		process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ??
+		readDotenvValue(resolve(REPO_ROOT, "apps/web/.env.local"), "NEXT_PUBLIC_CAP_API_ENDPOINT");
 	serverProcess = spawnDetached(NEXT_BIN, ["dev", "--turbopack", "-p", String(TEST_PORT)], {
 		cwd: resolve(REPO_ROOT, "apps/admin"),
 		env: {
@@ -135,7 +143,7 @@ async function startServer(adminEnv: { email: string; whitelist: string }): Prom
 			JWT_SECRET: L3_JWT_SECRET,
 			ADMIN_EMAILS: adminEnv.whitelist,
 			E2E_ADMIN_EMAIL: adminEnv.email,
-			NEXT_PUBLIC_CAP_API_ENDPOINT: process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "",
+			NEXT_PUBLIC_CAP_API_ENDPOINT: capEndpoint,
 		},
 	});
 	await waitForServer();

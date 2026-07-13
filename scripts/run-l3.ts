@@ -37,6 +37,7 @@ import {
 	startLocalL3Worker,
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
+import { readDotenvValue } from "./lib/read-dotenv";
 
 const TEST_PORT = 27031; // Forum dev port — see docs/e2e-test-design.md
 const BASE_URL = `http://localhost:${TEST_PORT}`;
@@ -58,6 +59,16 @@ let workerHandle: LocalWorkerHandle | null = null;
 
 async function startServer(): Promise<void> {
 	console.log(`🚀 Starting Next.js (forum) on port ${TEST_PORT}…`);
+	// next dev auto-loads .env.local when it owns the process. We spawn next
+	// directly with a curated env, so anything the login form needs from
+	// .env.local has to be forwarded here. CI provides
+	// NEXT_PUBLIC_CAP_API_ENDPOINT via a repo secret; locally it only lives
+	// in apps/web/.env.local, so we read that file as the fallback. Empty
+	// endpoint → login submit stays disabled (fail-closed) → auth E2E hits
+	// 60s Cap-wait timeouts.
+	const capEndpoint =
+		process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ??
+		readDotenvValue(resolve(REPO_ROOT, "apps/web/.env.local"), "NEXT_PUBLIC_CAP_API_ENDPOINT");
 	serverProcess = spawnDetached(NEXT_BIN, ["dev", "--turbopack", "-p", String(TEST_PORT)], {
 		cwd: resolve(REPO_ROOT, "apps/web"),
 		env: {
@@ -70,11 +81,7 @@ async function startServer(): Promise<void> {
 			// Worker, so cross-process token verification stays consistent.
 			AUTH_SECRET: L3_JWT_SECRET,
 			JWT_SECRET: L3_JWT_SECRET,
-			// CAPTCHA is fail-closed: an empty endpoint disables the form submit.
-			// If the caller supplies NEXT_PUBLIC_CAP_API_ENDPOINT (CI does, via the
-			// repo secret), forward it so the dev server renders a working widget
-			// and the auth E2E tests can submit.
-			NEXT_PUBLIC_CAP_API_ENDPOINT: process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "",
+			NEXT_PUBLIC_CAP_API_ENDPOINT: capEndpoint,
 		},
 	});
 	await waitForServer();
