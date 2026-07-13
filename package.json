@@ -105,7 +105,7 @@
 	"dependencies": {
 		"@base-ui/react": "^1.6.0",
 		"@cap.js/widget": "^0.1.56",
-		"@cloudflare/workers-types": "5.20260711.1",
+		"@cloudflare/workers-types": "5.20260712.1",
 		"@radix-ui/react-avatar": "^1.2.2",
 		"@radix-ui/react-checkbox": "^1.3.7",
 		"@radix-ui/react-collapsible": "^1.1.16",
@@ -120,7 +120,7 @@
 		"@radix-ui/react-tooltip": "1.2.12",
 		"dompurify": "3.4.12",
 		"fast-uri": "^4.1.0",
-		"hono": "^4.12.29",
+		"hono": "^4.12.30",
 		"lucide-react": "^1.24.0",
 		"tailwind-merge": "^3.6.0"
 	},
@@ -134,7 +134,7 @@
 		"dompurify": "^3.4.12",
 		"esbuild": "^0.28.1",
 		"fast-uri": "^4.1.0",
-		"hono": "^4.12.29",
+		"hono": "^4.12.30",
 		"ip-address": "^10.1.1",
 		"postcss": "^8.5.10",
 		"undici": "^6.27.0",
