@@ -63,7 +63,7 @@ export async function getCurrentForumUser(): Promise<{
 	role: number;
 } | null> {
 	const token = await getSessionToken();
-	if (!token || token.provider !== "credentials") return null;
+	if (token?.provider !== "credentials") return null;
 	return {
 		userId: Number(token.sub),
 		username: (token.name as string) ?? "",
@@ -111,7 +111,7 @@ export async function authPatch<T>(
 	client?: ClientContext,
 ): Promise<ApiResponse<T> | { error: "NOT_AUTHENTICATED" }> {
 	const token = await getSessionToken();
-	if (!token || token.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
+	if (token?.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
 	if (token.error === "RefreshTokenExpired") return { error: "NOT_AUTHENTICATED" };
 
 	const workerJwt = token.workerJwt as string;

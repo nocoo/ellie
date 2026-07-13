@@ -36,7 +36,7 @@ const purify = DOMPurify(window as any);
  * div variant so the pipeline behaves identically to a browser.
  */
 function decodeHtmlEntities(input: string, repeat = true): string {
-	if (!input || !input.includes("&")) return input;
+	if (!input?.includes("&")) return input;
 	const decode = (s: string): string => {
 		const doc = parseHTML("<!DOCTYPE html><html><body></body></html>");
 		const div = doc.document.createElement("div");

@@ -195,7 +195,7 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		env.DB.prepare("SELECT * FROM attachments WHERE post_id = ? ORDER BY id").bind(postId).all(),
 	]);
 
-	if (!post || post.invisible !== 0) {
+	if (post?.invisible !== 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 

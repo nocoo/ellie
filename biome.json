@@ -16,7 +16,7 @@
 						"maxAllowedComplexity": 25
 					}
 				},
-				"useOptionalChain": "off",
+				"useOptionalChain": "error",
 				"noImportantStyles": "off"
 			},
 			"correctness": {

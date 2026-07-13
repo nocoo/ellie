@@ -502,7 +502,7 @@ interface D1AttachmentRow {
  * Returns empty string for dangerous/external URLs.
  */
 function sanitizeFilePath(filePath: string): string {
-	if (!filePath || !filePath.trim()) {
+	if (!filePath?.trim()) {
 		return "";
 	}
 

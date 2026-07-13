@@ -248,7 +248,7 @@ function filterAttrs(attrs: Attr[], tagAllow: ReadonlySet<string> | undefined): 
 	const safe: Attr[] = [];
 	for (const a of attrs) {
 		if (isBannedAttr(a.name)) continue;
-		if (!tagAllow || !tagAllow.has(a.name)) continue;
+		if (!tagAllow?.has(a.name)) continue;
 		if (!isAttrValueAcceptable(a.name, a.value)) continue;
 		safe.push(a);
 	}

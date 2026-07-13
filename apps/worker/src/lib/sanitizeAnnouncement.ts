@@ -331,7 +331,7 @@ function filterAttrs(
 			bumpStat(stats.droppedAttrs, `${tagName}.${a.name}`);
 			continue;
 		}
-		if (!tagAllow || !tagAllow.has(a.name)) {
+		if (!tagAllow?.has(a.name)) {
 			bumpStat(stats.droppedAttrs, `${tagName}.${a.name}`);
 			continue;
 		}

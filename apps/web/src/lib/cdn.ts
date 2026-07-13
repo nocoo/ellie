@@ -23,7 +23,7 @@ export function getSmileyUrl(directory: string, filename: string): string {
  */
 export function getAttachmentUrl(filePath: string): string {
 	// Reject empty or whitespace-only paths
-	if (!filePath || !filePath.trim()) {
+	if (!filePath?.trim()) {
 		return `${CDN_BASE}/`;
 	}
 

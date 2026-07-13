@@ -207,7 +207,7 @@ export function formatLastActivity(timestamp: number): string | null {
  * Returns null when the user has no resolved level (never checked in).
  */
 export function formatCheckinLevel(checkin: UserCheckinSummary | null): string | null {
-	if (!checkin || !checkin.level) return null;
+	if (!checkin?.level) return null;
 	return `Lv.${checkin.level.level} ${checkin.level.label}`;
 }
 

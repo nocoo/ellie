@@ -802,7 +802,7 @@ async function revokeRating(
 		.bind(ratingId, postId)
 		.first<RatingRowForRevoke>();
 
-	if (!row || row.revoked_at !== 0) {
+	if (row?.revoked_at !== 0) {
 		// Don't disclose "already revoked" vs "missing" — both 404 by spec.
 		return errorResponse("NOT_FOUND", 404, undefined, origin);
 	}

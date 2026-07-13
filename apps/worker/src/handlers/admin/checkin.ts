@@ -160,7 +160,7 @@ export const getUserCheckins = withEntityAuth(
 	async (request, env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const parsed = parseCheckinPath(request);
-		if (!parsed || parsed.tail !== "") {
+		if (parsed?.tail !== "") {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Bad checkin path" }, origin);
 		}
 		const { userId } = parsed;
@@ -336,7 +336,7 @@ const MAX_STREAK_DAYS = 100_000;
 export const setStreak = withEntityAuth(checkinConfig, async (request, env): Promise<Response> => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const parsed = parseCheckinPath(request);
-	if (!parsed || parsed.tail !== "/streak") {
+	if (parsed?.tail !== "/streak") {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Bad checkin path" }, origin);
 	}
 	const { userId } = parsed;
