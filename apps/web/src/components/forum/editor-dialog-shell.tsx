@@ -99,8 +99,11 @@ export function EditorDialogShell({
 			{header}
 
 			{/* Editor area — flex-1 to fill remaining space, Ctrl+Enter shortcut */}
+			{/* biome-ignore lint/a11y/useSemanticElements: <fieldset> would introduce form/reset semantics we don't want; this is a keyboard-shortcut host, not a form control. */}
 			<div
 				className="flex-1 min-h-0 px-5 py-4 flex flex-col"
+				role="group"
+				aria-label="编辑器"
 				onKeyDown={(e) => {
 					if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSubmit) {
 						e.preventDefault();

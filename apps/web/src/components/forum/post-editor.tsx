@@ -545,6 +545,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			    pointer-only affordance that mirrors what tiptap's own
 			    surface does, so no key handler is needed. */}
 			{/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only focus shim; keyboard users reach the editor via Tab */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only focus shim; the ProseMirror surface inside is the real interactive element for keyboard users. */}
 			<div
 				className="tiptap-content-wrap flex flex-1 min-h-0 cursor-text flex-col overflow-y-auto"
 				onClick={(e) => {

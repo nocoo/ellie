@@ -111,10 +111,11 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 
 	return (
 		<div className="space-y-3">
-			<div
+			<section
 				onDrop={handleDrop}
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}
+				aria-label="头像上传拖放区"
 				className={cn(
 					"relative rounded-lg border-2 border-dashed p-4 transition-colors",
 					isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25",
@@ -157,7 +158,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 					disabled={isDisabled}
 					aria-label="上传头像"
 				/>
-			</div>
+			</section>
 
 			{/* Error message */}
 			{error && <p className="text-sm text-destructive text-center">{error}</p>}
