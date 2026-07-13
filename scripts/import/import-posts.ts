@@ -48,10 +48,10 @@ export async function importTable(
 async function main() {
 	const args = process.argv.slice(2);
 	const limitIdx = args.indexOf("--limit");
-	const limit = limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1]) : undefined;
+	const limit = limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1], 10) : undefined;
 
 	const shardIdx = args.indexOf("--shard");
-	const shard = shardIdx >= 0 ? Number.parseInt(args[shardIdx + 1]) : undefined;
+	const shard = shardIdx >= 0 ? Number.parseInt(args[shardIdx + 1], 10) : undefined;
 	const shards = shard !== undefined ? [shard] : undefined;
 
 	console.log("📝 Posts Import");

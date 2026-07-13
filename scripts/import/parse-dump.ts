@@ -258,10 +258,10 @@ if (import.meta.main) {
 	const tableName = args[1];
 
 	const limitIdx = args.indexOf("--limit");
-	const limit = limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1]) : undefined;
+	const limit = limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1], 10) : undefined;
 
 	const offsetIdx = args.indexOf("--offset");
-	const offset = offsetIdx >= 0 ? Number.parseInt(args[offsetIdx + 1]) : 0;
+	const offset = offsetIdx >= 0 ? Number.parseInt(args[offsetIdx + 1], 10) : 0;
 
 	const asJson = args.includes("--json");
 

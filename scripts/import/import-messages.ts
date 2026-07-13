@@ -40,7 +40,7 @@ export async function importTable(
 async function main() {
 	const args = process.argv.slice(2);
 	const limitIdx = args.indexOf("--limit");
-	const limit = limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1]) : undefined;
+	const limit = limitIdx >= 0 ? Number.parseInt(args[limitIdx + 1], 10) : undefined;
 
 	console.log("✉️ Messages Import");
 	console.log("=".repeat(50));

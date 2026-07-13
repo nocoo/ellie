@@ -22,7 +22,6 @@
 			"correctness": {
 				"noUnusedVariables": "error",
 				"noUnusedImports": "error",
-				"useParseIntRadix": "off",
 				"useHookAtTopLevel": "off"
 			},
 			"performance": {

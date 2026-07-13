@@ -70,17 +70,17 @@ ORDER BY p.pmid
 		.map((line) => {
 			const parts = line.split("\t");
 			return {
-				id: Number.parseInt(parts[0]),
-				sender_id: Number.parseInt(parts[1]),
+				id: Number.parseInt(parts[0], 10),
+				sender_id: Number.parseInt(parts[1], 10),
 				sender_name: parts[2] || "unknown",
-				receiver_id: Number.parseInt(parts[3]),
+				receiver_id: Number.parseInt(parts[3], 10),
 				receiver_name: parts[4] || "unknown",
 				subject: parts[5] || "",
 				content: (parts[6] || "").replace(/\\n/g, "\n"),
-				is_read: Number.parseInt(parts[7]) || 0,
-				sender_deleted: Number.parseInt(parts[8]) || 0,
-				receiver_deleted: Number.parseInt(parts[9]) || 0,
-				created_at: Number.parseInt(parts[10]) || 0,
+				is_read: Number.parseInt(parts[7], 10) || 0,
+				sender_deleted: Number.parseInt(parts[8], 10) || 0,
+				receiver_deleted: Number.parseInt(parts[9], 10) || 0,
+				created_at: Number.parseInt(parts[10], 10) || 0,
 			} as PmRow;
 		});
 }
