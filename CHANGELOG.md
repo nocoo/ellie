@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-07-13
+
+### Changed
+
+- **TypeScript 6.0.3 → 7.0.2** across the JS/TS toolchain (root, apps/web, apps/admin, apps/worker, packages/ui, packages/shared). Added `@typescript/native-preview` to unblock the Next.js build under TS 7. No runtime behavior change — types only.
+- **Biome ruleset tightened.** Eight rules that were previously `off` or `warn` are now enforced repository-wide (`noNonNullAssertion` → error, `useOptionalChain`, `useHookAtTopLevel`, `useParseIntRadix`, `noTemplateCurlyInString`, `noDescendingSpecificity`, `noStaticElementInteractions`, `useAriaPropsSupportedByRole`). The two blanket `apps/web/src/components/**` and `**/components/ui/**` overrides for `noStaticElementInteractions` were also dropped, so future components can no longer silently absorb the exception. Local suppressions on the handful of legitimate pointer-only wrappers (admin backdrop / attachments thumbnails, forum editor focus shim, `ui/lightbox` stop-propagation container) now carry explicit rationale comments.
+- **Forum a11y semantics.** `thread-type-filter` / `thread-type-picker` gained `role="group"` + `aria-label` so screen readers announce them as pill groups; the pill's `aria-checked` continues to carry the single-select state. `avatar-upload` drop zone became a `<section aria-label="头像上传拖放区">` for landmark navigation. Empty `<span aria-label>` on the email verification badge was removed — the "✓ 已验证" text is already the accessible name.
+
+### Fixed
+
+- **admin: mobile sidebar closes on Escape.** The backdrop-click dismiss previously had no keyboard equivalent. Added a document-level `keydown` listener while `mobileOpen` is true.
+- **admin: quote block CSS descending specificity.** `div.quote blockquote` (0,1,2) was overridden by a later `.tiptap-content blockquote` (0,1,1). Wrapped the inner selector in `:where()` so the specificity descends monotonically without changing rendered behavior.
+- **scripts: `parseInt` radix.** Seven import scripts called `Number.parseInt(str)` without a radix — an `"08"` argument would have been parsed as octal 0 on legacy engines. All call sites now pass `10` explicitly.
+- **web: `parseInt(post.replies)`-style optional-chain simplifications.** Eleven files collapsed `!x || !x.foo` and `!x || x.foo !== N` guards into optional chaining. Semantics unchanged; verified by test suite.
+- **L3 runner: `NEXT_PUBLIC_CAP_API_ENDPOINT` fallback from `apps/web/.env.local`.** CI provides this via a repo secret, but locally the value only lived in `.env.local` and never reached the curated env passed to `next dev`. Empty endpoint → login form ran fail-closed → auth E2E hit 60s Cap-wait timeouts. Both `run-l3.ts` and `run-l3-admin.ts` now read `.env.local` as fallback.
+- **L3 runner: force `AUTH_URL=http://localhost:<port>`.** Developer `.env.local` files carry the https `dev.hexly.ai` proxy URL. Auth.js reads that and flips to `useSecureCookies=true`, expecting `__Secure-authjs.session-token`; the L3 fixtures inject the unprefixed cookie for HTTP dev. Without the override, all admin API routes returned 401 and 15+ admin specs failed cascade-style.
+- **migrate: raise vitest hook/test timeouts to 60s.** Migrate tests spawn `bun` subprocesses via `execSync` (30s internal timeout). Vitest's 5s test / 10s hook defaults were eaten by `bun` cold-start under parallel workspace load, producing flaky timeouts that never actually reached the subprocess-side cap. External timeout is now above the ceiling so the subprocess side is the one that fires.
+
+### Maintenance
+
+- **Auth E2E specs decoupled from Cap.** Two `auth.spec.ts` scenarios ("submit button enables after Cap solves" + "invalid credentials show error banner") and one `social.spec.ts` scenario (real-form login redirect) previously used `skipOnCI` because Cap.js auto-PoW took 30–45s on GitHub runners. Cap is deliberately anti-automation; both driving it and stubbing the `solve` CustomEvent from a test are wrong L3 assertions (one fights Cap, the other silently deletes a product-security surface from the E2E gate). All three are now `test.skip` with block-comment rationale. The button-enable transition and the error-banner render path are unit-covered against `login-form.tsx` (`apps/web/tests/unit/components/auth/login-form.test.ts`).
+- **Dependency bumps** (via PRs #310, #315, #316, #317, #322, #323, #326): `typescript` 6.0.3 → 7.0.2 (major), `@cloudflare/workers-types` 5.20260708.1 → 5.20260712.1, `wrangler` 4.107.1 → 4.110.0, `hono` 4.12.28 → 4.12.30, `lucide-react` 1.23.x → 1.24.0, `dompurify` 3.4.11 → 3.4.12. `@typescript/native-preview` added.
+
+### Verified
+
+- L1: 7442 vitest + 119 bun tests pass; typecheck + Biome lint (1248 files, 0 issues) green
+- L2: 352 integration pass
+- L3 (full BDD): forum 59 pass / 4 skip · admin 17 pass · exit 0
+- G2: `osv-scanner` clean, `gitleaks` clean
+- D1 isolation verified via `bun run verify:test-db`
+
 ## [1.7.1] - 2026-07-10
 
 ### Changed
