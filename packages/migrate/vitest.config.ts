@@ -9,6 +9,12 @@ export default defineConfig({
 		include: ["tests/**/*.test.ts"],
 		passWithNoTests: true,
 		environment: "node",
+		// Migrate tests spawn bun subprocesses via execSync (30s internal timeout).
+		// Vitest's 5s test / 10s hook defaults get eaten by bun cold-start under
+		// parallel workspace load — raise both above the execSync ceiling so the
+		// subprocess-side timeout is the one that fires.
+		testTimeout: 60_000,
+		hookTimeout: 60_000,
 		coverage: {
 			provider: "v8",
 			include: ["src/extract/**/*.ts", "src/transform/**/*.ts"],
