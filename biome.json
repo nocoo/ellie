@@ -5,9 +5,6 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended",
-			"a11y": {
-				"useAriaPropsSupportedByRole": "off"
-			},
 			"complexity": {
 				"noExcessiveCognitiveComplexity": {
 					"level": "warn",

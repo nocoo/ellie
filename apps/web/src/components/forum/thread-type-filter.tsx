@@ -24,6 +24,7 @@ export function ThreadTypeFilter({ forumId, types, activeTypeId }: ThreadTypeFil
 		<div
 			className="flex flex-wrap items-center gap-2 py-1"
 			data-testid="thread-type-filter"
+			role="toolbar"
 			aria-label="主题分类筛选"
 		>
 			<span className="text-xs text-muted-foreground">分类：</span>

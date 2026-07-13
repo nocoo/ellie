@@ -82,10 +82,7 @@ export function EmailVerificationCard({
 				</CardHeader>
 				<CardContent className="px-4">
 					<div className="flex items-center gap-2 text-sm">
-						<span
-							aria-label="已验证"
-							className="inline-flex items-center justify-center rounded-full bg-success/15 px-2 py-0.5 text-success text-xs dark:bg-success/20"
-						>
+						<span className="inline-flex items-center justify-center rounded-full bg-success/15 px-2 py-0.5 text-success text-xs dark:bg-success/20">
 							✓ 已验证
 						</span>
 						<span className="text-muted-foreground">

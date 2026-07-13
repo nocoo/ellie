@@ -36,7 +36,12 @@ export function ThreadTypePicker({
 	if (types.length === 0) return null;
 
 	return (
-		<div className="px-5 pt-3" data-testid="thread-type-picker" aria-label="主题分类">
+		<div
+			className="px-5 pt-3"
+			data-testid="thread-type-picker"
+			role="toolbar"
+			aria-label="主题分类"
+		>
 			<div className="flex flex-wrap items-center gap-2">
 				<span className="text-xs text-muted-foreground">
 					分类
