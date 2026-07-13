@@ -4,9 +4,6 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"style": {
-				"noNonNullAssertion": "error"
-			},
 			"suspicious": {
 				"noExplicitAny": "error"
 			}

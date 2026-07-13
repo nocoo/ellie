@@ -29,7 +29,7 @@
 				"noImgElement": "off"
 			},
 			"style": {
-				"noNonNullAssertion": "warn",
+				"noNonNullAssertion": "error",
 				"useConst": "error",
 				"noDescendingSpecificity": "off"
 			},
