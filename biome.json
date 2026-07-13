@@ -21,8 +21,7 @@
 			},
 			"correctness": {
 				"noUnusedVariables": "error",
-				"noUnusedImports": "error",
-				"useHookAtTopLevel": "off"
+				"noUnusedImports": "error"
 			},
 			"performance": {
 				"noImgElement": "off"

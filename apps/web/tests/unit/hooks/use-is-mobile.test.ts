@@ -91,6 +91,7 @@ afterEach(() => {
  * Helper: call useIsMobile and return the current state after useEffect has run.
  */
 function getIsMobile(): boolean {
+	// biome-ignore lint/correctness/useHookAtTopLevel: React is fully mocked above; this test intentionally invokes the "hook" as a plain function to inspect its logic. Rules-of-hooks don't apply against the mocked runtime.
 	useIsMobile();
 	return sharedState.currentState;
 }
