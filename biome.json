@@ -81,7 +81,6 @@
 				"rules": {
 					"a11y": {
 						"noLabelWithoutControl": "off",
-						"noStaticElementInteractions": "off",
 						"useKeyWithClickEvents": "off",
 						"useSemanticElements": "off"
 					}

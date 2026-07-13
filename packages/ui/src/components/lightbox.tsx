@@ -209,6 +209,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 			)}
 
 			{/* Image */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: onClick only stops propagation to prevent the outer backdrop from closing the lightbox; no interactive semantics to expose. */}
 			<div
 				className="relative max-w-[90vw] max-h-[85vh] overflow-auto"
 				onClick={(e) => e.stopPropagation()}
