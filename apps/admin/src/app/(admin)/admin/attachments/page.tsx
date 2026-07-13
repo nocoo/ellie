@@ -103,6 +103,7 @@ function AttachmentGridItem({
 			</div>
 
 			{/* Image preview or file icon */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: role/tabIndex/onKeyDown all conditionally applied together with onClick; biome can't correlate the ternaries. */}
 			<div
 				className="aspect-square bg-secondary/50 flex items-center justify-center cursor-pointer relative overflow-hidden"
 				onClick={attachment.isImage ? onPreview : undefined}
@@ -233,6 +234,7 @@ function AttachmentListItem({
 			/>
 
 			{/* Thumbnail */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: role/tabIndex/onKeyDown all conditionally applied together with onClick; biome can't correlate the ternaries. */}
 			<div
 				className={cn(
 					"w-14 h-14 rounded overflow-hidden bg-secondary/50 flex items-center justify-center flex-shrink-0",

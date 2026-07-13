@@ -6,7 +6,6 @@
 		"rules": {
 			"preset": "recommended",
 			"a11y": {
-				"noStaticElementInteractions": "off",
 				"useAriaPropsSupportedByRole": "off"
 			},
 			"complexity": {
@@ -85,6 +84,7 @@
 				"rules": {
 					"a11y": {
 						"noLabelWithoutControl": "off",
+						"noStaticElementInteractions": "off",
 						"useKeyWithClickEvents": "off",
 						"useSemanticElements": "off"
 					}
@@ -111,6 +111,7 @@
 				"rules": {
 					"a11y": {
 						"noLabelWithoutControl": "off",
+						"noStaticElementInteractions": "off",
 						"noSvgWithoutTitle": "off"
 					}
 				}

@@ -60,6 +60,7 @@ function AppShellInner({ children }: AppShellProps) {
 			{isMobile && mobileOpen && (
 				<>
 					{/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss overlay */}
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only backdrop; keyboard users close the sidebar via Esc handled elsewhere. */}
 					<div
 						className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
 						onClick={() => setMobileOpen(false)}
