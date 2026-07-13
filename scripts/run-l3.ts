@@ -81,6 +81,13 @@ async function startServer(): Promise<void> {
 			// Worker, so cross-process token verification stays consistent.
 			AUTH_SECRET: L3_JWT_SECRET,
 			JWT_SECRET: L3_JWT_SECRET,
+			// Force HTTP mode so Auth.js writes the unprefixed
+			// `authjs.session-token` cookie. The developer .env.local carries
+			// an https AUTH_URL for the dev.hexly.ai reverse proxy; without
+			// this override Auth.js flips to `__Secure-authjs.session-token`
+			// which mismatches everything the L3 fixtures and NextAuth
+			// callbacks assume when hitting http://localhost.
+			AUTH_URL: BASE_URL,
 			NEXT_PUBLIC_CAP_API_ENDPOINT: capEndpoint,
 		},
 	});

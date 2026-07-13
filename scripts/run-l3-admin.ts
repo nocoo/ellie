@@ -141,6 +141,14 @@ async function startServer(adminEnv: { email: string; whitelist: string }): Prom
 			ADMIN_API_KEY: L3_ADMIN_API_KEY,
 			AUTH_SECRET: L3_JWT_SECRET,
 			JWT_SECRET: L3_JWT_SECRET,
+			// Force Auth.js into HTTP mode. The developer .env.local carries an
+			// https AUTH_URL (matching the real dev.hexly.ai reverse proxy),
+			// which flips Auth.js to `useSecureCookies=true` and makes it look
+			// for `__Secure-authjs.session-token`. The admin-base fixture in
+			// tests/e2e/admin/fixtures/admin-base.ts injects the unprefixed
+			// `authjs.session-token` (matches HTTP dev), so without this
+			// override every admin API route returns 401 and 15+ specs fail.
+			AUTH_URL: `${BASE_URL}`,
 			ADMIN_EMAILS: adminEnv.whitelist,
 			E2E_ADMIN_EMAIL: adminEnv.email,
 			NEXT_PUBLIC_CAP_API_ENDPOINT: capEndpoint,
