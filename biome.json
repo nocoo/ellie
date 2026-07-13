@@ -33,8 +33,7 @@
 				"useConst": "error"
 			},
 			"suspicious": {
-				"noExplicitAny": "warn",
-				"noTemplateCurlyInString": "off"
+				"noExplicitAny": "warn"
 			}
 		}
 	},

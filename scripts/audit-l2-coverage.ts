@@ -534,7 +534,9 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push("");
 	lines.push("2. **Raw `fetch(...)` to the Worker** — calls of the form");
 	lines.push('   `fetch("http://localhost:8787/api/...", init?)` or');
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: documentation strings describe template syntax; ${...} is illustrative, not a missed substitution.
 	lines.push("   `fetch(`${getWorkerUrl()}/api/...`, init?)` (also");
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same reason as above.
 	lines.push("   `${WORKER_URL}`). Default method is `GET`; an `init` object with");
 	lines.push('   `method: "POST" | "PATCH" | ...` overrides it. Only the literal');
 	lines.push("   `localhost:8787` prefix and the two known template helpers are");
@@ -542,6 +544,7 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push("   ignored. Scanning for raw fetches is restricted to");
 	lines.push("   `tests/integration/http/**` to avoid false positives.");
 	lines.push("");
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: documentation strings describe template syntax; ${...} is illustrative, not a missed substitution.
 	lines.push("Test paths with `${...}` template substitutions are rewritten to");
 	lines.push("`:param` and matched against literal routes verbatim or against");
 	lines.push("regex routes by substituting `:param` with `1` (numeric path");

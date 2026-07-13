@@ -20,6 +20,7 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("resolveSelectPlaceholder", () => {
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: ${label} inside test title is descriptive, not a real template substitution.
 	it("falls back to `全部${label}` when no placeholder is provided", () => {
 		expect(resolveSelectPlaceholder({ label: "状态" })).toBe("全部状态");
 		expect(resolveSelectPlaceholder({ label: "锁定状态" })).toBe("全部锁定状态");
