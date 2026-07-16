@@ -12,15 +12,15 @@
 		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
-		"@cloudflare/workers-types": "5.20260713.1",
+		"@cloudflare/workers-types": "5.20260715.1",
 		"@ellie/types": "workspace:*",
 		"crypto-js": "^4.2.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.3",
+		"@biomejs/biome": "2.5.4",
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
 		"typescript": "^7.0.2",
-		"wrangler": "4.110.0"
+		"wrangler": "4.111.0"
 	}
 }
