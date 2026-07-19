@@ -119,7 +119,7 @@
 		"@radix-ui/react-tabs": "^1.1.17",
 		"@radix-ui/react-tooltip": "1.2.12",
 		"dompurify": "3.4.12",
-		"fast-uri": "^4.1.0",
+		"fast-uri": "^4.1.1",
 		"hono": "^4.12.30",
 		"lucide-react": "^1.25.0",
 		"tailwind-merge": "^3.6.0"
@@ -133,7 +133,7 @@
 		"defu": "^6.1.7",
 		"dompurify": "^3.4.12",
 		"esbuild": "^0.28.1",
-		"fast-uri": "^4.1.0",
+		"fast-uri": "^4.1.1",
 		"hono": "^4.12.30",
 		"ip-address": "^10.1.1",
 		"postcss": "^8.5.10",
