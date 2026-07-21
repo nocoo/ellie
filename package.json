@@ -68,7 +68,7 @@
 		"prepare": "husky"
 	},
 	"devDependencies": {
-		"@auth/core": "0.41.0",
+		"@auth/core": "0.41.3",
 		"@biomejs/biome": "2.5.4",
 		"@ellie/test-mocks": "workspace:*",
 		"@ellie/types": "workspace:*",
