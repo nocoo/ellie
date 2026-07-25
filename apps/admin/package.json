@@ -23,7 +23,7 @@
 		"@tailwindcss/postcss": "^4.3.3",
 		"lucide-react": "^1.25.0",
 		"next": "^16.2.11",
-		"next-auth": "^5.0.0-beta.30",
+		"next-auth": "^5.0.0-beta.32",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"recharts": "^3.10.0",
