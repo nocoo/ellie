@@ -110,8 +110,9 @@ test.describe("Feature: Authentication", () => {
 
 		// Then: page reloads and the real login form takes over
 		// Wait via the username input rather than a URL change — the handler
-		// calls signOut({ redirect: false }) so we stay on /login and just
-		// re-render the server component.
+		// calls signOut({ callbackUrl: "/login" }) so NextAuth performs the
+		// full-navigation signout+redirect and the /login server component
+		// re-renders with a cleared session.
 		await expect(page.locator('input[id="username"]')).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByText("你已登录")).toHaveCount(0);
 	});

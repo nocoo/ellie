@@ -502,11 +502,15 @@ test.describe("Feature: Admin Users CRUD", () => {
 			purgedAt: Math.floor(Date.now() / 1000),
 			purgedBy: 1,
 		};
-		let getCalls = 0;
+		let purged = false;
 		await page.route("**/api/admin/users/3", async (route) => {
 			if (route.request().method() !== "GET") return route.fallback();
-			getCalls += 1;
-			const body = getCalls === 1 ? liveUser : tombstoneUser;
+			// Gate on the actual product transition (purge POST) rather than a
+			// GET-call counter. The panel legitimately re-reads the record for
+			// several reasons (initial mount, StrictMode double-invoke in dev,
+			// Next.js prefetch on link hover) — counting GETs makes the mock
+			// flip to tombstone before the operator has even clicked purge.
+			const body = purged ? tombstoneUser : liveUser;
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
@@ -538,6 +542,7 @@ test.describe("Feature: Admin Users CRUD", () => {
 
 		await page.route("**/api/admin/users/3/purge", async (route) => {
 			if (route.request().method() !== "POST") return route.fallback();
+			purged = true;
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
