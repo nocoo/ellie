@@ -29,9 +29,14 @@ export default function AlreadyLoggedIn({ username }: AlreadyLoggedInProps) {
 	const handleSwitchAccount = async () => {
 		setSigningOut(true);
 		try {
-			await signOut({ redirect: false });
-			// Reload so the server component re-evaluates auth() → shows login form
-			window.location.reload();
+			// Full-navigation signOut (matching every other signOut call in this
+			// app). Letting NextAuth own the navigation guarantees the browser
+			// commits the cookie-clearing Set-Cookie headers before it re-fetches
+			// /login, so the server component sees the cleared session and renders
+			// the real login form. A prior "redirect: false" + manual
+			// location.reload() raced the cookie commit and intermittently
+			// re-rendered this card in Playwright (see auth.spec.ts).
+			await signOut({ callbackUrl: "/login" });
 		} catch {
 			setSigningOut(false);
 		}
