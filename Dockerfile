@@ -4,9 +4,13 @@
 #   docker build --build-arg APP=admin -t ellie-admin .
 
 ARG APP=web
+ARG BUN_STABLE_IMAGE=oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4
+# Bun 1.3.14 can crash after a Next.js 16.3 build when next-swc workers exit.
+# The fix is only in canary until the next stable release (oven-sh/bun#36866).
+ARG BUN_BUILD_IMAGE=oven/bun:canary@sha256:dd2479e914bd3ec71f26e6498d84efabd2d13581387c47d76a39814d89f03eb1
 
 # ── Stage 1: Dependencies ──────────────────────────────────────────
-FROM oven/bun:1 AS deps
+FROM ${BUN_STABLE_IMAGE} AS deps
 WORKDIR /app
 
 # Copy all package.json files for workspace resolution
@@ -25,7 +29,9 @@ COPY packages/migrate/package.json ./packages/migrate/
 RUN bun install --frozen-lockfile
 
 # ── Stage 2: Build ─────────────────────────────────────────────────
-FROM oven/bun:1 AS builder
+FROM ${BUN_BUILD_IMAGE} AS build-runtime
+
+FROM ${BUN_STABLE_IMAGE} AS builder
 ARG APP
 WORKDIR /app
 
@@ -34,6 +40,10 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Re-run install to link workspace packages properly
 RUN bun install --frozen-lockfile
+
+# Keep dependency resolution on stable Bun so the frozen 1.3 lockfile remains
+# unchanged; use the fixed runtime only while Next.js executes its build.
+COPY --from=build-runtime /usr/local/bin/bun /usr/local/bin/bun
 
 # Fail fast if APP is not web or admin
 RUN case "$APP" in web|admin) ;; *) echo "ERROR: APP must be 'web' or 'admin', got '$APP'" >&2; exit 1;; esac
@@ -61,7 +71,7 @@ RUN if [ "$APP" = "admin" ]; then \
     fi
 
 # ── Stage 3: Runner ────────────────────────────────────────────────
-FROM oven/bun:1 AS runner
+FROM ${BUN_STABLE_IMAGE} AS runner
 ARG APP
 WORKDIR /app
 
