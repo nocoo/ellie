@@ -90,7 +90,7 @@
       "dependencies": {
         "@auth/core": "^0.41.3",
         "@base-ui/react": "1.7.0",
-        "@cap.js/widget": "^0.1.54",
+        "@cap.js/widget": "^0.1.56",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
