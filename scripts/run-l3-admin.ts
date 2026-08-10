@@ -17,6 +17,10 @@
  *   4. Run Playwright with `--project=admin` and forward the exit code.
  *   5. Tear down the dev server and the local Worker.
  *
+ * Transient workerd crashes are retried up to L3_ATTEMPTS times (default 3),
+ * matching scripts/run-l3.ts / scripts/run-l2.ts. Setup failures and real
+ * assertion regressions are never retried.
+ *
  * Ref: docs/23-l3-bdd-refactor.md §Phase 0.2 (task #14). Removed the
  * remote-test-Worker dependency: L3 admin is now fully local — no
  * `WORKER_URL_TEST` env required.
@@ -35,15 +39,23 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	isL3WorkerAlive,
 	L3_ADMIN_API_KEY,
 	L3_API_KEY,
 	L3_JWT_SECRET,
 	L3_WORKER_URL,
 	type LocalWorkerHandle,
-	startLocalL3Worker,
+	prepareLocalL3Database,
+	startLocalL3WorkerProcess,
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
 import { readDotenvValue } from "./lib/read-dotenv";
+import {
+	classifyTestExit,
+	parseAttempts,
+	type RunnerOutcome,
+	runWithRetries,
+} from "./lib/runner-retry";
 
 // ─── Configuration ─────────────────────────────────────────────
 
@@ -226,23 +238,57 @@ async function runPlaywright(adminEnv: { email: string; whitelist: string }): Pr
 
 async function cleanup(): Promise<void> {
 	await stopServer();
-	await workerHandle?.stop();
+	if (workerHandle) {
+		await workerHandle.stop();
+		workerHandle = null;
+	}
 }
 
 async function main(): Promise<void> {
-	let exitCode = 1;
-	try {
-		await loadEnv();
-		const adminEnv = resolveAdminEnv();
-		workerHandle = await startLocalL3Worker();
-		await startServer(adminEnv);
-		exitCode = await runPlaywright(adminEnv);
-	} catch (err) {
-		console.error("❌ Admin L3 runner failed:", err instanceof Error ? err.message : err);
-		exitCode = 1;
-	} finally {
-		await cleanup();
-	}
+	await loadEnv();
+	const adminEnv = resolveAdminEnv();
+	const totalAttempts = parseAttempts("L3_ATTEMPTS");
+
+	const runOnce = async (attempt: number, total: number): Promise<RunnerOutcome> => {
+		console.log(`▶ L3 admin attempt ${attempt}/${total}`);
+
+		try {
+			await prepareLocalL3Database();
+		} catch (err) {
+			const reason = err instanceof Error ? err.message : String(err);
+			return { kind: "setup-failure", reason };
+		}
+
+		try {
+			workerHandle = await startLocalL3WorkerProcess();
+		} catch (err) {
+			const reason = err instanceof Error ? err.message : String(err);
+			return { kind: "worker-failure", reason };
+		}
+
+		try {
+			await startServer(adminEnv);
+		} catch (err) {
+			const reason = err instanceof Error ? err.message : String(err);
+			return { kind: "setup-failure", reason: `dev server: ${reason}` };
+		}
+
+		const exitCode = await runPlaywright(adminEnv);
+		const handle = workerHandle;
+		return classifyTestExit({
+			exitCode,
+			hasExited: () => handle?.hasExited() ?? true,
+			exitCodeOfWorker: () => handle?.exitCode() ?? null,
+			isAlive: isL3WorkerAlive,
+		});
+	};
+
+	const exitCode = await runWithRetries({
+		label: "L3 admin",
+		totalAttempts,
+		runOnce,
+		cleanup,
+	});
 	process.exit(exitCode);
 }
 
