@@ -55,6 +55,10 @@ export const L3_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 
 export type LocalWorkerHandle = {
 	url: string;
+	/** True when the wrangler parent process has exited. */
+	hasExited: () => boolean;
+	/** Process exit code when known; null while still running. */
+	exitCode: () => number | null;
 	stop: () => Promise<void>;
 };
 
@@ -143,14 +147,9 @@ async function waitForWorker(proc: ChildProcess): Promise<void> {
 		if (proc.exitCode != null) {
 			throw new Error(`L3 Worker exited prematurely with code ${proc.exitCode}`);
 		}
-		try {
-			const res = await fetch(`${L3_WORKER_URL}/api/live`);
-			if (res.ok) {
-				console.log(`✅ L3 Worker ready on port ${L3_WORKER_PORT}`);
-				return;
-			}
-		} catch {
-			// not ready yet
+		if (await isL3WorkerAlive()) {
+			console.log(`✅ L3 Worker ready on port ${L3_WORKER_PORT}`);
+			return;
 		}
 		await new Promise((r) => setTimeout(r, 500));
 	}
@@ -158,26 +157,46 @@ async function waitForWorker(proc: ChildProcess): Promise<void> {
 }
 
 /**
- * Start a clean local Worker for L3.
+ * Probe whether the L3 Worker still answers `/api/live`.
  *
- * Steps:
- *   1. Wipe `.wrangler/state/l3` so the run is deterministic.
- *   2. `wrangler d1 migrations apply DB --local --persist-to .wrangler/state/l3`.
- *   3. Seed `scripts/seed-test-db.sql` into the same local DB.
- *   4. Spawn `wrangler dev` on port 8788 with the test secrets injected via
- *      `--var`. Inheriting stdio prevents wrangler from blocking on a
- *      full pipe (the same pattern L2 uses).
- *   5. Poll `/api/live` until 200 (max 60s).
- *
- * Returns a handle whose `stop()` kills the Worker process. Callers MUST
- * invoke `stop()` in a `finally` so a failed Next/Playwright run never
- * leaks the Worker.
+ * Used by the L3 runners after a non-zero Playwright exit to distinguish a
+ * real assertion regression (worker still alive → do not retry) from a
+ * transient workerd mid-run crash (cascading ECONNREFUSED → retry).
+ * Mirrors `isWorkerAlive` in scripts/run-l2.ts.
  */
-export async function startLocalL3Worker(): Promise<LocalWorkerHandle> {
+export async function isL3WorkerAlive(): Promise<boolean> {
+	try {
+		const res = await fetch(`${L3_WORKER_URL}/api/live`, {
+			signal: AbortSignal.timeout(3_000),
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Wipe + migrate + seed the L3 local D1. Failures here are real setup
+ * problems and must NOT be retried by the runner loop.
+ */
+export async function prepareLocalL3Database(): Promise<void> {
 	cleanupState();
 	await migrateDatabase();
 	await seedDatabase();
+}
 
+/**
+ * Spawn `wrangler dev --local` for L3 and wait until `/api/live` is 200.
+ *
+ * Does NOT prepare the database — call `prepareLocalL3Database()` first
+ * (or use `startLocalL3Worker()` which does both). Separating the steps
+ * lets the runner retry only worker/process flakes, not migration errors.
+ *
+ * Returns a handle whose `stop()` kills the Worker process group. Callers
+ * MUST invoke `stop()` in a `finally` so a failed Next/Playwright run
+ * never leaks the Worker.
+ */
+export async function startLocalL3WorkerProcess(): Promise<LocalWorkerHandle> {
 	console.log(`🚀 Starting L3 Worker (wrangler dev --local) on port ${L3_WORKER_PORT}…`);
 	const proc = spawnDetached(
 		WRANGLER_BIN,
@@ -213,6 +232,8 @@ export async function startLocalL3Worker(): Promise<LocalWorkerHandle> {
 	let stopped = false;
 	return {
 		url: L3_WORKER_URL,
+		hasExited: () => proc.exitCode != null,
+		exitCode: () => proc.exitCode,
 		async stop() {
 			if (stopped) return;
 			stopped = true;
@@ -222,4 +243,16 @@ export async function startLocalL3Worker(): Promise<LocalWorkerHandle> {
 			await killTree(proc, "L3 Worker");
 		},
 	};
+}
+
+/**
+ * Start a clean local Worker for L3 (prepare DB + spawn wrangler).
+ *
+ * Convenience wrapper used by one-shot callers. The L3 runners prefer the
+ * split `prepareLocalL3Database` + `startLocalL3WorkerProcess` pair so they
+ * can classify setup vs worker failures for the retry loop.
+ */
+export async function startLocalL3Worker(): Promise<LocalWorkerHandle> {
+	await prepareLocalL3Database();
+	return startLocalL3WorkerProcess();
 }

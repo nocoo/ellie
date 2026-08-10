@@ -16,6 +16,11 @@
  * deliberately unused so CI gets deterministic teardown and pre-flight env
  * validation happens before any browser is launched.
  *
+ * Transient workerd crashes (startup timeout or mid-run ECONNREFUSED) are
+ * retried up to L3_ATTEMPTS times (default 3), matching scripts/run-l2.ts.
+ * Setup failures and real assertion regressions (worker still alive) are
+ * never retried.
+ *
  * Ref: docs/23-l3-bdd-refactor.md §Phase 0.2 (task #14). Removed the
  * remote-test-Worker dependency: L3 is now fully local — no
  * `WORKER_URL_TEST`, `JWT_SECRET`, or `FORUM_API_KEY` env required.
@@ -30,14 +35,22 @@ import { type ChildProcess, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	isL3WorkerAlive,
 	L3_API_KEY,
 	L3_JWT_SECRET,
 	L3_WORKER_URL,
 	type LocalWorkerHandle,
-	startLocalL3Worker,
+	prepareLocalL3Database,
+	startLocalL3WorkerProcess,
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
 import { readDotenvValue } from "./lib/read-dotenv";
+import {
+	classifyTestExit,
+	parseAttempts,
+	type RunnerOutcome,
+	runWithRetries,
+} from "./lib/runner-retry";
 
 const TEST_PORT = 27031; // Forum dev port — see docs/e2e-test-design.md
 const BASE_URL = `http://localhost:${TEST_PORT}`;
@@ -206,22 +219,61 @@ async function runPlaywright(): Promise<number> {
 
 async function cleanup(): Promise<void> {
 	await stopServer();
-	await workerHandle?.stop();
+	if (workerHandle) {
+		await workerHandle.stop();
+		workerHandle = null;
+	}
+}
+
+async function runOnce(attempt: number, totalAttempts: number): Promise<RunnerOutcome> {
+	console.log(`▶ L3 forum attempt ${attempt}/${totalAttempts}`);
+
+	// Setup (cleanup / migrate / seed) must not be retried — failures there
+	// indicate a real problem with migrations or seed data.
+	try {
+		await prepareLocalL3Database();
+	} catch (err) {
+		const reason = err instanceof Error ? err.message : String(err);
+		return { kind: "setup-failure", reason };
+	}
+
+	// Worker startup is retried: startup timeout or premature exit is the
+	// observable form of the wrangler/workerd transient crash.
+	try {
+		workerHandle = await startLocalL3WorkerProcess();
+	} catch (err) {
+		const reason = err instanceof Error ? err.message : String(err);
+		return { kind: "worker-failure", reason };
+	}
+
+	// Next.js boot is not a workerd flake — treat failures as setup so we
+	// don't burn retries on a broken frontend toolchain.
+	try {
+		await startServer();
+		await prewarmRoutes();
+	} catch (err) {
+		const reason = err instanceof Error ? err.message : String(err);
+		return { kind: "setup-failure", reason: `dev server: ${reason}` };
+	}
+
+	const exitCode = await runPlaywright();
+	const handle = workerHandle;
+	return classifyTestExit({
+		exitCode,
+		hasExited: () => handle?.hasExited() ?? true,
+		exitCodeOfWorker: () => handle?.exitCode() ?? null,
+		isAlive: isL3WorkerAlive,
+	});
 }
 
 async function main(): Promise<void> {
-	let exitCode = 1;
-	try {
-		workerHandle = await startLocalL3Worker();
-		await startServer();
-		await prewarmRoutes();
-		exitCode = await runPlaywright();
-	} catch (err) {
-		console.error("❌ L3 runner failed:", err instanceof Error ? err.message : err);
-		exitCode = 1;
-	} finally {
-		await cleanup();
-	}
+	const totalAttempts = parseAttempts("L3_ATTEMPTS");
+	const exitCode = await runWithRetries({
+		label: "L3 forum",
+		totalAttempts,
+		runOnce,
+		cleanup,
+	});
 	process.exit(exitCode);
 }
 
