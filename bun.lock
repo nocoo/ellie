@@ -23,7 +23,7 @@
         "dompurify": "3.4.13",
         "fast-uri": "^4.1.2",
         "hono": "^4.13.1",
-        "lucide-react": "1.30.0",
+        "lucide-react": "1.31.0",
         "tailwind-merge": "^3.6.0",
       },
       "devDependencies": {
@@ -60,7 +60,7 @@
         "@ellie/types": "workspace:*",
         "@ellie/ui": "workspace:*",
         "@tailwindcss/postcss": "^4.3.3",
-        "lucide-react": "1.30.0",
+        "lucide-react": "1.31.0",
         "next": "^16.3.0",
         "next-auth": "^5.0.0-beta.32",
         "react": "^19.2.8",
@@ -102,7 +102,7 @@
         "clsx": "^2.1.1",
         "dompurify": "3.4.13",
         "linkedom": "^0.18.13",
-        "lucide-react": "1.30.0",
+        "lucide-react": "1.31.0",
         "next": "^16.3.0",
         "next-auth": "^5.0.0-beta.32",
         "react": "^19.2.8",
@@ -200,7 +200,7 @@
         "@radix-ui/react-tooltip": "1.2.16",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "lucide-react": "1.30.0",
+        "lucide-react": "1.31.0",
         "tailwind-merge": "^3.5.0",
       },
       "devDependencies": {
@@ -1061,7 +1061,7 @@
 
     "loose-envify": ["loose-envify@1.4.0", "", { "dependencies": { "js-tokens": "^3.0.0 || ^4.0.0" }, "bin": { "loose-envify": "cli.js" } }, "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q=="],
 
-    "lucide-react": ["lucide-react@1.30.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-tUIr2jXLbWpCkdtH8XP7P7YppM9ueWgTky99lpWDY6z5REs6B+O6ZQ3U5tHkUUY59ANyOv/PBcs8E4Fe3KO3eA=="],
+    "lucide-react": ["lucide-react@1.31.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-G8u2eEtoHUnUa9f8lbvqDhCiORMnYLdUEo06EEG9MQvHQrInKcX3Pa2TH39MM5qyzRcWETxB0+aOwAPI1g1kEg=="],
 
     "lz-string": ["lz-string@1.5.0", "", { "bin": { "lz-string": "bin/bin.js" } }, "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ=="],
 
