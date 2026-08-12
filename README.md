@@ -118,7 +118,7 @@ ellie/
 
 - [Bun](https://bun.sh/) >= 1.3
 - [Node.js](https://nodejs.org/) >= 22
-- [Rust](https://rustup.rs/) >= 1.80 (仅 TUI)
+- [Rust](https://rustup.rs/) >= 1.88 (仅 TUI)
 - Cloudflare 账户 (Worker/D1/KV/R2)
 
 ### 快速开始
