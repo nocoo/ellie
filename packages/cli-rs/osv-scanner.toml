@@ -9,3 +9,11 @@
 # pulled in transitively; revisit when upstream deps move.
 id = "GHSA-cq8v-f236-94qc"
 reason = "Trigger path (custom logger + ThreadRng reseed) not reachable from ellie-tui; rand not in compiled tree"
+
+[[IgnoredVulns]]
+# lru@0.16.4 via ratatui-core — LruCache::pop() panic-safety UAF. Trigger
+# requires a key Drop that panics during pop(), then a later eviction walk.
+# ellie-tui does not call LruCache::pop() directly; lru is transitive via
+# ratatui-core ^0.16 which cannot take 0.18.2. Revisit when ratatui bumps.
+id = "RUSTSEC-2026-0253"
+reason = "Transitive via ratatui-core ^0.16; ellie-tui does not call LruCache::pop(); fixed only in lru 0.18.2 outside allowed range"
