@@ -35,7 +35,7 @@
         "@emoji-mart/react": "^1.1.1",
         "@playwright/test": "^1.62.1",
         "@tiptap/extension-character-count": "3.30.1",
-        "@tiptap/extension-image": "3.30.0",
+        "@tiptap/extension-image": "3.30.1",
         "@tiptap/extension-placeholder": "3.30.0",
         "@tiptap/react": "3.30.0",
         "@tiptap/starter-kit": "3.30.0",
@@ -677,7 +677,7 @@
 
     "@tiptap/extension-horizontal-rule": ["@tiptap/extension-horizontal-rule@3.30.0", "", { "peerDependencies": { "@tiptap/core": "3.30.0", "@tiptap/pm": "3.30.0" } }, "sha512-SD/udnQ6aAEbyi0DSf48Yh/LAPMulgvaX83MwVhzMb/qgV7eCUbJxLsqQvaaNnVFZZyl5GHbCwTbPEdEymEIRA=="],
 
-    "@tiptap/extension-image": ["@tiptap/extension-image@3.30.0", "", { "peerDependencies": { "@tiptap/core": "3.30.0" } }, "sha512-7KfGfbMv4Ak99fybGmpaUyhIKmfV7aZGl1YMrlj+uA2RQjzO597DGnLCEvdv2zfvwHi7WZODC8DVxJe8bKYNFw=="],
+    "@tiptap/extension-image": ["@tiptap/extension-image@3.30.1", "", { "peerDependencies": { "@tiptap/core": "3.30.1" } }, "sha512-LChYqHC0u7dq9/zj9R+SYgT04tuT549tzFeu8Ymo1TJ46Y9Iy3BfwlETZRvyV8NkC/eoGqUevJeD3HtG/vMaog=="],
 
     "@tiptap/extension-italic": ["@tiptap/extension-italic@3.30.0", "", { "peerDependencies": { "@tiptap/core": "3.30.0" } }, "sha512-X/mg09T4XLG1kBXJVCONtyvzP+DOc3t0QogpYDMLOyVV5d2+p40NMIGPwfnSfVofOQynJFBCNs5rkI/eSZQz4g=="],
 
