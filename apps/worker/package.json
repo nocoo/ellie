@@ -17,7 +17,7 @@
 		"crypto-js": "^4.2.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.8",
+		"@biomejs/biome": "2.5.9",
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
 		"typescript": "^7.0.2",
