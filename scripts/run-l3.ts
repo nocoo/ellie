@@ -31,7 +31,7 @@
  *   bun run scripts/run-l3.ts tests/e2e/bdd/navigation.spec.ts  # forwarded
  */
 
-import { type ChildProcess, spawnSync } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -45,6 +45,7 @@ import {
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
 import { readDotenvValue } from "./lib/read-dotenv";
+import { type GuardedPlaywrightResult, runPlaywrightGuarded } from "./lib/run-playwright-guarded";
 import {
 	classifyTestExit,
 	parseAttempts,
@@ -179,20 +180,20 @@ async function prewarmRoutes(): Promise<void> {
 
 // ─── Playwright ────────────────────────────────────────────────
 
-async function runPlaywright(): Promise<number> {
+async function runPlaywright(): Promise<GuardedPlaywrightResult> {
 	console.log("🎭 Running Playwright…");
-	const result = spawnSync(
-		"bunx",
-		[
-			"playwright",
-			"test",
+	const handle = workerHandle;
+	return runPlaywrightGuarded({
+		cwd: REPO_ROOT,
+		env: process.env,
+		// Forum L3 only boots apps/web on 27031. The admin project lives
+		// in its own runner (scripts/run-l3-admin.ts) and is excluded here
+		// so a stray admin spec can't be sent against the forum dev server.
+		// The `mobile` project covers the iPhone layout drift guard and
+		// targets the same forum dev server, so it is included here.
+		args: [
 			"-c",
 			"playwright.config.ts",
-			// Forum L3 only boots apps/web on 27031. The admin project lives
-			// in its own runner (scripts/run-l3-admin.ts) and is excluded here
-			// so a stray admin spec can't be sent against the forum dev server.
-			// The `mobile` project covers the iPhone layout drift guard and
-			// targets the same forum dev server, so it is included here.
 			"--project=stateless",
 			"--project=stateful",
 			"--project=mobile",
@@ -202,17 +203,11 @@ async function runPlaywright(): Promise<number> {
 			// server lifecycle code here.
 			...process.argv.slice(2),
 		],
-		{
-			cwd: REPO_ROOT,
-			stdio: "inherit",
-			env: process.env,
+		isWorkerHealthy: async () => {
+			if (!handle || handle.hasExited()) return false;
+			return isL3WorkerAlive();
 		},
-	);
-	if (result.error) {
-		console.error("playwright spawn error:", result.error);
-		return 1;
-	}
-	return result.status ?? 1;
+	});
 }
 
 // ─── Main ──────────────────────────────────────────────────────
@@ -256,10 +251,13 @@ async function runOnce(attempt: number, totalAttempts: number): Promise<RunnerOu
 		return { kind: "setup-failure", reason: `dev server: ${reason}` };
 	}
 
-	const exitCode = await runPlaywright();
+	const pw = await runPlaywright();
+	if (pw.kind === "worker-aborted") {
+		return { kind: "worker-failure", reason: pw.reason };
+	}
 	const handle = workerHandle;
 	return classifyTestExit({
-		exitCode,
+		exitCode: pw.code,
 		hasExited: () => handle?.hasExited() ?? true,
 		exitCodeOfWorker: () => handle?.exitCode() ?? null,
 		isAlive: isL3WorkerAlive,
