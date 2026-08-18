@@ -120,6 +120,49 @@ jobs:
           node-version: "22"
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile --ignore-scripts
-      - run: bunx playwright install --with-deps chromium
+      # Playwright --with-deps shells out to apt. On GHA ubuntu images the default
+      # azure.archive.ubuntu.com mirror intermittently hangs (Ign: loops, then
+      # multi-minute stalls), consuming the entire 25m L3 budget before tests
+      # start. Pin archive.ubuntu.com, bound apt timeouts, and cap this step so
+      # a stuck install cannot starve the suite / retry loop.
+      - name: Install Playwright Chromium
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'Acquire::http::Timeout "30";' \
+            'Acquire::https::Timeout "30";' \
+            'Acquire::Retries "2";' \
+            | sudo tee /etc/apt/apt.conf.d/99-ellie-timeout >/dev/null
+          # GHA ubuntu images resolve packages via mirror+file:/etc/apt/apt-mirrors.txt
+          # (see job logs: "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist"). Editing
+          # only sources.list / ubuntu.sources is a silent no-op on those runners.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' \
+              'http://archive.ubuntu.com/ubuntu/' \
+              'http://security.ubuntu.com/ubuntu/' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            echo "apt-mirrors.txt rewritten to:"
+            cat /etc/apt/apt-mirrors.txt
+          else
+            echo "WARN: /etc/apt/apt-mirrors.txt missing — falling back to sources rewrite"
+          fi
+          # Belt-and-suspenders for classic direct-URI sources.
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+              /etc/apt/sources.list.d/ubuntu.sources
+          fi
+          if [ -f /etc/apt/sources.list ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+              /etc/apt/sources.list || true
+          fi
+          # Fail loud if azure mirror is still referenced anywhere apt reads.
+          if grep -Rns 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt \
+            /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
+            echo "::error::azure.archive.ubuntu.com still present in apt configuration"
+            exit 1
+          fi
+          echo "apt sources OK (no azure.archive.ubuntu.com)"
+          bunx playwright install --with-deps chromium
       - name: "L3: Playwright E2E tests (forum + admin BDD)"
         run: bun run test:e2e:bdd

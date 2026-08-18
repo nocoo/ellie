@@ -34,7 +34,7 @@
  *   NEXT_PUBLIC_CAP_API_ENDPOINT — optional, forwarded if set.
  */
 
-import { type ChildProcess, spawnSync } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,6 +50,7 @@ import {
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
 import { readDotenvValue } from "./lib/read-dotenv";
+import { type GuardedPlaywrightResult, runPlaywrightGuarded } from "./lib/run-playwright-guarded";
 import {
 	classifyTestExit,
 	parseAttempts,
@@ -197,13 +198,22 @@ async function stopServer(): Promise<void> {
 
 // ─── Playwright ────────────────────────────────────────────────
 
-async function runPlaywright(adminEnv: { email: string; whitelist: string }): Promise<number> {
+async function runPlaywright(adminEnv: {
+	email: string;
+	whitelist: string;
+}): Promise<GuardedPlaywrightResult> {
 	console.log("🎭 Running Playwright (admin project only)…");
-	const result = spawnSync(
-		"bunx",
-		[
-			"playwright",
-			"test",
+	const handle = workerHandle;
+	return runPlaywrightGuarded({
+		cwd: REPO_ROOT,
+		env: {
+			...process.env,
+			NODE_ENV: "test",
+			AUTH_SECRET: L3_JWT_SECRET,
+			ADMIN_EMAILS: adminEnv.whitelist,
+			E2E_ADMIN_EMAIL: adminEnv.email,
+		},
+		args: [
 			"-c",
 			"playwright.config.ts",
 			"--project=admin",
@@ -211,27 +221,11 @@ async function runPlaywright(adminEnv: { email: string; whitelist: string }): Pr
 			// callers can target a single spec like the forum runner does.
 			...process.argv.slice(2),
 		],
-		{
-			cwd: REPO_ROOT,
-			stdio: "inherit",
-			// NODE_ENV must reach the Playwright worker process — the loginAsAdmin
-			// fixture's hard guard checks it before minting a session cookie. The
-			// AUTH_SECRET / ADMIN_EMAILS / E2E_ADMIN_EMAIL must also reach the
-			// fixture so the cookie verifies against the same secret the server uses.
-			env: {
-				...process.env,
-				NODE_ENV: "test",
-				AUTH_SECRET: L3_JWT_SECRET,
-				ADMIN_EMAILS: adminEnv.whitelist,
-				E2E_ADMIN_EMAIL: adminEnv.email,
-			},
+		isWorkerHealthy: async () => {
+			if (!handle || handle.hasExited()) return false;
+			return isL3WorkerAlive();
 		},
-	);
-	if (result.error) {
-		console.error("playwright spawn error:", result.error);
-		return 1;
-	}
-	return result.status ?? 1;
+	});
 }
 
 // ─── Main ──────────────────────────────────────────────────────
@@ -273,10 +267,13 @@ async function main(): Promise<void> {
 			return { kind: "setup-failure", reason: `dev server: ${reason}` };
 		}
 
-		const exitCode = await runPlaywright(adminEnv);
+		const pw = await runPlaywright(adminEnv);
+		if (pw.kind === "worker-aborted") {
+			return { kind: "worker-failure", reason: pw.reason };
+		}
 		const handle = workerHandle;
 		return classifyTestExit({
-			exitCode,
+			exitCode: pw.code,
 			hasExited: () => handle?.hasExited() ?? true,
 			exitCodeOfWorker: () => handle?.exitCode() ?? null,
 			isAlive: isL3WorkerAlive,
