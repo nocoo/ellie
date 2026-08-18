@@ -6,7 +6,7 @@
       "name": "ellie",
       "dependencies": {
         "@base-ui/react": "1.7.0",
-        "@cap.js/widget": "^0.1.56",
+        "@cap.js/widget": "^0.1.57",
         "@cloudflare/workers-types": "5.20260818.1",
         "@radix-ui/react-avatar": "^1.2.6",
         "@radix-ui/react-checkbox": "^1.3.11",
@@ -90,7 +90,7 @@
       "dependencies": {
         "@auth/core": "^0.41.3",
         "@base-ui/react": "1.7.0",
-        "@cap.js/widget": "^0.1.56",
+        "@cap.js/widget": "^0.1.57",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
@@ -277,7 +277,7 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.9", "", { "os": "win32", "cpu": "x64" }, "sha512-Yiq0H56LjXSSw/hd9YkXgSLQfzyDJzbzU2TezozxyNw+uKWAqOtqGVvBfzKRRDiaFF5avGAhHdWKx7LtDOShUw=="],
 
-    "@cap.js/widget": ["@cap.js/widget@0.1.56", "", {}, "sha512-j640dNNNIF8IWmwqmSx0ihgU8sz/6Jm9mHveeDWUk8aXVqFm+2TSsp5bawtMtgf0aa7rFkmT9p76jrqO1uSEpQ=="],
+    "@cap.js/widget": ["@cap.js/widget@0.1.57", "", {}, "sha512-IgWepPHHsn1FcB5msL/TQtZZixGm9KAp7rpNbDmdo/i10EhDA74TlMU9zbZ6H8wwcCtlond/m+pAcLr1RiQ1og=="],
 
     "@cloudflare/kv-asset-handler": ["@cloudflare/kv-asset-handler@0.5.0", "", {}, "sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg=="],
 
