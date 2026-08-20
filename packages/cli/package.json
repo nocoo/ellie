@@ -13,7 +13,7 @@
 		"chalk": "^6.0.0",
 		"cli-cursor": "^5.0.0",
 		"commander": "^12.1.0",
-		"inquirer": "^9.2.0",
+		"inquirer": "^14.1.0",
 		"ora": "^9.4.1"
 	}
 }
