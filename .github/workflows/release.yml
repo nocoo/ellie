@@ -131,7 +131,10 @@ jobs:
             cd /opt/ellie
             echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io \
               -u "${{ secrets.GHCR_PULL_USER }}" --password-stdin
-            docker compose pull web admin
+            # Pull serially: concurrent compose pull can race containerd
+            # overlayfs Lchown on large sharp/libvips layers (STU-4227).
+            docker compose pull web
+            docker compose pull admin
             docker compose up -d --no-deps web admin
             # Health check — web
             for i in 1 2 3 4 5 6 7 8 9 10; do
