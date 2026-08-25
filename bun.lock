@@ -34,7 +34,7 @@
         "@emoji-mart/data": "^1.2.1",
         "@emoji-mart/react": "^1.1.1",
         "@playwright/test": "^1.62.1",
-        "@tiptap/extension-character-count": "3.30.2",
+        "@tiptap/extension-character-count": "3.30.3",
         "@tiptap/extension-image": "3.30.2",
         "@tiptap/extension-placeholder": "3.30.2",
         "@tiptap/react": "3.30.2",
@@ -685,7 +685,7 @@
 
     "@tiptap/extension-bullet-list": ["@tiptap/extension-bullet-list@3.30.2", "", { "peerDependencies": { "@tiptap/extension-list": "3.30.2" } }, "sha512-+awIL/TUz4aB3rL68igU1rWfaaoBIAkPcakkktkRq8gYf0bd9eSb48P6kHkpx/3q+JyK7g9vsnltLNHNh6twnA=="],
 
-    "@tiptap/extension-character-count": ["@tiptap/extension-character-count@3.30.2", "", { "peerDependencies": { "@tiptap/extensions": "3.30.2" } }, "sha512-9Mnej4qOLf2/kFPAmGxkxwdpFNRq8+D9nQVnyFF50x32myaKl/BXcCftsm+EiKpnH9JNT5mhZA0nh4JoH7OwrA=="],
+    "@tiptap/extension-character-count": ["@tiptap/extension-character-count@3.30.3", "", { "peerDependencies": { "@tiptap/extensions": "3.30.3" } }, "sha512-CU4PTrmC3XOlReAWdUZ6JWSVBNU9iKCixNy+FBhWNJBHQaXOoyBJOJ9isqWXARoMM1QOD1JyQtfsHhTs2RiuIw=="],
 
     "@tiptap/extension-code": ["@tiptap/extension-code@3.30.2", "", { "peerDependencies": { "@tiptap/core": "3.30.2" } }, "sha512-r8EZk3R9yGpF6v5xxafAU1HwrD/e+RpbfnmVi2TeB/ZHAsVO62fW96E32G0t6IdaCtOFtAd85hkDAaOfCT4yGg=="],
 
