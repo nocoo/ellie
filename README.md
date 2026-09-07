@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="Ellie" width="128" height="128" />
+  <img src="assets/brand/icon-rounded.png" alt="Ellie" width="128" height="128" />
 </p>
 
 <h1 align="center">Ellie</h1>

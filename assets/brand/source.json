@@ -1,0 +1,46 @@
+{
+	"study": "ellie/2026-09-07-01",
+	"finishing": "01",
+	"model": "gpt-image-2",
+	"method": "generated-redesign",
+	"generationCalls": 1,
+	"nativeDimensions": [2048, 2048],
+	"generation": {
+		"path": "raw/generated.png",
+		"sha256": "5f05992e1b8a9d1c99fd0a7e0e5fb0a3be3a4779608f115b43df7d5d7c6813e5"
+	},
+	"sourceRevisionBefore": "cef1fc94cfad189f310bd8818b8d07bf1e5d8614",
+	"previous": {
+		"original": "/logos/originals/ellie.png",
+		"sourceUrl": "https://github.com/nocoo/ellie/blob/a53769b75c9220fc2ad02eb9cba5d8e342a6be3a/logo.png",
+		"sha256": "03f8da981d89188fdbeeec38dcd9e32a693960d5b8af2020b48beaaa86844a13",
+		"width": 2048,
+		"height": 2048
+	},
+	"masters": {
+		"logo.png": {
+			"sha256": "85b062e3d5546262bf3cbeef8f4a6815acdf96ddf1213251df539a85bfe9ab4d",
+			"width": 2048,
+			"height": 2048
+		},
+		"assets/brand/icon.png": {
+			"sha256": "2b9d33da5dbab34e5bb8b1066337fca856afb6a6a1d1702d7477abd644bc512b",
+			"width": 2048,
+			"height": 2048
+		},
+		"assets/brand/icon-rounded.png": {
+			"sha256": "599c9514a88347562b961386b35e5a9b6fe2fbeca49c885feb8d0bb071cdb8cd",
+			"width": 2048,
+			"height": 2048
+		}
+	},
+	"protectedFeatureClearancePx": 148.5,
+	"intentionalEdges": ["bottom"],
+	"acceptance": {
+		"decisionSource": "owner-delegated batch acceptance",
+		"ownerReviewedExactBytes": false,
+		"scope": "Surety, Owl, Ellie, Giraffe, and Steed redesign batch"
+	},
+	"review": "https://hexly.ai/logos/ellie",
+	"archive": "https://github.com/nocoo/hexly.ai/tree/main/artwork/logo-family/ellie/2026-09-07-01"
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate derived logo assets from root logo.png (Basalt B-3 spec).
+"""Generate admin branding from separate foreground and presentation masters.
 
 Outputs to apps/admin (admin backend) only — frontend favicon is untouched.
 """
@@ -10,6 +10,8 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "logo.png"
+SQUARE = ROOT / "assets" / "brand" / "icon.png"
+ROUNDED = ROOT / "assets" / "brand" / "icon-rounded.png"
 ADMIN_PUBLIC = ROOT / "apps" / "admin" / "public"
 ADMIN_APP = ROOT / "apps" / "admin" / "src" / "app"
 OG_BG = (15, 15, 15)
@@ -21,6 +23,8 @@ def resize(img: Image.Image, size: int) -> Image.Image:
 
 def main() -> None:
     img = Image.open(SOURCE).convert("RGBA")
+    square = Image.open(SQUARE).convert("RGB")
+    rounded = Image.open(ROUNDED).convert("RGBA")
 
     ADMIN_PUBLIC.mkdir(parents=True, exist_ok=True)
 
@@ -30,20 +34,18 @@ def main() -> None:
 
     # src/app/ — Next.js file-convention metadata (favicon)
     resize(img, 32).save(ADMIN_APP / "icon.png", "PNG", optimize=True)
-    resize(img, 180).save(ADMIN_APP / "apple-icon.png", "PNG", optimize=True)
+    resize(square, 180).save(ADMIN_APP / "apple-icon.png", "PNG", optimize=True)
 
     # favicon.ico
-    ico_16, ico_32 = resize(img, 16), resize(img, 32)
-    ico_16.save(
+    img.save(
         ADMIN_APP / "favicon.ico",
         format="ICO",
         sizes=[(16, 16), (32, 32)],
-        append_images=[ico_32],
     )
 
     # OG image 1200x630
     canvas = Image.new("RGB", (1200, 630), OG_BG)
-    logo = resize(img, 252)
+    logo = resize(rounded, 252)
     canvas.paste(logo, (474, 189), logo)
     canvas.save(ADMIN_APP / "opengraph-image.png", "PNG", optimize=True)
 
