@@ -128,6 +128,7 @@
 		"@tiptap/core": "3.30.6",
 		"@tiptap/extensions": "3.30.6",
 		"@tiptap/pm": "3.30.6",
+		"baseline-browser-mapping": "2.11.21",
 		"brace-expansion": "^5.0.6",
 		"cookie": "^0.7.2",
 		"defu": "^6.1.7",
@@ -138,7 +139,7 @@
 		"ip-address": "^10.1.1",
 		"nanoid": "3.3.18",
 		"postcss": "^8.5.18",
-		"sharp": "^0.35.0",
+		"sharp": "0.35.4",
 		"undici": "^7.29.0",
 		"vite": "^8.0.16",
 		"ws": "^8.21.0"
