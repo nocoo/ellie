@@ -1,204 +1,91 @@
-# Ellie CD — triggered after CI succeeds on main.
-# Builds Docker images for web + admin, pushes to GHCR,
-# then SSHs into the deploy server to pull and restart.
 name: Release
-
-on:
+'on':
   workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
   workflow_dispatch:
-
-concurrency:
-  group: deploy-ellie-production
-  cancel-in-progress: false
-
+    inputs:
+      ci-run-id:
+        description: Successful main push CI run ID for the exact current main commit
+        required: true
+        type: string
 jobs:
-  build-and-deploy:
-    name: Build images & deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    # Only run when triggered by a successful CI run, OR manual dispatch.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
+  deploy:
+    if: |
+      github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
-    permissions:
-      contents: read
-      packages: write
-    environment: ellie / production
-
-    steps:
-      - name: Compute deploy SHA
-        id: sha
-        run: echo "value=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout (matching CI commit)
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.sha.outputs.value }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── Build web image ──
-      - name: Compute web image metadata
-        id: meta-web
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/ellie-web
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ steps.sha.outputs.value }}
-
-      - name: Build & push web image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          build-args: |
-            APP=web
-            NEXT_PUBLIC_CAP_API_ENDPOINT=${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          cache-from: type=gha,scope=ellie-web
-          cache-to: type=gha,mode=max,scope=ellie-web
-
-      # ── Build admin image ──
-      - name: Compute admin image metadata
-        id: meta-admin
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/ellie-admin
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ steps.sha.outputs.value }}
-
-      - name: Build & push admin image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          build-args: |
-            APP=admin
-            NEXT_PUBLIC_CAP_API_ENDPOINT=${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
-          tags: ${{ steps.meta-admin.outputs.tags }}
-          labels: ${{ steps.meta-admin.outputs.labels }}
-          cache-from: type=gha,scope=ellie-admin
-          cache-to: type=gha,mode=max,scope=ellie-admin
-
-      # ── Deploy ──
-      # Pre-flight TCP probe: rides over a transient blip and fails fast (~60s)
-      # when the box is genuinely unreachable, instead of letting ssh sit in
-      # the kernel SYN backoff for ~2 minutes before the action errors out.
-      - name: Wait for SSH reachability
-        env:
-          SSH_HOST: ${{ secrets.VPS_HOST }}
-          SSH_PORT: ${{ secrets.VPS_PORT }}
-        run: |
-          set -euo pipefail
-          for i in 1 2 3 4 5 6; do
-            if nc -z -w 5 "$SSH_HOST" "$SSH_PORT" 2>/dev/null; then
-              echo "✅ SSH reachable on attempt $i"
-              exit 0
-            fi
-            echo "attempt $i: SSH not reachable yet"
-            if [ "$i" != "6" ]; then sleep 10; fi
-          done
-          echo "❌ SSH host unreachable after 6 attempts"
-          exit 1
-
-      - name: Deploy to production server
-        uses: nocoo/base-ci/.github/actions/ssh-deploy@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
-        env:
-          IMAGE_SHA: ${{ steps.sha.outputs.value }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          user: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          envs: IMAGE_SHA
-          script: |
-            set -euo pipefail
-            cd /opt/ellie
-            echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io \
-              -u "${{ secrets.GHCR_PULL_USER }}" --password-stdin
-            # Pull serially: concurrent compose pull can race containerd
-            # overlayfs Lchown on large sharp/libvips layers (STU-4227).
-            docker compose pull web
-            docker compose pull admin
-            docker compose up -d --no-deps web admin
-            # Health check — web
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              if docker exec ellie-web bun -e \
-                'fetch("http://127.0.0.1:7031/api/live").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
-                echo "✅ web responding on :7031"
-                break
-              fi
-              echo "attempt $i: web not ready yet"
-              sleep 3
-              if [ "$i" = "10" ]; then echo "❌ web failed to come up"; docker logs --tail 80 ellie-web; exit 1; fi
-            done
-            # Health check — admin
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              if docker exec ellie-admin bun -e \
-                'fetch("http://127.0.0.1:7032/api/live").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
-                echo "✅ admin responding on :7032"
-                break
-              fi
-              echo "attempt $i: admin not ready yet"
-              sleep 3
-              if [ "$i" = "10" ]; then echo "❌ admin failed to come up"; docker logs --tail 80 ellie-admin; exit 1; fi
-            done
-            docker image prune -f
-
-      # ── External smoke tests ──
-      - name: Smoke test — web (via Cloudflare edge)
-        run: |
-          set -e
-          for i in 1 2 3 4 5; do
-            CODE=$(curl -sS -o /dev/null -w "%{http_code}" https://bbs.tongji.net/api/live || true)
-            echo "attempt $i: HTTP $CODE"
-            if [ "$CODE" = "200" ]; then
-              echo "✅ web edge serving deployed build"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "❌ web edge smoke test failed"
-          exit 1
-
-      - name: Smoke test — admin (via Cloudflare edge)
-        run: |
-          set -e
-          for i in 1 2 3 4 5; do
-            CODE=$(curl -sS -o /dev/null -w "%{http_code}" https://admin.tongji.net/api/live || true)
-            echo "attempt $i: HTTP $CODE"
-            if [ "$CODE" = "200" ]; then
-              echo "✅ admin edge serving deployed build"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "❌ admin edge smoke test failed"
-          exit 1
-
-      - name: Summary
-        if: always()
-        run: |
-          {
-            echo "### Ellie CD"
-            echo ""
-            echo "- Web image: \`ghcr.io/${{ github.repository_owner }}/ellie-web:${{ steps.sha.outputs.value }}\`"
-            echo "- Admin image: \`ghcr.io/${{ github.repository_owner }}/ellie-admin:${{ steps.sha.outputs.value }}\`"
-            echo "- Web URL: https://bbs.tongji.net/"
-            echo "- Admin URL: https://admin.tongji.net/"
-          } >> "$GITHUB_STEP_SUMMARY"
+    uses: nocoo/base-ci/.github/workflows/deploy-docker.yml@2857469cc5206e7a4988171a1282209617996a67
+    with:
+      environment: ellie / production
+      source-run-id: ${{ github.event_name == 'workflow_run' && format('{0}', github.event.workflow_run.id) || inputs.ci-run-id }}
+      images: '[{"image":"ghcr.io/nocoo/ellie-web","service":"web","build-args":"APP=web"},{"image":"ghcr.io/nocoo/ellie-admin","service":"admin","build-args":"APP=admin"}]'
+      deploy-directory: /opt/ellie
+      remote-verify-command: |
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          if docker exec ellie-web bun -e \
+            'fetch("http://127.0.0.1:7031/api/live").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
+            echo "✅ web responding on :7031"
+            break
+          fi
+          echo "attempt $i: web not ready yet"
+          sleep 3
+          if [ "$i" = "10" ]; then echo "❌ web failed to come up"; docker logs --tail 80 ellie-web; exit 1; fi
+        done
+        # Health check — admin
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          if docker exec ellie-admin bun -e \
+            'fetch("http://127.0.0.1:7032/api/live").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
+            echo "✅ admin responding on :7032"
+            break
+          fi
+          echo "attempt $i: admin not ready yet"
+          sleep 3
+          if [ "$i" = "10" ]; then echo "❌ admin failed to come up"; docker logs --tail 80 ellie-admin; exit 1; fi
+        done
+      verify-command: |
+        (
+        set -e
+        for i in 1 2 3 4 5; do
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" https://bbs.tongji.net/api/live || true)
+          echo "attempt $i: HTTP $CODE"
+          if [ "$CODE" = "200" ]; then
+            echo "✅ web edge serving deployed build"
+            exit 0
+          fi
+          sleep 5
+        done
+        echo "❌ web edge smoke test failed"
+        exit 1
+        )
+        (
+        set -e
+        for i in 1 2 3 4 5; do
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" https://admin.tongji.net/api/live || true)
+          echo "attempt $i: HTTP $CODE"
+          if [ "$CODE" = "200" ]; then
+            echo "✅ admin edge serving deployed build"
+            exit 0
+          fi
+          sleep 5
+        done
+        echo "❌ admin edge smoke test failed"
+        exit 1
+        )
+      timeout-minutes: 25
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+      GHCR_PULL_USER: ${{ secrets.GHCR_PULL_USER }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      BUILD_ARGS: ${{ format('NEXT_PUBLIC_CAP_API_ENDPOINT={0}', secrets.NEXT_PUBLIC_CAP_API_ENDPOINT) }}
+permissions:
+  contents: read
+  actions: read
+  packages: write

@@ -1,168 +1,96 @@
 name: CI
-
-on:
+'on':
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
-  workflow_dispatch:
-
+    branches:
+      - main
+  workflow_dispatch: null
 jobs:
   quality:
-    uses: nocoo/base-ci/.github/workflows/bun-quality.yml@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
+    uses: nocoo/base-ci/.github/workflows/quality.yml@2857469cc5206e7a4988171a1282209617996a67
     with:
-      test-command: "bun run test"
-      typecheck-command: "bun run typecheck"
-      lint-command: "bun run lint"
-    secrets: inherit
-
+      runtime-version: 1.4.2
+      install-policy: project
+      coverage-path: ''
+      test-command: bun run test
+      typecheck-command: bun run typecheck
+      lint-command: bun run lint
+      security: false
+      disabled-check-reasons: '{"security":"The dedicated security job scans the Bun and Rust lockfiles together."}'
+  security-scan:
+    name: G2 Security Scan
+    uses: nocoo/base-ci/.github/workflows/security.yml@2857469cc5206e7a4988171a1282209617996a67
+    with:
+      lockfiles: bun.lock,packages/cli-rs/Cargo.lock
+  api-e2e:
+    name: L2 API E2E
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: nocoo/base-ci/.github/workflows/test-job.yml@2857469cc5206e7a4988171a1282209617996a67
+    with:
+      runtime-version: 1.4.2
+      node-version: 22.23.2
+      install-policy: blocked
+      timeout-minutes: 20
+      command: bun run test:e2e:api
+  browser-e2e:
+    name: L3 Browser E2E
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    uses: nocoo/base-ci/.github/workflows/test-job.yml@2857469cc5206e7a4988171a1282209617996a67
+    with:
+      runtime-version: 1.4.2
+      node-version: 22.23.2
+      install-policy: blocked
+      timeout-minutes: 25
+      pre-command: |
+        timeout 8m bash -euo pipefail <<'PLAYWRIGHT_SETUP'
+        set -euo pipefail
+        printf '%s\n' \
+          'Acquire::http::Timeout "30";' \
+          'Acquire::https::Timeout "30";' \
+          'Acquire::Retries "2";' \
+          | sudo tee /etc/apt/apt.conf.d/99-ellie-timeout >/dev/null
+        # GHA ubuntu images resolve packages via mirror+file:/etc/apt/apt-mirrors.txt
+        # (see job logs: "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist"). Editing
+        # only sources.list / ubuntu.sources is a silent no-op on those runners.
+        if [ -f /etc/apt/apt-mirrors.txt ]; then
+          printf '%s\n' \
+            'http://archive.ubuntu.com/ubuntu/' \
+            'http://security.ubuntu.com/ubuntu/' \
+            | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          echo "apt-mirrors.txt rewritten to:"
+          cat /etc/apt/apt-mirrors.txt
+        else
+          echo "WARN: /etc/apt/apt-mirrors.txt missing — falling back to sources rewrite"
+        fi
+        # Belt-and-suspenders for classic direct-URI sources.
+        if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+            /etc/apt/sources.list.d/ubuntu.sources
+        fi
+        if [ -f /etc/apt/sources.list ]; then
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+            /etc/apt/sources.list || true
+        fi
+        # Fail loud if azure mirror is still referenced anywhere apt reads.
+        if grep -Rns 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt \
+          /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
+          echo "::error::azure.archive.ubuntu.com still present in apt configuration"
+          exit 1
+        fi
+        echo "apt sources OK (no azure.archive.ubuntu.com)"
+        bunx playwright install --with-deps chromium
+        PLAYWRIGHT_SETUP
+      command: bun run test:e2e:bdd
+      env-json: '{"TZ":"Asia/Shanghai"}'
+    secrets:
+      test-env-json: ${{ format('{{"NEXT_PUBLIC_CAP_API_ENDPOINT":{0}}}', toJSON(secrets.NEXT_PUBLIC_CAP_API_ENDPOINT)) }}
   release-smoke:
     name: Release Workflow Smoke
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install actionlint
-        run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          sudo mv actionlint /usr/local/bin/
-
-      - name: Lint release.yml
-        run: actionlint .github/workflows/release.yml
-
-      - name: Assert ssh-deploy is SHA-pinned
-        run: |
-          # Patterns assembled from concatenated parts so this workflow file
-          # itself does not contain the banned literal strings — keeps the
-          # repo-wide grep acceptance contract clean.
-          BANNED="apple""boy/ssh-action"
-          DEPLOY="nocoo/""base-ci/.github/actions/ssh-deploy"
-          if grep -q "$BANNED" .github/workflows/release.yml; then
-            echo "::error::release.yml still references the banned third-party SSH action"
-            exit 1
-          fi
-          if ! grep -qE "${DEPLOY}@[a-f0-9]{40}" .github/workflows/release.yml; then
-            echo "::error::in-house ssh-deploy must be pinned to a 40-char commit SHA"
-            exit 1
-          fi
-          echo "OK: ssh-deploy SHA-pinned, no third-party SSH action reference"
-
-      - name: Assert base-ci is SHA-pinned
-        run: |
-          BASE="nocoo/""base-ci"
-          if grep -rE "${BASE}.*@v[0-9]" .github/workflows/; then
-            echo "::error::Found floating tag reference to the shared CI repo"
-            exit 1
-          fi
-          echo "OK: all shared-CI references SHA-pinned"
-
-      - name: yamllint release.yml
-        run: |
-          pip install --quiet yamllint
-          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, truthy: disable}}" .github/workflows/release.yml
-
-  security-scan:
-    name: "G2 Security Scan (OSV)"
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile --ignore-scripts
-      - name: "Install osv-scanner"
-        run: |
-          curl -sSL -o /tmp/osv-scanner \
-            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
-          chmod +x /tmp/osv-scanner
-          sudo mv /tmp/osv-scanner /usr/local/bin/osv-scanner
-      - name: "Scan bun.lock for known vulnerabilities"
-        run: osv-scanner scan --lockfile bun.lock
-      - name: "Scan Cargo.lock (Rust CLI)"
-        if: hashFiles('packages/cli-rs/Cargo.lock') != ''
-        run: osv-scanner scan --lockfile packages/cli-rs/Cargo.lock
-
-  api-e2e:
-    name: "L2 API E2E"
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile --ignore-scripts
-      - name: "L2: API E2E tests"
-        run: bun run test:e2e:api
-        env:
-          CI: "true"
-
-  browser-e2e:
-    name: "L3 Browser E2E"
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    # L3 is fully local: scripts/run-l3.ts boots `wrangler dev --local` against
-    # an isolated D1/KV persist dir (.wrangler/state/l3) and points the Next
-    # dev server at it. No remote test Worker / remote D1 deploy / remote seed
-    # required — Cloudflare creds and WORKER_URL_TEST / JWT_SECRET /
-    # AUTH_SECRET / FORUM_API_KEY are intentionally NOT plumbed into this job.
-    # Test secrets are hard-coded constants inside scripts/lib/l3-local-worker.ts
-    # and injected via wrangler `--var` at start-time.
-    env:
-      TZ: Asia/Shanghai
-      NEXT_PUBLIC_CAP_API_ENDPOINT: ${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile --ignore-scripts
-      # Playwright --with-deps shells out to apt. On GHA ubuntu images the default
-      # azure.archive.ubuntu.com mirror intermittently hangs (Ign: loops, then
-      # multi-minute stalls), consuming the entire 25m L3 budget before tests
-      # start. Pin archive.ubuntu.com, bound apt timeouts, and cap this step so
-      # a stuck install cannot starve the suite / retry loop.
-      - name: Install Playwright Chromium
-        timeout-minutes: 8
-        run: |
-          set -euo pipefail
-          printf '%s\n' \
-            'Acquire::http::Timeout "30";' \
-            'Acquire::https::Timeout "30";' \
-            'Acquire::Retries "2";' \
-            | sudo tee /etc/apt/apt.conf.d/99-ellie-timeout >/dev/null
-          # GHA ubuntu images resolve packages via mirror+file:/etc/apt/apt-mirrors.txt
-          # (see job logs: "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist"). Editing
-          # only sources.list / ubuntu.sources is a silent no-op on those runners.
-          if [ -f /etc/apt/apt-mirrors.txt ]; then
-            printf '%s\n' \
-              'http://archive.ubuntu.com/ubuntu/' \
-              'http://security.ubuntu.com/ubuntu/' \
-              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
-            echo "apt-mirrors.txt rewritten to:"
-            cat /etc/apt/apt-mirrors.txt
-          else
-            echo "WARN: /etc/apt/apt-mirrors.txt missing — falling back to sources rewrite"
-          fi
-          # Belt-and-suspenders for classic direct-URI sources.
-          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
-              /etc/apt/sources.list.d/ubuntu.sources
-          fi
-          if [ -f /etc/apt/sources.list ]; then
-            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
-              /etc/apt/sources.list || true
-          fi
-          # Fail loud if azure mirror is still referenced anywhere apt reads.
-          if grep -Rns 'azure\.archive\.ubuntu\.com' /etc/apt/apt-mirrors.txt \
-            /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
-            echo "::error::azure.archive.ubuntu.com still present in apt configuration"
-            exit 1
-          fi
-          echo "apt sources OK (no azure.archive.ubuntu.com)"
-          bunx playwright install --with-deps chromium
-      - name: "L3: Playwright E2E tests (forum + admin BDD)"
-        run: bun run test:e2e:bdd
+    uses: nocoo/base-ci/.github/workflows/workflow-lint.yml@2857469cc5206e7a4988171a1282209617996a67
+    with:
+      required-reusable-workflow: nocoo/base-ci/.github/workflows/deploy-docker.yml
+      yamllint: true
+permissions:
+  contents: read
