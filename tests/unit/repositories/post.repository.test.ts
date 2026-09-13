@@ -13,7 +13,7 @@ describe("createMockPostRepository", () => {
 		it("throws when no threadId or authorId provided", async () => {
 			const store = createMockDataStore();
 			const repo = createMockPostRepository(store);
-			expect(repo.list({})).rejects.toThrow("list requires threadId or authorId");
+			await expect(repo.list({})).rejects.toThrow("list requires threadId or authorId");
 		});
 
 		it("returns posts filtered by threadId", async () => {
@@ -266,7 +266,7 @@ describe("createMockPostRepository", () => {
 		it("throws when post not found", async () => {
 			const store = createMockDataStore();
 			const repo = createMockPostRepository(store);
-			expect(repo.delete(99999)).rejects.toThrow("Post 99999 not found");
+			await expect(repo.delete(99999)).rejects.toThrow("Post 99999 not found");
 		});
 	});
 });

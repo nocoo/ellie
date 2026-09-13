@@ -123,7 +123,7 @@ describe("createMockForumRepository", () => {
 		});
 
 		it("throws when forum not found", async () => {
-			expect(repo.update(99999, { name: "x" })).rejects.toThrow("Forum 99999 not found");
+			await expect(repo.update(99999, { name: "x" })).rejects.toThrow("Forum 99999 not found");
 		});
 	});
 });
