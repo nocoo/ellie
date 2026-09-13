@@ -171,7 +171,7 @@ describe("createMockThreadRepository", () => {
 		it("throws when no titlePrefix or authorName provided", async () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
-			expect(repo.search({})).rejects.toThrow("search requires titlePrefix or authorName");
+			await expect(repo.search({})).rejects.toThrow("search requires titlePrefix or authorName");
 		});
 
 		it("filters by titlePrefix", async () => {
@@ -333,7 +333,7 @@ describe("createMockThreadRepository", () => {
 		it("throws when thread not found", async () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
-			expect(repo.delete(99999)).rejects.toThrow("Thread 99999 not found");
+			await expect(repo.delete(99999)).rejects.toThrow("Thread 99999 not found");
 		});
 	});
 
@@ -361,7 +361,9 @@ describe("createMockThreadRepository", () => {
 		it("throws when thread not found", async () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
-			expect(repo.setSticky(99999, StickyLevel.Global)).rejects.toThrow("Thread 99999 not found");
+			await expect(repo.setSticky(99999, StickyLevel.Global)).rejects.toThrow(
+				"Thread 99999 not found",
+			);
 		});
 	});
 
@@ -389,7 +391,7 @@ describe("createMockThreadRepository", () => {
 		it("throws when thread not found", async () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
-			expect(repo.setDigest(99999, 1)).rejects.toThrow("Thread 99999 not found");
+			await expect(repo.setDigest(99999, 1)).rejects.toThrow("Thread 99999 not found");
 		});
 	});
 
@@ -417,7 +419,7 @@ describe("createMockThreadRepository", () => {
 		it("throws when thread not found", async () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
-			expect(repo.setClosed(99999, true)).rejects.toThrow("Thread 99999 not found");
+			await expect(repo.setClosed(99999, true)).rejects.toThrow("Thread 99999 not found");
 		});
 	});
 
@@ -446,7 +448,7 @@ describe("createMockThreadRepository", () => {
 		it("throws when thread not found", async () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
-			expect(repo.move(99999, 10)).rejects.toThrow("Thread 99999 not found");
+			await expect(repo.move(99999, 10)).rejects.toThrow("Thread 99999 not found");
 		});
 	});
 });

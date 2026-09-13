@@ -189,7 +189,9 @@ describe("createMockUserRepository", () => {
 		});
 
 		it("throws when user not found", async () => {
-			expect(repo.setStatus(99999, UserStatus.Banned)).rejects.toThrow("User 99999 not found");
+			await expect(repo.setStatus(99999, UserStatus.Banned)).rejects.toThrow(
+				"User 99999 not found",
+			);
 		});
 	});
 
@@ -206,7 +208,7 @@ describe("createMockUserRepository", () => {
 		});
 
 		it("throws when user not found", async () => {
-			expect(repo.setRole(99999, UserRole.Admin)).rejects.toThrow("User 99999 not found");
+			await expect(repo.setRole(99999, UserRole.Admin)).rejects.toThrow("User 99999 not found");
 		});
 	});
 });
