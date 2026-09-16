@@ -27,7 +27,16 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
-import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
+import {
+	BarChart3,
+	CalendarCheck,
+	ChartNoAxesCombined,
+	FileText,
+	Globe,
+	MessageSquare,
+	ShieldCheck,
+	Users,
+} from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -127,10 +136,19 @@ function AnalyticsPageInner(): React.JSX.Element {
 	const tabOptions = ANALYTICS_TABS.map((value) => ({ value, label: TAB_LABELS[value] }));
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-5">
 			<PageHeader
-				title="数据分析"
-				description="今日 KPI 与近期趋势（基于业务表实时聚合，KV 缓存 60s ~ 5min）"
+				title={
+					<span className="flex items-center gap-2.5">
+						<BarChart3
+							className="h-6 w-6 text-basalt-primary"
+							aria-hidden="true"
+							strokeWidth={1.5}
+						/>
+						数据分析
+					</span>
+				}
+				description="社区增长、访问行为与认证审计 · 上海时区"
 			/>
 
 			<SectionRule title="今日 KPI">
@@ -138,7 +156,7 @@ function AnalyticsPageInner(): React.JSX.Element {
 					<AdminInlineMessage variant="error" text={`今日 KPI 加载失败：${overviewError}`} />
 				)}
 				{overview && (
-					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 						<StatCard label="今日新注册" value={overview.today.newUsers} icon={Users} />
 						<StatCard label="今日新主题" value={overview.today.newThreads} icon={FileText} />
 						<StatCard label="今日新回复" value={overview.today.newPosts} icon={MessageSquare} />
@@ -159,6 +177,13 @@ function AnalyticsPageInner(): React.JSX.Element {
 						<TabsList aria-label="切换数据分析视图" className="max-w-full overflow-x-auto">
 							{tabOptions.map((option) => (
 								<TabsTrigger key={option.value} value={option.value}>
+									{option.value === "trend" ? (
+										<ChartNoAxesCombined className="h-3.5 w-3.5" aria-hidden="true" />
+									) : option.value === "audit" ? (
+										<Globe className="h-3.5 w-3.5" aria-hidden="true" />
+									) : (
+										<ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+									)}
 									{option.label}
 								</TabsTrigger>
 							))}

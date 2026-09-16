@@ -20,7 +20,8 @@
  * per-session dedup; the wording reflects what the data can support.
  */
 
-import { LayerCard, SegmentControl, TablePager } from "@nocoo/basalt";
+import { formatNumber } from "@ellie/shared";
+import { Button, LayerCard, SegmentControl, TablePager } from "@nocoo/basalt";
 import {
 	Table,
 	TableBody,
@@ -29,10 +30,22 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
+import {
+	Bot,
+	CircleHelp,
+	Compass,
+	Eye,
+	Globe,
+	LayoutList,
+	MousePointer2,
+	Search,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { StatCard } from "@/components/admin/stat-card";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import {
+	metricShare,
 	PATH_KIND_LABELS,
 	PATH_KIND_VALUES,
 	type PathKind,
@@ -175,39 +188,109 @@ export function TodayVisitsPanel() {
 
 	return (
 		<>
-			{/* ── KPI row (aggregate, KV-cached on worker) ────────────────── */}
-			<LayerCard>
-				<LayerCard.Header>
-					<h2 className="text-base font-semibold">今日访问</h2>
-				</LayerCard.Header>
-				<LayerCard.Well>
-					{kpiError && <p className="text-sm text-basalt-destructive">KPI 加载失败：{kpiError}</p>}
-					{kpi && (
-						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-							<StatCard label="总浏览" value={kpi.totalViews} />
-							<StatCard label="真人" value={kpi.humanViews} tone="success" />
-							<StatCard label="搜索爬虫" value={kpi.botSearchViews} />
-							<StatCard label="其他爬虫" value={kpi.botOtherViews} />
-							<StatCard label="未知" value={kpi.unknownViews} />
-							<StatCard label="覆盖目标" value={kpi.distinctTargets} />
-							<StatCard
-								label="活跃用户/访客（含匿名）"
-								value={activeOrAnon}
-								hint={
-									kpi.anonPresent === 1
-										? `${kpi.activeUsers} 注册 + 匿名`
-										: `${kpi.activeUsers} 注册`
-								}
-							/>
-						</div>
-					)}
-				</LayerCard.Well>
-			</LayerCard>
+			<section className="space-y-3" aria-label="今日访问概览">
+				<h2 className="flex items-center gap-2 text-sm font-semibold">
+					<Globe className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
+					今日访问
+				</h2>
+				{kpiError && (
+					<p role="alert" className="text-sm text-basalt-destructive">
+						KPI 加载失败：{kpiError}
+					</p>
+				)}
+				{kpi && (
+					<>
+						<AdminMetrics
+							label="今日访问统计"
+							items={[
+								{ label: "总浏览", value: kpi.totalViews, icon: Eye, hint: kpi.dateLocal },
+								{
+									label: "真人",
+									value: kpi.humanViews,
+									icon: MousePointer2,
+									hint: `占全部 ${metricShare(kpi.humanViews, kpi.totalViews)}`,
+								},
+								{
+									label: "搜索爬虫",
+									value: kpi.botSearchViews,
+									icon: Search,
+									hint: `占全部 ${metricShare(kpi.botSearchViews, kpi.totalViews)}`,
+								},
+								{
+									label: "其他爬虫",
+									value: kpi.botOtherViews,
+									icon: Bot,
+									hint: `占全部 ${metricShare(kpi.botOtherViews, kpi.totalViews)}`,
+								},
+								{ label: "未知", value: kpi.unknownViews, icon: CircleHelp },
+								{ label: "覆盖目标", value: kpi.distinctTargets, icon: Compass },
+								{
+									label: "活跃用户/访客（含匿名）",
+									value: activeOrAnon,
+									icon: Users,
+									hint:
+										kpi.anonPresent === 1
+											? `${kpi.activeUsers} 注册 + 匿名`
+											: `${kpi.activeUsers} 注册`,
+								},
+								{
+									label: "每目标浏览",
+									value: kpi.distinctTargets
+										? (kpi.totalViews / kpi.distinctTargets).toLocaleString("zh-CN", {
+												maximumFractionDigits: 1,
+											})
+										: "—",
+									icon: LayoutList,
+									hint: "浏览量 / 覆盖目标",
+								},
+							]}
+						/>
+						{kpi.byPathKind.length > 0 && (
+							<LayerCard padding="sm">
+								<div className="mb-2 flex items-center gap-2 px-2 text-xs text-basalt-muted-foreground">
+									<LayoutList className="h-3.5 w-3.5" aria-hidden="true" />
+									访问内容构成 · 点击筛选明细
+								</div>
+								<div className="grid grid-cols-2 gap-1 lg:grid-cols-5">
+									{kpi.byPathKind.map((entry) => (
+										<Button
+											key={entry.pathKind}
+											variant={pathKindFilter === entry.pathKind ? "secondary" : "ghost"}
+											className="h-auto justify-between gap-2 px-2 py-2"
+											aria-pressed={pathKindFilter === entry.pathKind}
+											onClick={() => {
+												setPathKindFilter(entry.pathKind);
+												setPage(1);
+											}}
+										>
+											<span className="text-left text-xs">
+												{PATH_KIND_LABELS[entry.pathKind]}
+												<span className="mt-0.5 block text-[11px] text-basalt-muted-foreground">
+													{entry.targets} 个目标
+												</span>
+											</span>
+											<span className="text-right text-sm tabular-nums">
+												{formatNumber(entry.views)}
+												<span className="mt-0.5 block text-[11px] text-basalt-muted-foreground">
+													{metricShare(entry.views, kpi.totalViews)}
+												</span>
+											</span>
+										</Button>
+									))}
+								</div>
+							</LayerCard>
+						)}
+					</>
+				)}
+			</section>
 
 			{/* ── Detail list (realtime, no-store) ────────────────────────── */}
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-					<h2 className="text-base font-semibold">访问明细</h2>
+					<h2 className="flex items-center gap-2 text-sm font-semibold">
+						<LayoutList className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
+						访问明细
+					</h2>
 					<SegmentControl
 						legend="访问类型"
 						value={pathKindFilter || "__empty__"}
@@ -227,15 +310,17 @@ export function TodayVisitsPanel() {
 						<p className="text-sm text-basalt-muted-foreground">该筛选条件下暂无记录。</p>
 					)}
 					{list && list.rows.length > 0 && (
-						<div className="overflow-x-auto">
-							<Table className="min-w-full text-sm">
-								<TableHeader>
+						<div className="max-h-[68vh] overflow-auto">
+							<Table aria-label="访问明细" className="min-w-full whitespace-nowrap text-sm">
+								<TableHeader className="sticky top-0 z-10 bg-basalt-bright">
 									<TableRow className="border-b border-basalt-border text-left text-xs text-basalt-muted-foreground">
 										<TableHead className="py-2 pr-3">类型</TableHead>
 										<TableHead className="py-2 pr-3">目标</TableHead>
 										<TableHead className="py-2 pr-3 tabular-nums">浏览</TableHead>
 										<TableHead className="py-2 pr-3 tabular-nums">真人</TableHead>
+										<TableHead className="py-2 pr-3 text-right">真人占比</TableHead>
 										<TableHead className="py-2 pr-3 tabular-nums">爬虫</TableHead>
+										<TableHead className="py-2 pr-3 text-right">未识别</TableHead>
 										<TableHead className="py-2 pr-3 tabular-nums">用户</TableHead>
 										<TableHead className="py-2 pr-3">时间窗（首次 / 最近）</TableHead>
 									</TableRow>
@@ -249,13 +334,19 @@ export function TodayVisitsPanel() {
 											<TableCell className="py-2 pr-3 text-xs text-basalt-muted-foreground">
 												{PATH_KIND_LABELS[row.pathKind]}
 											</TableCell>
-											<TableCell className="py-2 pr-3 break-all">
+											<TableCell className="max-w-[360px] truncate py-2 pr-3" title={row.label}>
 												<RowTarget row={row} siteHost={siteHost} />
 											</TableCell>
 											<TableCell className="py-2 pr-3 tabular-nums">{row.views}</TableCell>
 											<TableCell className="py-2 pr-3 tabular-nums">{row.humanViews}</TableCell>
+											<TableCell className="py-2 pr-3 text-right tabular-nums text-basalt-muted-foreground">
+												{metricShare(row.humanViews, row.views)}
+											</TableCell>
 											<TableCell className="py-2 pr-3 tabular-nums">
 												{row.botSearchViews + row.botOtherViews}
+											</TableCell>
+											<TableCell className="py-2 pr-3 text-right tabular-nums">
+												{row.unknownViews}
 											</TableCell>
 											<TableCell className="py-2 pr-3 tabular-nums">{row.uniqueUsers}</TableCell>
 											<TableCell className="whitespace-nowrap py-2 pr-3 tabular-nums text-xs">

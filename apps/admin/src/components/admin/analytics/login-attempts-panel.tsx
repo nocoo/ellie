@@ -15,12 +15,24 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
+import {
+	Activity,
+	BadgeCheck,
+	Fingerprint,
+	ListChecks,
+	LogIn,
+	ShieldAlert,
+	ShieldCheck,
+	UserPlus,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
-import { StatCard } from "@/components/admin/stat-card";
 import {
 	type LoginAttemptList,
+	metricShare,
 	parseLoginAttemptList,
 	parseTodayLoginsKpi,
 	type TodayLoginsKpi,
@@ -106,31 +118,59 @@ export function LoginAttemptsPanel() {
 
 	return (
 		<>
-			{/* ── KPI row (aggregate, KV-cached on worker) ────────────────── */}
-			<LayerCard>
-				<LayerCard.Header>
-					<h2 className="text-base font-semibold">今日登录尝试</h2>
-				</LayerCard.Header>
-				<LayerCard.Well>
-					{kpiError && <p className="text-sm text-basalt-destructive">KPI 加载失败：{kpiError}</p>}
-					{kpi && (
-						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-							<StatCard label="总尝试" value={kpi.totalAttempts} />
-							<StatCard label="成功" value={kpi.successAttempts} tone="success" />
-							<StatCard label="失败" value={kpi.failedAttempts} tone="danger" />
-							<StatCard label="独立 IP" value={kpi.uniqueIps} />
-							<StatCard label="登录" value={kpi.loginAttempts} />
-							<StatCard label="注册" value={kpi.registerAttempts} />
-							<StatCard label="成功用户" value={kpi.uniqueUsers} />
-						</div>
-					)}
-				</LayerCard.Well>
-			</LayerCard>
+			<section className="space-y-3" aria-label="今日认证概览">
+				<h2 className="flex items-center gap-2 text-sm font-semibold">
+					<ShieldCheck className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
+					今日登录尝试
+				</h2>
+				{kpiError && (
+					<p role="alert" className="text-sm text-basalt-destructive">
+						KPI 加载失败：{kpiError}
+					</p>
+				)}
+				{kpi && (
+					<AdminMetrics
+						label="今日认证统计"
+						items={[
+							{
+								label: "总尝试",
+								value: kpi.totalAttempts,
+								icon: Activity,
+								hint: "今日 · 上海时区",
+							},
+							{
+								label: "成功",
+								value: kpi.successAttempts,
+								icon: BadgeCheck,
+								hint: `占全部 ${metricShare(kpi.successAttempts, kpi.totalAttempts)}`,
+							},
+							{
+								label: "失败",
+								value: kpi.failedAttempts,
+								icon: ShieldAlert,
+								hint: `占全部 ${metricShare(kpi.failedAttempts, kpi.totalAttempts)}`,
+							},
+							{ label: "独立 IP", value: kpi.uniqueIps, icon: Fingerprint, hint: "认证来源去重" },
+							{ label: "登录", value: kpi.loginAttempts, icon: LogIn },
+							{ label: "注册", value: kpi.registerAttempts, icon: UserPlus },
+							{ label: "成功用户", value: kpi.uniqueUsers, icon: Users },
+							{
+								label: "成功率",
+								value: metricShare(kpi.successAttempts, kpi.totalAttempts),
+								icon: ShieldCheck,
+							},
+						]}
+					/>
+				)}
+			</section>
 
 			{/* ── Detail list with reveal ─────────────────────────────────── */}
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 className="text-base font-semibold">登录明细</h2>
+					<h2 className="flex items-center gap-2 text-sm font-semibold">
+						<ListChecks className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
+						登录明细
+					</h2>
 					<div className="flex flex-wrap items-center gap-2 text-xs">
 						<SegmentControl
 							value={okFilter || "__empty__"}
@@ -168,9 +208,9 @@ export function LoginAttemptsPanel() {
 						<p className="text-sm text-basalt-muted-foreground">该筛选条件下暂无记录。</p>
 					)}
 					{list && list.rows.length > 0 && (
-						<div className="overflow-x-auto">
-							<Table className="min-w-full text-sm">
-								<TableHeader>
+						<div className="max-h-[68vh] overflow-auto">
+							<Table aria-label="登录明细" className="min-w-full whitespace-nowrap text-sm">
+								<TableHeader className="sticky top-0 z-10 bg-basalt-bright">
 									<TableRow className="border-b border-basalt-border text-left text-xs text-basalt-muted-foreground">
 										<TableHead className="py-2 pr-3">时间</TableHead>
 										<TableHead className="py-2 pr-3">用户</TableHead>
