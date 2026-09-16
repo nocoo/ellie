@@ -1,11 +1,15 @@
 import type { ForumTreeNode } from "@ellie/types";
+import { CalendarCheck, Compass, Search } from "lucide-react";
+import Link from "next/link";
 import { DigestShowcase } from "@/components/forum/digest-showcase";
 import { ForumGroup } from "@/components/forum/forum-group";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { HomeFooter } from "@/components/forum/home-footer";
+import { Button } from "@/components/ui/button";
 import { loadDigestList } from "@/viewmodels/forum/digest.server";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
-import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
 
 /** Shuffle array using Fisher-Yates algorithm and return first n items */
@@ -64,6 +68,37 @@ export default async function ForumHomePage() {
 
 	return (
 		<div className="space-y-4">
+			<ForumPageHeader
+				icon={<Compass />}
+				title={getStr(settings, "general.site.home_label", "同济网论坛")}
+				description="浏览版块、发现精华，继续你关心的讨论。"
+				actions={
+					<>
+						<Button variant="outline" nativeButton={false} render={<Link href="/search" />}>
+							<Search className="size-4" aria-hidden="true" />
+							搜索主题
+						</Button>
+						<Button nativeButton={false} render={<Link href="/checkin" />}>
+							<CalendarCheck className="size-4" aria-hidden="true" />
+							每日签到
+						</Button>
+					</>
+				}
+			/>
+			{tree.length > 0 && (
+				<nav aria-label="版块分区" className="flex flex-wrap items-center gap-2 text-xs">
+					<span className="mr-1 text-muted-foreground">{tree.length} 个分区</span>
+					{tree.map((group) => (
+						<a
+							key={group.id}
+							href={`#forum-group-${group.id}`}
+							className="rounded-lg border border-border bg-card px-3 py-2 text-muted-foreground hover:border-primary/40 hover:text-primary"
+						>
+							{group.name}
+						</a>
+					))}
+				</nav>
+			)}
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
 					{error}

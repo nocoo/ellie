@@ -18,8 +18,9 @@
 // so future tweaks don't have to chase 2 layouts.
 
 import type { ForumTreeNode } from "@ellie/types";
+import { MessagesSquare } from "lucide-react";
 import Link from "next/link";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { cn } from "@/lib/utils";
 import { formatCount } from "@/viewmodels/forum/forum-list";
 import { formatDateTime, formatDateTimeMobile } from "@/viewmodels/shared/formatting";
 import { SafeHtml } from "./safe-html";
@@ -31,10 +32,18 @@ interface ForumCardProps {
 	layout?: "wide" | "grid";
 }
 
-/** Forum icon — Discuz original: forum_new.gif when active, forum.gif when idle */
 function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
-	const src = getStaticImageUrl(hasActivity ? "forum_new.gif" : "forum.gif");
-	return <img src={src} alt="" className="h-7 w-7 object-contain shrink-0" aria-hidden="true" />;
+	return (
+		<span
+			aria-hidden="true"
+			className={cn(
+				"inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
+				hasActivity ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+			)}
+		>
+			<MessagesSquare className="size-[18px]" />
+		</span>
+	);
 }
 
 /** Last poster avatar wrapped in a user link. Returns null when userId <= 0. */
@@ -80,7 +89,7 @@ function ForumStats({
 	if (variant === "desktop") {
 		return (
 			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
-				<span className="whitespace-nowrap" data-testid="forum-stats-desktop">
+				<span className="whitespace-nowrap" data-testid="forum-stats-desktop" title="主题 / 帖子">
 					<span className="text-foreground font-medium">{formatCount(threads)}</span>
 					{" / "}
 					{formatCount(posts)}
@@ -90,7 +99,7 @@ function ForumStats({
 	}
 	return (
 		<span className="whitespace-nowrap" data-testid="forum-stats-inline">
-			{formatCount(threads)} 帖 / {formatCount(posts)} 回
+			{formatCount(threads)} 主题 / {formatCount(posts)} 帖子
 		</span>
 	);
 }
@@ -356,7 +365,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						<Link
 							href={`/forums/${forum.id}`}
 							prefetch={false}
-							className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
+							className="text-sm font-bold text-foreground hover:text-primary transition-colors"
 						>
 							{forum.name}
 						</Link>
@@ -399,7 +408,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					<Link
 						href={`/forums/${forum.id}`}
 						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-destructive transition-colors truncate min-w-0"
+						className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0"
 					>
 						{forum.name}
 					</Link>
@@ -439,7 +448,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					<Link
 						href={`/forums/${forum.id}`}
 						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-destructive transition-colors truncate min-w-0 flex-1 sm:flex-initial"
+						className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0 flex-1 sm:flex-initial"
 					>
 						{forum.name}
 					</Link>

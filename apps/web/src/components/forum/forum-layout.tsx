@@ -28,7 +28,7 @@ export function ForumLayoutShell({ headerVm, footerVm, children }: ForumLayoutSh
 			<ForumHeader vm={headerVm} />
 			<main id="main-content" className="flex-1">
 				<div className="width-container">
-					<div className="py-4">{children}</div>
+					<div className="py-4 sm:py-6">{children}</div>
 				</div>
 			</main>
 			<SiteFooter vm={footerVm} />

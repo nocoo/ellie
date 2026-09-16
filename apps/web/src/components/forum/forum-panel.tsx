@@ -1,48 +1,33 @@
-// components/forum/forum-panel.tsx — Unified forum list panel (server component)
-// Renders ForumTreeNode[] in two modes:
-// - "wide": full-width rows with dashed dividers
-// - "grid": 2-col grid with dashed borders (includes odd-count placeholder)
-// - "auto": wide if ≤10 forums, grid if >10
-
 import type { ForumTreeNode } from "@ellie/types";
 import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import { ForumCard } from "./forum-card";
 
-interface ForumPanelProps {
+export function ForumPanel({
+	forums,
+	layout = "auto",
+}: {
 	forums: ForumTreeNode[];
 	layout?: "auto" | "wide" | "grid";
-}
-
-export function ForumPanel({ forums, layout = "auto" }: ForumPanelProps) {
-	const resolved = layout === "auto" ? (forums.length <= GRID_THRESHOLD ? "wide" : "grid") : layout;
-
-	if (resolved === "wide") {
+}) {
+	const grid = layout === "grid" || (layout === "auto" && forums.length > GRID_THRESHOLD);
+	if (!grid)
 		return (
-			<div className="divide-y divide-dashed divide-border">
+			<div className="divide-y divide-border/70">
 				{forums.map((forum) => (
 					<ForumCard key={forum.id} forum={forum} layout="wide" />
 				))}
 			</div>
 		);
-	}
-
-	// Grid layout — 2 columns on sm+, 1 column on mobile
-	const isOdd = forums.length % 2 === 1;
-
 	return (
-		<div className="grid grid-cols-1 sm:grid-cols-2">
-			{forums.map((forum, i) => (
+		<div className="grid grid-cols-1 gap-px bg-border/70 sm:grid-cols-2">
+			{forums.map((forum, index) => (
 				<div
 					key={forum.id}
-					className={`${i > 1 ? "border-t border-dashed border-border" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-dashed sm:border-border" : ""} ${i === 1 ? "max-sm:border-t max-sm:border-dashed max-sm:border-border" : ""}`}
+					className={`min-w-0 bg-card ${index === forums.length - 1 && forums.length % 2 ? "sm:col-span-2" : ""}`}
 				>
 					<ForumCard forum={forum} layout="grid" />
 				</div>
 			))}
-			{/* Placeholder cell for odd count — completes grid border lines */}
-			{isOdd && (
-				<div className="hidden sm:block border-t border-dashed border-border sm:border-l sm:border-dashed sm:border-border" />
-			)}
 		</div>
 	);
 }

@@ -43,11 +43,11 @@ export interface HotKeyword {
 
 /** Site statistics shown at the bottom of the header */
 export interface HeaderStats {
-	todayPosts: number;
-	yesterdayPosts: number;
-	totalThreads: number;
-	totalPosts: number;
-	totalMembers: number;
+	todayPosts: number | null;
+	yesterdayPosts: number | null;
+	totalThreads: number | null;
+	totalPosts: number | null;
+	totalMembers: number | null;
 }
 
 /** Aggregated header data consumed by header components */
@@ -104,11 +104,11 @@ export const HOT_KEYWORDS: HotKeyword[] = [
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_STATS: HeaderStats = {
-	todayPosts: 0,
-	yesterdayPosts: 0,
-	totalThreads: 0,
-	totalPosts: 0,
-	totalMembers: 0,
+	todayPosts: null,
+	yesterdayPosts: null,
+	totalThreads: null,
+	totalPosts: null,
+	totalMembers: null,
 };
 
 // ---------------------------------------------------------------------------

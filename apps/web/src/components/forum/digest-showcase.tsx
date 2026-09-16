@@ -3,7 +3,7 @@
 
 import type { Thread } from "@ellie/types";
 import { getThreadBadges } from "@ellie/types";
-import { Award } from "lucide-react";
+import { Award, Eye, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,8 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 				</div>
 				<Button
 					size="sm"
-					className="bg-success hover:bg-success/90 text-white gap-1.5"
+					variant="outline"
+					className="gap-1.5"
 					nativeButton={false}
 					render={<Link href="/digest" />}
 				>
@@ -62,7 +63,7 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 						return (
 							<div
 								key={thread.id}
-								className="flex items-center gap-2 py-1.5 transition-colors hover:bg-accent/50"
+								className="flex items-center gap-2 py-2.5 transition-colors hover:bg-accent/50"
 							>
 								{badges.length > 0 && <ThreadBadgeList badges={badges} />}
 								<Link
@@ -72,14 +73,28 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 								>
 									{thread.subject}
 								</Link>
-								<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-									<Link
-										href={`/users/${thread.authorId}`}
-										prefetch={false}
-										className="hover:text-primary transition-colors"
-									>
-										{thread.authorName}
-									</Link>
+								<div className="hidden items-center gap-3 text-xs text-muted-foreground tabular-nums lg:flex">
+									<span className="inline-flex items-center gap-1" title="回复">
+										<MessageSquare className="size-3" aria-hidden="true" />
+										{thread.replies}
+									</span>
+									<span className="inline-flex items-center gap-1" title="查看">
+										<Eye className="size-3" aria-hidden="true" />
+										{thread.views}
+									</span>
+								</div>
+								<div className="hidden sm:flex items-center justify-end gap-2 text-xs text-muted-foreground shrink-0 sm:w-48">
+									{thread.authorId > 0 ? (
+										<Link
+											href={`/users/${thread.authorId}`}
+											prefetch={false}
+											className="truncate hover:text-primary transition-colors"
+										>
+											{thread.authorName}
+										</Link>
+									) : (
+										<span>{thread.anonymousAuthor === 1 ? "匿名" : "未知用户"}</span>
+									)}
 									<span>·</span>
 									<span>{formatRelativeTime(thread.createdAt)}</span>
 								</div>

@@ -112,36 +112,36 @@
    ========================================================================== */
 :root {
 	/* Surfaces: L0 body → L1 card → L2 secondary */
-	--background: 0 0% 100%;
-	--foreground: 0 0% 12%;
+	--background: 216 33% 97%;
+	--foreground: 218 30% 16%;
 	--card: 0 0% 100%;
-	--card-foreground: 0 0% 12%;
-	--secondary: 0 0% 100%;
-	--secondary-foreground: 0 0% 12%;
+	--card-foreground: 218 30% 16%;
+	--secondary: 216 25% 96%;
+	--secondary-foreground: 218 30% 16%;
 	--popover: 0 0% 100%;
-	--popover-foreground: 0 0% 12%;
+	--popover-foreground: 218 30% 16%;
 
-	/* Primary: Deep Teal #016699 */
-	--primary: 200 99% 30%;
+	/* Tongji blue */
+	--primary: 204 86% 36%;
 	--primary-foreground: 0 0% 100%;
 
 	/* UI states */
-	--muted: 220 14% 96%;
-	--muted-foreground: 0 0% 45%;
-	--accent: 220 14% 96%;
-	--accent-foreground: 0 0% 12%;
+	--muted: 215 25% 94%;
+	--muted-foreground: 215 14% 43%;
+	--accent: 214 32% 95%;
+	--accent-foreground: 218 30% 16%;
 	--destructive: 0 72% 51%;
 	--destructive-foreground: 0 0% 100%;
-	--success: 142 71% 45%;
+	--success: 142 65% 33%;
 	--success-foreground: 0 0% 100%;
 	--badge-red: 340 82% 55%;
 	--badge-red-foreground: 0 0% 100%;
 
 	/* Borders & inputs */
-	--border: 220 13% 88%;
-	--input: 220 13% 88%;
-	--ring: 200 99% 30%;
-	--radius: 0.625rem;
+	--border: 215 24% 88%;
+	--input: 215 20% 84%;
+	--ring: 204 86% 36%;
+	--radius: 0.75rem;
 
 	/* Forum-specific */
 	--forum-sidebar-bg: 204 33% 97%;
@@ -157,7 +157,7 @@
 	--dz-reminder-text: 27 90% 50%;
 
 	/* Layout */
-	--content-max-width: 1200px;
+	--content-max-width: 1280px;
 	--content-px: 1rem;
 }
 
@@ -165,33 +165,35 @@
    Dark Mode
    ========================================================================== */
 .dark {
-	/* Surfaces: L0 #171717 → L1 #1b1b1b → L2 #1f1f1f */
-	--background: 0 0% 9%;
-	--foreground: 0 0% 93%;
-	--card: 0 0% 10.6%;
-	--card-foreground: 0 0% 93%;
-	--secondary: 0 0% 12.2%;
-	--secondary-foreground: 0 0% 93%;
-	--popover: 0 0% 10.6%;
-	--popover-foreground: 0 0% 93%;
+	/* Surfaces */
+	--background: 218 23% 9%;
+	--foreground: 210 22% 94%;
+	--card: 218 21% 12%;
+	--card-foreground: 210 22% 94%;
+	--secondary: 217 20% 16%;
+	--secondary-foreground: 210 22% 94%;
+	--popover: 218 21% 12%;
+	--popover-foreground: 210 22% 94%;
 
 	/* Primary: brighter for dark bg */
-	--primary: 200 99% 45%;
-	--primary-foreground: 0 0% 100%;
+	--primary: 204 93% 67%;
+	--primary-foreground: 218 40% 10%;
 
 	/* UI states */
-	--muted: 0 0% 12.2%;
-	--muted-foreground: 0 0% 48%;
-	--accent: 0 0% 14%;
-	--accent-foreground: 0 0% 93%;
+	--muted: 217 20% 16%;
+	--muted-foreground: 215 16% 68%;
+	--accent: 216 22% 18%;
+	--accent-foreground: 210 22% 94%;
+
+	--success: 142 58% 56%;
 
 	/* Borders & inputs */
-	--border: 0 0% 16%;
-	--input: 0 0% 12%;
-	--ring: 200 99% 45%;
+	--border: 216 19% 23%;
+	--input: 216 19% 28%;
+	--ring: 204 93% 67%;
 
 	/* Forum-specific */
-	--forum-sidebar-bg: 210 10% 13%;
+	--forum-sidebar-bg: 218 21% 14%;
 	--forum-header-from: 210 10% 15%;
 	--forum-header-to: 210 10% 12%;
 	--forum-accent: 27 81% 59%;
@@ -202,40 +204,6 @@
 	--dz-nav-text: 0 0% 90%;
 	--dz-topbar-bg: 0 0% 10.6%;
 	--dz-reminder-text: 27 90% 60%;
-}
-
-/* ==========================================================================
-   Admin Panel Overrides
-   ========================================================================== */
-[data-area="admin"] {
-	/* Surfaces: L0 → L1 → L2 (warmer gray, following B-5 spec) */
-	--background: 220 14% 94%; /* L0: page base */
-	--card: 220 14% 97%; /* L1: floating island */
-	--secondary: 0 0% 100%; /* L2: inner cards (pure white) */
-	/* Cyan primary instead of teal */
-	--primary: 186 72% 38%;
-	--ring: 186 72% 38%;
-	/* Stronger muted for hover states */
-	--muted: 220 14% 92%;
-	--accent: 220 14% 92%;
-	/* L3: interactive controls */
-	--input: 220 13% 88%;
-	/* Larger radius */
-	--radius: 0.75rem;
-	--radius-card: 14px;
-	--radius-widget: 10px;
-}
-
-.dark [data-area="admin"] {
-	/* Surfaces: L0 → L1 → L2 (following B-5 spec) */
-	--background: 0 0% 9%; /* L0: #171717 */
-	--card: 0 0% 10.6%; /* L1: #1b1b1b */
-	--secondary: 0 0% 12.2%; /* L2: #1f1f1f */
-	/* Blue primary for dark admin */
-	--primary: 217 91% 60%;
-	--ring: 217 91% 60%;
-	/* L3: interactive controls */
-	--input: 0 0% 18%; /* #2e2e2e */
 }
 
 /* ==========================================================================
@@ -263,85 +231,6 @@
    ========================================================================== */
 @utility font-display {
 	font-family: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
-}
-
-/* Navigation gradient */
-/* Mobile-first: leave 1rem (= --content-px) inline margin so the blue bar
-   aligns with .width-container content cards instead of going edge-to-edge.
-   At ≥640px we restore `margin-inline: auto` so the desktop layout is
-   visually unchanged (max-width:1200 centered as before). */
-.nav-gradient {
-	position: relative;
-	max-width: var(--content-max-width);
-	margin-inline: 1rem;
-	border-radius: calc(var(--radius) - 2px);
-	overflow: hidden;
-	background-image: url("https://t.no.mt/ellie/bg-menu-light2.jpg");
-	background-size: auto 100%;
-	background-repeat: repeat-x;
-	background-position: center;
-}
-@media (min-width: 640px) {
-	.nav-gradient {
-		margin-inline: auto;
-	}
-}
-:root[data-width-mode="full"] .nav-gradient {
-	max-width: none;
-	margin-inline: 1rem;
-	border-radius: calc(var(--radius) - 2px);
-}
-@media (min-width: 768px) {
-	:root[data-width-mode="full"] .nav-gradient {
-		margin-inline: 2rem;
-	}
-}
-.nav-gradient::before {
-	content: "";
-	position: absolute;
-	inset: 0;
-	background: linear-gradient(
-		to bottom,
-		rgba(27, 106, 201, 0.8) 0%,
-		rgba(27, 106, 201, 0.6) 50%,
-		rgba(27, 106, 201, 0.35) 100%
-	);
-	pointer-events: none;
-}
-.nav-gradient::after {
-	content: "";
-	position: absolute;
-	inset: 0;
-	background: linear-gradient(
-		to top,
-		rgba(0, 0, 0, 0.35) 0%,
-		rgba(0, 0, 0, 0.1) 40%,
-		transparent 100%
-	);
-	pointer-events: none;
-}
-/* Dark mode overlay */
-.dark .nav-gradient::before {
-	background: linear-gradient(
-		to bottom,
-		rgba(15, 30, 60, 0.85) 0%,
-		rgba(15, 30, 60, 0.6) 50%,
-		rgba(15, 30, 60, 0.3) 100%
-	);
-}
-.dark .nav-gradient::after {
-	background: linear-gradient(
-		to top,
-		rgba(0, 0, 0, 0.5) 0%,
-		rgba(0, 0, 0, 0.2) 40%,
-		transparent 100%
-	);
-}
-/* Nav text shadow for better readability */
-.nav-gradient a {
-	text-shadow:
-		0 1px 3px rgba(0, 0, 0, 0.5),
-		0 0 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Content container */
@@ -515,25 +404,6 @@ cap-widget {
 	--cap-checkbox-border: 1px solid hsl(var(--border));
 	--cap-spinner-color: hsl(var(--primary));
 	--cap-spinner-background-color: hsl(var(--accent));
-}
-
-/* ==========================================================================
-   Background Pattern
-   ========================================================================== */
-body::before {
-	content: "";
-	position: fixed;
-	inset: 0;
-	pointer-events: none;
-	z-index: -1;
-	background:
-		repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 24px),
-		repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 24px);
-}
-.dark body::before {
-	background:
-		repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 24px),
-		repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 24px);
 }
 
 /* ==========================================================================

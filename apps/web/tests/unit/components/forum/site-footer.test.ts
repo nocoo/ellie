@@ -51,24 +51,9 @@ describe("SiteFooter — iPhone mobile contract", () => {
 		expect(screen.getByTestId("footer-logo")).toBeDefined();
 	});
 
-	it("background wrapper uses smaller mobile offsets and restores desktop values via sm: tokens", () => {
+	it("keeps decorative artwork outside the accessible content", () => {
 		render(createElement(SiteFooter, { vm: makeVm() }));
-		const bgWrap = screen.getByTestId("site-footer-bg-wrap");
-		// Mobile defaults (no prefix) — smaller offsets so the background art
-		// shows more of itself rather than being clipped at the top.
-		expect(bgWrap.className).toContain("-mt-8");
-		expect(bgWrap.className).toContain("-top-[120px]");
-		expect(bgWrap.className).toContain("mb-[-120px]");
-		// Desktop tokens — must restore the original visuals.
-		expect(bgWrap.className).toContain("sm:-mt-16");
-		expect(bgWrap.className).toContain("sm:-top-[280px]");
-		expect(bgWrap.className).toContain("sm:mb-[-280px]");
-
-		// Inner container drops the desktop `-12.5%` horizontal overflow on
-		// mobile so the image doesn't push out of the viewport.
-		const inner = bgWrap.querySelector(":scope > div");
-		expect(inner?.className ?? "").toContain("mx-0");
-		expect(inner?.className ?? "").toContain("sm:mx-[-12.5%]");
+		expect(screen.getByTestId("site-footer-bg-wrap").getAttribute("aria-hidden")).toBe("true");
 	});
 
 	it("copyright/powered-by/ICP lines still render (only the logo is mobile-hidden)", () => {

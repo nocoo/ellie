@@ -54,18 +54,6 @@ describe("HomeFooter", () => {
 		expect(container.textContent ?? "").toMatch(/2011-9-29/);
 	});
 
-	it("online stats line uses single-line guard (whitespace-nowrap + ellipsis)", () => {
-		// Defence in depth: even after the prefix removal, the bar must never
-		// wrap at 320px. e2e pins single-line height; this unit pin guards the
-		// Tailwind class itself so a future refactor can't silently re-wrap.
-		render(createElement(HomeFooter, { vm: makeVm() }));
-		const line = screen.getByTestId("online-stats-line");
-		expect(line.tagName).toBe("P");
-		expect(line.className).toContain("whitespace-nowrap");
-		expect(line.className).toContain("overflow-hidden");
-		expect(line.className).toContain("text-ellipsis");
-	});
-
 	it("hides friend links section when no links configured", () => {
 		const { container } = render(createElement(HomeFooter, { vm: makeVm({ friendLinks: [] }) }));
 

@@ -1,71 +1,63 @@
-// components/forum/site-footer.tsx — Breathable site footer with background art
-// Layout: top padding for "breathing space" → content row → background image
-// Background image swaps via CSS variable controlled by .dark class.
-
+import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
+import type { CSSProperties } from "react";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
-interface SiteFooterProps {
-	vm: GlobalFooterViewModel;
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
-export function SiteFooter({ vm }: SiteFooterProps) {
+export function SiteFooter({ vm }: { vm: GlobalFooterViewModel }) {
 	return (
-		<footer className="relative mt-16 overflow-hidden" data-testid="site-footer">
-			{/* ── Content area ── */}
-			<div className="width-container relative z-10 pb-8">
-				<div>
-					{/* Branding + copyright. Logo is hidden on mobile per reviewer
-					    freeze msg=5a91dfd3 — the footer's only function on phones
-					    is the copyright / ICP block, and the decorative logo
-					    competes with the background art at narrow widths. */}
-					<div className="mb-3 hidden sm:block" data-testid="site-footer-logo-wrap">
-						<ForumLogo height={70} lightSrc={vm.logoLight} darkSrc={vm.logoDark} alt={vm.logoAlt} />
-					</div>
-					<p className="text-xs text-muted-foreground leading-relaxed">
-						&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.
-					</p>
-					<p className="mt-1 text-xs text-muted-foreground">
-						{vm.poweredBy} <span className="font-mono">{vm.version}</span>
-					</p>
-					{vm.icpNumber && <p className="mt-1 text-xs text-muted-foreground">{vm.icpNumber}</p>}
-				</div>
-			</div>
-
-			{/* ── Background image — 125% content width and centered ── */}
-			{/* Uses CSS background-image with .dark class to sync with site theme toggle */}
-			{/* Browser only downloads the image for the current theme */}
-			{/* Mobile: smaller negative offsets so more of the background art is
-			    visible (was being clipped at the top of the band on phones).
-			    Mobile also drops the `mx-[-12.5%]` overflow that pushed the
-			    image up + off-screen horizontally; the contained image sits
-			    flush at the bottom of the footer band. Desktop unchanged. */}
+		<footer
+			className="relative mt-8 overflow-hidden border-t border-border bg-card"
+			data-testid="site-footer"
+		>
 			<div
-				className="width-container relative -mt-8 -top-[120px] mb-[-120px] sm:-mt-16 sm:-top-[280px] sm:mb-[-280px]"
+				className="pointer-events-none absolute inset-y-0 right-0 w-2/3 max-w-2xl opacity-15"
+				aria-hidden="true"
 				data-testid="site-footer-bg-wrap"
 			>
-				<div className="mx-0 sm:mx-[-12.5%]">
-					<div
-						role="img"
-						aria-hidden="true"
-						className="w-full aspect-[1200/600] bg-contain bg-bottom bg-no-repeat"
-						style={
-							{
-								"--bg-light": `url(${vm.bgLight})`,
-								"--bg-dark": `url(${vm.bgDark})`,
-								backgroundImage: "var(--bg-light)",
-							} as React.CSSProperties
-						}
-					/>
+				<div
+					className="h-full w-full bg-cover bg-center"
+					style={
+						{
+							"--bg-light": `url(${vm.bgLight})`,
+							"--bg-dark": `url(${vm.bgDark})`,
+							backgroundImage: "var(--bg-light)",
+						} as CSSProperties
+					}
+				/>
+			</div>
+			<div className="width-container relative flex flex-wrap items-center justify-between gap-6 py-6 sm:py-8">
+				<div className="flex items-center gap-5">
+					<div className="hidden sm:block" data-testid="site-footer-logo-wrap">
+						<ForumLogo height={40} lightSrc={vm.logoLight} darkSrc={vm.logoDark} alt={vm.logoAlt} />
+					</div>
+					<div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+						<p>
+							&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.
+						</p>
+						<p>
+							{vm.poweredBy} <span className="font-mono">{vm.version}</span>
+						</p>
+						{vm.icpNumber && <p>{vm.icpNumber}</p>}
+					</div>
 				</div>
+				<nav aria-label="页脚导航" className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+					<Link href="/" className="hover:text-primary">
+						{vm.homeLabel}
+					</Link>
+					{vm.quickLinks
+						.filter((link) => link.href !== "#")
+						.map((link) => (
+							<a
+								key={link.href}
+								href={link.href}
+								className="inline-flex items-center gap-1 hover:text-primary"
+							>
+								{link.label}
+								<ArrowUpRight className="size-3" aria-hidden="true" />
+							</a>
+						))}
+				</nav>
 			</div>
 		</footer>
 	);

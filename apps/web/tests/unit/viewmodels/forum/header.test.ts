@@ -14,13 +14,13 @@ import {
 describe("buildHeaderViewModel", () => {
 	const emptySettings = {};
 
-	it("returns null user and zero stats when called with empty settings", () => {
+	it("returns null user and unavailable stats when called with empty settings", () => {
 		const vm = buildHeaderViewModel(emptySettings);
 		expect(vm.user).toBeNull();
-		expect(vm.stats.todayPosts).toBe(0);
-		expect(vm.stats.yesterdayPosts).toBe(0);
-		expect(vm.stats.totalThreads).toBe(0);
-		expect(vm.stats.totalMembers).toBe(0);
+		expect(vm.stats.todayPosts).toBeNull();
+		expect(vm.stats.yesterdayPosts).toBeNull();
+		expect(vm.stats.totalThreads).toBeNull();
+		expect(vm.stats.totalMembers).toBeNull();
 	});
 
 	it("uses provided user when given", () => {
@@ -108,10 +108,10 @@ describe("buildHeaderViewModel", () => {
 // ---------------------------------------------------------------------------
 
 describe("DEFAULT_STATS", () => {
-	it("has all fields set to zero", () => {
-		expect(DEFAULT_STATS.todayPosts).toBe(0);
-		expect(DEFAULT_STATS.yesterdayPosts).toBe(0);
-		expect(DEFAULT_STATS.totalThreads).toBe(0);
-		expect(DEFAULT_STATS.totalMembers).toBe(0);
+	it("has all fields unavailable", () => {
+		expect(DEFAULT_STATS.todayPosts).toBeNull();
+		expect(DEFAULT_STATS.yesterdayPosts).toBeNull();
+		expect(DEFAULT_STATS.totalThreads).toBeNull();
+		expect(DEFAULT_STATS.totalMembers).toBeNull();
 	});
 });

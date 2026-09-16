@@ -11,6 +11,7 @@ import { getSelfForumUser } from "@/lib/forum-self";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import {
 	buildHeaderViewModel,
+	DEFAULT_STATS,
 	type HeaderStats,
 	type HeaderUserInfo,
 } from "@/viewmodels/forum/header";
@@ -109,14 +110,7 @@ async function loadStats(): Promise<HeaderStats> {
 			totalMembers: data.totalMembers,
 		};
 	} catch {
-		// Graceful degradation — show zeroes instead of crashing
-		return {
-			todayPosts: 0,
-			yesterdayPosts: 0,
-			totalThreads: 0,
-			totalPosts: 0,
-			totalMembers: 0,
-		};
+		return DEFAULT_STATS;
 	}
 }
 

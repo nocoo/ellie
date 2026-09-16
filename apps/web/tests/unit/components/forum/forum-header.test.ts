@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 // Tests for ForumHeader TopBar — profile card layout, coins display, single trigger
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
+const navigation = vi.hoisted(() => ({ pathname: "/", push: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
-	useRouter: () => ({ push: vi.fn() }),
-	usePathname: () => "/",
+	useRouter: () => ({ push: navigation.push }),
+	usePathname: () => navigation.pathname,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -46,7 +46,7 @@ vi.mock("@/components/forum/message-badge-icon", () => ({
 }));
 
 vi.mock("@/components/theme-toggle", () => ({
-	ThemeToggle: () => null,
+	ThemeToggle: () => createElement("button", { type: "button", "aria-label": "切换主题" }),
 }));
 
 vi.mock("@/components/width-toggle", () => ({
@@ -81,6 +81,7 @@ function makeVm(userOverrides: Record<string, unknown> = {}): HeaderViewModel {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	navigation.pathname = "/";
 	userPopoverCount = 0;
 	userPopoverCalls.length = 0;
 });
@@ -175,120 +176,58 @@ describe("ForumHeader — TopBar profile card", () => {
 	});
 });
 
-// ─── Mobile trim contract (reviewer freeze msg=8b90cb85) ─────────────────────
-// iPhone-targeted polish: TopBar collapses h-[90px] → h-14, hides
-// username/UID/credits meta inline (popover still has it), drops the
-// WidthToggle/ThemeToggle, NavBar becomes horizontal-scroll, and
-// SearchStatsBar disappears entirely. Pinned via stable testid + class
-// presence rather than viewport simulation — happy-dom does not run media
-// queries, so we assert the `hidden sm:*` tokens are applied to the right
-// nodes. Visual coverage at 320/375/390/430 lives in the Playwright mobile
-// spec; this gate is the fast-feedback drift guard.
-describe("ForumHeader — iPhone mobile-trim contract", () => {
-	it("TopBar wrapper carries `h-14 sm:h-[90px]` (collapsed on mobile, unchanged on desktop)", () => {
-		render(createElement(ForumHeader, { vm: makeVm() }));
-		const bar = screen.getByTestId("forum-top-bar");
-		expect(bar.className).toContain("h-14");
-		expect(bar.className).toContain("sm:h-[90px]");
-	});
-
-	it("logged-in user meta block is `hidden sm:block` (popover trigger still works on mobile via avatar)", () => {
-		render(createElement(ForumHeader, { vm: makeVm() }));
-		const meta = screen.getByTestId("forum-top-bar-user-meta");
-		expect(meta.className).toContain("hidden");
-		expect(meta.className).toContain("sm:block");
-		// The avatar marker remains visible on mobile (still inside the trigger).
-		expect(screen.getByTestId("avatar")).toBeDefined();
-	});
-
-	it("desktop-only toggles (WidthToggle/ThemeToggle) wrapper is `hidden sm:inline-flex`", () => {
-		render(createElement(ForumHeader, { vm: makeVm() }));
-		const toggles = screen.getByTestId("forum-top-bar-desktop-toggles");
-		expect(toggles.className).toContain("hidden");
-		expect(toggles.className).toContain("sm:inline-flex");
-	});
-
-	it("NavBar inner scroller uses `overflow-x-auto` and links carry `whitespace-nowrap shrink-0`", () => {
-		render(createElement(ForumHeader, { vm: makeVm() }));
-		const nav = screen.getByTestId("forum-nav-bar");
-		expect(nav.className).toContain("overflow-x-auto");
-		expect(nav.className).toContain("touch-pan-x");
-		// At least one nav link is `whitespace-nowrap shrink-0` so a long
-		// label can never wrap onto a second line.
-		const links = screen.getAllByTestId("forum-nav-link");
-		expect(links.length).toBeGreaterThan(0);
-		for (const link of links) {
-			expect(link.className).toContain("whitespace-nowrap");
-			expect(link.className).toContain("shrink-0");
-		}
-	});
-
-	it("NavBar outer wrapper clips horizontal overflow (no body-level scrollbar)", () => {
-		render(createElement(ForumHeader, { vm: makeVm() }));
-		const nav = screen.getByTestId("forum-nav-bar");
-		// Parent of the inner scroller is the gradient wrapper that must clip.
-		const outer = nav.parentElement;
-		expect(outer?.className).toContain("overflow-x-hidden");
-	});
-
-	it("SearchStatsBar wrapper is `hidden sm:block` (whole bar disappears on mobile)", () => {
-		render(createElement(ForumHeader, { vm: makeVm() }));
-		const bar = screen.getByTestId("forum-search-stats-bar");
-		expect(bar.className).toContain("hidden");
-		expect(bar.className).toContain("sm:block");
-	});
-
-	it("guest TopBar still renders 登录 / 注册 (links remain on mobile, only toggles disappear)", () => {
-		const vm: HeaderViewModel = {
-			user: null,
-			navTabs: [{ label: "首页", href: "/" }],
-			hotKeywords: HOT_KEYWORDS,
-			stats: DEFAULT_STATS,
-		};
+describe("ForumHeader navigation and search", () => {
+	it("matches forum routes at path boundaries", () => {
+		navigation.pathname = "/forums/20";
+		const vm = makeVm();
+		vm.navTabs = [
+			{ label: "论坛二", href: "/forums/2" },
+			{ label: "论坛二十", href: "/forums/20" },
+		];
 		render(createElement(ForumHeader, { vm }));
-		expect(screen.getByText("登录")).toBeDefined();
-		expect(screen.getByText("注册")).toBeDefined();
+		expect(screen.getByText("论坛二").getAttribute("aria-current")).toBeNull();
+		expect(screen.getByText("论坛二十").getAttribute("aria-current")).toBe("page");
 	});
 
-	// Reviewer follow-up (msg=ad33321c): logged-in header mobile coverage was
-	// thin — avatar / message icon / logout / username meta hidden / desktop
-	// toggles hidden must all hold simultaneously in the logged-in branch.
-	// happy-dom doesn't run media queries, so we still pin via class tokens
-	// for the hidden-on-mobile pieces; the visible-on-mobile pieces are
-	// asserted as present-in-DOM (and not wrapped in `hidden sm:*`).
-	it("logged-in mobile contract: avatar + message icon + logout button render; meta + toggles are mobile-hidden", () => {
-		render(createElement(ForumHeader, { vm: makeVm({ username: "alice", uid: 99 }) }));
+	it("searches a trimmed query and leaves short queries in place", () => {
+		render(createElement(ForumHeader, { vm: makeVm() }));
+		const input = screen.getByRole("searchbox", { name: "搜索主题" });
+		fireEvent.change(input, { target: { value: " 校园 " } });
+		fireEvent.submit(screen.getByRole("searchbox").closest("form") as HTMLFormElement);
+		expect(navigation.push).toHaveBeenCalledWith(`/search?q=${encodeURIComponent("校园")}`);
+		fireEvent.change(input, { target: { value: "a" } });
+		fireEvent.submit(screen.getByRole("searchbox").closest("form") as HTMLFormElement);
+		expect(navigation.push).toHaveBeenCalledTimes(1);
+	});
 
-		// 1. Avatar (inside the popover trigger, hence still mobile-visible).
-		const avatar = screen.getByTestId("avatar");
-		expect(avatar).toBeDefined();
+	it("focuses search with slash without interrupting editors and removes the listener on unmount", () => {
+		const remove = vi.spyOn(document, "removeEventListener");
+		const view = render(createElement(ForumHeader, { vm: makeVm() }));
+		const input = screen.getByRole("searchbox");
+		fireEvent.keyDown(document, { key: "/" });
+		expect(document.activeElement).toBe(input);
+		const editor = document.createElement("div");
+		editor.setAttribute("contenteditable", "true");
+		editor.tabIndex = 0;
+		document.body.append(editor);
+		editor.focus();
+		fireEvent.keyDown(editor, { key: "/" });
+		expect(document.activeElement).toBe(editor);
+		fireEvent.keyDown(document, { key: "/", ctrlKey: true });
+		expect(document.activeElement).toBe(editor);
+		view.unmount();
+		expect(remove).toHaveBeenCalledWith("keydown", expect.any(Function));
+		editor.remove();
+		remove.mockRestore();
+	});
 
-		// 2. Message badge icon — always mounted in the action-icon cluster
-		//    on mobile (no `hidden sm:*` wrapper). The stub returns a marker
-		//    div, so its presence proves the JSX path stays mounted.
-		const msgIcon = screen.getByTestId("forum-top-bar-message-icon");
-		expect(msgIcon).toBeDefined();
-		// Walk up the DOM to make sure no ancestor inside the TopBar carries
-		// `hidden sm:*` — this would silently mobile-hide the icon.
-		let p: HTMLElement | null = msgIcon;
-		while (p && p.getAttribute("data-testid") !== "forum-top-bar") {
-			expect(p.className ?? "").not.toMatch(/(^|\s)hidden(\s|$)/);
-			p = p.parentElement;
-		}
-
-		// 3. Logout button — Chinese title "退出登录" pins the right node.
-		const logout = screen.getByTitle("退出登录");
-		expect(logout.tagName).toBe("BUTTON");
-
-		// 4. Username meta block is `hidden sm:block` (popover content still
-		//    exposes identity once the avatar is tapped).
-		const meta = screen.getByTestId("forum-top-bar-user-meta");
-		expect(meta.className).toContain("hidden");
-		expect(meta.className).toContain("sm:block");
-
-		// 5. Desktop-only toggles wrapper is `hidden sm:inline-flex`.
-		const toggles = screen.getByTestId("forum-top-bar-desktop-toggles");
-		expect(toggles.className).toContain("hidden");
-		expect(toggles.className).toContain("sm:inline-flex");
+	it("keeps search and theme controls available and links registration to its page", () => {
+		const vm = makeVm();
+		vm.user = null;
+		render(createElement(ForumHeader, { vm }));
+		expect(screen.getByRole("searchbox")).toBeDefined();
+		expect(screen.getByRole("button", { name: "切换主题" })).toBeDefined();
+		expect(screen.getByRole("link", { name: "注册" }).getAttribute("href")).toBe("/register");
+		expect(screen.getAllByText("—")).toHaveLength(5);
 	});
 });
