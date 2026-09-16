@@ -456,20 +456,20 @@ test.describe("Feature: Admin Users CRUD", () => {
 		await expect(confirmBtn).toBeEnabled();
 
 		// When: submit against a staff user
+		const rejection = page.waitForResponse(
+			(response) =>
+				response.url().endsWith("/api/admin/users/1/purge") &&
+				response.request().method() === "POST",
+		);
 		await confirmBtn.click();
+		const response = await rejection;
+		expect(response.status()).toBe(403);
+		expect((await response.json()).error.code).toBe("CANNOT_PURGE_STAFF");
 
 		// Then: inline error surfaces (US-07 failure path) and dialog stays open
 		const errorBanner = purgeDialog.getByRole("alert");
 		await expect(errorBanner).toBeVisible();
-		// Worker's getStatusMessage table does not map CANNOT_PURGE_STAFF (gap
-		// pre-dates this migration), so the admin client surfaces the generic
-		// "An error occurred" fallback. The real safety net for this scenario
-		// is the DB-unchanged assertion below — banner just confirms an error
-		// rendered. Keep the localized variants in case worker adds a message
-		// later; do not narrow without also fixing worker error.ts.
-		await expect(errorBanner).toContainText(
-			/CANNOT_PURGE_STAFF|不能.*管理|无法.*清除|An error occurred|操作失败/,
-		);
+		await expect(errorBanner).toContainText("Staff accounts cannot be purged");
 		await expect(purgeDialog).toBeVisible();
 
 		// Then: DB row is unchanged
@@ -593,9 +593,14 @@ test.describe("Feature: Admin Users CRUD", () => {
 		await expect(page.getByText(/已彻底清除该用户/)).toBeVisible();
 		await expect(page.getByText(/主题 2 · 帖子 5 · 点评 3 · 附件 1 · 私信 4/)).toBeVisible();
 
-		// Then: tombstone short-circuit hides edit/ban + shows muted notice
-		await expect(page.getByText("此用户已被彻底清除，无法再编辑或封禁。")).toBeVisible();
+		// Then: the confirmed receipt replaces the editable user panel.
+		await expect(page.getByRole("heading", { name: "用户已清除", exact: true })).toBeVisible();
+		await expect(
+			page.getByText("清除结果已确认，账号无法继续登录、发帖或发送私信。"),
+		).toBeVisible();
 		await expect(page.getByTestId("purge-user-button")).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "封禁", exact: true })).toHaveCount(0);
 	});
 
 	test("Given a user with a regIp on the detail page, When I click 搜索同 IP 用户, Then the list opens filtered by regIp and the IP-context banner renders", async ({
