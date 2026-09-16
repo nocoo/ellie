@@ -54,8 +54,12 @@ describe("navigation", () => {
 		it("handles nested /admin/settings/general", () => {
 			const items = breadcrumbsFromPathname("/admin/settings/general");
 			expect(items).toHaveLength(4);
-			expect(items[2]).toEqual({ label: "设置", href: "/admin/settings" });
+			expect(items[2]).toEqual({ label: "设置" });
 			expect(items[3]).toEqual({ label: "通用设置" });
+		});
+
+		it("does not link to the logs grouping segment", () => {
+			expect(breadcrumbsFromPathname("/admin/logs/operations")[2]).toEqual({ label: "日志" });
 		});
 
 		it("truncates unknown segments to 8 chars", () => {

@@ -125,7 +125,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		// (legacy action-menu was replaced by inline icons in commit e27637e9
 		// "feat(admin): open user detail in wide dialog from users list").
 		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
-		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
+		).toBeVisible();
 		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
 
 		await page.getByRole("button", { name: `编辑用户「${initialUsername}」` }).click();
@@ -168,7 +170,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		if (!snap) throw new Error("snapshot must be present");
 
 		await page.goto(`/admin/users/${SEED_USER_ID}`);
-		await expect(page.getByRole("heading", { name: snap.username })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: snap.username }),
+		).toBeVisible();
 		await expect(page.getByText("正常", { exact: true })).toBeVisible();
 
 		// When: 封禁 → confirm dialog → 确认
@@ -241,7 +245,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		const initialUsername = snap.username;
 
 		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
-		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
+		).toBeVisible();
 		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
 
 		// When: click the row's 查看详情 Eye icon
@@ -264,7 +270,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 
 		// Then: dialog hidden, list page still rendered
 		await expect(detailDialog).toBeHidden();
-		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
+		).toBeVisible();
 	});
 
 	test("Given the edit dialog, When I submit a username that already exists, Then an inline error surfaces and the dialog stays open", async ({
@@ -288,7 +296,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		const initialUsername = snap.username;
 
 		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
-		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
+		).toBeVisible();
 		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
 
 		await page.getByRole("button", { name: `编辑用户「${initialUsername}」` }).click();
@@ -351,7 +361,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		const initialUsername = snap.username;
 
 		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
-		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
+		).toBeVisible();
 		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
 
 		const viewport = page.viewportSize();
@@ -419,7 +431,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 
 		// Given: on the staff user's detail page with the purge dialog open
 		await page.goto("/admin/users/1");
-		await expect(page.getByRole("heading", { name: username })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: username }),
+		).toBeVisible();
 
 		await page.getByTestId("purge-user-button").click();
 		const purgeDialog = page.getByRole("dialog", { name: "彻底清除用户" });
@@ -561,7 +575,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 
 		// Given: live testuser detail page
 		await page.goto("/admin/users/3");
-		await expect(page.getByRole("heading", { name: "testuser" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "testuser" }),
+		).toBeVisible();
 
 		// When: open purge dialog, type the typed-confirm token "ok", submit
 		await page.getByTestId("purge-user-button").click();
@@ -626,7 +642,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		}
 
 		await page.goto(`/admin/users/${SEED_USER_ID}`);
-		await expect(page.getByRole("heading", { name: snap.username })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: snap.username }),
+		).toBeVisible();
 
 		// When: click 搜索同 IP 用户 — first occurrence is the reg_ip row
 		const regIpButton = page.getByRole("button", { name: "搜索同 IP 用户" }).first();
@@ -744,7 +762,9 @@ test.describe("Feature: Admin Operation Logs", () => {
 		// Legacy LG-01
 		await page.goto("/admin/logs/operations");
 
-		await expect(page.getByRole("heading", { name: "操作日志" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "操作日志" }),
+		).toBeVisible();
 
 		// Then: action codes render
 		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
@@ -949,7 +969,9 @@ test.describe("Feature: Admin Reports List", () => {
 		await page.goto("/admin/reports");
 
 		// Then: heading + type filter chip
-		await expect(page.getByRole("heading", { name: "举报管理" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "举报管理" }),
+		).toBeVisible();
 		await expect(page.locator("select").filter({ hasText: "回帖" })).toBeVisible();
 
 		// Then: thread row → admin thread link to thread 11
@@ -1024,7 +1046,9 @@ test.describe("Feature: Admin Forums CRUD", () => {
 		await loginAsAdmin();
 		await page.goto("/admin/forums");
 
-		await expect(page.getByRole("heading", { name: "版块管理" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "版块管理" }),
+		).toBeVisible();
 		await expect(page.getByText("加载中...")).toBeHidden();
 
 		// ── CREATE ─────────────────────────────────────────────────────
@@ -1181,10 +1205,16 @@ test.describe("Feature: Admin Threads & Posts CRUD", () => {
 
 		// ── LIST → DETAIL ──────────────────────────────────────────────
 		await page.goto("/admin/threads");
-		await expect(page.getByRole("heading", { name: "主题" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "主题" }),
+		).toBeVisible();
 		await page.getByRole("link", { name: originalSubject }).click();
 		await expect(page).toHaveURL(new RegExp(`/admin/threads/${SEED_THREAD_ID}(\\?|$)`));
-		await expect(page.getByRole("heading", { name: originalSubject })).toBeVisible();
+		await expect(
+			page
+				.locator("main [data-basalt-surface-root]")
+				.getByRole("heading", { name: originalSubject }),
+		).toBeVisible();
 
 		// ── EDIT THREAD SUBJECT ────────────────────────────────────────
 		const subjectSuffix = `_e2e_${Date.now()}`;
@@ -1195,7 +1225,9 @@ test.describe("Feature: Admin Threads & Posts CRUD", () => {
 		await threadDialog.getByLabel("标题").fill(newSubject);
 		await threadDialog.getByRole("button", { name: "保存更改" }).click();
 		await expect(threadDialog).toBeHidden();
-		await expect(page.getByRole("heading", { name: newSubject })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: newSubject }),
+		).toBeVisible();
 
 		// ── EDIT NON-FIRST POST (position #2 / post 700001) ────────────
 		const contentSuffix = `\n\n[edited by L3 ${Date.now()}]`;

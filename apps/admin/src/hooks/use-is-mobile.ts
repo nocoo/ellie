@@ -1,29 +1,20 @@
-// hooks/use-is-mobile.ts — Responsive breakpoint hook
-// Ref: 04b §响应式 — Mobile <768px
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-const MOBILE_BREAKPOINT = 768;
+export const MOBILE_BREAKPOINT = 768;
+const QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 
-/**
- * Returns true when viewport width is below mobile breakpoint (768px).
- * Uses matchMedia for efficient listening (no resize handler).
- */
-export function useIsMobile(): boolean {
-	const [isMobile, setIsMobile] = useState(false);
-
-	useEffect(() => {
-		const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-		setIsMobile(mq.matches);
-
-		const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-		mq.addEventListener("change", handler);
-		return () => mq.removeEventListener("change", handler);
-	}, []);
-
-	return isMobile;
+function subscribe(onChange: () => void) {
+	const media = window.matchMedia(QUERY);
+	media.addEventListener("change", onChange);
+	return () => media.removeEventListener("change", onChange);
 }
 
-export { MOBILE_BREAKPOINT };
+export function useIsMobile(): boolean {
+	return useSyncExternalStore(
+		subscribe,
+		() => window.matchMedia(QUERY).matches,
+		() => true,
+	);
+}

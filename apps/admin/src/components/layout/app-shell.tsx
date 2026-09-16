@@ -1,124 +1,82 @@
 "use client";
 
+import {
+	Button,
+	ContentIsland,
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetTitle,
+	SheetTrigger,
+	ThemeToggle,
+} from "@nocoo/basalt";
+import { AppHeader } from "@nocoo/basalt/components/app-header";
+import {
+	AppMain,
+	AppSkipLink,
+	AppShell as BasaltAppShell,
+} from "@nocoo/basalt/components/app-shell";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { type ReactNode, useEffect, useState } from "react";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { BreadcrumbOverrideProvider, useBreadcrumbOverrideValue } from "./breadcrumb-context";
-import { Breadcrumbs } from "./breadcrumbs";
 import { Sidebar } from "./sidebar";
-import { SidebarProvider, useSidebar } from "./sidebar-context";
 
-// ---------------------------------------------------------------------------
-// AppShell
-// ---------------------------------------------------------------------------
-
-interface AppShellProps {
-	children: React.ReactNode;
-}
-
-function AppShellInner({ children }: AppShellProps) {
+function AppShellInner({ children }: { children: ReactNode }) {
 	const isMobile = useIsMobile();
-	const { mobileOpen, setMobileOpen } = useSidebar();
+	const [collapsed, setCollapsed] = useState(false);
+	const [mobileOpen, setMobileOpen] = useState(false);
 	const pathname = usePathname();
-
-	// Close mobile sidebar on route change
-	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger
-	useEffect(() => {
-		setMobileOpen(false);
-	}, [pathname, setMobileOpen]);
-
-	// Prevent body scroll when mobile sidebar is open
-	useEffect(() => {
-		if (mobileOpen) {
-			document.body.style.overflow = "hidden";
-		} else {
-			document.body.style.overflow = "";
-		}
-		return () => {
-			document.body.style.overflow = "";
-		};
-	}, [mobileOpen]);
-
-	// Close mobile sidebar on Escape (keyboard-only alternative to the backdrop click)
-	useEffect(() => {
-		if (!mobileOpen) return;
-		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setMobileOpen(false);
-		};
-		document.addEventListener("keydown", onKeyDown);
-		return () => document.removeEventListener("keydown", onKeyDown);
-	}, [mobileOpen, setMobileOpen]);
-
-	const breadcrumbs = breadcrumbsFromPathname(pathname);
 	const breadcrumbOverride = useBreadcrumbOverrideValue();
+	const breadcrumbs = breadcrumbsFromPathname(pathname);
+	const current = breadcrumbs.pop();
 
-	// If a page sets a dynamic breadcrumb override, replace the last segment's label
-	if (breadcrumbOverride && breadcrumbs.length > 0) {
-		const last = breadcrumbs[breadcrumbs.length - 1];
-		breadcrumbs[breadcrumbs.length - 1] = { ...last, label: breadcrumbOverride };
-	}
+	// biome-ignore lint/correctness/useExhaustiveDependencies: close the drawer on navigation or a breakpoint change
+	useEffect(() => setMobileOpen(false), [pathname, isMobile]);
 
 	return (
-		<div className="flex min-h-screen w-full bg-background" data-area="admin">
-			{/* Desktop sidebar */}
-			{!isMobile && <Sidebar />}
-
-			{/* Mobile overlay */}
-			{isMobile && mobileOpen && (
-				<>
-					{/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only backdrop; keyboard users press Escape (handler above). */}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only backdrop; keyboard users press Escape (handler above). */}
-					<div
-						className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
-						onClick={() => setMobileOpen(false)}
+		<BasaltAppShell className="relative" data-area="admin">
+			<AppSkipLink>跳到主要内容</AppSkipLink>
+			<Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+				{isMobile ? (
+					<SheetContent side="left" className="w-[260px] max-w-[260px] gap-0 border-0 p-0">
+						<SheetTitle className="sr-only">管理后台导航</SheetTitle>
+						<SheetDescription className="sr-only">选择要管理的内容或设置。</SheetDescription>
+						<Sidebar collapsed={false} onToggle={() => setMobileOpen(false)} mobile />
+					</SheetContent>
+				) : (
+					<Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
+				)}
+				<AppMain tabIndex={-1}>
+					<AppHeader
+						leading={
+							isMobile ? (
+								<SheetTrigger asChild>
+									<Button variant="ghost" size="icon" className="h-8 w-8" aria-label="打开导航">
+										<Menu aria-hidden="true" strokeWidth={1.5} />
+									</Button>
+								</SheetTrigger>
+							) : null
+						}
+						breadcrumbs={breadcrumbs}
+						title={breadcrumbOverride ?? current?.label}
+						actions={<ThemeToggle aria-label="切换主题" />}
 					/>
-					<div className="fixed inset-y-0 left-0 z-50 w-[260px]">
-						<Sidebar />
+					<div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
+						<ContentIsland className="relative">{children}</ContentIsland>
 					</div>
-				</>
-			)}
-
-			<main className="flex flex-1 flex-col min-h-screen min-w-0">
-				{/* Header */}
-				<header className="flex h-14 shrink-0 items-center justify-between px-4 md:px-6">
-					<div className="flex items-center gap-3">
-						{isMobile && (
-							<button
-								type="button"
-								onClick={() => setMobileOpen(true)}
-								aria-label="打开导航"
-								className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-							>
-								<Menu className="h-5 w-5" aria-hidden="true" strokeWidth={1.5} />
-							</button>
-						)}
-						<Breadcrumbs items={breadcrumbs} />
-					</div>
-					<div className="flex items-center gap-1">
-						<ThemeToggle />
-					</div>
-				</header>
-
-				{/* Floating island content area */}
-				<div className="flex-1 px-2 pb-2 md:px-3 md:pb-3">
-					<div className="h-full rounded-[16px] md:rounded-[20px] bg-card p-3 md:p-5 overflow-y-auto">
-						{children}
-					</div>
-				</div>
-			</main>
-		</div>
+				</AppMain>
+			</Sheet>
+		</BasaltAppShell>
 	);
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children }: { children: ReactNode }) {
 	return (
-		<SidebarProvider>
-			<BreadcrumbOverrideProvider>
-				<AppShellInner>{children}</AppShellInner>
-			</BreadcrumbOverrideProvider>
-		</SidebarProvider>
+		<BreadcrumbOverrideProvider>
+			<AppShellInner>{children}</AppShellInner>
+		</BreadcrumbOverrideProvider>
 	);
 }

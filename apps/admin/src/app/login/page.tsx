@@ -1,10 +1,12 @@
 "use client";
 
 import { VERSION_DISPLAY } from "@ellie/types";
+import { Button, LayerCard, Separator, ThemeToggle } from "@nocoo/basalt";
+import { LoadingScreen } from "@nocoo/basalt/components/loading-screen";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useFormStatus } from "react-dom";
 import { signInWithGoogle } from "./actions";
 
 /** Static barcode decoration for the badge header. */
@@ -18,7 +20,7 @@ function Barcode() {
 			{BARS.map((bar) => (
 				<div
 					key={bar.id}
-					className="rounded-[0.5px] bg-primary-foreground"
+					className="rounded-[0.5px] bg-basalt-primary-foreground"
 					style={{ width: `${bar.width}px`, opacity: bar.opacity }}
 				/>
 			))}
@@ -49,144 +51,64 @@ function GoogleIcon() {
 	);
 }
 
-function LoginContent() {
-	const searchParams = useSearchParams();
-	const error = searchParams.get("error");
-
-	const year = new Date().getFullYear();
-	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-
+function GoogleSignInButton() {
+	const { pending } = useFormStatus();
 	return (
-		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
-			<div className="flex flex-1 items-center justify-center p-4">
-				{/* Radial glow */}
-				<div
-					className="pointer-events-none absolute inset-0"
-					style={{
-						background: [
-							"radial-gradient(ellipse 70% 55% at 50% 50%,",
-							"hsl(var(--foreground) / 0.045) 0%,",
-							"hsl(var(--foreground) / 0.04) 10%,",
-							"hsl(var(--foreground) / 0.032) 20%,",
-							"hsl(var(--foreground) / 0.025) 32%,",
-							"hsl(var(--foreground) / 0.018) 45%,",
-							"hsl(var(--foreground) / 0.011) 58%,",
-							"hsl(var(--foreground) / 0.006) 72%,",
-							"hsl(var(--foreground) / 0.002) 86%,",
-							"transparent 100%)",
-						].join(" "),
-					}}
-				/>
-				{/* Top-right controls */}
-				<div className="absolute top-4 right-4 z-10 flex items-center gap-1">
-					<ThemeToggle />
-				</div>
-				<div className="flex flex-col items-center">
-					{/* Badge card — bank card flipped vertical: 54/86 */}
-					<div
-						className="relative w-72 overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
-						style={{
-							boxShadow: [
-								"0 1px 2px rgba(0,0,0,0.06)",
-								"0 4px 8px rgba(0,0,0,0.04)",
-								"0 12px 24px rgba(0,0,0,0.06)",
-								"0 24px 48px rgba(0,0,0,0.04)",
-								"0 0 0 0.5px rgba(0,0,0,0.02)",
-								"0 0 60px rgba(0,0,0,0.03)",
-							].join(", "),
-						}}
-					>
-						{/* Header strip with barcode */}
-						<div className="bg-primary px-5 py-4">
-							<div className="flex items-center justify-between">
-								{/* Punch hole */}
-								<div
-									className="h-4 w-8 rounded-full bg-background/80"
-									style={{
-										boxShadow:
-											"inset 0 1.5px 3px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
-									}}
-								/>
-								<span className="text-sm font-semibold text-primary-foreground">
-									Ellie 管理后台
-								</span>
-								<span className="text-[10px] font-medium uppercase tracking-widest text-primary-foreground/60">
-									{VERSION_DISPLAY}
-								</span>
-							</div>
-							{/* Barcode row */}
-							<div className="mt-3 flex items-center justify-between">
-								<span className="text-[9px] font-mono text-primary-foreground/40 tracking-wider">
-									ID {year}-{today.slice(4)}
-								</span>
-								<div className="h-6">
-									<Barcode />
-								</div>
-							</div>
-						</div>
+		<Button type="submit" variant="secondary" className="w-full" loading={pending}>
+			<GoogleIcon />
+			使用 Google 登录
+		</Button>
+	);
+}
 
-						{/* Badge content */}
-						<div className="flex flex-1 flex-col items-center px-6 pt-6 pb-5">
-							{/* Logo */}
-							<div className="h-24 w-24">
-								<Image
-									src="/logo-192.png"
-									alt="Ellie"
-									width={192}
-									height={192}
-									className="h-full w-full"
-								/>
-							</div>
-
-							<p className="mt-5 text-lg font-semibold text-foreground">管理控制台</p>
-							<p className="mt-1 text-xs text-muted-foreground">登录以管理论坛</p>
-
-							{/* Error message */}
-							{error && (
-								<div className="mt-3 w-full rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive text-center">
-									{error === "AccessDenied" ? "您的账号无权访问此应用。" : "登录失败，请重试。"}
-								</div>
-							)}
-
-							{/* Divider */}
-							<div className="mt-5 h-px w-full bg-border" />
-
-							{/* Spacing before action area */}
-							<div className="mt-5" />
-
-							{/* Google Sign-in form using Server Action */}
-							<form action={signInWithGoogle}>
-								<button
-									type="submit"
-									className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80 cursor-pointer"
-								>
-									<GoogleIcon />
-									使用 Google 登录
-								</button>
-							</form>
-
-							{/* Terms */}
-							<p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground/60">
-								登录即表示您同意我们的{" "}
-								<a
-									href="/privacy"
-									className="underline hover:text-muted-foreground transition-colors"
-								>
-									隐私政策
-								</a>
-							</p>
-						</div>
-
-						{/* Footer strip */}
-						<div className="mt-auto flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
-							<div className="flex items-center gap-1.5">
-								<div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-								<span className="text-[10px] text-muted-foreground">安全认证</span>
-							</div>
+function LoginContent() {
+	const error = useSearchParams().get("error");
+	const today = new Date().toISOString().slice(0, 10);
+	return (
+		<div className="relative flex min-h-screen items-center justify-center bg-basalt-background p-4">
+			<div className="absolute right-4 top-4">
+				<ThemeToggle aria-label="切换主题" />
+			</div>
+			<LayerCard
+				data-basalt-surface-root=""
+				padding="none"
+				className="relative flex aspect-[54/86] w-72 max-w-full flex-col rounded-2xl shadow-xl ring-1 ring-basalt-border/40"
+			>
+				<div className="bg-basalt-primary px-5 py-4 text-basalt-primary-foreground">
+					<div className="flex items-center justify-between gap-2">
+						<div className="h-4 w-8 shrink-0 rounded-full bg-basalt-background/80 shadow-inner" />
+						<span className="text-sm font-semibold">Ellie 管理后台</span>
+						<span className="text-[10px]">{VERSION_DISPLAY}</span>
+					</div>
+					<div className="mt-3 flex items-center justify-between">
+						<span className="font-mono text-[9px]">ID {today}</span>
+						<div className="h-6" aria-hidden="true">
+							<Barcode />
 						</div>
 					</div>
 				</div>
-			</div>
+				<div className="flex flex-1 flex-col items-center px-6 py-6">
+					<Image src="/logo-192.png" alt="Ellie" width={96} height={96} priority />
+					<h1 className="mt-5 text-lg font-semibold">管理控制台</h1>
+					<p className="mt-1 text-xs text-basalt-muted-foreground">登录以管理论坛</p>
+					{error && (
+						<p role="alert" className="mt-3 text-center text-xs text-basalt-destructive">
+							{error === "AccessDenied" ? "您的账号无权访问此应用。" : "登录失败，请重试。"}
+						</p>
+					)}
+					<Separator className="my-5" />
+					<form action={signInWithGoogle} className="w-full">
+						<GoogleSignInButton />
+					</form>
+					<p className="mt-3 text-center text-[10px] text-basalt-muted-foreground">
+						仅授权管理员可访问。
+					</p>
+				</div>
+				<LayerCard.Footer className="justify-center text-[10px] text-basalt-muted-foreground">
+					<span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-basalt-success" aria-hidden="true" />
+					安全认证
+				</LayerCard.Footer>
+			</LayerCard>
 		</div>
 	);
 }
@@ -195,9 +117,10 @@ export default function LoginPage() {
 	return (
 		<Suspense
 			fallback={
-				<div className="flex min-h-screen items-center justify-center">
-					<p className="text-muted-foreground">加载中...</p>
-				</div>
+				<LoadingScreen
+					label="加载中"
+					mark={<Image src="/logo-24.png" alt="Ellie" width={24} height={24} />}
+				/>
 			}
 		>
 			<LoginContent />

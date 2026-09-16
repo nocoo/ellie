@@ -43,7 +43,9 @@ test.describe("Feature: Admin Authentication Gate", () => {
 
 		// Then: dashboard server component renders the 仪表盘 heading even
 		// when stats fetches error — the legacy A0-02 invariant.
-		await expect(page.getByRole("heading", { name: "仪表盘" })).toBeVisible();
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "仪表盘" }),
+		).toBeVisible();
 	});
 
 	test("Given my email is NOT in ADMIN_EMAILS, When I open /admin with a session cookie, Then the gate redirects me to /login", async ({
