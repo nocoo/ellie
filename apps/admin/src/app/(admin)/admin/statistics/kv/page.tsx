@@ -35,12 +35,14 @@ import {
 	Button,
 	ConfirmDialog,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 	LayerCard,
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
 } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
@@ -52,15 +54,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
-import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import {
 	ADMIN_WIDE_DIALOG_BODY_CLASS,
 	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
 } from "@/components/admin/dialog-presets";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
-import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { readAdminKvJson } from "@/lib/admin-kv-fetch";
 
@@ -649,18 +651,7 @@ function KeyDetailDialog({
 }) {
 	return (
 		<Dialog open={state.open} onOpenChange={onOpenChange}>
-			<DialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
 				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle className="break-all font-mono text-sm">
 						{state.rawKey ?? "Key 详情"}
@@ -700,7 +691,7 @@ function KeyDetailDialog({
 						</div>
 					</div>
 				)}
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }
@@ -747,9 +738,6 @@ export default function KvMonitorPage() {
 	// Tick once a minute so "还剩 Xm" doesn't go stale while the user
 	// stares at the page.
 	const [now, setNow] = useState<number>(() => Date.now());
-	// Panel switcher between overview/metrics — controlled state replaces the
-	// previous shadcn Tabs `defaultValue`, so the SegmentedSwitch can drive
-	// which `<div role="tabpanel">` renders below.
 	const [activeView, setActiveView] = useState<"overview" | "metrics">("overview");
 	useEffect(() => {
 		const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -997,14 +985,11 @@ export default function KvMonitorPage() {
 				</LayerCard>
 			)}
 
-			{/*
-			 * Section: 视图. SegmentedSwitch lives in the section header's
-			 * `action` slot (mimics ../pew DashboardSegment composition with
-			 * PeriodSelector). The h2 + hairline divider give the page a
-			 * group-rhythm without duplicating CardHeader/CardTitle inside
-			 * each panel — the switcher is now the panel's title.
-			 */}
-			<section className="space-y-3">
+			<Tabs
+				className="space-y-3"
+				value={activeView}
+				onValueChange={(value) => setActiveView(value as "overview" | "metrics")}
+			>
 				<SectionRule
 					title="视图"
 					hint={
@@ -1013,56 +998,53 @@ export default function KvMonitorPage() {
 							: "Op 维度来自 kv_cache_metrics_minute 表（migration 0035）。按家族聚合，仅显示家族级总计；不存在按 key 的命中计数。"
 					}
 					actions={
-						<SegmentedSwitch
-							ariaLabel="切换 KV 监控视图"
-							value={activeView}
-							onValueChange={setActiveView}
-							options={[
+						<TabsList aria-label={"切换 KV 监控视图"} className="max-w-full overflow-x-auto">
+							{[
 								{ value: "overview", label: "家族总览" },
 								{ value: "metrics", label: `命中指标 (近 ${METRICS_MINUTES} 分钟)` },
-							]}
-						/>
+							].map((option) => (
+								<TabsTrigger key={option.value} value={option.value}>
+									{option.label}
+								</TabsTrigger>
+							))}
+						</TabsList>
 					}
 				/>
 
-				{activeView === "overview" && (
-					<div role="tabpanel" aria-label="家族总览" className="space-y-3">
-						{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
-						<LayerCard>
-							<LayerCard.Well>
-								<OverviewTable
-									rows={overviewRows}
-									loading={overviewLoading}
-									now={now}
-									expanded={expanded}
-									keyLists={keyLists}
-									busyFamily={busyFamily}
-									onToggle={handleToggle}
-									onLoadMore={handleLoadMore}
-									onView={handleView}
-									onDelete={handleAskDelete}
-									onRefreshFamily={handleRefreshFamily}
-								/>
-							</LayerCard.Well>
-						</LayerCard>
-					</div>
-				)}
+				<TabsContent value="overview" aria-label="家族总览" className="space-y-3">
+					{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
+					<LayerCard>
+						<LayerCard.Well>
+							<OverviewTable
+								rows={overviewRows}
+								loading={overviewLoading}
+								now={now}
+								expanded={expanded}
+								keyLists={keyLists}
+								busyFamily={busyFamily}
+								onToggle={handleToggle}
+								onLoadMore={handleLoadMore}
+								onView={handleView}
+								onDelete={handleAskDelete}
+								onRefreshFamily={handleRefreshFamily}
+							/>
+						</LayerCard.Well>
+					</LayerCard>
+				</TabsContent>
 
-				{activeView === "metrics" && (
-					<div role="tabpanel" aria-label="家族级命中指标" className="space-y-3">
-						{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
-						<LayerCard>
-							<LayerCard.Well>
-								<MetricsTable
-									summaries={summaries}
-									minutes={METRICS_MINUTES}
-									loading={metricsLoading}
-								/>
-							</LayerCard.Well>
-						</LayerCard>
-					</div>
-				)}
-			</section>
+				<TabsContent value="metrics" aria-label="家族级命中指标" className="space-y-3">
+					{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
+					<LayerCard>
+						<LayerCard.Well>
+							<MetricsTable
+								summaries={summaries}
+								minutes={METRICS_MINUTES}
+								loading={metricsLoading}
+							/>
+						</LayerCard.Well>
+					</LayerCard>
+				</TabsContent>
+			</Tabs>
 
 			<section className="space-y-3">
 				<SectionRule title="说明" />

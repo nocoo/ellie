@@ -6,7 +6,7 @@
 //   1. PageHeader — page-wide
 //   2. "今日 KPI" — page-wide (4 StatCards), shown across all tabs so the
 //      operator always sees today's headline numbers
-//   3. SegmentedSwitch — 3 tabs:
+//   3. Basalt Tabs — 3 tabs:
 //        - 趋势 (TrendTab):  trend curves, forum distribution, checkin trend
 //        - 审计 (AuditTab):  TodayVisitsPanel — per-target page-view feed
 //        - 登录 (LoginTab):  LoginAttemptsPanel — login attempt audit log
@@ -24,6 +24,7 @@
 //   - Unknown values fall back to `trend` (the next click writes the
 //     normalized value back to the URL).
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
@@ -32,7 +33,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
 import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
 import { TrendTab } from "@/components/admin/analytics/tabs/trend-tab";
-import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { StatCard } from "@/components/admin/stat-card";
 
 import { type AnalyticsOverview, parseOverview } from "@/viewmodels/admin/analytics";
@@ -148,36 +148,35 @@ function AnalyticsPageInner(): React.JSX.Element {
 				)}
 			</SectionRule>
 
-			<section className="space-y-3">
+			<Tabs
+				value={activeTab}
+				onValueChange={(value) => handleTabChange(parseTab(value))}
+				className="space-y-3"
+			>
 				<SectionRule
 					title="分析视图"
 					hint={TAB_DESCRIPTIONS[activeTab]}
 					actions={
-						<SegmentedSwitch
-							ariaLabel="切换数据分析视图"
-							value={activeTab}
-							onValueChange={handleTabChange}
-							options={tabOptions}
-						/>
+						<TabsList aria-label="切换数据分析视图" className="max-w-full overflow-x-auto">
+							{tabOptions.map((option) => (
+								<TabsTrigger key={option.value} value={option.value}>
+									{option.label}
+								</TabsTrigger>
+							))}
+						</TabsList>
 					}
 				/>
 
-				{activeTab === "trend" && (
-					<div role="tabpanel" aria-label={TAB_LABELS.trend}>
-						<TrendTab />
-					</div>
-				)}
-				{activeTab === "audit" && (
-					<div role="tabpanel" aria-label={TAB_LABELS.audit}>
-						<AuditTab />
-					</div>
-				)}
-				{activeTab === "login" && (
-					<div role="tabpanel" aria-label={TAB_LABELS.login}>
-						<LoginTab />
-					</div>
-				)}
-			</section>
+				<TabsContent value="trend">
+					<TrendTab />
+				</TabsContent>
+				<TabsContent value="audit">
+					<AuditTab />
+				</TabsContent>
+				<TabsContent value="login">
+					<LoginTab />
+				</TabsContent>
+			</Tabs>
 		</div>
 	);
 }

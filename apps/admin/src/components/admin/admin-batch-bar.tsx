@@ -42,14 +42,16 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 						{action.label}
 					</Button>
 				))}
-				<button
+				<Button
 					type="button"
 					onClick={onClear}
-					className="ml-1 rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+					className="ml-1 h-7 w-7"
 					aria-label="清除选择"
+					variant="ghost"
+					size="icon"
 				>
 					<X className="h-4 w-4" />
-				</button>
+				</Button>
 			</LayerCard>
 		</div>
 	);

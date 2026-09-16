@@ -284,7 +284,7 @@ describe("TodayVisitsPanel — filter wiring", () => {
 		expect(observedList[0]).not.toContain("path_kind=");
 
 		// Click the "主题" filter pill (thread bucket).
-		const pill = screen.getAllByRole("button", { name: "主题" })[0];
+		const pill = screen.getAllByRole("radio", { name: "主题" })[0];
 		await act(async () => {
 			fireEvent.click(pill);
 		});
@@ -417,14 +417,14 @@ describe("TodayVisitsPanel — error + edge paths", () => {
 		render(<TodayVisitsPanel />);
 		await waitFor(() => expect(observed.length).toBeGreaterThanOrEqual(1));
 
-		const pillThread = screen.getAllByRole("button", { name: "主题" })[0];
+		const pillThread = screen.getAllByRole("radio", { name: "主题" })[0];
 		await act(async () => {
 			fireEvent.click(pillThread);
 		});
 		await waitFor(() => {
 			expect(observed.some((u) => u.includes("path_kind=thread"))).toBe(true);
 		});
-		const pillAll = screen.getAllByRole("button", { name: "全部" })[0];
+		const pillAll = screen.getAllByRole("radio", { name: "全部" })[0];
 		await act(async () => {
 			fireEvent.click(pillAll);
 		});
@@ -453,7 +453,7 @@ describe("TodayVisitsPanel — error + edge paths", () => {
 		render(<TodayVisitsPanel />);
 		await waitFor(() => expect(observed.length).toBeGreaterThanOrEqual(1));
 
-		const nextBtn = screen.getByRole("button", { name: "下一页" });
+		const nextBtn = screen.getByRole("button", { name: "Next page" });
 		await act(async () => {
 			fireEvent.click(nextBtn);
 		});
@@ -461,7 +461,7 @@ describe("TodayVisitsPanel — error + edge paths", () => {
 			expect(observed.some((u) => u.includes("page=2"))).toBe(true);
 		});
 
-		const prevBtn = screen.getByRole("button", { name: "上一页" });
+		const prevBtn = screen.getByRole("button", { name: "Previous page" });
 		await act(async () => {
 			fireEvent.click(prevBtn);
 		});

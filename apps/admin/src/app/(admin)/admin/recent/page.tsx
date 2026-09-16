@@ -1,7 +1,14 @@
 "use client";
 
-import { Lightbox, type LightboxImage } from "@ellie/ui";
-import { Button } from "@nocoo/basalt";
+import {
+	Button,
+	Input,
+	SegmentControl,
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Loader2, Trash2 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,11 +16,14 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import {
+	AttachmentLightbox,
+	type AttachmentPreviewImage,
+} from "@/components/admin/attachment-lightbox";
 import { buildAttachmentColumns } from "@/components/admin/columns/attachment-columns";
 import { buildPostColumns } from "@/components/admin/columns/post-columns";
 import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
 import { buildUserColumns } from "@/components/admin/columns/user-columns";
-import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { getAttachmentUrl } from "@/lib/cdn";
 import type { Attachment } from "@/viewmodels/admin/attachments";
@@ -103,7 +113,7 @@ function RecentPageInner() {
 	const [confirmError, setConfirmError] = useState<string | null>(null);
 
 	// Lightbox for attachments
-	const [lightboxImages, setLightboxImages] = useState<LightboxImage[]>([]);
+	const [lightboxImages, setAttachmentPreviewImages] = useState<AttachmentPreviewImage[]>([]);
 	const [lightboxIndex, setLightboxIndex] = useState(-1);
 
 	// Resolve bounds from current range settings
@@ -346,97 +356,105 @@ function RecentPageInner() {
 
 			{/* Time range selector */}
 			<div className="flex flex-wrap items-center gap-4">
-				<SegmentedSwitch
+				<SegmentControl
 					value={timeRange}
-					onValueChange={setTimeRange}
+					onValueChange={(value) => setTimeRange(value as TimeRange)}
 					options={timeRangeOptions}
-					ariaLabel="选择时间范围"
+					legend="时间范围"
 				/>
 				{timeRange === "custom" && (
 					<div className="flex items-center gap-2">
-						<input
+						<Input
 							type="date"
+							aria-label="开始日期"
 							value={customStart}
 							onChange={(e) => setCustomStart(e.target.value)}
-							className="h-8 rounded-md border bg-background px-2 text-xs"
+							className="w-36"
 						/>
 						<span className="text-xs text-muted-foreground">至</span>
-						<input
+						<Input
 							type="date"
+							aria-label="结束日期"
 							value={customEnd}
 							onChange={(e) => setCustomEnd(e.target.value)}
-							className="h-8 rounded-md border bg-background px-2 text-xs"
+							className="w-36"
 						/>
 					</div>
 				)}
 			</div>
 
-			{/* Tab selector */}
-			<SegmentedSwitch
+			<Tabs
 				value={activeTab}
-				onValueChange={handleTabChange}
-				options={tabOptions}
-				ariaLabel="选择内容类型"
-			/>
+				onValueChange={(value) => handleTabChange(value as TabKey)}
+				className="space-y-4"
+			>
+				<TabsList aria-label="选择内容类型" className="max-w-full overflow-x-auto">
+					{tabOptions.map((option) => (
+						<TabsTrigger key={option.value} value={option.value}>
+							{option.label}
+						</TabsTrigger>
+					))}
+				</TabsList>
 
-			{/* Batch bar (for non-user tabs) */}
-			{isSelectable && selectedIds.size > 0 && (
-				<AdminBatchBar
-					selectedCount={selectedIds.size}
-					actions={BATCH_ACTIONS}
-					onAction={handleBatchAction}
-					onClear={() => setSelectedIds(new Set())}
-				/>
-			)}
+				{/* Batch bar (for non-user tabs) */}
+				{isSelectable && selectedIds.size > 0 && (
+					<AdminBatchBar
+						selectedCount={selectedIds.size}
+						actions={BATCH_ACTIONS}
+						onAction={handleBatchAction}
+						onClear={() => setSelectedIds(new Set())}
+					/>
+				)}
 
-			{/* Tab content */}
-			<div role="tabpanel">
-				{activeTab === "users" && (
-					<UsersTab
-						data={data as User[]}
-						loading={loading}
-						pagination={pagination}
-						onPageChange={handlePageChange}
-					/>
-				)}
-				{activeTab === "threads" && (
-					<ThreadsTab
-						data={data as Thread[]}
-						loading={loading}
-						pagination={pagination}
-						selectedIds={selectedIds}
-						onSelectionChange={setSelectedIds}
-						onPageChange={handlePageChange}
-						onDelete={handleDeleteThread}
-					/>
-				)}
-				{activeTab === "posts" && (
-					<PostsTab
-						data={data as Post[]}
-						loading={loading}
-						pagination={pagination}
-						selectedIds={selectedIds}
-						onSelectionChange={setSelectedIds}
-						onPageChange={handlePageChange}
-						onDelete={handleDeletePost}
-					/>
-				)}
-				{activeTab === "attachments" && (
-					<AttachmentsTab
-						data={data as Attachment[]}
-						loading={loading}
-						pagination={pagination}
-						selectedIds={selectedIds}
-						onSelectionChange={setSelectedIds}
-						onPageChange={handlePageChange}
-						onDelete={handleDeleteAttachment}
-						onPreview={(images, index) => {
-							setLightboxImages(images);
-							setLightboxIndex(index);
-						}}
-					/>
-				)}
-			</div>
+				{/* Tab content */}
+				<TabsContent value={activeTab}>
+					{activeTab === "users" && (
+						<UsersTab
+							data={data as User[]}
+							loading={loading}
+							pagination={pagination}
+							onPageChange={handlePageChange}
+						/>
+					)}
+					{activeTab === "threads" && (
+						<ThreadsTab
+							data={data as Thread[]}
+							loading={loading}
+							pagination={pagination}
+							selectedIds={selectedIds}
+							onSelectionChange={setSelectedIds}
+							onPageChange={handlePageChange}
+							onDelete={handleDeleteThread}
+						/>
+					)}
+					{activeTab === "posts" && (
+						<PostsTab
+							data={data as Post[]}
+							loading={loading}
+							pagination={pagination}
+							selectedIds={selectedIds}
+							onSelectionChange={setSelectedIds}
+							onPageChange={handlePageChange}
+							onDelete={handleDeletePost}
+						/>
+					)}
+					{activeTab === "attachments" && (
+						<AttachmentsTab
+							data={data as Attachment[]}
+							loading={loading}
+							pagination={pagination}
+							selectedIds={selectedIds}
+							onSelectionChange={setSelectedIds}
+							onPageChange={handlePageChange}
+							onDelete={handleDeleteAttachment}
+							onPreview={(images, index) => {
+								setAttachmentPreviewImages(images);
+								setLightboxIndex(index);
+							}}
+						/>
+					)}
+				</TabsContent>
+			</Tabs>
 
 			{/* Confirm dialog */}
 			<AdminConfirmDialog
@@ -454,7 +472,7 @@ function RecentPageInner() {
 			/>
 
 			{/* Lightbox */}
-			<Lightbox
+			<AttachmentLightbox
 				open={lightboxIndex >= 0}
 				images={lightboxImages}
 				initialIndex={lightboxIndex}
@@ -633,7 +651,7 @@ function AttachmentsTab({
 	onSelectionChange: (ids: Set<string | number>) => void;
 	onPageChange: (page: number) => void;
 	onDelete: (id: number, filename: string) => void;
-	onPreview: (images: LightboxImage[], index: number) => void;
+	onPreview: (images: AttachmentPreviewImage[], index: number) => void;
 }) {
 	const handlePreview = useCallback(
 		(attachment: Attachment) => {

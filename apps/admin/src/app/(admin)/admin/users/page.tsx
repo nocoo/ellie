@@ -3,7 +3,13 @@
 // Admin Users Page (View layer)
 // MVVM: This is the View layer. State and logic are in useUsersAdmin hook.
 
-import { Button, LayerCard } from "@nocoo/basalt";
+import {
+	Button,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+	LayerCard,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Eye, Pencil } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -299,18 +305,26 @@ export default function UsersPage() {
 			 * (basic + advanced range) including the 10 range keys
 			 * pre-declared in DEFAULT_FILTERS.
 			 */}
-			<details className="rounded-lg border border-border bg-secondary px-3 py-2">
-				<summary className="cursor-pointer select-none text-sm font-medium text-foreground">
-					高级过滤器
-				</summary>
-				<div className="pt-3">
-					<AdminFilters
-						filters={ADVANCED_FILTERS}
-						values={state.filters}
-						onFilterChange={actions.handleFilterChange}
-					/>
-				</div>
-			</details>
+			<Collapsible
+				defaultOpen={ADVANCED_FILTERS.some((filter) =>
+					Boolean(state.filters[`${filter.key}Min`] || state.filters[`${filter.key}Max`]),
+				)}
+			>
+				<LayerCard padding="sm">
+					<CollapsibleTrigger asChild>
+						<Button variant="ghost" size="sm">
+							高级过滤器
+						</Button>
+					</CollapsibleTrigger>
+					<CollapsibleContent unstyled className="pt-3">
+						<AdminFilters
+							filters={ADVANCED_FILTERS}
+							values={state.filters}
+							onFilterChange={actions.handleFilterChange}
+						/>
+					</CollapsibleContent>
+				</LayerCard>
+			</Collapsible>
 
 			{ipBanner && <AdminInlineMessage variant="info" text={ipBanner} />}
 

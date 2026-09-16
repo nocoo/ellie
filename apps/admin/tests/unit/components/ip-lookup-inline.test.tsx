@@ -3,9 +3,9 @@
 // Pins the panel's behavioural contract:
 //   - Empty / blank IP renders nothing (no button, no fetch).
 //   - Click → success: normalized summary + cache hint, raw inside a
-//     `<details>` (default closed).
+//     a disclosure (default closed).
 //   - `rawTruncated=true` swaps the raw block for the 8KB hint and
-//     renders no `<details>` (we never expose truncated raw).
+//     renders no disclosure (we never expose truncated raw).
 //   - `lookupIp` rejecting with `ApiError(INVALID_IP, reason=private)`
 //     surfaces "私网地址" via `describeIpLookupError`.
 
@@ -71,7 +71,7 @@ describe("IpLookupInline — empty / blank IP", () => {
 });
 
 describe("IpLookupInline — query success", () => {
-	it("on click renders normalized summary, cache hint, and collapsed raw <details>", async () => {
+	it("on click renders normalized summary, cache hint, and collapsed raw disclosure", async () => {
 		mockLookupIp.mockResolvedValue(RESULT);
 		render(<IpLookupInline ip="1.1.1.1" />);
 
@@ -86,16 +86,21 @@ describe("IpLookupInline — query success", () => {
 		expect(mockLookupIp).toHaveBeenCalledWith("1.1.1.1");
 		expect(screen.queryByText("已命中缓存")).not.toBeNull();
 
-		// Raw block lives inside a <details> that defaults to closed.
-		const details = screen.getByText("原始上游响应").closest("details");
-		expect(details).not.toBeNull();
-		expect((details as HTMLDetailsElement).open).toBe(false);
+		const disclosure = screen.getByRole("button", { name: "原始上游响应" });
+		expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+		fireEvent.click(disclosure);
+		expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+		expect(screen.getByText('"country"').closest("pre")?.textContent).toContain(
+			'"country": "Australia"',
+		);
+		fireEvent.click(disclosure);
+		expect(disclosure.getAttribute("aria-expanded")).toBe("false");
 
 		// Button label flips to "重新查询" after a successful query.
 		expect(screen.queryByRole("button", { name: "重新查询" })).not.toBeNull();
 	});
 
-	it("rawTruncated=true renders 8KB截断 hint and NO <details>", async () => {
+	it("rawTruncated=true renders 8KB截断 hint without raw disclosure", async () => {
 		mockLookupIp.mockResolvedValue({ ...RESULT, rawTruncated: true });
 		render(<IpLookupInline ip="2.2.2.2" />);
 		await act(async () => {

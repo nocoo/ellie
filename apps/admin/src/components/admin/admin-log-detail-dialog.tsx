@@ -3,15 +3,13 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@nocoo/basalt";
-import { X } from "lucide-react";
 import Link from "next/link";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import {
 	type AdminLog,
@@ -43,18 +41,7 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
 				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle>操作日志详情</DialogTitle>
 					<DialogDescription>只读审计记录</DialogDescription>
@@ -135,7 +122,7 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 						关闭
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

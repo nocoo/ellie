@@ -11,7 +11,7 @@
 // Each chart has its own loader + error slot, mirroring the previous inline
 // page implementation.
 
-import { LayerCard } from "@nocoo/basalt";
+import { LayerCard, SegmentControl } from "@nocoo/basalt";
 
 import { useCallback, useEffect, useState } from "react";
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
@@ -102,42 +102,25 @@ export function TrendTab(): React.JSX.Element {
 
 	return (
 		<div className="space-y-4 md:space-y-6">
-			<div className="flex flex-wrap items-center gap-2">
-				{ANALYTICS_RANGES.map((r) => (
-					<button
-						type="button"
-						key={r}
-						onClick={() => setRange(r)}
-						className={`rounded-md border px-3 py-1 text-xs transition-colors ${
-							range === r
-								? "border-primary bg-primary/10 text-foreground"
-								: "border-border text-muted-foreground hover:bg-accent"
-						}`}
-					>
-						{RANGE_LABELS[r]}
-					</button>
-				))}
-			</div>
+			<SegmentControl
+				legend="时间范围"
+				value={range}
+				onValueChange={(value) => setRange(value as AnalyticsRange)}
+				options={ANALYTICS_RANGES.map((value) => ({ value, label: RANGE_LABELS[value] }))}
+			/>
 
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<h2 className="text-sm font-medium text-base font-semibold">趋势曲线</h2>
-					<div className="flex flex-wrap gap-2">
-						{ANALYTICS_TREND_METRICS.map((m) => (
-							<button
-								type="button"
-								key={m}
-								onClick={() => setMetric(m)}
-								className={`rounded-md border px-3 py-1 text-xs transition-colors ${
-									metric === m
-										? "border-primary bg-primary/10 text-foreground"
-										: "border-border text-muted-foreground hover:bg-accent"
-								}`}
-							>
-								{METRIC_LABELS[m]}
-							</button>
-						))}
-					</div>
+					<SegmentControl
+						legend="指标"
+						value={metric}
+						onValueChange={(value) => setMetric(value as AnalyticsTrendMetric)}
+						options={ANALYTICS_TREND_METRICS.map((value) => ({
+							value,
+							label: METRIC_LABELS[value],
+						}))}
+					/>
 				</LayerCard.Header>
 				<LayerCard.Well>
 					{trendError && <p className="text-sm text-destructive">趋势加载失败：{trendError}</p>}

@@ -2,7 +2,7 @@
 //
 // Pins the 3-tab split (趋势 / 审计 / 登录) added per zheng-li request
 // msg=91189aa8. The 5-card "今日 KPI" row + page header stay above the
-// SegmentedSwitch and are visible across all tabs; the tab panels mount
+// Basalt tabs and are visible across all tabs; the tab panels mount
 // the correct sub-component based on the active tab and `?tab=` deep links.
 
 // @vitest-environment happy-dom
@@ -63,7 +63,7 @@ async function loadPage() {
 }
 
 describe("AnalyticsPage — tab layout", () => {
-	it("renders the 3 tabs in the SegmentedSwitch", async () => {
+	it("renders the 3 tabs in the Basalt tabs", async () => {
 		const Page = await loadPage();
 		render(<Page />);
 		await waitFor(() => expect(screen.getByRole("tablist")).toBeTruthy());
@@ -115,7 +115,7 @@ describe("AnalyticsPage — tab layout", () => {
 		const auditTab = screen
 			.getAllByRole("tab")
 			.find((el) => el.textContent?.includes("审计")) as HTMLElement;
-		fireEvent.click(auditTab);
+		fireEvent.mouseDown(auditTab, { button: 0, ctrlKey: false });
 		expect(await screen.findByTestId("audit-tab")).toBeTruthy();
 		expect(screen.queryByTestId("trend-tab")).toBeNull();
 	});
@@ -127,7 +127,7 @@ describe("AnalyticsPage — tab layout", () => {
 		const loginTab = screen
 			.getAllByRole("tab")
 			.find((el) => el.textContent?.includes("登录")) as HTMLElement;
-		fireEvent.click(loginTab);
+		fireEvent.keyDown(loginTab, { key: "Enter" });
 		expect(hoisted.routerReplace).toHaveBeenCalledTimes(1);
 		expect(hoisted.routerReplace).toHaveBeenCalledWith("/admin/analytics?tab=login");
 	});
@@ -140,7 +140,7 @@ describe("AnalyticsPage — tab layout", () => {
 		const auditTab = screen
 			.getAllByRole("tab")
 			.find((el) => el.textContent?.includes("审计")) as HTMLElement;
-		fireEvent.click(auditTab);
+		fireEvent.mouseDown(auditTab, { button: 0, ctrlKey: false });
 		expect(hoisted.routerReplace).toHaveBeenCalledTimes(1);
 		const url = hoisted.routerReplace.mock.calls[0][0] as string;
 		expect(url.startsWith("/admin/analytics?")).toBe(true);
@@ -158,7 +158,7 @@ describe("AnalyticsPage — tab layout", () => {
 		const loginTab = screen
 			.getAllByRole("tab")
 			.find((el) => el.textContent?.includes("登录")) as HTMLElement;
-		fireEvent.click(loginTab);
+		fireEvent.keyDown(loginTab, { key: "Enter" });
 		await screen.findByTestId("login-tab");
 		expect(screen.getByText("今日新注册")).toBeTruthy();
 		expect(screen.getByText("今日签到")).toBeTruthy();

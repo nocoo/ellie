@@ -4,8 +4,6 @@ import {
 	Badge,
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
@@ -18,12 +16,13 @@ import {
 	Separator,
 } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { ExternalLink, Eye, MoreHorizontal, RefreshCw, X } from "lucide-react";
+import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import {
@@ -225,13 +224,15 @@ export default function ReportsPage() {
 			key: "id",
 			header: "ID",
 			cell: (row) => (
-				<button
+				<Button
 					type="button"
 					onClick={() => setDetailReport(row)}
-					className="text-muted-foreground hover:text-primary hover:underline cursor-pointer"
+					className="h-auto p-0 text-basalt-muted-foreground"
+					variant="link"
+					size="sm"
 				>
 					#{row.id}
-				</button>
+				</Button>
 			),
 			className: "w-16",
 		},
@@ -417,18 +418,7 @@ export default function ReportsPage() {
 
 			{/* Detail dialog */}
 			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
-				<DialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
-					<DialogClose asChild>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="absolute right-3 top-3 h-8 w-8"
-							aria-label="关闭弹窗"
-						>
-							<X className="h-4 w-4" />
-						</Button>
-					</DialogClose>
-
+				<AdminDialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
 					<DialogHeader className="min-w-0 pr-8">
 						<DialogTitle>举报详情 #{detailReport?.id}</DialogTitle>
 						<DialogDescription>查看举报的详细信息</DialogDescription>
@@ -546,7 +536,7 @@ export default function ReportsPage() {
 							删除
 						</Button>
 					</DialogFooter>
-				</DialogContent>
+				</AdminDialogContent>
 			</Dialog>
 		</div>
 	);

@@ -3,7 +3,6 @@
 import {
 	Button,
 	Dialog,
-	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
@@ -21,6 +20,7 @@ import {
 import { Save, User as UserIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import { twMerge as cn } from "tailwind-merge";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import type { User, UserUpdate } from "@/viewmodels/admin/users";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -425,13 +425,14 @@ export function UserEditDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent
+			<AdminDialogContent
 				className={cn(
 					// Wide enough for IPv6 single-column + two-column form grid on lg.
 					"w-[calc(100vw-2rem)] sm:w-[640px] lg:w-[860px] sm:max-w-[860px]",
 					"max-h-[85vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
+				closeControl={false}
 			>
 				{/* Header */}
 				<DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
@@ -868,7 +869,7 @@ export function UserEditDialog({
 						</Button>
 					</div>
 				</div>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

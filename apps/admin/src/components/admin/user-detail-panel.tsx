@@ -36,7 +36,16 @@
 // matches the original single-page version.
 
 import { formatNumber } from "@ellie/shared";
-import { Badge, Button, LayerCard } from "@nocoo/basalt";
+import {
+	Badge,
+	Button,
+	LayerCard,
+	Separator,
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -47,7 +56,6 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
-import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserCheckinPanel } from "@/components/admin/user-checkin-panel";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
@@ -158,9 +166,6 @@ export function UserDetailPanel({
 	const [editOpen, setEditOpen] = useState(false);
 	const [editLoading, setEditLoading] = useState(false);
 	const [editError, setEditError] = useState<string | null>(null);
-	// Controlled state for the threads/posts panel switch — mirrors the pattern
-	// used on the KV monitor page so both screens use the same compact
-	// SegmentedSwitch instead of the previous tall shadcn Tabs.
 	const [activeContentTab, setActiveContentTab] = useState<"threads" | "posts">("threads");
 
 	const [unbanLoading, setUnbanLoading] = useState(false);
@@ -350,7 +355,7 @@ export function UserDetailPanel({
 			 * "只有大的模块之间才保留分割线". Header → four-column row is
 			 * such a boundary; internals of each Card are borderless.
 			 */}
-			<hr className="border-border" />
+			<Separator className="border-border" decorative={false} />
 
 			{/*
 			 * Row 1 — four modules side by side on xl (基本资料 / 元信息 /
@@ -459,12 +464,13 @@ export function UserDetailPanel({
 						<h2 className="text-sm font-medium">用户内容</h2>
 					</LayerCard.Header>
 					<LayerCard.Well>
-						<div className="space-y-3">
-							<SegmentedSwitch
-								ariaLabel="切换用户内容视图"
-								value={activeContentTab}
-								onValueChange={setActiveContentTab}
-								options={[
+						<Tabs
+							className="space-y-3"
+							value={activeContentTab}
+							onValueChange={(value) => setActiveContentTab(value as "threads" | "posts")}
+						>
+							<TabsList aria-label={"切换用户内容视图"} className="max-w-full overflow-x-auto">
+								{[
 									{
 										value: "threads",
 										label: `主题（${formatNumber(user.threads)}）`,
@@ -473,47 +479,45 @@ export function UserDetailPanel({
 										value: "posts",
 										label: `帖子（${formatNumber(user.posts)}）`,
 									},
-								]}
-							/>
+								].map((option) => (
+									<TabsTrigger key={option.value} value={option.value}>
+										{option.label}
+									</TabsTrigger>
+								))}
+							</TabsList>
 
-							{activeContentTab === "threads" && (
-								<div role="tabpanel" aria-label="用户主题列表" className="space-y-2">
-									{state.threadsError && (
-										<AdminInlineMessage variant="error" text={state.threadsError} />
-									)}
-									<AdminDataTable<Thread>
-										columns={threadColumns}
-										data={state.threads}
-										getRowId={(t) => t.id}
-										loading={state.threadsLoading}
-										emptyMessage="此用户没有主题"
-									/>
-									<AdminPagination
-										pagination={state.threadsPagination}
-										onPageChange={actions.setThreadsPage}
-									/>
-								</div>
-							)}
+							<TabsContent value="threads" aria-label="用户主题列表" className="space-y-2">
+								{state.threadsError && (
+									<AdminInlineMessage variant="error" text={state.threadsError} />
+								)}
+								<AdminDataTable<Thread>
+									columns={threadColumns}
+									data={state.threads}
+									getRowId={(t) => t.id}
+									loading={state.threadsLoading}
+									emptyMessage="此用户没有主题"
+								/>
+								<AdminPagination
+									pagination={state.threadsPagination}
+									onPageChange={actions.setThreadsPage}
+								/>
+							</TabsContent>
 
-							{activeContentTab === "posts" && (
-								<div role="tabpanel" aria-label="用户帖子列表" className="space-y-2">
-									{state.postsError && (
-										<AdminInlineMessage variant="error" text={state.postsError} />
-									)}
-									<AdminDataTable<UserDetailPost>
-										columns={postColumns}
-										data={state.posts}
-										getRowId={(p) => p.id}
-										loading={state.postsLoading}
-										emptyMessage="此用户没有帖子"
-									/>
-									<AdminPagination
-										pagination={state.postsPagination}
-										onPageChange={actions.setPostsPage}
-									/>
-								</div>
-							)}
-						</div>
+							<TabsContent value="posts" aria-label="用户帖子列表" className="space-y-2">
+								{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
+								<AdminDataTable<UserDetailPost>
+									columns={postColumns}
+									data={state.posts}
+									getRowId={(p) => p.id}
+									loading={state.postsLoading}
+									emptyMessage="此用户没有帖子"
+								/>
+								<AdminPagination
+									pagination={state.postsPagination}
+									onPageChange={actions.setPostsPage}
+								/>
+							</TabsContent>
+						</Tabs>
 					</LayerCard.Well>
 				</LayerCard>
 
@@ -532,7 +536,7 @@ export function UserDetailPanel({
 			 */}
 			{!tombstoned && (
 				<>
-					<hr className="border-border" />
+					<Separator className="border-border" decorative={false} />
 					<UserCheckinPanel userId={user.id} />
 				</>
 			)}
@@ -589,14 +593,16 @@ export function UserDetailPanel({
 
 function BackLinkButton({ onClick }: { onClick: () => void }) {
 	return (
-		<button
+		<Button
 			type="button"
 			onClick={onClick}
-			className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+			className="h-auto justify-start gap-1 p-0 text-basalt-muted-foreground"
+			variant="ghost"
+			size="sm"
 		>
 			<ArrowLeft className="h-4 w-4" />
 			返回用户列表
-		</button>
+		</Button>
 	);
 }
 

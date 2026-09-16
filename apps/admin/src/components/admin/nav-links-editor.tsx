@@ -86,14 +86,17 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 			style={style}
 			className="flex items-center gap-2 rounded-lg bg-secondary p-2"
 		>
-			<button
+			<Button
 				type="button"
-				className="flex shrink-0 cursor-grab touch-none items-center text-muted-foreground hover:text-foreground"
+				className="h-8 w-6 shrink-0 cursor-grab touch-none"
 				{...attributes}
 				{...listeners}
+				variant="ghost"
+				size="icon"
+				aria-label="调整链接顺序"
 			>
 				<GripVertical className="h-4 w-4" />
-			</button>
+			</Button>
 			<Input
 				value={item.label}
 				placeholder="显示名称"

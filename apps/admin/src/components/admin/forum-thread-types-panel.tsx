@@ -24,7 +24,17 @@
  *     the feature is active for this forum.
  */
 
-import { Badge, Button, Input, Label } from "@nocoo/basalt";
+import {
+	Badge,
+	Button,
+	Checkbox,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+	Input,
+	Label,
+	LayerCard,
+} from "@nocoo/basalt";
 import {
 	ArrowDown,
 	ArrowUp,
@@ -129,10 +139,6 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 			void load();
 		}
 	}, [expanded, state.kind, load]);
-
-	const handleToggle = useCallback(() => {
-		setExpanded((v) => !v);
-	}, []);
 
 	const handleConfigFlagChange = useCallback((key: keyof ForumThreadTypesConfig, next: boolean) => {
 		setConfigDraft((prev) => (prev ? { ...prev, [key]: next } : prev));
@@ -295,70 +301,75 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 		state.kind === "ready" ? state.data.config.enabled : state.kind === "loading" ? null : null;
 
 	return (
-		<div className="rounded-md border border-border">
-			<button
-				type="button"
-				onClick={handleToggle}
-				className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-medium hover:bg-accent/40"
-				aria-expanded={expanded}
-			>
-				<span className="flex items-center gap-2">
-					{expanded ? (
-						<ChevronDown className="h-4 w-4 text-muted-foreground" />
-					) : (
-						<ChevronRight className="h-4 w-4 text-muted-foreground" />
-					)}
-					<span>主题分类</span>
-					{state.kind === "ready" && (
-						<Badge variant={masterEnabled ? "default" : "secondary"}>
-							{masterEnabled ? "已启用" : "未启用"}
-						</Badge>
-					)}
-				</span>
-				{state.kind === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-			</button>
+		<Collapsible open={expanded} onOpenChange={setExpanded}>
+			<LayerCard padding="none" outlined>
+				<CollapsibleTrigger asChild>
+					<Button
+						type="button"
+						className="h-auto w-full justify-between gap-3 px-3 py-2 text-left"
+						aria-expanded={expanded}
+						variant="ghost"
+						size="sm"
+					>
+						<span className="flex items-center gap-2">
+							{expanded ? (
+								<ChevronDown className="h-4 w-4 text-muted-foreground" />
+							) : (
+								<ChevronRight className="h-4 w-4 text-muted-foreground" />
+							)}
+							<span>主题分类</span>
+							{state.kind === "ready" && (
+								<Badge variant={masterEnabled ? "default" : "secondary"}>
+									{masterEnabled ? "已启用" : "未启用"}
+								</Badge>
+							)}
+						</span>
+						{state.kind === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+					</Button>
+				</CollapsibleTrigger>
 
-			{expanded && (
-				<div className="border-t border-border px-3 py-3">
-					{state.kind === "error" && (
-						<AdminInlineMessage variant="error" text={state.message} dense />
-					)}
-					{state.kind === "loading" && (
-						<div className="flex items-center gap-2 text-xs text-muted-foreground">
-							<Loader2 className="h-3.5 w-3.5 animate-spin" />
-							加载中...
-						</div>
-					)}
+				<CollapsibleContent unstyled>
+					<LayerCard.Well>
+						{state.kind === "error" && (
+							<AdminInlineMessage variant="error" text={state.message} dense />
+						)}
+						{state.kind === "loading" && (
+							<div className="flex items-center gap-2 text-xs text-muted-foreground">
+								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								加载中...
+							</div>
+						)}
 
-					{state.kind === "ready" && configDraft && (
-						<ThreadTypePanelBody
-							data={state.data}
-							draft={configDraft}
-							saving={configSaving}
-							error={configError}
-							onFlagChange={handleConfigFlagChange}
-							onSave={handleConfigSave}
-							rowMessage={rowMessage}
-							editingId={editingId}
-							busyRowId={busyRowId}
-							creating={creating}
-							onStartEdit={setEditingId}
-							onCancelEdit={() => setEditingId(null)}
-							onStartCreate={() => {
-								setCreating(true);
-								setRowMessage(null);
-							}}
-							onCancelCreate={() => setCreating(false)}
-							onCreate={handleCreate}
-							onUpdate={handleUpdate}
-							onDelete={handleDelete}
-							onToggleEnabled={handleToggleEnabled}
-							onMove={handleMove}
-						/>
-					)}
-				</div>
-			)}
-		</div>
+						{state.kind === "ready" && configDraft && (
+							<ThreadTypePanelBody
+								data={state.data}
+								draft={configDraft}
+								saving={configSaving}
+								error={configError}
+								onFlagChange={handleConfigFlagChange}
+								onSave={handleConfigSave}
+								rowMessage={rowMessage}
+								editingId={editingId}
+								busyRowId={busyRowId}
+								creating={creating}
+								onStartEdit={setEditingId}
+								onCancelEdit={() => setEditingId(null)}
+								onStartCreate={() => {
+									setCreating(true);
+									setRowMessage(null);
+								}}
+								onCancelCreate={() => setCreating(false)}
+								onCreate={handleCreate}
+								onUpdate={handleUpdate}
+								onDelete={handleDelete}
+								onToggleEnabled={handleToggleEnabled}
+								onMove={handleMove}
+							/>
+						)}
+					</LayerCard.Well>
+				</CollapsibleContent>
+			</LayerCard>
+		</Collapsible>
 	);
 }
 
@@ -429,11 +440,10 @@ function ThreadTypePanelBody({
 							className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm"
 						>
 							<Label htmlFor={inputId}>{configFlagLabel(key)}</Label>
-							<input
+							<Checkbox
 								id={inputId}
-								type="checkbox"
 								checked={draft[key]}
-								onChange={(e) => onFlagChange(key, e.target.checked)}
+								onCheckedChange={(checked) => onFlagChange(key, checked === true)}
 								disabled={saving}
 								className="h-4 w-4 cursor-pointer"
 							/>
@@ -838,11 +848,10 @@ function FormGrid({ form }: { form: FormState }) {
 				/>
 			</div>
 			<div className="flex items-center gap-2 text-xs sm:col-span-2">
-				<input
+				<Checkbox
 					id={modId}
-					type="checkbox"
 					checked={form.moderatorOnly}
-					onChange={(e) => form.setModeratorOnly(e.target.checked)}
+					onCheckedChange={(checked) => form.setModeratorOnly(checked === true)}
 					className="h-4 w-4 cursor-pointer"
 				/>
 				<Label htmlFor={modId}>仅版主可选 (moderatorOnly)</Label>

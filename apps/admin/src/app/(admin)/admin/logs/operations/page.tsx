@@ -1,6 +1,6 @@
 "use client";
 
-import { Input, Label, LayerCard } from "@nocoo/basalt";
+import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -238,14 +238,16 @@ export default function AdminLogsPage() {
 				const text = (row.details ?? "").replace(/\s+/g, " ").trim();
 				const truncated = text.length > 80 ? `${text.slice(0, 80)}…` : text;
 				return (
-					<button
+					<Button
 						type="button"
 						onClick={() => setSelectedLog(row)}
-						className="block max-w-md truncate text-left text-xs text-muted-foreground hover:text-foreground"
+						className="block h-auto max-w-md truncate p-0 text-left text-xs text-basalt-muted-foreground"
 						aria-label={`查看日志 #${row.id} 详情`}
+						variant="link"
+						size="sm"
 					>
 						{truncated || "(无)"}
-					</button>
+					</Button>
 				);
 			},
 		},
@@ -280,14 +282,16 @@ export default function AdminLogsPage() {
 							className="w-56 pr-8"
 						/>
 						{actionInput && (
-							<button
+							<Button
 								type="button"
 								onClick={handleActionClear}
 								aria-label="清除 action 过滤"
-								className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+								className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+								variant="ghost"
+								size="icon"
 							>
 								×
-							</button>
+							</Button>
 						)}
 					</form>
 				</div>

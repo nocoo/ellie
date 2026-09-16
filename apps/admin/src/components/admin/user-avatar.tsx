@@ -9,7 +9,8 @@
 // encodes domain-specific URL conventions (CDN base, legacy path layout)
 // rather than presentational primitives.
 
-import { twMerge as cn } from "tailwind-merge";
+import { Avatar, AvatarFallback, AvatarImage } from "@nocoo/basalt";
+import { useState } from "react";
 import { FALLBACK_AVATAR_URL, getUserAvatarUrl } from "@/lib/cdn";
 
 interface UserAvatarProps {
@@ -31,24 +32,20 @@ interface UserAvatarProps {
 
 export function UserAvatar({ uid, username, avatarPath, size, className }: UserAvatarProps) {
 	const src = getUserAvatarUrl(uid, avatarPath);
+	const [failedSrc, setFailedSrc] = useState<string | null>(null);
+	const imageSrc = failedSrc === src ? FALLBACK_AVATAR_URL : src;
 	const sizeStyle = typeof size === "number" ? { width: size, height: size } : undefined;
 	return (
-		<img
-			src={src}
-			alt={username}
-			width={size}
-			height={size}
-			loading="lazy"
-			className={cn("rounded-full bg-muted object-cover", className)}
-			style={sizeStyle}
-			onError={(e) => {
-				// Single-shot fallback: only swap once so we never loop if even
-				// the fallback fails (e.g. CDN outage).
-				const img = e.currentTarget;
-				if (img.dataset.fallback === "1") return;
-				img.dataset.fallback = "1";
-				img.src = FALLBACK_AVATAR_URL;
-			}}
-		/>
+		<Avatar role="img" aria-label={username} className={className} style={sizeStyle}>
+			<AvatarImage
+				src={imageSrc}
+				alt=""
+				loading="lazy"
+				onLoadingStatusChange={(status) => {
+					if (status === "error" && imageSrc !== FALLBACK_AVATAR_URL) setFailedSrc(src);
+				}}
+			/>
+			<AvatarFallback>{username.slice(0, 1) || "?"}</AvatarFallback>
+		</Avatar>
 	);
 }

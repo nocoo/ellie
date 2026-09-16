@@ -10,6 +10,7 @@
 // arrives.
 
 import { formatDate } from "@ellie/shared";
+import { Button } from "@nocoo/basalt";
 import { FileIcon } from "lucide-react";
 import Link from "next/link";
 import type { ColumnDef } from "@/components/admin/admin-data-table";
@@ -58,9 +59,15 @@ export function buildAttachmentColumns(
 				);
 				if (onPreview) {
 					return (
-						<button type="button" className="block" onClick={() => onPreview(row)}>
+						<Button
+							type="button"
+							className="block h-auto w-auto p-0"
+							onClick={() => onPreview(row)}
+							variant="ghost"
+							size="sm"
+						>
 							{img}
-						</button>
+						</Button>
 					);
 				}
 				return img;

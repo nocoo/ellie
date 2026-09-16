@@ -71,4 +71,116 @@ test.describe("Admin Basalt integration", () => {
 		await page.getByRole("button", { name: "切换主题" }).click();
 		expect(await page.evaluate(() => localStorage.getItem("theme"))).toBe("system");
 	});
+
+	test("keeps keyboard tabs in the URL and clears login filters", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		const requests: URL[] = [];
+		page.on("request", (request) => {
+			const url = new URL(request.url());
+			if (url.pathname.endsWith("/today/logins/list")) requests.push(url);
+		});
+		await loginAsAdmin();
+		await page.goto("/admin/analytics?tab=audit&foo=bar");
+		await page.getByRole("tab", { name: "审计", exact: true }).focus();
+		await page.keyboard.press("ArrowRight");
+		await expect(page.getByRole("tab", { name: "登录", exact: true })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await expect(page).toHaveURL(/tab=login/);
+		expect(new URL(page.url()).searchParams.get("foo")).toBe("bar");
+		await page.reload();
+		await expect(page.getByRole("tab", { name: "登录", exact: true })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		const result = page.getByRole("radiogroup", { name: "结果", exact: true });
+		const kind = page.getByRole("radiogroup", { name: "操作类型", exact: true });
+		await result.getByRole("radio", { name: "失败", exact: true }).click();
+		await expect.poll(() => requests.at(-1)?.searchParams.get("ok")).toBe("0");
+		await kind.getByRole("radio", { name: "注册", exact: true }).click();
+		await expect.poll(() => requests.at(-1)?.searchParams.get("kind")).toBe("register");
+		await result.getByRole("radio", { name: "全部", exact: true }).click();
+		await expect.poll(() => requests.at(-1)?.searchParams.has("ok")).toBe(false);
+		await kind.getByRole("radio", { name: "登录+注册", exact: true }).click();
+		await expect.poll(() => requests.at(-1)?.searchParams.has("kind")).toBe(false);
+		expect(requests.some((url) => url.search.includes("__empty__"))).toBe(false);
+	});
+
+	test("previews attachments with navigation, bounded zoom and restored dialog focus", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		await page.route("**/api/admin/attachments**", (route) =>
+			route.fulfill({
+				json: {
+					data: [1, 2].map((id) => ({
+						id,
+						postId: 1,
+						filename: `preview-${id}.svg`,
+						filePath: `/basalt-preview-${id}.svg`,
+						fileSize: 1024,
+						isImage: true,
+						hasThumb: false,
+						downloads: 0,
+						authorId: 1,
+						threadId: 662174,
+						createdAt: 1_700_000_000,
+					})),
+					meta: { page: 1, pages: 1, limit: 20, total: 2 },
+				},
+			}),
+		);
+		await page.route("https://t.no.mt/basalt-preview-*.svg", (route) =>
+			route.fulfill({
+				contentType: "image/svg+xml",
+				body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#38b2ac"/></svg>',
+			}),
+		);
+		await loginAsAdmin();
+		await page.goto("/admin/attachments");
+		const trigger = page.getByRole("button", { name: "预览 preview-1.svg", exact: true });
+		await trigger.click();
+		const viewer = page.getByRole("dialog", { name: "图片预览", exact: true });
+		await expect(viewer).toBeVisible();
+		await expect(viewer.getByRole("status", { name: "加载图片" })).toBeHidden();
+		await expect(viewer.getByLabel("缩放比例")).toHaveText("100%");
+		await page.keyboard.press("ArrowLeft");
+		await expect(viewer.getByRole("img", { name: "preview-2.svg", exact: true })).toBeVisible();
+		await page.keyboard.press("ArrowRight");
+		await expect(viewer.getByRole("img", { name: "preview-1.svg", exact: true })).toBeVisible();
+		for (let i = 0; i < 8; i++) await page.keyboard.press("+");
+		await expect(viewer.getByLabel("缩放比例")).toHaveText("400%");
+		await expect(viewer.getByRole("button", { name: "放大图片" })).toBeDisabled();
+		await viewer.getByRole("button", { name: "查看第 2 张图片" }).click();
+		await expect(viewer.getByLabel("缩放比例")).toHaveText("100%");
+		for (let i = 0; i < 3; i++) await page.keyboard.press("-");
+		await expect(viewer.getByLabel("缩放比例")).toHaveText("50%");
+		await expect(viewer.getByRole("button", { name: "缩小图片" })).toBeDisabled();
+		await expect(viewer.getByRole("link", { name: "下载图片" })).toHaveAttribute(
+			"href",
+			"https://t.no.mt/basalt-preview-2.svg",
+		);
+		await expect(viewer.getByRole("link", { name: "下载图片" })).toHaveAttribute(
+			"download",
+			"preview-2.svg",
+		);
+		await page.keyboard.press("Escape");
+		await expect(viewer).toBeHidden();
+		await expect(trigger).toBeFocused();
+		await trigger.click();
+		await expect(viewer.getByLabel("缩放比例")).toHaveText("100%");
+		await expect(viewer.getByRole("img", { name: "preview-1.svg", exact: true })).toBeVisible();
+		await viewer.getByRole("button", { name: "关闭图片预览" }).click();
+		await expect(trigger).toBeFocused();
+
+		const menuTrigger = page.getByRole("button", { name: "打开「preview-1.svg」操作菜单" });
+		await menuTrigger.click();
+		await page.getByRole("menuitem", { name: "删除", exact: true }).click();
+		await expect(page.getByRole("dialog", { name: "删除附件", exact: true })).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(menuTrigger).toBeFocused();
+	});
 });

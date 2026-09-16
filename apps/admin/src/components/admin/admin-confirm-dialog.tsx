@@ -3,16 +3,14 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Input,
 } from "@nocoo/basalt";
-import { X } from "lucide-react";
 import { useCallback, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------
@@ -75,19 +73,7 @@ export function AdminConfirmDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="grid gap-4">
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-						disabled={loading}
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent closeDisabled={loading}>
 				<DialogHeader className="pr-8">
 					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>{description}</DialogDescription>
@@ -120,7 +106,7 @@ export function AdminConfirmDialog({
 						{loading ? "处理中..." : confirmLabel}
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

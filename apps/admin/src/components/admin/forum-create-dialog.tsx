@@ -3,13 +3,12 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Input,
 	Label,
+	SegmentControl,
 } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
 import {
@@ -19,8 +18,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import type { Forum, ForumCreate, ForumType } from "@/viewmodels/admin/forums";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -134,18 +133,7 @@ export function ForumCreateDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent size="lg" aria-describedby={undefined}>
 				<DialogHeader className="pr-8">
 					<DialogTitle>创建版块</DialogTitle>
 				</DialogHeader>
@@ -154,25 +142,12 @@ export function ForumCreateDialog({
 
 				<div className="grid gap-4 py-4">
 					{/* Type selector */}
-					<div className="grid gap-2">
-						<Label htmlFor="create-type">类型</Label>
-						<div className="flex gap-2">
-							{TYPE_OPTIONS.map((opt) => (
-								<button
-									key={opt.value}
-									type="button"
-									onClick={() => setType(opt.value)}
-									className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-										type === opt.value
-											? "border-primary bg-primary text-primary-foreground"
-											: "border-border bg-background hover:bg-accent"
-									}`}
-								>
-									{opt.label}
-								</button>
-							))}
-						</div>
-					</div>
+					<SegmentControl
+						legend="类型"
+						value={type}
+						onValueChange={(value) => setType(value as typeof type)}
+						options={TYPE_OPTIONS}
+					/>
 
 					{/* Parent selector (only for forum/sub) */}
 					{type !== "group" && validParents.length > 0 && (
@@ -275,7 +250,7 @@ export function ForumCreateDialog({
 						{loading ? "创建中..." : "创建版块"}
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

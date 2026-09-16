@@ -13,12 +13,11 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Label,
 } from "@nocoo/basalt";
 import {
 	Select,
@@ -27,8 +26,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -132,18 +131,7 @@ export function ThreadBatchMoveDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="grid gap-4">
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent>
 				<DialogHeader className="pr-8">
 					<DialogTitle>批量移动主题</DialogTitle>
 					<DialogDescription>
@@ -158,12 +146,12 @@ export function ThreadBatchMoveDialog({
 				{error && <AdminInlineMessage variant="error" text={error} dense />}
 
 				<div className="py-2">
-					<label
+					<Label
 						htmlFor="thread-batch-move-target"
 						className="mb-2 block text-sm text-muted-foreground"
 					>
 						目标版块
-					</label>
+					</Label>
 					<Select
 						disabled={forumsLoading || loading}
 						value={String(selectedForumId) || "__empty__"}
@@ -197,7 +185,7 @@ export function ThreadBatchMoveDialog({
 						{loading ? "处理中..." : "确认移动"}
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

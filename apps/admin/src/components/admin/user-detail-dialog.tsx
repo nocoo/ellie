@@ -19,15 +19,8 @@
 //     detail-dialog skin; pinning to that keeps width / scroll
 //     behaviour consistent with the KV / log / report detail dialogs.
 
-import {
-	Button,
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@nocoo/basalt";
-import { X } from "lucide-react";
+import { Dialog, DialogHeader, DialogTitle } from "@nocoo/basalt";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { type UserDetailChangeKind, UserDetailPanel } from "@/components/admin/user-detail-panel";
 import { ADMIN_WIDE_DIALOG_BODY_CLASS } from "./dialog-presets";
 
@@ -41,7 +34,7 @@ export interface UserDetailDialogProps {
 	userId: number | null;
 
 	/**
-	 * Close the dialog. Called by the shadcn Dialog `onOpenChange(false)`
+	 * Close the dialog. Called by the Basalt Dialog `onOpenChange(false)`
 	 * route (overlay click / ESC / explicit close button) and by the
 	 * panel's `onChanged({ kind: "purge" })` follow-up so the dialog
 	 * disappears once the user has been tombstoned (the panel itself
@@ -78,28 +71,10 @@ export function UserDetailDialog({
 	const open = userId !== null;
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-			{/*
-			 * Wider than dialog-presets.ts's default (max-w-5xl) because the
-			 * refactored panel puts four modules on a single row (基本资料 /
-			 * 元信息 / 用户内容 / 写权限体检) — 5xl was cramping every column
-			 * to ~200px on 1440p screens. Padding trimmed via `p-6` to match
-			 * shadcn dialog conventions now that we own the internal grid.
-			 */}
-			<DialogContent
+			<AdminDialogContent
 				className="grid gap-4 w-[calc(100vw-2rem)] max-w-[min(1440px,calc(100vw-2rem))] overflow-hidden p-6 sm:max-w-[min(1440px,calc(100vw-2rem))] sm:w-[calc(100vw-2rem)]"
 				aria-describedby={undefined}
 			>
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
 				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle>用户详情</DialogTitle>
 				</DialogHeader>
@@ -113,7 +88,7 @@ export function UserDetailDialog({
 						/>
 					</div>
 				)}
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

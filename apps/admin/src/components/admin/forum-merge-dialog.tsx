@@ -3,8 +3,6 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
@@ -19,8 +17,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import type { Forum } from "@/viewmodels/admin/forums";
 import { typeLabel } from "@/viewmodels/admin/forums";
@@ -82,18 +80,7 @@ export function ForumMergeDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent size="lg" className="grid gap-4">
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent size="lg">
 				<DialogHeader className="pr-8">
 					<DialogTitle>合并版块</DialogTitle>
 					<DialogDescription>
@@ -161,7 +148,7 @@ export function ForumMergeDialog({
 						{loading ? "合并中..." : "合并版块"}
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

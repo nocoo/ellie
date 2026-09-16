@@ -6,21 +6,16 @@
 // clicks "查询", and the button is hidden when no IP is available so
 // we never round-trip an empty string.
 //
-// Layout per reviewer (msg=f1a26a36):
-//   - Structured `normalized` summary first (city/region/country + isp).
-//   - Raw upstream JSON in a default-collapsed <details> wrapper around
-//     `JsonCodeBlock`. We wrap externally because JsonCodeBlock itself
-//     has no `defaultCollapsed` prop.
-//   - Explicit hint when `rawTruncated === true` (worker capped raw at
-//     8KB; see docs/20 §13A.1).
-//   - Errors mapped to friendly Chinese via `describeIpLookupError`,
-//     which switches on `ApiError.code` (NOT_CONFIGURED / INVALID_IP /
-//     TIMEOUT / PARSE / TRANSPORT / UPSTREAM_<status>).
-
 "use client";
 
-import { Button } from "@nocoo/basalt";
-import { Loader2 } from "lucide-react";
+import {
+	Button,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+	LayerCard,
+} from "@nocoo/basalt";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
@@ -73,7 +68,7 @@ export function IpLookupInline({ ip }: IpLookupInlineProps) {
 			{error ? <AdminInlineMessage variant="error" text={error} dense /> : null}
 
 			{result ? (
-				<div className="space-y-2 rounded-md border p-3 text-sm">
+				<LayerCard padding="sm" outlined className="space-y-2 text-sm">
 					<div>{formatIpLookupSummary(result.normalized)}</div>
 					<dl className="grid grid-cols-[5rem_1fr] gap-y-1 text-xs text-muted-foreground">
 						{result.normalized.countryIso2 ? (
@@ -102,14 +97,19 @@ export function IpLookupInline({ ip }: IpLookupInlineProps) {
 							dense
 						/>
 					) : (
-						<details>
-							<summary className="cursor-pointer text-xs text-muted-foreground">
-								原始上游响应
-							</summary>
-							<JsonCodeBlock value={result.raw} maxHeightClassName="max-h-80" />
-						</details>
+						<Collapsible>
+							<CollapsibleTrigger asChild>
+								<Button variant="ghost" size="sm" className="group h-auto p-0 text-xs">
+									<ChevronRight className="h-3 w-3 group-data-[state=open]:rotate-90" />
+									原始上游响应
+								</Button>
+							</CollapsibleTrigger>
+							<CollapsibleContent unstyled>
+								<JsonCodeBlock value={result.raw} maxHeightClassName="max-h-80" />
+							</CollapsibleContent>
+						</Collapsible>
 					)}
-				</div>
+				</LayerCard>
 			) : null}
 		</div>
 	);

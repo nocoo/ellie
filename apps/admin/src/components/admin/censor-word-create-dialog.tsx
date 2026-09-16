@@ -3,8 +3,6 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -18,8 +16,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import type {
 	CensorWord,
 	CensorWordCreate,
@@ -101,18 +99,7 @@ export function CensorWordCreateDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent size="lg" aria-describedby={undefined}>
 				<DialogHeader className="pr-8">
 					<DialogTitle>{isEdit ? "编辑敏感词" : "添加敏感词"}</DialogTitle>
 				</DialogHeader>
@@ -178,7 +165,7 @@ export function CensorWordCreateDialog({
 						{loading ? "保存中..." : isEdit ? "保存更改" : "添加敏感词"}
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

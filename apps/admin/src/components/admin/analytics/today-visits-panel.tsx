@@ -20,10 +20,18 @@
  * per-session dedup; the wording reflects what the data can support.
  */
 
-import { LayerCard } from "@nocoo/basalt";
-
+import { LayerCard, SegmentControl, TablePager } from "@nocoo/basalt";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@nocoo/basalt/components/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { StatCard } from "@/components/admin/stat-card";
 import {
 	PATH_KIND_LABELS,
 	PATH_KIND_VALUES,
@@ -176,13 +184,13 @@ export function TodayVisitsPanel() {
 					{kpiError && <p className="text-sm text-destructive">KPI 加载失败：{kpiError}</p>}
 					{kpi && (
 						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-							<KpiCell label="总浏览" value={kpi.totalViews} />
-							<KpiCell label="真人" value={kpi.humanViews} tone="success" />
-							<KpiCell label="搜索爬虫" value={kpi.botSearchViews} />
-							<KpiCell label="其他爬虫" value={kpi.botOtherViews} />
-							<KpiCell label="未知" value={kpi.unknownViews} />
-							<KpiCell label="覆盖目标" value={kpi.distinctTargets} />
-							<KpiCell
+							<StatCard label="总浏览" value={kpi.totalViews} />
+							<StatCard label="真人" value={kpi.humanViews} tone="success" />
+							<StatCard label="搜索爬虫" value={kpi.botSearchViews} />
+							<StatCard label="其他爬虫" value={kpi.botOtherViews} />
+							<StatCard label="未知" value={kpi.unknownViews} />
+							<StatCard label="覆盖目标" value={kpi.distinctTargets} />
+							<StatCard
 								label="活跃用户/访客（含匿名）"
 								value={activeOrAnon}
 								hint={
@@ -200,29 +208,16 @@ export function TodayVisitsPanel() {
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 					<h2 className="text-sm font-medium text-base font-semibold">访问明细</h2>
-					<div className="flex flex-wrap gap-1 text-xs">
-						<FilterPill
-							active={pathKindFilter === ""}
-							onClick={() => {
-								setPathKindFilter("");
-								setPage(1);
-							}}
-						>
-							全部
-						</FilterPill>
-						{PATH_KIND_VALUES.map((pk) => (
-							<FilterPill
-								key={pk}
-								active={pathKindFilter === pk}
-								onClick={() => {
-									setPathKindFilter(pk);
-									setPage(1);
-								}}
-							>
-								{PATH_KIND_LABELS[pk]}
-							</FilterPill>
-						))}
-					</div>
+					<SegmentControl
+						legend="访问类型"
+						value={pathKindFilter || "__empty__"}
+						onValueChange={(value) => {
+							setPathKindFilter(value === "__empty__" ? "" : (value as PathKindFilter));
+							setPage(1);
+						}}
+						allOption={{ value: "__empty__", label: "全部" }}
+						options={PATH_KIND_VALUES.map((value) => ({ value, label: PATH_KIND_LABELS[value] }))}
+					/>
 				</LayerCard.Header>
 				<LayerCard.Well>
 					{listError && <p className="text-sm text-destructive">明细加载失败：{listError}</p>}
@@ -231,37 +226,37 @@ export function TodayVisitsPanel() {
 					)}
 					{list && list.rows.length > 0 && (
 						<div className="overflow-x-auto">
-							<table className="min-w-full text-sm">
-								<thead>
-									<tr className="border-b border-border text-left text-xs text-muted-foreground">
-										<th className="py-2 pr-3">类型</th>
-										<th className="py-2 pr-3">目标</th>
-										<th className="py-2 pr-3 tabular-nums">浏览</th>
-										<th className="py-2 pr-3 tabular-nums">真人</th>
-										<th className="py-2 pr-3 tabular-nums">爬虫</th>
-										<th className="py-2 pr-3 tabular-nums">用户</th>
-										<th className="py-2 pr-3">时间窗（首次 / 最近）</th>
-									</tr>
-								</thead>
-								<tbody>
+							<Table className="min-w-full text-sm">
+								<TableHeader>
+									<TableRow className="border-b border-border text-left text-xs text-muted-foreground">
+										<TableHead className="py-2 pr-3">类型</TableHead>
+										<TableHead className="py-2 pr-3">目标</TableHead>
+										<TableHead className="py-2 pr-3 tabular-nums">浏览</TableHead>
+										<TableHead className="py-2 pr-3 tabular-nums">真人</TableHead>
+										<TableHead className="py-2 pr-3 tabular-nums">爬虫</TableHead>
+										<TableHead className="py-2 pr-3 tabular-nums">用户</TableHead>
+										<TableHead className="py-2 pr-3">时间窗（首次 / 最近）</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
 									{list.rows.map((row) => (
-										<tr
+										<TableRow
 											key={`${row.pathKind}#${row.targetId}`}
 											className="border-b border-border/50"
 										>
-											<td className="py-2 pr-3 text-xs text-muted-foreground">
+											<TableCell className="py-2 pr-3 text-xs text-muted-foreground">
 												{PATH_KIND_LABELS[row.pathKind]}
-											</td>
-											<td className="py-2 pr-3 break-all">
+											</TableCell>
+											<TableCell className="py-2 pr-3 break-all">
 												<RowTarget row={row} siteHost={siteHost} />
-											</td>
-											<td className="py-2 pr-3 tabular-nums">{row.views}</td>
-											<td className="py-2 pr-3 tabular-nums">{row.humanViews}</td>
-											<td className="py-2 pr-3 tabular-nums">
+											</TableCell>
+											<TableCell className="py-2 pr-3 tabular-nums">{row.views}</TableCell>
+											<TableCell className="py-2 pr-3 tabular-nums">{row.humanViews}</TableCell>
+											<TableCell className="py-2 pr-3 tabular-nums">
 												{row.botSearchViews + row.botOtherViews}
-											</td>
-											<td className="py-2 pr-3 tabular-nums">{row.uniqueUsers}</td>
-											<td className="whitespace-nowrap py-2 pr-3 tabular-nums text-xs">
+											</TableCell>
+											<TableCell className="py-2 pr-3 tabular-nums">{row.uniqueUsers}</TableCell>
+											<TableCell className="whitespace-nowrap py-2 pr-3 tabular-nums text-xs">
 												<div>
 													<span className="text-muted-foreground">首次：</span>
 													{formatTs(row.firstSeenAt)}
@@ -270,94 +265,27 @@ export function TodayVisitsPanel() {
 													<span className="text-muted-foreground">最近：</span>
 													{formatTs(row.lastSeenAt)}
 												</div>
-											</td>
-										</tr>
+											</TableCell>
+										</TableRow>
 									))}
-								</tbody>
-							</table>
+								</TableBody>
+							</Table>
 						</div>
 					)}
 					{list && (
-						<div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-							<span>
-								共 {list.total} 条 · 第 {list.page} / {totalPages} 页
-							</span>
-							<div className="flex gap-2">
-								<button
-									type="button"
-									onClick={() => setPage((p) => Math.max(1, p - 1))}
-									disabled={page <= 1}
-									className="rounded-md border border-border px-2 py-1 disabled:opacity-50"
-								>
-									上一页
-								</button>
-								<button
-									type="button"
-									onClick={() => setPage((p) => p + 1)}
-									disabled={page >= totalPages}
-									className="rounded-md border border-border px-2 py-1 disabled:opacity-50"
-								>
-									下一页
-								</button>
-							</div>
-						</div>
+						<TablePager
+							page={page}
+							pageSize={list.limit}
+							totalCount={list.total}
+							onPageChange={setPage}
+							className="mt-3"
+							formatRange={({ totalCount }) =>
+								`共 ${totalCount} 条 · 第 ${page} / ${totalPages} 页`
+							}
+						/>
 					)}
 				</LayerCard.Well>
 			</LayerCard>
 		</>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Small leaf components
-// ---------------------------------------------------------------------------
-
-function KpiCell({
-	label,
-	value,
-	tone,
-	hint,
-}: {
-	label: string;
-	value: number;
-	tone?: "success" | "danger";
-	hint?: string;
-}) {
-	const toneCls =
-		tone === "success"
-			? "text-emerald-700 dark:text-emerald-300"
-			: tone === "danger"
-				? "text-destructive"
-				: "text-foreground";
-	return (
-		<div className="rounded-md bg-muted p-3">
-			<p className="text-xs text-muted-foreground">{label}</p>
-			<p className={`mt-1 text-xl font-semibold tabular-nums ${toneCls}`}>{value}</p>
-			{hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
-		</div>
-	);
-}
-
-function FilterPill({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`rounded-md border px-2 py-1 transition-colors ${
-				active
-					? "border-primary bg-primary/10 text-foreground"
-					: "border-border text-muted-foreground hover:bg-accent"
-			}`}
-		>
-			{children}
-		</button>
 	);
 }

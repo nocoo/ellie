@@ -231,25 +231,21 @@ export function UserCheckinPanel({ userId }: Props) {
 										const isToday = date === today;
 										const isBusy = busyDate === date;
 										return (
-											<button
+											<Button
 												key={date}
 												type="button"
 												onClick={() => handleToggleDay(date)}
 												disabled={isBusy || busyDate !== null}
 												title={`${date}${checked ? "（已签到）" : ""}`}
 												data-testid={`checkin-day-${date}`}
-												className={[
-													"flex h-10 flex-col items-center justify-center rounded border text-[10px] transition",
-													checked
-														? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-														: "border-border bg-background text-muted-foreground",
-													isToday ? "ring-1 ring-primary" : "",
-													isBusy ? "opacity-50" : "hover:border-primary",
-												].join(" ")}
+												className={`h-10 flex-col gap-0 p-1 text-[10px] ${checked ? "border-basalt-badge-green-foreground/40 bg-basalt-badge-green-foreground/10 text-basalt-badge-green-foreground" : ""} ${isToday ? "ring-1 ring-basalt-primary" : ""}`}
+												variant={checked ? "secondary" : "outline"}
+												size="sm"
+												aria-pressed={checked}
 											>
 												<span>{date.slice(5)}</span>
 												<span className="font-medium">{checked ? "✓" : "·"}</span>
-											</button>
+											</Button>
 										);
 									})}
 							</div>

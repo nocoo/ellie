@@ -3,8 +3,6 @@
 import {
 	Button,
 	Dialog,
-	DialogClose,
-	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -12,8 +10,8 @@ import {
 	Label,
 } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
-import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import type { IpBan, IpBanCreate, IpBanUpdate } from "@/viewmodels/admin/ip-bans";
 
 // ---------------------------------------------------------------------------
@@ -90,18 +88,7 @@ export function IpBanCreateDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
-				<DialogClose asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="absolute right-3 top-3 h-8 w-8"
-						aria-label="关闭弹窗"
-					>
-						<X className="h-4 w-4" />
-					</Button>
-				</DialogClose>
-
+			<AdminDialogContent size="lg" aria-describedby={undefined}>
 				<DialogHeader className="pr-8">
 					<DialogTitle>{isEdit ? "编辑 IP 封禁" : "创建 IP 封禁"}</DialogTitle>
 				</DialogHeader>
@@ -150,7 +137,7 @@ export function IpBanCreateDialog({
 						{loading ? "保存中..." : isEdit ? "保存更改" : "创建封禁"}
 					</Button>
 				</DialogFooter>
-			</DialogContent>
+			</AdminDialogContent>
 		</Dialog>
 	);
 }

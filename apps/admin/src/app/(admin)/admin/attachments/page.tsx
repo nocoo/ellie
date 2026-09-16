@@ -1,6 +1,5 @@
 "use client";
 
-import { Lightbox, type LightboxImage } from "@ellie/ui";
 import {
 	Button,
 	Checkbox,
@@ -9,6 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 	LayerCard,
+	SegmentControl,
 } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
@@ -28,6 +28,10 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import {
+	AttachmentLightbox,
+	type AttachmentPreviewImage,
+} from "@/components/admin/attachment-lightbox";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
 	type Attachment,
@@ -97,47 +101,34 @@ function AttachmentGridItem({
 			<div className="absolute top-2 left-2 z-10">
 				<Checkbox
 					checked={selected}
+					aria-label={`选择附件 ${attachment.filename}`}
 					onCheckedChange={(checked) => onSelect(attachment.id, !!checked)}
 					className="bg-background/80 backdrop-blur-sm"
 				/>
 			</div>
 
-			{/* Image preview or file icon */}
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: role/tabIndex/onKeyDown all conditionally applied together with onClick; biome can't correlate the ternaries. */}
-			<div
-				className="aspect-square bg-secondary/50 flex items-center justify-center cursor-pointer relative overflow-hidden"
-				onClick={attachment.isImage ? onPreview : undefined}
-				onKeyDown={
-					attachment.isImage
-						? (e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									onPreview();
-								}
-							}
-						: undefined
-				}
-				role={attachment.isImage ? "button" : undefined}
-				tabIndex={attachment.isImage ? 0 : undefined}
-			>
-				{imageUrl ? (
+			{imageUrl ? (
+				<Button
+					variant="ghost"
+					className="relative aspect-square h-auto w-full overflow-hidden rounded-none p-0"
+					aria-label={`预览 ${attachment.filename}`}
+					onClick={onPreview}
+				>
 					<img
 						src={imageUrl}
 						alt={attachment.filename}
-						className="w-full h-full object-cover transition-transform group-hover:scale-105"
+						className="h-full w-full object-cover transition-transform group-hover:scale-105"
 						loading="lazy"
 					/>
-				) : (
-					<FileIcon className="h-12 w-12 text-muted-foreground/50" />
-				)}
-
-				{/* Hover overlay for images */}
-				{attachment.isImage && (
-					<div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-						<span className="text-white text-sm font-medium">点击预览</span>
-					</div>
-				)}
-			</div>
+					<span className="absolute inset-0 flex items-center justify-center bg-black/30 text-sm font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+						点击预览
+					</span>
+				</Button>
+			) : (
+				<div className="flex aspect-square items-center justify-center">
+					<FileIcon className="h-12 w-12 text-basalt-muted-foreground" />
+				</div>
+			)}
 
 			{/* Info */}
 			<div className="p-3 space-y-1">
@@ -147,7 +138,7 @@ function AttachmentGridItem({
 				<div className="flex items-center justify-between text-xs text-muted-foreground">
 					<span>{formatFileSize(attachment.fileSize)}</span>
 					<Link
-						href={`/threads/${attachment.threadId}`}
+						href={`/admin/threads/${attachment.threadId}`}
 						className="hover:text-primary transition-colors"
 						target="_blank"
 					>
@@ -157,10 +148,15 @@ function AttachmentGridItem({
 			</div>
 
 			{/* Actions */}
-			<div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+			<div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm">
+						<Button
+							variant="secondary"
+							size="icon"
+							className="h-7 w-7"
+							aria-label={`打开「${attachment.filename}」操作菜单`}
+						>
 							<MoreHorizontal className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
@@ -228,41 +224,29 @@ function AttachmentListItem({
 			{/* Checkbox */}
 			<Checkbox
 				checked={selected}
+				aria-label={`选择附件 ${attachment.filename}`}
 				onCheckedChange={(checked) => onSelect(attachment.id, !!checked)}
 			/>
 
-			{/* Thumbnail */}
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: role/tabIndex/onKeyDown all conditionally applied together with onClick; biome can't correlate the ternaries. */}
-			<div
-				className={cn(
-					"w-14 h-14 rounded overflow-hidden bg-secondary/50 flex items-center justify-center flex-shrink-0",
-					attachment.isImage && "cursor-pointer",
-				)}
-				onClick={attachment.isImage ? onPreview : undefined}
-				onKeyDown={
-					attachment.isImage
-						? (e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									onPreview();
-								}
-							}
-						: undefined
-				}
-				role={attachment.isImage ? "button" : undefined}
-				tabIndex={attachment.isImage ? 0 : undefined}
-			>
-				{imageUrl ? (
+			{imageUrl ? (
+				<Button
+					variant="ghost"
+					className="h-14 w-14 shrink-0 overflow-hidden p-0"
+					aria-label={`预览 ${attachment.filename}`}
+					onClick={onPreview}
+				>
 					<img
 						src={imageUrl}
 						alt={attachment.filename}
-						className="w-full h-full object-cover"
+						className="h-full w-full object-cover"
 						loading="lazy"
 					/>
-				) : (
-					<FileIcon className="h-6 w-6 text-muted-foreground/50" />
-				)}
-			</div>
+				</Button>
+			) : (
+				<div className="flex h-14 w-14 shrink-0 items-center justify-center">
+					<FileIcon className="h-6 w-6 text-basalt-muted-foreground" />
+				</div>
+			)}
 
 			{/* Info */}
 			<div className="flex-1 min-w-0">
@@ -283,7 +267,7 @@ function AttachmentListItem({
 
 			{/* Thread link */}
 			<Link
-				href={`/threads/${attachment.threadId}`}
+				href={`/admin/threads/${attachment.threadId}`}
 				className="text-sm text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
 				target="_blank"
 			>
@@ -296,6 +280,7 @@ function AttachmentListItem({
 					variant="ghost"
 					size="icon"
 					className="h-8 w-8"
+					aria-label={`打开 ${attachment.filename}`}
 					onClick={() => window.open(getAttachmentUrl(attachment.filePath), "_blank")}
 				>
 					<ExternalLink className="h-4 w-4" />
@@ -304,6 +289,7 @@ function AttachmentListItem({
 					variant="ghost"
 					size="icon"
 					className="h-8 w-8"
+					aria-label={`下载 ${attachment.filename}`}
 					onClick={() => {
 						const link = document.createElement("a");
 						link.href = getAttachmentUrl(attachment.filePath);
@@ -315,7 +301,12 @@ function AttachmentListItem({
 				</Button>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" className="h-8 w-8">
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={`打开「${attachment.filename}」操作菜单`}
+						>
 							<MoreHorizontal className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
@@ -496,7 +487,7 @@ export default function AttachmentsPage() {
 	// Lightbox images
 	// -----------------------------------------------------------------------
 
-	const lightboxImages: LightboxImage[] = data
+	const lightboxImages: AttachmentPreviewImage[] = data
 		.filter((a) => a.isImage)
 		.map((a) => ({
 			src: getAttachmentUrl(a.filePath),
@@ -524,34 +515,32 @@ export default function AttachmentsPage() {
 				title="附件管理"
 				description={`共 ${stats.total} 个附件 · ${stats.images} 张图片 · ${stats.files} 个文件`}
 				actions={
-					<div className="flex items-center rounded-lg bg-secondary p-1">
-						<button
-							type="button"
-							onClick={() => setViewMode("grid")}
-							className={cn(
-								"p-1.5 rounded transition-colors",
-								viewMode === "grid"
-									? "bg-primary text-primary-foreground"
-									: "text-muted-foreground hover:text-foreground",
-							)}
-							title="网格视图"
-						>
-							<Grid3X3 className="h-4 w-4" />
-						</button>
-						<button
-							type="button"
-							onClick={() => setViewMode("list")}
-							className={cn(
-								"p-1.5 rounded transition-colors",
-								viewMode === "list"
-									? "bg-primary text-primary-foreground"
-									: "text-muted-foreground hover:text-foreground",
-							)}
-							title="列表视图"
-						>
-							<List className="h-4 w-4" />
-						</button>
-					</div>
+					<SegmentControl
+						legend="视图"
+						className="[&>legend]:sr-only"
+						value={viewMode}
+						onValueChange={(value) => setViewMode(value as "grid" | "list")}
+						options={[
+							{
+								value: "grid",
+								label: (
+									<>
+										<Grid3X3 className="h-4 w-4" />
+										<span className="sr-only">网格视图</span>
+									</>
+								),
+							},
+							{
+								value: "list",
+								label: (
+									<>
+										<List className="h-4 w-4" />
+										<span className="sr-only">列表视图</span>
+									</>
+								),
+							},
+						]}
+					/>
 				}
 			/>
 
@@ -569,7 +558,14 @@ export default function AttachmentsPage() {
 				{data.length > 0 && (
 					<div className="flex items-center gap-3 px-4 py-2.5 border-b bg-secondary/30">
 						<Checkbox
-							checked={selectedIds.size === data.length && data.length > 0}
+							aria-label="全选附件"
+							checked={
+								selectedIds.size === data.length
+									? true
+									: selectedIds.size > 0
+										? "indeterminate"
+										: false
+							}
 							onCheckedChange={handleSelectAll}
 						/>
 						<span className="text-sm text-muted-foreground">
@@ -595,7 +591,7 @@ export default function AttachmentsPage() {
 
 				{/* Grid view */}
 				{!loading && data.length > 0 && viewMode === "grid" && (
-					<div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 2xl:grid-cols-[repeat(16,minmax(0,1fr))] gap-3 p-4">
+					<div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-[repeat(auto-fill,minmax(120px,1fr))]">
 						{data.map((attachment) => (
 							<AttachmentGridItem
 								key={attachment.id}
@@ -638,7 +634,7 @@ export default function AttachmentsPage() {
 			/>
 
 			{/* Lightbox */}
-			<Lightbox
+			<AttachmentLightbox
 				images={lightboxImages}
 				initialIndex={lightboxIndex}
 				open={lightboxOpen}

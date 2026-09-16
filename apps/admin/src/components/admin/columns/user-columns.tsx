@@ -20,8 +20,7 @@
 //     calling buildUserColumns.
 
 import { formatNumber } from "@ellie/shared";
-
-import { Badge } from "@nocoo/basalt";
+import { Badge, Button } from "@nocoo/basalt";
 import Link from "next/link";
 import type { ColumnDef } from "@/components/admin/admin-data-table";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
@@ -82,13 +81,15 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 			);
 			if (onOpenDetail) {
 				return (
-					<button
+					<Button
 						type="button"
 						onClick={() => onOpenDetail(row.id)}
-						className="flex items-center gap-2 text-foreground hover:underline"
+						className="h-auto justify-start p-0 text-left text-basalt-foreground"
+						variant="link"
+						size="sm"
 					>
 						{inner}
-					</button>
+					</Button>
 				);
 			}
 			return (
