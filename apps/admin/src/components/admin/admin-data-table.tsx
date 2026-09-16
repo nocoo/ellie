@@ -1,6 +1,14 @@
 "use client";
 
-import { Checkbox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@ellie/ui";
+import { Checkbox } from "@nocoo/basalt";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@nocoo/basalt/components/table";
 import { useCallback, useMemo } from "react";
 
 // ---------------------------------------------------------------------------
@@ -104,8 +112,7 @@ export function AdminDataTable<T>({
 					{selectable && (
 						<TableHead className="w-10">
 							<Checkbox
-								checked={allSelected}
-								indeterminate={someSelected}
+								checked={someSelected ? "indeterminate" : allSelected}
 								onCheckedChange={toggleAll}
 								aria-label="全选"
 							/>

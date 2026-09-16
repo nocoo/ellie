@@ -1,7 +1,7 @@
 "use client";
 
-import { Button, Checkbox, Input, Label } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, Checkbox, Input, Label, LayerCard } from "@nocoo/basalt";
+import { InputArea } from "@nocoo/basalt/components/input-area";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -155,7 +155,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 		return (
 			<div className="space-y-1.5 sm:col-span-2">
 				<Label htmlFor={field.key}>{field.label}</Label>
-				<textarea
+				<InputArea
 					id={field.key}
 					value={value}
 					placeholder={field.placeholder}

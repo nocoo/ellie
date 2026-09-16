@@ -4,6 +4,7 @@ import {
 	Badge,
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -12,12 +13,12 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+	LayerCard,
+	Separator,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
+import { ExternalLink, Eye, MoreHorizontal, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -313,13 +314,11 @@ export default function ReportsPage() {
 			header: "",
 			cell: (row) => (
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button variant="ghost" size="icon" className="h-8 w-8">
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-8 w-8">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => setDetailReport(row)}>
 							<Eye className="h-4 w-4 mr-2" />
@@ -339,7 +338,7 @@ export default function ReportsPage() {
 								</DropdownMenuItem>
 							);
 						})()}
-						<DropdownMenuSeparator />
+						<Separator className="my-1" />
 						{row.status === "pending" && (
 							<>
 								<DropdownMenuItem onClick={() => handleStatusChange(row, "resolved")}>
@@ -348,7 +347,7 @@ export default function ReportsPage() {
 								<DropdownMenuItem onClick={() => handleStatusChange(row, "dismissed")}>
 									驳回举报
 								</DropdownMenuItem>
-								<DropdownMenuSeparator />
+								<Separator className="my-1" />
 							</>
 						)}
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
@@ -418,8 +417,19 @@ export default function ReportsPage() {
 
 			{/* Detail dialog */}
 			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
-				<DialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
-					<DialogHeader className="min-w-0">
+				<DialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
+					<DialogClose asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="absolute right-3 top-3 h-8 w-8"
+							aria-label="关闭弹窗"
+						>
+							<X className="h-4 w-4" />
+						</Button>
+					</DialogClose>
+
+					<DialogHeader className="min-w-0 pr-8">
 						<DialogTitle>举报详情 #{detailReport?.id}</DialogTitle>
 						<DialogDescription>查看举报的详细信息</DialogDescription>
 					</DialogHeader>

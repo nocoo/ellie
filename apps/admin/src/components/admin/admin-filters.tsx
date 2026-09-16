@@ -1,6 +1,14 @@
 "use client";
 
-import { Button, Input, Select } from "@ellie/ui";
+import { Button, Input } from "@nocoo/basalt";
+import { FilterBar } from "@nocoo/basalt/components/filter-bar";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
 import { Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -226,7 +234,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 	);
 
 	return (
-		<div className="flex flex-wrap items-center gap-2">
+		<FilterBar label="筛选" active={hasActiveFilters} onClear={onClearAll} clearLabel="清除筛选">
 			{filters.map((filter) => {
 				if (filter.type === "search") {
 					const inputVal = searchInputs[filter.key] ?? "";
@@ -245,14 +253,16 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								className="w-[200px] pl-8 pr-8"
 							/>
 							{inputVal && (
-								<button
+								<Button
+									variant="ghost"
+									size="icon"
 									type="button"
 									onClick={() => handleSearchClear(filter.key)}
 									aria-label={`清除${filter.label}`}
-									className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
 								>
 									<X className="h-3.5 w-3.5" />
-								</button>
+								</Button>
 							)}
 						</form>
 					);
@@ -262,11 +272,23 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 					return (
 						<Select
 							key={filter.key}
-							value={values[filter.key] ?? ""}
-							onChange={(e) => onFilterChange(filter.key, e.target.value)}
-							aria-label={filter.label}
-							options={buildSelectOptions(filter)}
-						/>
+							value={values[filter.key] || "__empty__"}
+							onValueChange={(selected) => {
+								const value = selected === "__empty__" ? "" : selected;
+								onFilterChange(filter.key, value);
+							}}
+						>
+							<SelectTrigger aria-label={filter.label}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{buildSelectOptions(filter).map((option) => (
+									<SelectItem key={option.value} value={String(option.value) || "__empty__"}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					);
 				}
 
@@ -274,6 +296,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 					return (
 						<Button
 							key={filter.key}
+							aria-pressed={values[filter.key] === "true"}
 							variant={values[filter.key] === "true" ? "default" : "outline"}
 							onClick={() =>
 								onFilterChange(filter.key, values[filter.key] === "true" ? "" : "true")
@@ -342,12 +365,6 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 
 				return null;
 			})}
-
-			{hasActiveFilters && onClearAll && (
-				<Button variant="ghost" onClick={onClearAll}>
-					清除筛选
-				</Button>
-			)}
-		</div>
+		</FilterBar>
 	);
 }

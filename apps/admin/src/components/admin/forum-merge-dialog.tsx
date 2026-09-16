@@ -3,6 +3,7 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -10,8 +11,15 @@ import {
 	DialogTitle,
 	Input,
 	Label,
+} from "@nocoo/basalt";
+import {
 	Select,
-} from "@ellie/ui";
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import type { Forum } from "@/viewmodels/admin/forums";
@@ -74,8 +82,19 @@ export function ForumMergeDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader>
+			<DialogContent size="lg" className="grid gap-4">
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>合并版块</DialogTitle>
 					<DialogDescription>
 						将来源版块的所有主题移至目标版块，合并后来源版块将被删除。
@@ -97,17 +116,29 @@ export function ForumMergeDialog({
 					<div className="grid gap-2">
 						<Label htmlFor="merge-target">目标版块</Label>
 						<Select
-							id="merge-target"
-							value={targetId ?? ""}
-							onChange={(e) => setTargetId(e.target.value ? Number(e.target.value) : null)}
-							options={[
-								{ value: "", label: "选择目标版块..." },
-								...targetOptions.map((f) => ({
-									value: f.id,
-									label: `[${typeLabel(f.type)}] ${f.name} (${f.threads} 个主题)`,
-								})),
-							]}
-						/>
+							value={String(targetId ?? "") || "__empty__"}
+							onValueChange={(selected) => {
+								const value = selected === "__empty__" ? "" : selected;
+								setTargetId(value ? Number(value) : null);
+							}}
+						>
+							<SelectTrigger id="merge-target">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{[
+									{ value: "", label: "选择目标版块..." },
+									...targetOptions.map((f) => ({
+										value: f.id,
+										label: `[${typeLabel(f.type)}] ${f.name} (${f.threads} 个主题)`,
+									})),
+								].map((option) => (
+									<SelectItem key={option.value} value={String(option.value) || "__empty__"}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 
 					{source && source.threads > 0 && (

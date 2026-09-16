@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, LayerCard } from "@nocoo/basalt";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";

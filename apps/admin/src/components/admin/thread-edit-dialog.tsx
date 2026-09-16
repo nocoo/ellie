@@ -3,14 +3,22 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Input,
 	Label,
+} from "@nocoo/basalt";
+import {
 	Select,
-} from "@ellie/ui";
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { Thread, ThreadUpdate } from "@/viewmodels/admin/threads";
 import { AdminInlineMessage } from "./admin-inline-message";
@@ -63,8 +71,19 @@ export function ThreadEditDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader>
+			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>编辑主题</DialogTitle>
 				</DialogHeader>
 
@@ -84,47 +103,65 @@ export function ThreadEditDialog({
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
 							<Label htmlFor="edit-sticky">置顶</Label>
-							<Select
-								id="edit-sticky"
-								value={sticky}
-								onChange={(e) => setSticky(Number(e.target.value))}
-								options={[
-									{ value: 0, label: "无" },
-									{ value: 1, label: "版块置顶" },
-									{ value: 2, label: "全局置顶" },
-									{ value: 3, label: "分类置顶" },
-								]}
-							/>
+							<Select value={String(sticky)} onValueChange={(value) => setSticky(Number(value))}>
+								<SelectTrigger id="edit-sticky">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[
+										{ value: 0, label: "无" },
+										{ value: 1, label: "版块置顶" },
+										{ value: 2, label: "全局置顶" },
+										{ value: 3, label: "分类置顶" },
+									].map((option) => (
+										<SelectItem key={option.value} value={String(option.value)}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 
 						<div className="grid gap-2">
 							<Label htmlFor="edit-digest">精华</Label>
-							<Select
-								id="edit-digest"
-								value={digest}
-								onChange={(e) => setDigest(Number(e.target.value))}
-								options={[
-									{ value: 0, label: "无" },
-									{ value: 1, label: "精华 I" },
-									{ value: 2, label: "精华 II" },
-									{ value: 3, label: "精华 III" },
-								]}
-							/>
+							<Select value={String(digest)} onValueChange={(value) => setDigest(Number(value))}>
+								<SelectTrigger id="edit-digest">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[
+										{ value: 0, label: "无" },
+										{ value: 1, label: "精华 I" },
+										{ value: 2, label: "精华 II" },
+										{ value: 3, label: "精华 III" },
+									].map((option) => (
+										<SelectItem key={option.value} value={String(option.value)}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
 							<Label htmlFor="edit-closed">已锁定</Label>
-							<Select
-								id="edit-closed"
-								value={closed}
-								onChange={(e) => setClosed(Number(e.target.value))}
-								options={[
-									{ value: 0, label: "开放" },
-									{ value: 1, label: "已锁定" },
-								]}
-							/>
+							<Select value={String(closed)} onValueChange={(value) => setClosed(Number(value))}>
+								<SelectTrigger id="edit-closed">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[
+										{ value: 0, label: "开放" },
+										{ value: 1, label: "已锁定" },
+									].map((option) => (
+										<SelectItem key={option.value} value={String(option.value)}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 
 						<div className="grid gap-2">

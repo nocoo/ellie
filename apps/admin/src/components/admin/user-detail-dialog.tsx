@@ -19,7 +19,15 @@
 //     detail-dialog skin; pinning to that keeps width / scroll
 //     behaviour consistent with the KV / log / report detail dialogs.
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@ellie/ui";
+import {
+	Button,
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@nocoo/basalt";
+import { X } from "lucide-react";
 import { type UserDetailChangeKind, UserDetailPanel } from "@/components/admin/user-detail-panel";
 import { ADMIN_WIDE_DIALOG_BODY_CLASS } from "./dialog-presets";
 
@@ -77,8 +85,22 @@ export function UserDetailDialog({
 			 * to ~200px on 1440p screens. Padding trimmed via `p-6` to match
 			 * shadcn dialog conventions now that we own the internal grid.
 			 */}
-			<DialogContent className="w-[calc(100vw-2rem)] max-w-[min(1440px,calc(100vw-2rem))] overflow-hidden p-6 sm:max-w-[min(1440px,calc(100vw-2rem))]">
-				<DialogHeader className="min-w-0">
+			<DialogContent
+				className="grid gap-4 w-[calc(100vw-2rem)] max-w-[min(1440px,calc(100vw-2rem))] overflow-hidden p-6 sm:max-w-[min(1440px,calc(100vw-2rem))] sm:w-[calc(100vw-2rem)]"
+				aria-describedby={undefined}
+			>
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle>用户详情</DialogTitle>
 				</DialogHeader>
 				{userId !== null && (

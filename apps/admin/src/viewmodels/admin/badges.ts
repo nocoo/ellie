@@ -2,7 +2,7 @@
  * Admin badge variant mapping — single source of truth for the colour
  * scheme of every status/role/type pill in the admin console.
  *
- * Pure module: imports nothing from React or `@ellie/ui`. Each helper
+ * Pure module: imports nothing from React or Basalt. Each helper
  * returns an `AdminBadgeVariant` that the call site passes straight to
  * `<Badge variant={...}>`. The goal is to eliminate ad-hoc Tailwind
  * classes (e.g. raw `bg-yellow-100/text-yellow-800` and inline
@@ -14,7 +14,6 @@
  *  - `warning`  — pending / sticky (needs attention, but not destructive)
  *  - `destructive` — banned / blocked / hard violation
  *  - `secondary` — neutral default (visible chip, not transparent)
- *  - `muted`    — archived / dismissed / quiet but present
  *  - `default`  — primary highlight (group / first-post marker)
  *  - `outline`  — reserved for low-priority structural labels only;
  *                 must NOT be used to communicate state.
@@ -26,7 +25,6 @@ export type AdminBadgeVariant =
 	| "destructive"
 	| "success"
 	| "warning"
-	| "muted"
 	| "outline";
 
 // ---------------------------------------------------------------------------
@@ -37,8 +35,8 @@ export type AdminBadgeVariant =
  * Map a numeric user `status` column to a badge variant.
  *  - 1 (normal)     → success
  *  - -1 (banned)    → destructive
- *  - -2 (archived)  → muted
- *  - -99 (tombstone)→ muted   (unified with archived; previously `outline`
+ *  - -2 (archived)  → secondary
+ *  - -99 (tombstone)→ secondary   (unified with archived; previously `outline`
  *                              which rendered as a transparent white pill)
  */
 export function userStatusVariant(status: number): AdminBadgeVariant {
@@ -46,9 +44,9 @@ export function userStatusVariant(status: number): AdminBadgeVariant {
 		case -1:
 			return "destructive";
 		case -2:
-			return "muted";
+			return "secondary";
 		case -99:
-			return "muted";
+			return "secondary";
 		default:
 			return "success";
 	}
@@ -79,19 +77,19 @@ export function userRoleVariant(role: number): AdminBadgeVariant {
 // Threads
 // ---------------------------------------------------------------------------
 
-/** Sticky level (>0) → warning; 0 → muted (caller usually hides at 0). */
+/** Sticky level (>0) → warning; 0 → secondary (caller usually hides at 0). */
 export function threadStickyVariant(level: number): AdminBadgeVariant {
-	return level > 0 ? "warning" : "muted";
+	return level > 0 ? "warning" : "secondary";
 }
 
-/** Digest level (>0) → success; 0 → muted. */
+/** Digest level (>0) → success; 0 → secondary. */
 export function threadDigestVariant(level: number): AdminBadgeVariant {
-	return level > 0 ? "success" : "muted";
+	return level > 0 ? "success" : "secondary";
 }
 
-/** Closed flag (>0) → destructive; 0 → muted. */
+/** Closed flag (>0) → destructive; 0 → secondary. */
 export function threadClosedVariant(closed: number): AdminBadgeVariant {
-	return closed > 0 ? "destructive" : "muted";
+	return closed > 0 ? "destructive" : "secondary";
 }
 
 /**
@@ -100,7 +98,7 @@ export function threadClosedVariant(closed: number): AdminBadgeVariant {
  * means a custom title style was applied.
  */
 export function threadHighlightVariant(highlight: number): AdminBadgeVariant {
-	return highlight > 0 ? "default" : "muted";
+	return highlight > 0 ? "default" : "secondary";
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +115,7 @@ export function reportStatusVariant(
 		case "resolved":
 			return "success";
 		case "dismissed":
-			return "muted";
+			return "secondary";
 	}
 }
 
@@ -141,9 +139,9 @@ export function reportTypeVariant(type: "thread" | "post" | "user"): AdminBadgeV
 // Forums
 // ---------------------------------------------------------------------------
 
-/** Forum status: 1 (visible) → success; 0 (hidden) → muted. */
+/** Forum status: 1 (visible) → success; 0 (hidden) → secondary. */
 export function forumStatusVariant(status: number): AdminBadgeVariant {
-	return status === 1 ? "success" : "muted";
+	return status === 1 ? "success" : "secondary";
 }
 
 /**
@@ -151,7 +149,7 @@ export function forumStatusVariant(status: number): AdminBadgeVariant {
  * labels; reviewer asked that `outline` be removed everywhere it was
  * used to look like state, so we map each level to a distinct visible
  * variant. `group` is the highlight, `forum` is the default visible
- * pill, `sub` uses muted to read as "lower in the tree".
+ * pill, `sub` uses secondary to read as "lower in the tree".
  */
 export function forumTypeVariant(type: "group" | "forum" | "sub"): AdminBadgeVariant {
 	switch (type) {
@@ -160,7 +158,7 @@ export function forumTypeVariant(type: "group" | "forum" | "sub"): AdminBadgeVar
 		case "forum":
 			return "secondary";
 		case "sub":
-			return "muted";
+			return "secondary";
 	}
 }
 
@@ -184,7 +182,7 @@ export function ipBanStateVariant(banned: boolean): AdminBadgeVariant {
 
 /** Permanent ban marker (no expiry) → warning. */
 export function ipBanExpiryVariant(hasExpiry: boolean): AdminBadgeVariant {
-	return hasExpiry ? "muted" : "warning";
+	return hasExpiry ? "secondary" : "warning";
 }
 
 // ---------------------------------------------------------------------------

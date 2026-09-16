@@ -35,21 +35,24 @@ import {
 	Button,
 	ConfirmDialog,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
+	LayerCard,
+} from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
+import {
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
-import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { SectionRule } from "@nocoo/basalt/components/section-rule";
-import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
+} from "@nocoo/basalt/components/table";
+import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import {
@@ -646,8 +649,19 @@ function KeyDetailDialog({
 }) {
 	return (
 		<Dialog open={state.open} onOpenChange={onOpenChange}>
-			<DialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
-				<DialogHeader className="min-w-0">
+			<DialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle className="break-all font-mono text-sm">
 						{state.rawKey ?? "Key 详情"}
 					</DialogTitle>
@@ -1088,7 +1102,9 @@ export default function KvMonitorPage() {
 						? `确认从 KV 中过期 ${confirm.rawKey}？此操作会立即生效，并写入操作日志。`
 						: ""
 				}
-				confirmText="过期"
+				confirmLabel="过期"
+				cancelLabel="取消"
+				loading={isBusy}
 				variant="destructive"
 				onConfirm={handleConfirmDelete}
 			/>

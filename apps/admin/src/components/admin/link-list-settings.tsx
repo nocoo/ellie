@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";

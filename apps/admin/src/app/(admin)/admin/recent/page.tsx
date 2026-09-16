@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Lightbox, type LightboxImage } from "@ellie/ui";
+import { Lightbox, type LightboxImage } from "@ellie/ui";
+import { Button } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Loader2, Trash2 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";

@@ -8,8 +8,8 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+	LayerCard,
+} from "@nocoo/basalt";
 import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "@/components/admin/user-avatar";
@@ -63,18 +63,16 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 					<span>{formatDate(post.createdAt)}</span>
 				</div>
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label={`打开第 ${post.position} 楼操作菜单`}
-								className="h-7 w-7"
-							>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={`打开第 ${post.position} 楼操作菜单`}
+							className="h-7 w-7"
+						>
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => onEdit(post)}>
 							<Pencil className="mr-2 h-4 w-4" />

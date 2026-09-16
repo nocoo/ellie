@@ -12,8 +12,7 @@
 //   - WIDE: detail / inspection dialogs that benefit from horizontal
 //     space (long URLs, JSON values, multi-column metadata).
 //   - Confirmation and short-form dialogs intentionally stay on the
-//     `@ellie/ui` Dialog default (`sm:max-w-sm` / `sm:max-w-md` /
-//     `sm:max-w-lg`). Do NOT route them through this preset.
+//     Basalt Dialog size presets. Do NOT route them through this preset.
 //
 // Special cases that intentionally do NOT use this preset:
 //   - `user-edit-dialog`: has a hand-tuned `sm:w-[640px] lg:w-[860px]`
@@ -30,7 +29,8 @@
  * - `overflow-hidden`: the dialog container never scrolls; the body
  *   region is responsible for its own scroll (see body class below).
  */
-export const ADMIN_WIDE_DIALOG_CONTENT_CLASS = "w-[calc(100vw-2rem)] max-w-5xl overflow-hidden";
+export const ADMIN_WIDE_DIALOG_CONTENT_CLASS =
+	"w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)] max-w-5xl overflow-hidden";
 
 /**
  * Inner body wrapper className for wide admin detail dialogs.

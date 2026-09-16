@@ -1,18 +1,15 @@
 "use client";
 
+import { Badge, Button, Input, LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
-	Badge,
-	Button,
-	Input,
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
-import { PageHeader } from "@nocoo/basalt/components/page-header";
+} from "@nocoo/basalt/components/table";
 import { AlertCircle, Calculator, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 

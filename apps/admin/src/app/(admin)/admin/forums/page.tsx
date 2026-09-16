@@ -6,11 +6,10 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { cn } from "@ellie/ui/utils";
-import { LayerCard } from "@nocoo/basalt";
+	LayerCard,
+	Separator,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	ChevronRight,
@@ -22,6 +21,7 @@ import {
 	SquareStack,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { twMerge as cn } from "tailwind-merge";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -184,28 +184,26 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 
 			{/* Actions */}
 			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<Button
-							variant="ghost"
-							size="icon"
-							aria-label={`打开「${node.name}」操作菜单`}
-							className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-						>
-							<MoreHorizontal className="h-4 w-4" />
-						</Button>
-					}
-				/>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						aria-label={`打开「${node.name}」操作菜单`}
+						className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+					>
+						<MoreHorizontal className="h-4 w-4" />
+					</Button>
+				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					<DropdownMenuItem onClick={() => onEdit(node)}>编辑</DropdownMenuItem>
 					<DropdownMenuItem onClick={() => onToggleStatus(node)}>
 						{node.status === 1 ? "隐藏" : "显示"}
 					</DropdownMenuItem>
-					<DropdownMenuSeparator />
+					<Separator className="my-1" />
 					<DropdownMenuItem onClick={() => onMerge(node)}>合并到...</DropdownMenuItem>
 					{node.threads === 0 && node.children.length === 0 && (
 						<>
-							<DropdownMenuSeparator />
+							<Separator className="my-1" />
 							<DropdownMenuItem onClick={() => onDelete(node)} className="text-destructive">
 								删除
 							</DropdownMenuItem>

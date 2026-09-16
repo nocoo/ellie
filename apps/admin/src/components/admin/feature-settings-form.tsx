@@ -1,11 +1,10 @@
 "use client";
 
-import { Button, Checkbox, Input, Label } from "@ellie/ui";
-import { cn } from "@ellie/ui/utils";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, Checkbox, Input, Label, LayerCard } from "@nocoo/basalt";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { twMerge as cn } from "tailwind-merge";
 import {
 	FEATURE_GROUPS,
 	type FeatureFieldDef,

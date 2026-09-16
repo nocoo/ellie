@@ -17,7 +17,8 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button, Input } from "@ellie/ui";
+
+import { Button, Input } from "@nocoo/basalt";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useCallback, useId, useMemo, useRef } from "react";
 import type { NavLinkItem } from "@/viewmodels/admin/settings";

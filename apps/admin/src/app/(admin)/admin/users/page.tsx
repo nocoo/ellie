@@ -3,8 +3,7 @@
 // Admin Users Page (View layer)
 // MVVM: This is the View layer. State and logic are in useUsersAdmin hook.
 
-import { Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Eye, Pencil } from "lucide-react";
 import { useSearchParams } from "next/navigation";

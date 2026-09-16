@@ -17,8 +17,7 @@
 // is purely presentational + receives stable callbacks.
 
 import { formatNumber } from "@ellie/shared";
-import { Badge, Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Badge, Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";

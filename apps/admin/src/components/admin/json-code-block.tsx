@@ -19,8 +19,8 @@
 //
 // Token color tokens are pinned by `tests/unit/components/json-code-block.test.ts`.
 
-import { cn } from "@ellie/ui/utils";
 import type React from "react";
+import { twMerge as cn } from "tailwind-merge";
 
 export interface JsonCodeBlockProps {
 	/** Anything JSON-serialisable; strings are rendered as plain text. */

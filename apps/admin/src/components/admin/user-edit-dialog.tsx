@@ -9,11 +9,18 @@ import {
 	DialogTitle,
 	Input,
 	Label,
+} from "@nocoo/basalt";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import {
 	Select,
-} from "@ellie/ui";
-import { cn } from "@ellie/ui/utils";
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
 import { Save, User as UserIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
+import { twMerge as cn } from "tailwind-merge";
 import type { User, UserUpdate } from "@/viewmodels/admin/users";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -303,7 +310,7 @@ function TextareaField(props: {
 	return (
 		<div className="grid gap-2 min-w-0">
 			<Label htmlFor={props.id}>{props.label}</Label>
-			<textarea
+			<InputArea
 				id={props.id}
 				value={props.value}
 				onChange={(e) => props.onChange(e.target.value)}
@@ -425,7 +432,6 @@ export function UserEditDialog({
 					"max-h-[85vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
-				showCloseButton={false}
 			>
 				{/* Header */}
 				<DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
@@ -443,7 +449,7 @@ export function UserEditDialog({
 						</div>
 						<Button
 							variant="ghost"
-							size="icon-sm"
+							size="icon"
 							onClick={() => onOpenChange(false)}
 							disabled={loading}
 							className="text-muted-foreground hover:text-foreground"
@@ -553,22 +559,40 @@ export function UserEditDialog({
 									</span>
 								</Label>
 								<Select
-									id="edit-status"
-									value={form.status}
-									onChange={(e) => set("status")(Number(e.target.value))}
-									options={STATUS_OPTIONS}
 									disabled={loading}
-								/>
+									value={String(form.status)}
+									onValueChange={(value) => set("status")(Number(value))}
+								>
+									<SelectTrigger id="edit-status">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{STATUS_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={String(option.value)}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 							<div className="grid gap-2 min-w-0">
 								<Label htmlFor="edit-role">用户角色</Label>
 								<Select
-									id="edit-role"
-									value={form.role}
-									onChange={(e) => set("role")(Number(e.target.value))}
-									options={ROLE_OPTIONS}
 									disabled={loading}
-								/>
+									value={String(form.role)}
+									onValueChange={(value) => set("role")(Number(value))}
+								>
+									<SelectTrigger id="edit-role">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{ROLE_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={String(option.value)}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 						</div>
 					</Section>

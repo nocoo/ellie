@@ -21,7 +21,7 @@
 // `aria-selected`. Pair with `<div role="tabpanel">` wrappers when wiring
 // it into a page.
 
-import { cn } from "@ellie/ui/utils";
+import { twMerge as cn } from "tailwind-merge";
 
 export interface SegmentedOption<TValue extends string> {
 	value: TValue;

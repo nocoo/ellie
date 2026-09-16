@@ -7,7 +7,7 @@
 // opening the detail dialog. Rows that pass every layer show a muted
 // "✓ 可发布" pill so the column is never mysteriously empty.
 
-import { Badge } from "@ellie/ui";
+import { Badge } from "@nocoo/basalt";
 import { Check } from "lucide-react";
 import { useMemo } from "react";
 import type { User } from "@/viewmodels/admin/users";

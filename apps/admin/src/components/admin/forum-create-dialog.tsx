@@ -3,14 +3,23 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Input,
 	Label,
+} from "@nocoo/basalt";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import {
 	Select,
-} from "@ellie/ui";
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { Forum, ForumCreate, ForumType } from "@/viewmodels/admin/forums";
 import { AdminInlineMessage } from "./admin-inline-message";
@@ -125,8 +134,19 @@ export function ForumCreateDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
+			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>创建版块</DialogTitle>
 				</DialogHeader>
 
@@ -159,14 +179,23 @@ export function ForumCreateDialog({
 						<div className="grid gap-2">
 							<Label htmlFor="create-parent">上级{type === "forum" ? "分区" : "版块"}</Label>
 							<Select
-								id="create-parent"
-								value={parentId}
-								onChange={(e) => setParentId(Number(e.target.value))}
-								options={[
-									...(type === "forum" ? [{ value: 0, label: "无上级分区" }] : []),
-									...validParents.map((p) => ({ value: p.id, label: p.name })),
-								]}
-							/>
+								value={String(parentId)}
+								onValueChange={(value) => setParentId(Number(value))}
+							>
+								<SelectTrigger id="create-parent">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[
+										...(type === "forum" ? [{ value: 0, label: "无上级分区" }] : []),
+										...validParents.map((p) => ({ value: p.id, label: p.name })),
+									].map((option) => (
+										<SelectItem key={option.value} value={String(option.value)}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 					)}
 
@@ -185,7 +214,7 @@ export function ForumCreateDialog({
 					{/* Description */}
 					<div className="grid gap-2">
 						<Label htmlFor="create-description">描述</Label>
-						<textarea
+						<InputArea
 							id="create-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
@@ -222,12 +251,18 @@ export function ForumCreateDialog({
 
 						<div className="grid gap-2">
 							<Label htmlFor="create-status">状态</Label>
-							<Select
-								id="create-status"
-								value={status}
-								onChange={(e) => setStatus(Number(e.target.value))}
-								options={STATUS_OPTIONS}
-							/>
+							<Select value={String(status)} onValueChange={(value) => setStatus(Number(value))}>
+								<SelectTrigger id="create-status">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{STATUS_OPTIONS.map((option) => (
+										<SelectItem key={option.value} value={String(option.value)}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 					</div>
 				</div>

@@ -19,7 +19,7 @@
 
 "use client";
 
-import { Button } from "@ellie/ui";
+import { Button } from "@nocoo/basalt";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

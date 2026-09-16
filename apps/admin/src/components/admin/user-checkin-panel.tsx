@@ -17,8 +17,7 @@
 // checkin state from inside the user-detail page. There is no global
 // dashboard.
 
-import { Button, Input, Label } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

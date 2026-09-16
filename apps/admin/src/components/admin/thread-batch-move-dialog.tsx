@@ -13,13 +13,21 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+} from "@nocoo/basalt";
+import {
 	Select,
-} from "@ellie/ui";
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import { AdminInlineMessage } from "./admin-inline-message";
@@ -124,8 +132,19 @@ export function ThreadBatchMoveDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent>
-				<DialogHeader>
+			<DialogContent className="grid gap-4">
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>批量移动主题</DialogTitle>
 					<DialogDescription>
 						{`将选中的 ${selectedCount} 个主题移动到目标版块。已位于目标版块的主题会被服务端跳过。`}
@@ -146,13 +165,24 @@ export function ThreadBatchMoveDialog({
 						目标版块
 					</label>
 					<Select
-						id="thread-batch-move-target"
-						value={selectedForumId}
-						onChange={(e) => setSelectedForumId(e.target.value)}
-						options={options}
-						aria-label="目标版块"
 						disabled={forumsLoading || loading}
-					/>
+						value={String(selectedForumId) || "__empty__"}
+						onValueChange={(selected) => {
+							const value = selected === "__empty__" ? "" : selected;
+							setSelectedForumId(value);
+						}}
+					>
+						<SelectTrigger id="thread-batch-move-target" aria-label="目标版块">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{options.map((option) => (
+								<SelectItem key={option.value} value={String(option.value) || "__empty__"}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					{forumsLoading && <p className="mt-2 text-xs text-muted-foreground">正在加载版块列表…</p>}
 					{!forumsLoading && targets.length === 0 && !forumsError && (
 						<p className="mt-2 text-xs text-muted-foreground">未找到可用版块</p>

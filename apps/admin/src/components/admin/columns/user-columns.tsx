@@ -20,7 +20,8 @@
 //     calling buildUserColumns.
 
 import { formatNumber } from "@ellie/shared";
-import { Badge } from "@ellie/ui";
+
+import { Badge } from "@nocoo/basalt";
 import Link from "next/link";
 import type { ColumnDef } from "@/components/admin/admin-data-table";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";

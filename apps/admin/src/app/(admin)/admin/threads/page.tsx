@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Loader2, Lock, Pencil, Trash2, Unlock } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";

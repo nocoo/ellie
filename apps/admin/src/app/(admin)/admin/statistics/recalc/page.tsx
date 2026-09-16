@@ -1,7 +1,6 @@
 "use client";
 
-import { Badge, Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Badge, Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Database, Loader2, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
 import { useCallback, useState } from "react";

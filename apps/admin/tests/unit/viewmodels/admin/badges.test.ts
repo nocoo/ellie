@@ -29,11 +29,11 @@ describe("badges — userStatusVariant", () => {
 	it("banned user → destructive", () => {
 		expect(userStatusVariant(-1)).toBe("destructive");
 	});
-	it("archived user → muted", () => {
-		expect(userStatusVariant(-2)).toBe("muted");
+	it("archived user → secondary", () => {
+		expect(userStatusVariant(-2)).toBe("secondary");
 	});
-	it("tombstone user → muted (not outline)", () => {
-		expect(userStatusVariant(-99)).toBe("muted");
+	it("tombstone user → secondary (not outline)", () => {
+		expect(userStatusVariant(-99)).toBe("secondary");
 	});
 	it("unknown status falls through to success default", () => {
 		expect(userStatusVariant(0)).toBe("success");
@@ -58,24 +58,24 @@ describe("badges — userRoleVariant", () => {
 });
 
 describe("badges — thread flag variants", () => {
-	it("sticky >0 → warning, 0 → muted", () => {
+	it("sticky >0 → warning, 0 → secondary", () => {
 		expect(threadStickyVariant(1)).toBe("warning");
 		expect(threadStickyVariant(3)).toBe("warning");
-		expect(threadStickyVariant(0)).toBe("muted");
+		expect(threadStickyVariant(0)).toBe("secondary");
 	});
-	it("digest >0 → success, 0 → muted", () => {
+	it("digest >0 → success, 0 → secondary", () => {
 		expect(threadDigestVariant(2)).toBe("success");
-		expect(threadDigestVariant(0)).toBe("muted");
+		expect(threadDigestVariant(0)).toBe("secondary");
 	});
-	it("closed >0 → destructive, 0 → muted", () => {
+	it("closed >0 → destructive, 0 → secondary", () => {
 		expect(threadClosedVariant(1)).toBe("destructive");
-		expect(threadClosedVariant(0)).toBe("muted");
+		expect(threadClosedVariant(0)).toBe("secondary");
 	});
-	it("highlight >0 → default, 0 → muted (encoded bitmask, any non-zero counts)", () => {
+	it("highlight >0 → default, 0 → secondary (encoded bitmask, any non-zero counts)", () => {
 		expect(threadHighlightVariant(1)).toBe("default");
 		// Real values are 24-bit RGB packs (e.g. 0xff0000 = 16711680).
 		expect(threadHighlightVariant(16711680)).toBe("default");
-		expect(threadHighlightVariant(0)).toBe("muted");
+		expect(threadHighlightVariant(0)).toBe("secondary");
 	});
 });
 
@@ -86,8 +86,8 @@ describe("badges — reportStatusVariant", () => {
 	it("resolved → success", () => {
 		expect(reportStatusVariant("resolved")).toBe("success");
 	});
-	it("dismissed → muted", () => {
-		expect(reportStatusVariant("dismissed")).toBe("muted");
+	it("dismissed → secondary", () => {
+		expect(reportStatusVariant("dismissed")).toBe("secondary");
 	});
 });
 
@@ -107,8 +107,8 @@ describe("badges — forumStatusVariant", () => {
 	it("visible (1) → success", () => {
 		expect(forumStatusVariant(1)).toBe("success");
 	});
-	it("hidden (0) → muted", () => {
-		expect(forumStatusVariant(0)).toBe("muted");
+	it("hidden (0) → secondary", () => {
+		expect(forumStatusVariant(0)).toBe("secondary");
 	});
 });
 
@@ -119,8 +119,8 @@ describe("badges — forumTypeVariant", () => {
 	it("forum → secondary", () => {
 		expect(forumTypeVariant("forum")).toBe("secondary");
 	});
-	it("sub → muted", () => {
-		expect(forumTypeVariant("sub")).toBe("muted");
+	it("sub → secondary", () => {
+		expect(forumTypeVariant("sub")).toBe("secondary");
 	});
 });
 
@@ -146,8 +146,8 @@ describe("badges — ipBanExpiryVariant", () => {
 	it("permanent (no expiry) → warning", () => {
 		expect(ipBanExpiryVariant(false)).toBe("warning");
 	});
-	it("with expiry → muted", () => {
-		expect(ipBanExpiryVariant(true)).toBe("muted");
+	it("with expiry → secondary", () => {
+		expect(ipBanExpiryVariant(true)).toBe("secondary");
 	});
 });
 

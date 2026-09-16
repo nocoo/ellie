@@ -24,7 +24,7 @@
  *     the feature is active for this forum.
  */
 
-import { Badge, Button, Input, Label } from "@ellie/ui";
+import { Badge, Button, Input, Label } from "@nocoo/basalt";
 import {
 	ArrowDown,
 	ArrowUp,

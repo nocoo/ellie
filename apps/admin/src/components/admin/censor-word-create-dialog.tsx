@@ -3,14 +3,22 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Input,
 	Label,
+} from "@nocoo/basalt";
+import {
 	Select,
-} from "@ellie/ui";
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type {
 	CensorWord,
@@ -93,8 +101,19 @@ export function CensorWordCreateDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader>
+			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>{isEdit ? "编辑敏感词" : "添加敏感词"}</DialogTitle>
 				</DialogHeader>
 
@@ -113,14 +132,23 @@ export function CensorWordCreateDialog({
 					<div className="grid gap-2">
 						<Label htmlFor="cw-action">动作</Label>
 						<Select
-							id="cw-action"
-							value={action}
-							onChange={(e) => setAction(e.target.value as "ban" | "replace")}
-							options={[
-								{ value: "replace", label: "替换" },
-								{ value: "ban", label: "禁止发布" },
-							]}
-						/>
+							value={String(action)}
+							onValueChange={(value) => setAction(value as "ban" | "replace")}
+						>
+							<SelectTrigger id="cw-action">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{[
+									{ value: "replace", label: "替换" },
+									{ value: "ban", label: "禁止发布" },
+								].map((option) => (
+									<SelectItem key={option.value} value={String(option.value)}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 						<p className="text-xs text-muted-foreground">
 							替换：将词语替换为指定内容。禁止发布：直接拦截帖子。
 						</p>

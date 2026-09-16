@@ -9,7 +9,7 @@
 // encodes domain-specific URL conventions (CDN base, legacy path layout)
 // rather than presentational primitives.
 
-import { cn } from "@ellie/ui";
+import { twMerge as cn } from "tailwind-merge";
 import { FALLBACK_AVATAR_URL, getUserAvatarUrl } from "@/lib/cdn";
 
 interface UserAvatarProps {

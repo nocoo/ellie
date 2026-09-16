@@ -837,7 +837,7 @@ test.describe("Feature: Admin Operation Logs", () => {
 		expect(text101).toContain('"spam"');
 		await expect(dialog101.getByText("(原始文本，非 JSON)")).toHaveCount(0);
 
-		await dialog101.getByRole("button", { name: "关闭" }).click();
+		await dialog101.getByRole("button", { name: "关闭", exact: true }).click();
 		await expect(dialog101).toBeHidden();
 
 		// When: open #103 (non-JSON details)
@@ -972,7 +972,7 @@ test.describe("Feature: Admin Reports List", () => {
 		await expect(
 			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "举报管理" }),
 		).toBeVisible();
-		await expect(page.locator("select").filter({ hasText: "回帖" })).toBeVisible();
+		await expect(page.getByRole("combobox", { name: "类型" })).toBeVisible();
 
 		// Then: thread row → admin thread link to thread 11
 		const threadLink = page.getByRole("link", { name: /测试主题标题/ });
@@ -990,13 +990,19 @@ test.describe("Feature: Admin Reports List", () => {
 		await expect(userLink).toHaveAttribute("href", "/admin/users/44");
 
 		// When: select type=用户 in the type filter dropdown
-		const typeSelect = page.locator("select").filter({ hasText: "回帖" });
-		await typeSelect.selectOption({ label: "用户" });
+		await page.getByRole("combobox", { name: "类型" }).click();
+		await page.getByRole("option", { name: "用户", exact: true }).click();
 
 		// Then: only the user row remains
 		await expect(page.getByRole("link", { name: /@bob/ })).toBeVisible();
 		await expect(page.getByRole("link", { name: /测试主题标题/ })).toHaveCount(0);
 		await expect(page.getByRole("link", { name: /回帖所在主题/ })).toHaveCount(0);
+
+		await page.getByRole("combobox", { name: "类型" }).click();
+		await page.getByRole("option", { name: "全部类型", exact: true }).click();
+		await expect(threadLink).toBeVisible();
+		await expect(postLink).toBeVisible();
+		await expect(userLink).toBeVisible();
 	});
 });
 

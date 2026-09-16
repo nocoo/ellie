@@ -36,8 +36,7 @@
 // matches the original single-page version.
 
 import { formatNumber } from "@ellie/shared";
-import { Badge, Button } from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+import { Badge, Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";

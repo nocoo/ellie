@@ -3,12 +3,15 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Label,
-} from "@ellie/ui";
+} from "@nocoo/basalt";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { Post, PostUpdate } from "@/viewmodels/admin/posts";
 import { AdminInlineMessage } from "./admin-inline-message";
@@ -53,8 +56,19 @@ export function PostEditDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
+			<DialogContent size="lg" className="grid gap-4" aria-describedby={undefined}>
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>编辑帖子</DialogTitle>
 				</DialogHeader>
 
@@ -63,7 +77,7 @@ export function PostEditDialog({
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
 						<Label htmlFor="edit-content">内容</Label>
-						<textarea
+						<InputArea
 							id="edit-content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}

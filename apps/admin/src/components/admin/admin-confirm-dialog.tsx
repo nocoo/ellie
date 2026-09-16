@@ -3,13 +3,15 @@
 import {
 	Button,
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	Input,
-} from "@ellie/ui";
+} from "@nocoo/basalt";
+import { X } from "lucide-react";
 import { useCallback, useState } from "react";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -64,16 +66,29 @@ export function AdminConfirmDialog({
 
 	const handleOpenChange = useCallback(
 		(nextOpen: boolean) => {
+			if (loading) return;
 			if (!nextOpen) setInputValue("");
 			onOpenChange(nextOpen);
 		},
-		[onOpenChange],
+		[loading, onOpenChange],
 	);
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent>
-				<DialogHeader>
+			<DialogContent className="grid gap-4">
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute right-3 top-3 h-8 w-8"
+						aria-label="关闭弹窗"
+						disabled={loading}
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</DialogClose>
+
+				<DialogHeader className="pr-8">
 					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>{description}</DialogDescription>
 				</DialogHeader>
@@ -87,6 +102,8 @@ export function AdminConfirmDialog({
 							以确认：
 						</p>
 						<Input
+							aria-label="确认文本"
+							disabled={loading}
 							value={inputValue}
 							onChange={(e) => setInputValue(e.target.value)}
 							placeholder={inputPlaceholder ?? requireInput}

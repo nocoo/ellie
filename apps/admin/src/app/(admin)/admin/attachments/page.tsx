@@ -1,5 +1,6 @@
 "use client";
 
+import { Lightbox, type LightboxImage } from "@ellie/ui";
 import {
 	Button,
 	Checkbox,
@@ -7,11 +8,8 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-	Lightbox,
-	type LightboxImage,
-} from "@ellie/ui";
-import { cn } from "@ellie/ui/utils";
-import { LayerCard } from "@nocoo/basalt";
+	LayerCard,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	Download,
@@ -25,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { twMerge as cn } from "tailwind-merge";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
@@ -160,13 +159,11 @@ function AttachmentGridItem({
 			{/* Actions */}
 			<div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm">
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
+					<DropdownMenuTrigger asChild>
+						<Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem
 							onClick={() => window.open(getAttachmentUrl(attachment.filePath), "_blank")}
@@ -317,13 +314,11 @@ function AttachmentListItem({
 					<Download className="h-4 w-4" />
 				</Button>
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button variant="ghost" size="icon" className="h-8 w-8">
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-8 w-8">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={onDelete} className="text-destructive">
 							<Trash2 className="h-4 w-4 mr-2" />

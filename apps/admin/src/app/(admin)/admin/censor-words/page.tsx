@@ -7,8 +7,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+	LayerCard,
+} from "@nocoo/basalt";
+import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -231,13 +232,11 @@ export default function CensorWordsPage() {
 			header: "",
 			cell: (row) => (
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button variant="ghost" size="icon" className="h-8 w-8">
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-8 w-8">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => setEditWord(row)}>编辑</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
@@ -296,7 +295,7 @@ export default function CensorWordsPage() {
 				<h2 className="mb-3 text-lg font-medium text-foreground">内容测试</h2>
 				<p className="mb-3 text-sm text-muted-foreground">测试内容将如何被当前敏感词列表过滤。</p>
 				<div className="space-y-3">
-					<textarea
+					<InputArea
 						value={testInput}
 						onChange={(e) => setTestInput(e.target.value)}
 						placeholder="输入要测试的内容..."

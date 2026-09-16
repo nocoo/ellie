@@ -8,8 +8,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 	Input,
-} from "@ellie/ui";
-import { LayerCard } from "@nocoo/basalt";
+	LayerCard,
+} from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
 import Link from "next/link";
@@ -283,13 +283,11 @@ export default function IpBansPage() {
 			header: "",
 			cell: (row) => (
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button variant="ghost" size="icon" className="h-8 w-8">
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-8 w-8">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => setEditBan(row)}>编辑</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
