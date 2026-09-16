@@ -405,9 +405,10 @@ export default function CensorWordsPage() {
 				<p className="mb-3 text-sm text-basalt-muted-foreground">
 					测试内容将如何被当前敏感词列表过滤。
 				</p>
-				<div className="grid items-start gap-4 lg:grid-cols-2">
-					<div className="space-y-3">
+				<div className="grid gap-4 lg:grid-cols-2">
+					<div className="flex min-w-0 flex-col gap-3">
 						<InputArea
+							className="min-h-28 flex-1"
 							aria-label="要测试的内容"
 							value={testInput}
 							onChange={(e) => setTestInput(e.target.value)}
@@ -420,7 +421,7 @@ export default function CensorWordsPage() {
 						</Button>
 					</div>
 					{!testResult && (
-						<div className="rounded-lg border border-dashed border-basalt-border p-4 text-sm text-basalt-muted-foreground">
+						<div className="flex items-center rounded-lg border border-dashed border-basalt-border p-4 text-sm text-basalt-muted-foreground">
 							输入内容并测试后，这里显示过滤结果与命中词语。
 						</div>
 					)}

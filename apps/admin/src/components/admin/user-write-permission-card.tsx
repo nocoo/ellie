@@ -74,7 +74,7 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 					写权限体检
 				</h2>
 			</LayerCard.Header>
-			<LayerCard.Well className="space-y-3">
+			<LayerCard.Well className="flex-1 space-y-3">
 				{loading ? (
 					<p className="text-sm text-basalt-muted-foreground">正在读取站点设置…</p>
 				) : (

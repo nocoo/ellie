@@ -85,7 +85,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 				]}
 			/>
 
-			<div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+			<div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
 				<LayerCard className="min-w-0">
 					<LayerCard.Header className="flex flex-wrap items-center justify-between gap-2">
 						<h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -98,7 +98,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 							</Link>
 						</Button>
 					</LayerCard.Header>
-					<LayerCard.Well className="min-w-0 space-y-3">
+					<LayerCard.Well className="min-w-0 flex-1 space-y-3">
 						<div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-basalt-muted-foreground">
 							<span>
 								新主题{" "}
@@ -156,7 +156,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 							</Link>
 						</Button>
 					</LayerCard.Header>
-					<LayerCard.Well>
+					<LayerCard.Well className="flex flex-1 flex-col justify-between">
 						{visits ? (
 							<>
 								<div className="flex flex-wrap items-center justify-center gap-3">
@@ -209,7 +209,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 				</LayerCard>
 			</div>
 
-			<div className="grid items-start gap-4 lg:grid-cols-2">
+			<div className="grid gap-4 lg:grid-cols-2">
 				<LayerCard className="min-w-0">
 					<LayerCard.Header className="flex items-center justify-between gap-2">
 						<h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -218,7 +218,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 						</h2>
 						<Badge variant="secondary">近 7 天 · 帖子数</Badge>
 					</LayerCard.Header>
-					<LayerCard.Well className="space-y-3">
+					<LayerCard.Well className="flex-1 space-y-3">
 						{forums?.rows.length ? (
 							[...forums.rows]
 								.sort((a, b) => b.posts - a.posts)
@@ -277,7 +277,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 							</Link>
 						</Button>
 					</LayerCard.Header>
-					<LayerCard.Well>
+					<LayerCard.Well className="flex flex-1 flex-col justify-between">
 						<dl className="grid grid-cols-2 gap-4 text-sm">
 							{[
 								["登录尝试", logins?.loginAttempts],

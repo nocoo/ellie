@@ -411,9 +411,7 @@ export function UserDetailPanel({
 				]}
 			/>
 
-			<div
-				className={`grid items-start gap-4 md:grid-cols-2 ${tombstoned ? "" : "xl:grid-cols-3"}`}
-			>
+			<div className={`grid gap-4 md:grid-cols-2 ${tombstoned ? "" : "xl:grid-cols-3"}`}>
 				<LayerCard padding="sm">
 					<LayerCard.Header>
 						<h2 className="flex items-center gap-2 text-sm font-medium">
@@ -421,7 +419,7 @@ export function UserDetailPanel({
 							基本资料
 						</h2>
 					</LayerCard.Header>
-					<LayerCard.Well>
+					<LayerCard.Well className="flex-1">
 						<DescriptionList columns={1}>
 							<DescriptionList.Item term="邮箱">
 								<div className="break-all">{user.email || "—"}</div>
@@ -443,7 +441,7 @@ export function UserDetailPanel({
 							登录与网络
 						</h2>
 					</LayerCard.Header>
-					<LayerCard.Well className="space-y-4">
+					<LayerCard.Well className="flex-1 space-y-4">
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip. */}
 						<DescriptionList columns={1}>
 							<DescriptionList.Item term="注册 IP">
@@ -530,7 +528,7 @@ export function UserDetailPanel({
 						用户内容
 					</h2>
 				</LayerCard.Header>
-				<LayerCard.Well>
+				<LayerCard.Well className="flex-1">
 					<Tabs
 						className="space-y-3"
 						value={activeContentTab}

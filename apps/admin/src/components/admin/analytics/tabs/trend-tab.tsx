@@ -200,7 +200,7 @@ export function TrendTab(): React.JSX.Element {
 						}))}
 					/>
 				</LayerCard.Header>
-				<LayerCard.Well>
+				<LayerCard.Well className="flex-1">
 					{trendError && (
 						<p role="alert" className="text-sm text-basalt-destructive">
 							趋势加载失败：{trendError}
@@ -218,7 +218,7 @@ export function TrendTab(): React.JSX.Element {
 					{trend && <TrendChart series={trend.series} valueLabel={METRIC_LABELS[trend.metric]} />}
 				</LayerCard.Well>
 			</LayerCard>
-			<div className="grid items-start gap-4 xl:grid-cols-2">
+			<div className="grid gap-4 xl:grid-cols-2">
 				<LayerCard className="min-w-0">
 					<LayerCard.Header className="flex flex-wrap items-center justify-between gap-2">
 						<h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -231,7 +231,7 @@ export function TrendTab(): React.JSX.Element {
 								: "加载中"}
 						</span>
 					</LayerCard.Header>
-					<LayerCard.Well className="space-y-3">
+					<LayerCard.Well className="flex-1 space-y-3">
 						{forumDistError && (
 							<p role="alert" className="text-sm text-basalt-destructive">
 								分布加载失败：{forumDistError}
@@ -306,7 +306,7 @@ export function TrendTab(): React.JSX.Element {
 							{RANGE_LABELS[range]} 签到趋势
 						</h2>
 					</LayerCard.Header>
-					<LayerCard.Well>
+					<LayerCard.Well className="flex-1">
 						{checkinError && (
 							<p role="alert" className="text-sm text-basalt-destructive">
 								签到加载失败：{checkinError}
