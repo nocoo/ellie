@@ -13,7 +13,7 @@ export default defineConfig({
 		root: __dirname,
 		pool: "threads",
 		isolate: true,
-		include: ["tests/**/*.test.ts"],
+		include: ["tests/**/*.test.{ts,tsx}"],
 		exclude: [],
 		passWithNoTests: true,
 		environment: "node",
