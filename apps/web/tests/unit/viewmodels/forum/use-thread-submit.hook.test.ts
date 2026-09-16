@@ -131,6 +131,7 @@ describe("useThreadSubmit hook", () => {
 			await result.current.actions.handleSubmit("<p>short</p>");
 		});
 		expect(result.current.state.error).toContain("内容太短");
+		expect(screen.getByRole("alert").textContent).toContain("内容太短");
 		expect(mockPost).not.toHaveBeenCalled();
 	});
 
@@ -234,7 +235,7 @@ describe("useThreadSubmit hook", () => {
 		expect(errorToast?.textContent).toContain("Error: createThread");
 	});
 
-	it("does not show toast on local validation failure", async () => {
+	it("announces local validation failures without sending a request", async () => {
 		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("ab");
@@ -243,8 +244,8 @@ describe("useThreadSubmit hook", () => {
 			await result.current.actions.handleSubmit("<p>Enough content for the thread body here</p>");
 		});
 		expect(result.current.state.error).toContain("标题");
-		const alert = screen.queryByRole("alert");
-		expect(alert).toBeNull();
+		expect(screen.getByRole("alert").textContent).toContain("请输入标题（至少4个字符）");
+		expect(mockPost).not.toHaveBeenCalled();
 	});
 
 	// -------------------------------------------------------------------------

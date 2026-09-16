@@ -153,27 +153,24 @@ describe("PostEditDialog toast integration", () => {
 		});
 	});
 
-	it("does not show toast on local validation failure (content too short)", async () => {
+	it("announces short content while keeping the draft open and unsaved", async () => {
 		mockEditorContent = "<p>A</p>";
 
-		renderDialog();
+		const onOpenChange = vi.fn();
+		renderDialog({ onOpenChange });
 
 		const submitBtn = screen.getByTestId("editor-submit");
 		await act(async () => {
 			fireEvent.click(submitBtn);
 		});
 
-		// Inline error should be shown
-		await waitFor(() => {
-			expect(screen.getByText("内容太短，请输入更多内容")).toBeTruthy();
-		});
-		// No toast
-		const alert = screen.queryByRole("alert");
-		expect(alert).toBeNull();
+		expect(screen.getByRole("alert").textContent).toContain("内容太短，请输入更多内容");
+		expect(onOpenChange).not.toHaveBeenCalled();
 		expect(mockEditMyPost).not.toHaveBeenCalled();
+		expect(mockEditPost).not.toHaveBeenCalled();
 	});
 
-	it("does not show toast on no-permission branch", async () => {
+	it("announces missing edit permission without saving", async () => {
 		renderDialog({ isOwnPost: false, canModerate: false });
 
 		const submitBtn = screen.getByTestId("editor-submit");
@@ -181,12 +178,8 @@ describe("PostEditDialog toast integration", () => {
 			fireEvent.click(submitBtn);
 		});
 
-		// Inline error should be shown
-		await waitFor(() => {
-			expect(screen.getByText("没有编辑权限")).toBeTruthy();
-		});
-		// No toast
-		const alert = screen.queryByRole("alert");
-		expect(alert).toBeNull();
+		expect(screen.getByRole("alert").textContent).toContain("没有编辑权限");
+		expect(mockEditMyPost).not.toHaveBeenCalled();
+		expect(mockEditPost).not.toHaveBeenCalled();
 	});
 });

@@ -124,10 +124,7 @@ export function NewThreadForm({
 						/>
 					)}
 					{state.error && (
-						<p
-							role="alert"
-							className="mx-5 mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"
-						>
+						<p className="mx-5 mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
 							{state.error}
 						</p>
 					)}

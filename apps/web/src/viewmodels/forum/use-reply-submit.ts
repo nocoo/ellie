@@ -155,7 +155,9 @@ export function useReplySubmit({
 			// Validate content
 			const validation = validateReplyContent(html, minContentLength);
 			if (!validation.valid) {
-				setError(validation.error ?? "内容验证失败");
+				const message = validation.error ?? "内容验证失败";
+				setError(message);
+				toast.error({ title: "请检查内容", description: message });
 				return;
 			}
 

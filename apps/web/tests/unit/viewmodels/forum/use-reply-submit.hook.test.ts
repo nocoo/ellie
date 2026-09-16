@@ -167,13 +167,13 @@ describe("useReplySubmit hook", () => {
 		expect(errorToast?.textContent).toContain("Error: reply");
 	});
 
-	it("does not show toast on local validation failure", async () => {
+	it("announces local validation failures without sending a request", async () => {
 		const { result } = renderHook(() => useReplySubmit({ threadId: 1 }), { wrapper });
 		await act(async () => {
 			await result.current.actions.handleSubmit("<p>A</p>");
 		});
 		expect(result.current.state.error).toBe("内容太短，请输入更多内容");
-		const alert = screen.queryByRole("alert");
-		expect(alert).toBeNull();
+		expect(screen.getByRole("alert").textContent).toContain("内容太短，请输入更多内容");
+		expect(mockPost).not.toHaveBeenCalled();
 	});
 });

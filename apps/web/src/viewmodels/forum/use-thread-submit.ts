@@ -266,7 +266,9 @@ export function useThreadSubmit({
 			// Validate subject
 			const subjectResult = validateSubject(subject, minSubjectLength, maxSubjectLength);
 			if (!subject.trim() || !subjectResult.valid) {
-				setError(`请输入标题（至少${minSubjectLength}个字符）`);
+				const message = `请输入标题（至少${minSubjectLength}个字符）`;
+				setError(message);
+				toast.error({ title: "请检查标题", description: message });
 				return;
 			}
 
@@ -283,7 +285,9 @@ export function useThreadSubmit({
 			// Validate content
 			const contentResult = validateContent(html, minContentLength);
 			if (!contentResult.valid) {
-				setError(contentResult.error ?? "内容验证失败");
+				const message = contentResult.error ?? "内容验证失败";
+				setError(message);
+				toast.error({ title: "请检查内容", description: message });
 				return;
 			}
 

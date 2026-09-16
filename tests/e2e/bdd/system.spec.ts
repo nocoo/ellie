@@ -14,6 +14,8 @@ import { expect, test } from "./fixtures";
 const POPULATED_FORUM_ID = 114;
 const FORUM_WITH_NEW_THREAD = 1;
 const THREAD_WITH_REPLY = 1;
+const THREAD_WITH_OWN_REPLY = 662174;
+const OWN_REPLY_POST_ID = 700001;
 
 const DESKTOP = { width: 1440, height: 900 };
 const TABLET = { width: 768, height: 1024 };
@@ -190,52 +192,88 @@ test.describe("Feature: System & Layout", () => {
 		await expect(dialog).not.toBeVisible();
 	});
 
-	test("Given a short viewport, When I write a new thread or quoted reply, Then the editor stays usable and its actions remain visible", async ({
+	test("Given a short viewport, When I write or edit a post, Then validation feedback and editor actions remain visible", async ({
 		page,
 		loginAs,
 	}) => {
 		await loginAs("e2etest");
-		for (const kind of ["new-thread", "quoted-reply"]) {
-			await page.setViewportSize(DESKTOP);
-			if (kind === "new-thread") {
-				const forumPage = new ForumPage(page);
-				await forumPage.goto(FORUM_WITH_NEW_THREAD);
-				await forumPage.newThreadButton.click();
-			} else {
-				await page.goto(`/threads/${THREAD_WITH_REPLY}`);
-				await page.locator("#post-1").getByRole("button", { name: "回复", exact: true }).click();
+		const mutations: string[] = [];
+		page.on("request", (request) => {
+			if (
+				["POST", "PUT", "PATCH", "DELETE"].includes(request.method()) &&
+				new URL(request.url()).pathname.startsWith("/api/v1/")
+			) {
+				mutations.push(request.url());
 			}
-			const dialog = page.locator('[data-slot="dialog-content"]');
-			await expect(dialog).toBeVisible();
+		});
+		for (const scenario of [
+			{
+				kind: "new-thread",
+				path: `/forums/${FORUM_WITH_NEW_THREAD}`,
+				postId: null,
+				openLabel: "发表新帖",
+				submitLabel: "发布主题",
+			},
+			{
+				kind: "quoted-reply",
+				path: `/threads/${THREAD_WITH_REPLY}`,
+				postId: 1,
+				openLabel: "回复",
+				submitLabel: "发送回复",
+			},
+			{
+				kind: "post-edit",
+				path: `/threads/${THREAD_WITH_OWN_REPLY}`,
+				postId: OWN_REPLY_POST_ID,
+				openLabel: "编辑",
+				submitLabel: "保存",
+			},
+		]) {
 			for (const viewport of [
 				{ width: 667, height: 375 },
 				{ width: 390, height: 400 },
 				{ width: 320, height: 568 },
 			]) {
 				await page.setViewportSize(viewport);
+				await page.goto(scenario.path);
+				const entry = scenario.postId ? page.locator(`#post-${scenario.postId}`) : page;
+				await entry.getByRole("button", { name: scenario.openLabel, exact: true }).first().click();
+				const dialog = page.locator('[data-slot="dialog-content"]');
+				await expect(dialog).toBeVisible();
+				if (scenario.kind === "new-thread") {
+					await dialog.getByRole("textbox", { name: "主题标题", exact: true }).fill("Valid title");
+				}
 				const editor = dialog.getByRole("textbox", { name: "正文", exact: true });
 				await editor.scrollIntoViewIfNeeded();
 				const box = await dialog.locator(".tiptap-content-wrap").boundingBox();
 				expect(
 					box?.height,
-					`${kind} at ${viewport.width}×${viewport.height}`,
+					`${scenario.kind} at ${viewport.width}×${viewport.height}`,
 				).toBeGreaterThanOrEqual(120);
 				await expect(editor).toBeInViewport({ ratio: 0.4 });
 				await editor.click();
-				const draft = `Usable ${kind} draft at ${viewport.width} pixels.`;
+				await editor.fill("A");
+				await editor.press("Control+Enter");
+				const feedback = page.getByRole("alert");
+				await expect(feedback).toHaveCount(1);
+				await expect(feedback).toContainText("内容太短，请输入更多内容");
+				await expect(feedback).toBeInViewport({ ratio: 1 });
+				await expect(dialog).toBeVisible();
+				const draft = `Usable ${scenario.kind} draft at ${viewport.width} pixels.`;
 				await editor.fill(draft);
 				await expect(editor).toContainText(draft);
 				await expect(dialog.getByRole("button", { name: "取消", exact: true })).toBeInViewport();
 				await expect(
 					dialog.getByRole("button", {
-						name: kind === "new-thread" ? "发布主题" : "发送回复",
+						name: scenario.submitLabel,
 						exact: true,
 					}),
 				).toBeInViewport();
+				await dialog.getByRole("button", { name: "取消", exact: true }).click();
+				await expect(dialog).toBeHidden();
 			}
-			await dialog.getByRole("button", { name: "取消", exact: true }).click();
-			await expect(dialog).toBeHidden();
 		}
+		expect(mutations).toEqual([]);
 	});
 
 	test("Given I am on a thread page, When I open the reply dialog at desktop and 375px, Then the dialog fits the viewport, the footer stays inside, and the smiley popover opens", async ({

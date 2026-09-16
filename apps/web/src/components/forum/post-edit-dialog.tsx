@@ -49,7 +49,9 @@ export function PostEditDialog({
 			if (submittingRef.current) return;
 			const strippedContent = stripHtmlTags(html).trim();
 			if (strippedContent.length < 2) {
-				setError("内容太短，请输入更多内容");
+				const message = "内容太短，请输入更多内容";
+				setError(message);
+				toast.error({ title: "请检查内容", description: message });
 				return;
 			}
 
@@ -65,6 +67,7 @@ export function PostEditDialog({
 					await editPost(postId, html);
 				} else {
 					setError("没有编辑权限");
+					toast.error({ title: "无法保存", description: "没有编辑权限" });
 					return;
 				}
 
