@@ -68,7 +68,23 @@ describe("useReplySubmit hook", () => {
 		expect(onClose).toHaveBeenCalled();
 		expect(mockPush).toHaveBeenCalledWith("/threads/123?last=1#post-42");
 		expect(mockRefresh).toHaveBeenCalled();
-		expect(result.current.state.submitting).toBe(true);
+		expect(result.current.state.submitting).toBe(false);
+	});
+
+	it("blocks simultaneous reply requests and allows a later reply", async () => {
+		const { result } = renderHook(() => useReplySubmit({ threadId: 123 }), { wrapper });
+		await act(async () => {
+			await Promise.all([
+				result.current.actions.handleSubmit("<p>First reply</p>"),
+				result.current.actions.handleSubmit("<p>First reply</p>"),
+			]);
+		});
+		expect(mockPost).toHaveBeenCalledTimes(1);
+		expect(result.current.state.submitting).toBe(false);
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>Second reply</p>");
+		});
+		expect(mockPost).toHaveBeenCalledTimes(2);
 	});
 
 	it("prepends quote HTML when quote data is provided", async () => {

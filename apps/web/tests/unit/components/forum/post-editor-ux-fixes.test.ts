@@ -114,6 +114,51 @@ describe("PostEditor — editor wrapper click-to-focus", () => {
 		cleanup();
 	});
 
+	it("updates format selection and character count, and freezes content during submission", async () => {
+		const onSubmit = vi.fn();
+		const view = (submitting: boolean) =>
+			createElement(
+				ForumToastProvider,
+				null,
+				createElement(PostEditor, {
+					initialContent: "<p>Hello</p>",
+					onSubmit,
+					submitting,
+					hideFooter: true,
+				}),
+			);
+		const { rerender } = render(view(false));
+		await waitFor(() => {
+			expect(screen.getByText("5 / 50000")).toBeTruthy();
+		});
+		const bold = screen.getByRole("button", { name: "粗体" });
+		act(() => {
+			fireEvent.click(bold);
+		});
+		expect(bold.getAttribute("aria-pressed")).toBe("true");
+		await openUnifiedPicker();
+		const laugh = await waitFor(() => screen.getByTitle(":laugh:"));
+		act(() => {
+			fireEvent.click(laugh);
+		});
+		await waitFor(() => {
+			expect(screen.getByText("13 / 50000")).toBeTruthy();
+		});
+		rerender(view(true));
+		await waitFor(() => {
+			expect(screen.getByRole("textbox", { name: "正文" }).getAttribute("contenteditable")).toBe(
+				"false",
+			);
+		});
+		expect(screen.getByRole("button", { name: "插入表情" }).hasAttribute("disabled")).toBe(true);
+		rerender(view(false));
+		await waitFor(() => {
+			expect(screen.getByRole("textbox", { name: "正文" }).getAttribute("contenteditable")).toBe(
+				"true",
+			);
+		});
+	});
+
 	it("renders the click-to-focus wrapper around the tiptap content", async () => {
 		renderEditor();
 		const wrap = await waitFor(() => {

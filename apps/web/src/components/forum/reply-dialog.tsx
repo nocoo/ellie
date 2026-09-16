@@ -1,6 +1,6 @@
 "use client";
 
-// Reply dialog with glass-morphism styling (View layer)
+// Reply dialog (View layer)
 // Opens as a modal overlay, contains a simplified PostEditor for replies
 // MVVM: This is the View layer. State and logic are in useReplySubmit hook.
 
@@ -8,6 +8,7 @@ import { MessageSquare, Send, XCircle } from "lucide-react";
 import { useRef } from "react";
 import { PostEditor } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
 import { DialogErrorBanner } from "./dialog-error-banner";
@@ -48,6 +49,7 @@ export function ReplyDialog({
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
+		if (state.submitting) return;
 		if (!open) {
 			actions.clearError();
 		}
@@ -63,8 +65,8 @@ export function ReplyDialog({
 						<XCircle className="h-8 w-8 text-muted-foreground" />
 					</div>
 					<div className="text-center">
-						<h3 className="text-lg font-semibold text-foreground mb-2">回复功能已暂时关闭</h3>
-						<p className="text-sm text-muted-foreground">管理员已暂停回复功能，请稍后再试</p>
+						<DialogTitle className="mb-2 text-lg">回复功能已暂时关闭</DialogTitle>
+						<DialogDescription>管理员已暂停回复功能，请稍后再试</DialogDescription>
 					</div>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
 						关闭
@@ -90,6 +92,7 @@ export function ReplyDialog({
 						title="回复主题"
 						description={`回复：${threadSubject}`}
 						onClose={() => handleOpenChange(false)}
+						closeDisabled={state.submitting}
 					/>
 
 					{state.error && <DialogErrorBanner message={state.error} />}
@@ -109,7 +112,7 @@ export function ReplyDialog({
 			canSubmit={!state.submitting}
 			submitting={state.submitting}
 			onCancel={() => handleOpenChange(false)}
-			footerHint="按 Ctrl+Enter 快速发送"
+			footerHint="Ctrl / ⌘ + Enter 快速发送"
 			submitLabel="发送回复"
 			submittingLabel="发送中..."
 			submitIcon={<Send className="h-4 w-4" />}

@@ -1,6 +1,6 @@
 "use client";
 
-// New thread dialog with glass-morphism styling (View layer)
+// New thread dialog (View layer)
 // Opens as a modal overlay for creating new forum threads
 // MVVM: This is the View layer. State and logic are in useThreadSubmit hook.
 
@@ -9,8 +9,9 @@ import { useRef } from "react";
 import { PostEditor } from "@/components/forum/post-editor";
 import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
 import { Button } from "@/components/ui/button";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { cn } from "@/lib/utils";
 import { type ForumThreadTypesPublic, shouldShowPicker } from "@/viewmodels/forum/thread-types";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
 import { DialogErrorBanner } from "./dialog-error-banner";
@@ -54,6 +55,7 @@ export function NewThreadDialog({
 
 	// Reset state when dialog closes
 	const handleOpenChange = (open: boolean) => {
+		if (state.submitting) return;
 		if (!open) {
 			actions.reset();
 		}
@@ -69,8 +71,8 @@ export function NewThreadDialog({
 						<XCircle className="h-8 w-8 text-muted-foreground" />
 					</div>
 					<div className="text-center">
-						<h3 className="text-lg font-semibold text-foreground mb-2">发帖功能已暂时关闭</h3>
-						<p className="text-sm text-muted-foreground">管理员已暂停发帖功能，请稍后再试</p>
+						<DialogTitle className="mb-2 text-lg">发帖功能已暂时关闭</DialogTitle>
+						<DialogDescription>管理员已暂停发帖功能，请稍后再试</DialogDescription>
 					</div>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
 						关闭
@@ -96,6 +98,7 @@ export function NewThreadDialog({
 						title="发表新帖"
 						description={`发布到：${forumName}`}
 						onClose={() => handleOpenChange(false)}
+						closeDisabled={state.submitting}
 					/>
 
 					{state.error && <DialogErrorBanner message={state.error} />}
@@ -115,22 +118,16 @@ export function NewThreadDialog({
 					{/* Subject input */}
 					<div className="px-5 pt-4">
 						<div className="relative">
-							<input
+							<Input
 								type="text"
+								aria-label="主题标题"
+								aria-invalid={!!validation.subjectError}
 								value={state.subject}
 								onChange={(e) => actions.setSubject(e.target.value)}
 								placeholder="输入主题标题..."
 								disabled={state.submitting}
 								maxLength={100}
-								className={cn(
-									"w-full h-11 rounded-lg border bg-card/50 px-4 text-base font-medium",
-									"placeholder:text-muted-foreground/60 outline-none transition-colors",
-									"focus:border-primary focus:ring-2 focus:ring-primary/20",
-									"disabled:opacity-50 disabled:cursor-not-allowed",
-									validation.subjectError
-										? "border-destructive focus:border-destructive focus:ring-destructive/20"
-										: "border-border/60",
-								)}
+								className="h-11 pr-16 text-base font-medium"
 							/>
 							<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
 								{state.subject.length}/100
@@ -146,7 +143,7 @@ export function NewThreadDialog({
 			canSubmit={validation.canSubmit}
 			submitting={state.submitting}
 			onCancel={() => handleOpenChange(false)}
-			footerHint="按 Ctrl+Enter 快速发布"
+			footerHint="Ctrl / ⌘ + Enter 快速发布"
 			submitLabel="发布主题"
 			submittingLabel="发布中..."
 			submitIcon={<Send className="h-4 w-4" />}

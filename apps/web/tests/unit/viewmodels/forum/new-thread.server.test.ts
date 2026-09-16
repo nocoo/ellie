@@ -67,11 +67,10 @@ describe("loadNewThreadPageData", () => {
 		expect(result.forumName).toBe("Sub Forum");
 	});
 
-	it("returns fallback when ancestors endpoint returns 404", async () => {
+	it("propagates missing or inaccessible forums instead of inventing a valid compose target", async () => {
 		mockForumApi.get.mockRejectedValue(new ForumApiError(404, "FORUM_NOT_FOUND", "Not found"));
 
-		const result = await loadNewThreadPageData(999);
-		expect(result.forumName).toBe("版块 999");
+		await expect(loadNewThreadPageData(999)).rejects.toMatchObject({ status: 404 });
 	});
 
 	it("rethrows non-404 errors from ancestors endpoint", async () => {
@@ -134,6 +133,7 @@ describe("loadNewThreadPageData", () => {
 		});
 
 		const result = await loadNewThreadPageData(1);
+		expect(result.isGroup).toBe(true);
 		// [首页, Root Forum (link), 发表主题]
 		expect(result.breadcrumbs).toHaveLength(3);
 		expect(result.breadcrumbs[0].label).toBe("同济网论坛");

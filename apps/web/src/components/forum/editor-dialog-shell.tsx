@@ -4,7 +4,7 @@
  * EditorDialogShell — shared shell for editor-type dialogs
  * (new-thread, reply, post-edit).
  *
- * Owns: Dialog wrapper, DialogContent glass-panel styling,
+ * Owns: Dialog wrapper, bounded editor layout,
  * showCloseButton={false}, editor area with flex-1/min-h-0 layout
  * and Ctrl/Cmd+Enter submit shortcut, footer bar with hint text
  * and cancel/submit buttons.
@@ -38,10 +38,9 @@ export function EditorDialogFrame({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				className={cn(
-					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[80vw] sm:max-w-[80vw]",
-					"max-h-[90vh] sm:h-[85vh] overflow-hidden flex flex-col",
-					"rounded-xl p-0",
+					"w-[calc(100vw-1.5rem)] sm:w-[90vw] sm:max-w-4xl",
+					"h-[90dvh] max-h-[90dvh] overflow-hidden flex flex-col gap-0",
+					"rounded-2xl p-0",
 				)}
 				showCloseButton={false}
 			>
@@ -95,8 +94,13 @@ export function EditorDialogShell({
 	submitIcon,
 }: EditorDialogShellProps) {
 	return (
-		<EditorDialogFrame open={open} onOpenChange={onOpenChange}>
-			{header}
+		<EditorDialogFrame
+			open={open}
+			onOpenChange={(next) => {
+				if (!submitting) onOpenChange(next);
+			}}
+		>
+			<div className="max-h-[45%] shrink-0 overflow-y-auto">{header}</div>
 
 			{/* Editor area — flex-1 to fill remaining space, Ctrl+Enter shortcut */}
 			{/* biome-ignore lint/a11y/useSemanticElements: <fieldset> would introduce form/reset semantics we don't want; this is a keyboard-shortcut host, not a form control. */}
@@ -105,7 +109,13 @@ export function EditorDialogShell({
 				role="group"
 				aria-label="编辑器"
 				onKeyDown={(e) => {
-					if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSubmit) {
+					if (
+						(e.ctrlKey || e.metaKey) &&
+						e.key === "Enter" &&
+						!e.nativeEvent.isComposing &&
+						canSubmit &&
+						!submitting
+					) {
 						e.preventDefault();
 						onSubmit();
 					}
@@ -115,14 +125,19 @@ export function EditorDialogShell({
 			</div>
 
 			{/* Footer — stacks vertically on narrow screens, row at sm+ */}
-			<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
-				<div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<p className="text-xs text-muted-foreground">{footerHint}</p>
-					<div className="flex items-center justify-end gap-2">
+			<div className="shrink-0 border-t border-border bg-muted/20 px-5 py-3">
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<p className="hidden text-xs text-muted-foreground sm:block">{footerHint}</p>
+					<div className="ml-auto flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={onCancel} disabled={submitting}>
 							取消
 						</Button>
-						<Button onClick={onSubmit} disabled={!canSubmit} className="gap-2">
+						<Button
+							onClick={onSubmit}
+							disabled={!canSubmit || submitting}
+							className="gap-2"
+							aria-busy={submitting}
+						>
 							{submitIcon}
 							{submitting ? submittingLabel : submitLabel}
 						</Button>

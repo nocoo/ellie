@@ -5,7 +5,7 @@
 
 import type { Post } from "@ellie/types";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
@@ -142,6 +142,7 @@ export function useReplySubmit({
 
 	// Submission state
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const clearError = useCallback(() => {
@@ -150,6 +151,7 @@ export function useReplySubmit({
 
 	const handleSubmit = useCallback(
 		async (html: string) => {
+			if (submittingRef.current) return;
 			// Validate content
 			const validation = validateReplyContent(html, minContentLength);
 			if (!validation.valid) {
@@ -157,6 +159,7 @@ export function useReplySubmit({
 				return;
 			}
 
+			submittingRef.current = true;
 			setSubmitting(true);
 			setError(null);
 
@@ -173,6 +176,8 @@ export function useReplySubmit({
 				const message = getErrorMessage(code, "reply");
 				setError(message);
 				toast.error({ title: "回复失败", description: message });
+			} finally {
+				submittingRef.current = false;
 				setSubmitting(false);
 			}
 		},

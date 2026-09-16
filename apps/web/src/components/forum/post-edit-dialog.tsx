@@ -41,16 +41,19 @@ export function PostEditDialog({
 	const toast = useForumToast();
 	const editorRef = useRef<{ getHTML: () => string } | null>(null);
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const handleSubmit = useCallback(
 		async (html: string) => {
+			if (submittingRef.current) return;
 			const strippedContent = stripHtmlTags(html).trim();
 			if (strippedContent.length < 2) {
 				setError("内容太短，请输入更多内容");
 				return;
 			}
 
+			submittingRef.current = true;
 			setSubmitting(true);
 			setError(null);
 
@@ -73,6 +76,7 @@ export function PostEditDialog({
 				setError(message);
 				toast.error({ title: "保存失败", description: message });
 			} finally {
+				submittingRef.current = false;
 				setSubmitting(false);
 			}
 		},
@@ -94,6 +98,8 @@ export function PostEditDialog({
 						icon={<Pencil className="h-5 w-5 text-primary" />}
 						title="编辑回复"
 						description="修改回复内容"
+						onClose={() => onOpenChange(false)}
+						closeDisabled={submitting}
 					/>
 					{error && <DialogErrorBanner message={error} />}
 				</>
@@ -102,7 +108,7 @@ export function PostEditDialog({
 			canSubmit={!submitting}
 			submitting={submitting}
 			onCancel={() => onOpenChange(false)}
-			footerHint="按 Ctrl+Enter 保存"
+			footerHint="Ctrl / ⌘ + Enter 保存"
 			submitLabel="保存"
 			submittingLabel="保存中..."
 			submitIcon={<Save className="h-4 w-4" />}

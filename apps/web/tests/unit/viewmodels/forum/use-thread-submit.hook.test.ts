@@ -79,6 +79,49 @@ describe("useThreadSubmit hook", () => {
 		expect(mockPost).not.toHaveBeenCalled();
 	});
 
+	it("does not publish an untouched empty subject", async () => {
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>Enough content for a valid thread.</p>");
+		});
+		expect(result.current.state.error).toContain("标题");
+		expect(mockPost).not.toHaveBeenCalled();
+	});
+
+	it("sends one request for simultaneous submissions and unlocks for the next compose", async () => {
+		let resolveRequest!: (value: { data: { id: number } }) => void;
+		mockPost.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveRequest = resolve;
+				}),
+		);
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 5 }), { wrapper });
+		act(() => {
+			result.current.actions.setSubject("First thread");
+		});
+		let pending: Promise<void> | undefined;
+		act(() => {
+			pending = result.current.actions.handleSubmit("<p>Content for the first thread.</p>");
+			void result.current.actions.handleSubmit("<p>Content for the first thread.</p>");
+		});
+		expect(mockPost).toHaveBeenCalledTimes(1);
+		expect(result.current.state.submitting).toBe(true);
+		await act(async () => {
+			resolveRequest({ data: { id: 999 } });
+			await pending;
+		});
+		expect(result.current.state.submitting).toBe(false);
+		act(() => {
+			result.current.actions.setSubject("Second thread");
+		});
+		expect(result.current.validation.canSubmit).toBe(true);
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>Content for the second thread.</p>");
+		});
+		expect(mockPost).toHaveBeenCalledTimes(2);
+	});
+
 	it("handleSubmit validates content", async () => {
 		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {

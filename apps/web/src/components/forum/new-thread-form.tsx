@@ -1,219 +1,176 @@
-// components/forum/new-thread-form.tsx — Discuz-style "发表主题" page layout
-// Layout only — submit actions are placeholder (功能暂缓).
-// Reuses the existing Tiptap PostEditor for the rich-text area.
-
 "use client";
 
-import { useState } from "react";
+import { ArrowLeft, PenLine, Send } from "lucide-react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
-import { PostEditor } from "@/components/forum/post-editor";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
+import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
+import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import {
-	EDITOR_TOOL_ACTIONS,
-	EXTRA_OPTIONS,
-	GROUP_OPTIONS,
-	POST_TYPE_TABS,
-	SUBJECT_MAX_LENGTH,
-} from "@/viewmodels/forum/new-thread";
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import { Label } from "@/components/ui/label";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { type ForumThreadTypesPublic, shouldShowPicker } from "@/viewmodels/forum/thread-types";
+import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 
 interface NewThreadFormProps {
 	breadcrumbs: BreadcrumbItem[];
 	forumId: number;
+	forumName: string;
+	threadTypes: ForumThreadTypesPublic;
+	selfEmailVerifiedAt: number;
 }
 
-// ---------------------------------------------------------------------------
-// Layer 1: Post type tabs (发表主题 | 发起投票 | ...)
-// ---------------------------------------------------------------------------
+export function NewThreadForm({
+	breadcrumbs,
+	forumId,
+	forumName,
+	threadTypes,
+	selfEmailVerifiedAt,
+}: NewThreadFormProps) {
+	const editorRef = useRef<PostEditorRef>(null);
+	const checkingRef = useRef(false);
+	const [checking, setChecking] = useState(false);
+	const { canCreateThread, isLoading } = useFeatureFlags();
+	const showPicker = shouldShowPicker(threadTypes);
+	const typeIdRequired = showPicker && threadTypes.required;
+	const { state, actions, validation } = useThreadSubmit({ forumId, typeIdRequired });
+	const busy = checking || state.submitting;
+	const canSubmit = validation.canSubmit && canCreateThread && !isLoading && !busy;
 
-function PostTypeTabs({
-	activeTab,
-	onTabChange,
-}: {
-	activeTab: string;
-	onTabChange: (v: string) => void;
-}) {
-	return (
-		<div className="flex items-end border-b border-border">
-			{POST_TYPE_TABS.map((tab) => {
-				const isActive = tab.value === activeTab;
-				return (
-					<button
-						key={tab.value}
-						type="button"
-						onClick={() => onTabChange(tab.value)}
-						className={cn(
-							"px-4 py-2 text-sm font-medium transition-colors border border-border -mb-px",
-							isActive
-								? "bg-card text-foreground border-b-card"
-								: "bg-muted text-muted-foreground hover:text-foreground border-b-border",
-						)}
-					>
-						{tab.label}
-					</button>
-				);
-			})}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Layer 2: Subject input with char counter
-// ---------------------------------------------------------------------------
-
-function SubjectInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-	const remaining = SUBJECT_MAX_LENGTH - value.length;
+	const handleSubmit = async (html: string) => {
+		if (!canSubmit || checkingRef.current) return;
+		checkingRef.current = true;
+		setChecking(true);
+		try {
+			if (await writeGatePreflight(selfEmailVerifiedAt, "thread")) return;
+			await actions.handleSubmit(html);
+		} finally {
+			checkingRef.current = false;
+			setChecking(false);
+		}
+	};
 
 	return (
-		<div className="flex items-center gap-3 py-3">
-			<Input
-				value={value}
-				onChange={(e) => onChange(e.target.value.slice(0, SUBJECT_MAX_LENGTH))}
-				placeholder=""
-				className="h-[34px] flex-1 rounded border border-input text-sm"
-			/>
-			<span className="whitespace-nowrap text-sm text-muted-foreground">
-				还可输入 <span className="font-bold text-foreground">{remaining}</span> 个字符
-			</span>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Layer 3: Editor toolbar actions (auto-save / word count / resize)
-// ---------------------------------------------------------------------------
-
-function EditorToolbar() {
-	return (
-		<div className="flex items-center justify-end gap-0 border-t border-border px-3 py-1.5 text-xs text-muted-foreground">
-			{EDITOR_TOOL_ACTIONS.map((action, i) => (
-				<span key={action.label} className="flex items-center">
-					{/* Separator: use | between groups, space within */}
-					{i > 0 && i !== 2 && i !== 4 && <span className="mx-1"> </span>}
-					{(i === 2 || i === 4) && <span className="mx-1.5 text-border">|</span>}
-					{action.isAction ? (
-						<button
-							type="button"
-							className="text-muted-foreground hover:text-primary transition-colors"
-						>
-							{action.label}
-						</button>
-					) : (
-						<span className="text-forum-accent">{action.label}</span>
-					)}
-				</span>
-			))}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Layer 4: Extra options row (radio-style toggles)
-// ---------------------------------------------------------------------------
-
-function ExtraOptionsRow() {
-	return (
-		<div className="flex items-center gap-4 border border-border rounded-sm bg-card px-4 py-2.5">
-			{EXTRA_OPTIONS.map((opt) => (
-				<label
-					key={opt.value}
-					htmlFor={`extra-opt-${opt.value}`}
-					className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
-				>
-					<input
-						id={`extra-opt-${opt.value}`}
-						type="radio"
-						name="extra-option"
-						value={opt.value}
-						className="sr-only"
-					/>
-					<span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-card">
-						<span className="h-1.5 w-1.5 rounded-full" />
-					</span>
-					{opt.label}
-				</label>
-			))}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Layer 5: Submit row (buttons + group selector + 本版积分规则)
-// ---------------------------------------------------------------------------
-
-function SubmitRow() {
-	return (
-		<div className="flex items-center justify-between">
-			<div className="flex items-center gap-2">
-				<Button size="default" className="px-4 text-sm">
-					发表主题
-				</Button>
-				<Button variant="outline" size="default" className="px-4 text-sm">
-					保存草稿
-				</Button>
-
-				<span className="ml-2 text-sm text-muted-foreground">来自群组：</span>
-				<select className="h-[30px] rounded border border-input bg-card px-2 text-sm text-muted-foreground outline-none">
-					{GROUP_OPTIONS.map((g) => (
-						<option key={g.value} value={g.value}>
-							{g.label}
-						</option>
-					))}
-				</select>
-			</div>
-
-			<button
-				type="button"
-				className="text-sm text-muted-foreground hover:text-primary transition-colors"
-			>
-				本版积分规则
-			</button>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Main export: NewThreadForm
-// ---------------------------------------------------------------------------
-
-export function NewThreadForm({ breadcrumbs, forumId: _forumId }: NewThreadFormProps) {
-	const [activeTab, setActiveTab] = useState("thread");
-	const [subject, setSubject] = useState("");
-
-	return (
-		<div className="space-y-3">
-			{/* Breadcrumbs */}
+		<div className="mx-auto max-w-5xl space-y-4">
 			<BreadcrumbBar items={breadcrumbs} />
-
-			{/* Post type tabs */}
-			<PostTypeTabs activeTab={activeTab} onTabChange={setActiveTab} />
-
-			{/* Subject input */}
-			<SubjectInput value={subject} onChange={setSubject} />
-
-			{/* Rich text editor (reuse existing Tiptap PostEditor) */}
-			<PostEditor
-				initialContent=""
-				onSubmit={() => {}}
-				placeholder="输入主题内容..."
-				subject={undefined}
-				canSubmit={false}
+			<ForumPageHeader
+				icon={<PenLine />}
+				title="发表主题"
+				description={`发布到 ${forumName}`}
+				actions={
+					<Button
+						variant="outline"
+						render={<Link href={`/forums/${forumId}`} />}
+						nativeButton={false}
+						disabled={busy}
+					>
+						<ArrowLeft className="size-4" aria-hidden="true" />
+						返回版块
+					</Button>
+				}
 			/>
-
-			{/* Auto-save / tool actions bar */}
-			<EditorToolbar />
-
-			{/* Extra options */}
-			<ExtraOptionsRow />
-
-			{/* Submit row */}
-			<SubmitRow />
+			{!canCreateThread ? (
+				<div
+					className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground"
+					role="status"
+				>
+					发帖功能已暂时关闭，请稍后再试。
+				</div>
+			) : (
+				<section
+					className="overflow-hidden rounded-2xl border border-border bg-card"
+					aria-label="编辑主题"
+					aria-busy={busy}
+				>
+					<div className="space-y-2 px-5 pt-5">
+						<div className="flex items-center justify-between gap-3">
+							<Label htmlFor="new-thread-subject">主题标题</Label>
+							<span className="text-xs tabular-nums text-muted-foreground">
+								{state.subject.length}/100
+							</span>
+						</div>
+						<Input
+							id="new-thread-subject"
+							value={state.subject}
+							onChange={(e) => actions.setSubject(e.target.value)}
+							maxLength={100}
+							disabled={busy}
+							placeholder="用一句话概括你想分享的内容"
+							className="h-11 text-base"
+							aria-invalid={!!validation.subjectError}
+						/>
+						<p
+							className={
+								validation.subjectError
+									? "text-xs text-destructive"
+									: "text-xs text-muted-foreground"
+							}
+						>
+							{validation.subjectError ?? "标题 4–100 字，正文至少 10 字。"}
+						</p>
+					</div>
+					{showPicker && (
+						<ThreadTypePicker
+							types={threadTypes.types}
+							value={state.typeId}
+							onChange={actions.setTypeId}
+							required={typeIdRequired}
+							error={validation.typeIdError}
+							disabled={busy}
+						/>
+					)}
+					{state.error && (
+						<p
+							role="alert"
+							className="mx-5 mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"
+						>
+							{state.error}
+						</p>
+					)}
+					{/* biome-ignore lint/a11y/useSemanticElements: keyboard-shortcut host around the rich-text editor. */}
+					<div
+						className="h-[55dvh] min-h-80 px-5 py-4"
+						role="group"
+						aria-label="主题正文"
+						onKeyDown={(event) => {
+							if (
+								(event.ctrlKey || event.metaKey) &&
+								event.key === "Enter" &&
+								!event.nativeEvent.isComposing &&
+								canSubmit
+							) {
+								event.preventDefault();
+								void handleSubmit(editorRef.current?.getHTML() ?? "");
+							}
+						}}
+					>
+						<PostEditor
+							ref={editorRef}
+							onSubmit={handleSubmit}
+							placeholder="写下你的主题内容…"
+							submitting={busy}
+							canSubmit={canSubmit}
+							hideFooter
+						/>
+					</div>
+					<div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-5 py-4">
+						<span className="text-xs text-muted-foreground">Ctrl / ⌘ + Enter 发布</span>
+						<Button
+							onClick={() => {
+								void handleSubmit(editorRef.current?.getHTML() ?? "");
+							}}
+							disabled={!canSubmit}
+						>
+							<Send className="size-4" aria-hidden="true" />
+							{busy ? "发布中…" : "发布主题"}
+						</Button>
+					</div>
+				</section>
+			)}
 		</div>
 	);
 }

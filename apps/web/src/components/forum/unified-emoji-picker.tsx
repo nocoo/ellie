@@ -5,8 +5,9 @@
 
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
-import { Search, Smile } from "lucide-react";
+import { Clock3, MessageCircle, Search, Smile } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getSmileyImageUrl, SMILEY_PACKS } from "@/lib/smiley";
@@ -74,9 +75,10 @@ const FORUM_TABS = [
 
 interface UnifiedEmojiPickerProps {
 	onSelect: (emoji: string) => void;
+	disabled?: boolean;
 }
 
-export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
+export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiPickerProps) {
 	const [open, setOpen] = useState(false);
 	// Forum tab (with default pack) is the initial view — zheng-li wants
 	// users to land on the legacy default smiley group when opening the
@@ -135,15 +137,16 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 		: forumSmileys;
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover open={open && !disabled} onOpenChange={setOpen}>
 			<Tooltip>
 				<TooltipTrigger
 					render={
 						<PopoverTrigger
 							aria-label="插入表情"
-							className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+							disabled={disabled}
+							className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
 						>
-							<Smile className="h-3.5 w-3.5" />
+							<Smile className="h-4 w-4" />
 						</PopoverTrigger>
 					}
 				/>
@@ -153,15 +156,15 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 				{/* Main tabs */}
 				<div className="flex border-b bg-muted/30">
 					<TabButton active={activeTab === "forum"} onClick={() => setActiveTab("forum")}>
-						<span className="mr-1.5">🎭</span>
+						<MessageCircle className="size-3.5" aria-hidden="true" />
 						论坛
 					</TabButton>
 					<TabButton active={activeTab === "unicode"} onClick={() => setActiveTab("unicode")}>
-						<span className="mr-1.5">😀</span>
+						<Smile className="size-3.5" aria-hidden="true" />
 						Emoji
 					</TabButton>
 					<TabButton active={activeTab === "recent"} onClick={() => setActiveTab("recent")}>
-						<span className="mr-1.5">⏰</span>
+						<Clock3 className="size-3.5" aria-hidden="true" />
 						最近
 					</TabButton>
 				</div>
@@ -191,6 +194,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 									key={tab.id}
 									type="button"
 									onClick={() => setForumPack(tab.id)}
+									aria-pressed={forumPack === tab.id}
 									className={cn(
 										"px-2 py-0.5 text-xs rounded transition-colors",
 										forumPack === tab.id
@@ -207,9 +211,10 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 						<div className="px-2 py-1.5 border-b">
 							<div className="relative">
 								<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-								<input
+								<Input
 									type="text"
 									placeholder="搜索表情..."
+									aria-label="搜索表情"
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
 									className="w-full h-7 pl-7 pr-2 text-xs bg-muted/50 rounded border-0 outline-none focus:ring-1 focus:ring-primary/50"
@@ -330,8 +335,9 @@ function TabButton({
 		<button
 			type="button"
 			onClick={onClick}
+			aria-pressed={active}
 			className={cn(
-				"flex-1 py-2 text-xs font-medium transition-colors",
+				"inline-flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
 				active
 					? "text-foreground border-b-2 border-primary"
 					: "text-muted-foreground hover:text-foreground",

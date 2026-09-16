@@ -22,7 +22,7 @@
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
-import { type Editor, EditorContent, useEditor } from "@tiptap/react";
+import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
 	Bold as BoldIcon,
@@ -42,6 +42,7 @@ import {
 	type FormEvent,
 	forwardRef,
 	useCallback,
+	useEffect,
 	useImperativeHandle,
 	useRef,
 	useState,
@@ -66,11 +67,9 @@ export interface PostEditorProps {
 	placeholder?: string;
 	maxLength?: number;
 	disabled?: boolean;
-	subject?: string;
-	onSubjectChange?: (v: string) => void;
 	submitting?: boolean;
 	canSubmit?: boolean;
-	/** Hide the built-in footer (character count + submit button) */
+	/** Keep the character count while the surrounding dialog supplies submit controls. */
 	hideFooter?: boolean;
 }
 
@@ -103,8 +102,9 @@ function ToolbarButton({
 						type="button"
 						onClick={onClick}
 						aria-label={title}
+						aria-pressed={active}
 						disabled={disabled}
-						className={`inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+						className={`inline-flex h-8 w-8 items-center justify-center rounded text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
 							active ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
 						}`}
 					>
@@ -121,7 +121,7 @@ function ToolbarButton({
 // Link popover — URL + display text, sanitized before applying
 // ---------------------------------------------------------------------------
 
-function LinkPopover({ editor }: { editor: Editor }) {
+function LinkPopover({ editor, disabled }: { editor: Editor; disabled: boolean }) {
 	const [open, setOpen] = useState(false);
 	const [url, setUrl] = useState("");
 	const [text, setText] = useState("");
@@ -178,10 +178,13 @@ function LinkPopover({ editor }: { editor: Editor }) {
 		setOpen(false);
 	}, [editor]);
 
-	const isLinkActive = editor.isActive("link");
+	const isLinkActive = useEditorState({
+		editor,
+		selector: ({ editor }) => editor.isActive("link"),
+	});
 
 	return (
-		<Popover open={open} onOpenChange={handleOpenChange}>
+		<Popover open={open && !disabled} onOpenChange={handleOpenChange}>
 			<Tooltip>
 				<TooltipTrigger
 					render={
@@ -190,13 +193,14 @@ function LinkPopover({ editor }: { editor: Editor }) {
 								<button
 									type="button"
 									aria-label="插入链接"
-									className={`inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium transition-colors ${
+									disabled={disabled}
+									className={`inline-flex h-8 w-8 items-center justify-center rounded text-xs font-medium transition-colors ${
 										isLinkActive
 											? "bg-primary text-primary-foreground"
 											: "hover:bg-muted text-muted-foreground"
 									}`}
 								>
-									<LinkIcon className="h-3.5 w-3.5" />
+									<LinkIcon className="h-4 w-4" />
 								</button>
 							}
 						/>
@@ -260,24 +264,24 @@ function LinkPopover({ editor }: { editor: Editor }) {
 
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 
-function ImageUploadButton({ editor }: { editor: Editor }) {
+function ImageUploadButton({ editor, disabled }: { editor: Editor; disabled: boolean }) {
 	const toast = useForumToast();
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const handleClick = useCallback(() => {
-		if (uploading) return;
+		if (uploading || disabled) return;
 		setError(null);
 		inputRef.current?.click();
-	}, [uploading]);
+	}, [uploading, disabled]);
 
 	const handleChange = useCallback(
 		async (e: React.ChangeEvent<HTMLInputElement>) => {
 			const file = e.target.files?.[0];
 			// Always reset so re-selecting the same file works again.
 			e.target.value = "";
-			if (!file) return;
+			if (!file || disabled || uploading) return;
 
 			setUploading(true);
 			setError(null);
@@ -302,7 +306,7 @@ function ImageUploadButton({ editor }: { editor: Editor }) {
 				setUploading(false);
 			}
 		},
-		[editor, toast],
+		[editor, toast, disabled, uploading],
 	);
 
 	return (
@@ -313,14 +317,14 @@ function ImageUploadButton({ editor }: { editor: Editor }) {
 						<button
 							type="button"
 							onClick={handleClick}
-							disabled={uploading}
+							disabled={uploading || disabled}
 							aria-label="插入图片"
-							className="inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+							className="inline-flex h-8 w-8 items-center justify-center rounded text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{uploading ? (
-								<LoaderIcon className="h-3.5 w-3.5 animate-spin" />
+								<LoaderIcon className="h-4 w-4 animate-spin" />
 							) : (
-								<ImageIcon className="h-3.5 w-3.5" />
+								<ImageIcon className="h-4 w-4" />
 							)}
 						</button>
 					}
@@ -331,6 +335,7 @@ function ImageUploadButton({ editor }: { editor: Editor }) {
 				ref={inputRef}
 				type="file"
 				accept={IMAGE_ACCEPT}
+				disabled={uploading || disabled}
 				onChange={handleChange}
 				className="hidden"
 			/>
@@ -342,88 +347,106 @@ function ImageUploadButton({ editor }: { editor: Editor }) {
 // Toolbar — grouped: Block | Inline | List | Insert
 // ---------------------------------------------------------------------------
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, disabled }: { editor: Editor; disabled: boolean }) {
+	const active = useEditorState({
+		editor,
+		selector: ({ editor }) => ({
+			heading2: editor.isActive("heading", { level: 2 }),
+			heading3: editor.isActive("heading", { level: 3 }),
+			blockquote: editor.isActive("blockquote"),
+			codeBlock: editor.isActive("codeBlock"),
+			bold: editor.isActive("bold"),
+			italic: editor.isActive("italic"),
+			underline: editor.isActive("underline"),
+			bulletList: editor.isActive("bulletList"),
+			orderedList: editor.isActive("orderedList"),
+		}),
+	});
 	return (
 		<TooltipProvider delay={400}>
-			<div className="flex items-center gap-0.5 border-b px-2 py-1 flex-wrap">
+			<fieldset
+				disabled={disabled}
+				className="flex min-w-0 flex-wrap items-center gap-0.5 border-b border-border bg-muted/20 px-2 py-1.5"
+			>
+				<legend className="sr-only">文本格式</legend>
 				{/* Block */}
 				<ToolbarButton
-					active={editor.isActive("heading", { level: 2 })}
+					active={active.heading2}
 					onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
 					title="标题 2"
 				>
-					<Heading2Icon className="h-3.5 w-3.5" />
+					<Heading2Icon className="h-4 w-4" />
 				</ToolbarButton>
 				<ToolbarButton
-					active={editor.isActive("heading", { level: 3 })}
+					active={active.heading3}
 					onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
 					title="标题 3"
 				>
-					<Heading3Icon className="h-3.5 w-3.5" />
+					<Heading3Icon className="h-4 w-4" />
 				</ToolbarButton>
 				<ToolbarButton
-					active={editor.isActive("blockquote")}
+					active={active.blockquote}
 					onClick={() => editor.chain().focus().toggleBlockquote().run()}
 					title="引用"
 				>
-					<QuoteIcon className="h-3.5 w-3.5" />
+					<QuoteIcon className="h-4 w-4" />
 				</ToolbarButton>
 				<ToolbarButton
-					active={editor.isActive("codeBlock")}
+					active={active.codeBlock}
 					onClick={() => editor.chain().focus().toggleCodeBlock().run()}
 					title="代码块"
 				>
-					<CodeIcon className="h-3.5 w-3.5" />
+					<CodeIcon className="h-4 w-4" />
 				</ToolbarButton>
 
 				<span className="mx-1 h-4 w-px bg-border" />
 
 				{/* Inline */}
 				<ToolbarButton
-					active={editor.isActive("bold")}
+					active={active.bold}
 					onClick={() => editor.chain().focus().toggleBold().run()}
 					title="粗体"
 				>
-					<BoldIcon className="h-3.5 w-3.5" />
+					<BoldIcon className="h-4 w-4" />
 				</ToolbarButton>
 				<ToolbarButton
-					active={editor.isActive("italic")}
+					active={active.italic}
 					onClick={() => editor.chain().focus().toggleItalic().run()}
 					title="斜体"
 				>
-					<ItalicIcon className="h-3.5 w-3.5" />
+					<ItalicIcon className="h-4 w-4" />
 				</ToolbarButton>
 				<ToolbarButton
-					active={editor.isActive("underline")}
+					active={active.underline}
 					onClick={() => editor.chain().focus().toggleUnderline().run()}
 					title="下划线"
 				>
-					<UnderlineIcon className="h-3.5 w-3.5" />
+					<UnderlineIcon className="h-4 w-4" />
 				</ToolbarButton>
 
 				<span className="mx-1 h-4 w-px bg-border" />
 
 				{/* List */}
 				<ToolbarButton
-					active={editor.isActive("bulletList")}
+					active={active.bulletList}
 					onClick={() => editor.chain().focus().toggleBulletList().run()}
 					title="无序列表"
 				>
-					<ListIcon className="h-3.5 w-3.5" />
+					<ListIcon className="h-4 w-4" />
 				</ToolbarButton>
 				<ToolbarButton
-					active={editor.isActive("orderedList")}
+					active={active.orderedList}
 					onClick={() => editor.chain().focus().toggleOrderedList().run()}
 					title="有序列表"
 				>
-					<ListOrderedIcon className="h-3.5 w-3.5" />
+					<ListOrderedIcon className="h-4 w-4" />
 				</ToolbarButton>
 
 				<span className="mx-1 h-4 w-px bg-border" />
 
 				{/* Insert */}
-				<LinkPopover editor={editor} />
-				<ImageUploadButton editor={editor} />
+				<LinkPopover editor={editor} disabled={disabled} />
+				<ImageUploadButton editor={editor} disabled={disabled} />
 				{/*
 				 * Single emoji entry — `UnifiedEmojiPicker` opens onto the
 				 * forum-default smiley group (laugh / smile / cry / cool / …
@@ -441,11 +464,12 @@ function Toolbar({ editor }: { editor: Editor }) {
 				 * single source of truth for that split — see its tests.
 				 */}
 				<UnifiedEmojiPicker
+					disabled={disabled}
 					onSelect={(token) =>
 						editor.chain().focus().insertContent(emojiTokenToInsertion(token)).run()
 					}
 				/>
-			</div>
+			</fieldset>
 		</TooltipProvider>
 	);
 }
@@ -463,8 +487,6 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 		placeholder = "输入内容...",
 		maxLength = MAX_LENGTH,
 		disabled = false,
-		subject,
-		onSubjectChange,
 		submitting = false,
 		canSubmit: canSubmitProp = true,
 		hideFooter = false,
@@ -496,8 +518,15 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			CharacterCount.configure({ limit: maxLength }),
 		],
 		content: initialContent ?? "",
-		editable: !disabled,
+		editable: !disabled && !submitting,
+		editorProps: {
+			attributes: { role: "textbox", "aria-label": "正文", "aria-multiline": "true" },
+		},
 	});
+
+	useEffect(() => {
+		editor?.setEditable(!disabled && !submitting);
+	}, [editor, disabled, submitting]);
 
 	// Expose getHTML method via ref
 	useImperativeHandle(
@@ -509,30 +538,23 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 	);
 
 	const handleSubmit = useCallback(() => {
-		if (!editor || disabled || submitting) return;
+		if (!editor || disabled || submitting || !canSubmitProp) return;
 		onSubmit(editor.getHTML());
-	}, [editor, disabled, submitting, onSubmit]);
+	}, [editor, disabled, submitting, canSubmitProp, onSubmit]);
 
-	const charCount = editor?.storage.characterCount;
+	const characterCount = useEditorState({
+		editor,
+		selector: ({ editor }) => editor?.storage.characterCount.characters() ?? 0,
+	});
 
 	return (
-		<div className="flex h-full min-h-0 flex-col rounded-lg bg-card border border-border overflow-hidden">
-			{/* Subject (thread mode only) */}
-			{subject !== undefined && onSubjectChange && (
-				<div className="border-b px-3 py-2">
-					<input
-						type="text"
-						value={subject}
-						onChange={(e) => onSubjectChange(e.target.value)}
-						placeholder="输入标题..."
-						disabled={disabled}
-						className="w-full bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none"
-					/>
+		<div className="flex h-full min-h-0 flex-col rounded-xl bg-card border border-border overflow-hidden">
+			{/* Toolbar */}
+			{editor && (
+				<div className="shrink-0">
+					<Toolbar editor={editor} disabled={disabled || submitting} />
 				</div>
 			)}
-
-			{/* Toolbar */}
-			{editor && !disabled && <Toolbar editor={editor} />}
 
 			{/* Editor area — grows to fill the dialog body, scrolls internally.
 			    A click anywhere in this region (including padding / empty
@@ -549,7 +571,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			<div
 				className="tiptap-content-wrap flex flex-1 min-h-0 cursor-text flex-col overflow-y-auto"
 				onClick={(e) => {
-					if (!editor || disabled) return;
+					if (!editor || disabled || submitting) return;
 					// If the click landed on the ProseMirror surface (or a
 					// child of it) tiptap already handles focus + caret
 					// placement. Only step in when the click is in the
@@ -562,14 +584,14 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			>
 				<EditorContent
 					editor={editor}
-					className="tiptap-content min-h-[180px] flex-1 px-3 py-2 text-sm"
+					className="tiptap-content min-h-[180px] flex-1 px-4 py-3 text-base leading-7"
 				/>
 			</div>
-			{!hideFooter && (
-				<div className="flex items-center justify-between border-t px-3 py-2">
-					<span className="text-xs text-muted-foreground">
-						{charCount?.characters() ?? 0} / {maxLength}
-					</span>
+			<div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2">
+				<span className="text-xs text-muted-foreground">
+					{characterCount ?? 0} / {maxLength}
+				</span>
+				{!hideFooter && (
 					<Button
 						size="sm"
 						onClick={handleSubmit}
@@ -577,8 +599,8 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 					>
 						{submitting ? "提交中..." : "提交"}
 					</Button>
-				</div>
-			)}
+				)}
+			</div>
 		</div>
 	);
 });

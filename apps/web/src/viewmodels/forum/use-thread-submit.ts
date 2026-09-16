@@ -4,7 +4,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
@@ -224,6 +224,7 @@ export function useThreadSubmit({
 	const [subject, setSubject] = useState("");
 	const [typeId, setTypeId] = useState<number | null>(null);
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	// Computed validation
@@ -261,9 +262,10 @@ export function useThreadSubmit({
 
 	const handleSubmit = useCallback(
 		async (html: string) => {
+			if (submittingRef.current) return;
 			// Validate subject
 			const subjectResult = validateSubject(subject, minSubjectLength, maxSubjectLength);
-			if (!subjectResult.valid) {
+			if (!subject.trim() || !subjectResult.valid) {
 				setError(`请输入标题（至少${minSubjectLength}个字符）`);
 				return;
 			}
@@ -285,6 +287,7 @@ export function useThreadSubmit({
 				return;
 			}
 
+			submittingRef.current = true;
 			setSubmitting(true);
 			setError(null);
 
@@ -313,6 +316,8 @@ export function useThreadSubmit({
 				const message = typeMessage ?? getErrorMessage(code, "createThread");
 				setError(message);
 				toast.error({ title: "发帖失败", description: message });
+			} finally {
+				submittingRef.current = false;
 				setSubmitting(false);
 			}
 		},

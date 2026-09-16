@@ -1,12 +1,13 @@
-// Route: /forums/[id]/new-thread — Discuz-style 发表主题 page
-// Server Component shell that loads breadcrumb data, then renders the client form.
-
 import type { Metadata } from "next";
-import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { NewThreadForm } from "@/components/forum/new-thread-form";
-import { Card, CardContent } from "@/components/ui/card";
-import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
-import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
+import { ForumApiError } from "@/lib/forum-api";
+import { getCachedForumThreadTypes } from "@/lib/forum-cache";
+import { getSelfForumUser } from "@/lib/forum-self";
+import {
+	loadNewThreadPageData,
+	type NewThreadPageData,
+} from "@/viewmodels/forum/new-thread.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 
 interface NewThreadPageProps {
@@ -28,30 +29,28 @@ export async function generateMetadata({ params }: NewThreadPageProps): Promise<
 export default async function NewThreadPage({ params }: NewThreadPageProps) {
 	const { id } = await params;
 	const forumId = parseIntParam(id);
+	if (forumId == null) notFound();
 
-	if (forumId == null) {
-		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">无效的版块 ID</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-						返回首页
-					</Link>
-				</CardContent>
-			</Card>
-		);
-	}
+	const self = await getSelfForumUser();
+	if (!self) redirect(`/login?redirect=${encodeURIComponent(`/forums/${forumId}/new-thread`)}`);
 
-	const settings = await fetchPublicSettings();
-	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
-	let breadcrumbs = [{ label: homeLabel, href: "/" }, { label: "发表主题" }];
-
+	let data: NewThreadPageData;
 	try {
-		const data = await loadNewThreadPageData(forumId);
-		breadcrumbs = data.breadcrumbs;
-	} catch {
-		// Fallback breadcrumbs if API fails — page still renders
+		data = await loadNewThreadPageData(forumId);
+	} catch (error) {
+		if (error instanceof ForumApiError && error.status === 404) notFound();
+		throw error;
 	}
+	if (data.isGroup) redirect(`/forums/${forumId}`);
+	const threadTypes = await getCachedForumThreadTypes(forumId);
 
-	return <NewThreadForm breadcrumbs={breadcrumbs} forumId={forumId} />;
+	return (
+		<NewThreadForm
+			breadcrumbs={data.breadcrumbs}
+			forumId={forumId}
+			forumName={data.forumName}
+			threadTypes={threadTypes}
+			selfEmailVerifiedAt={self.emailVerifiedAt}
+		/>
+	);
 }

@@ -30,16 +30,19 @@ export function DialogHeroHeader({
 	className,
 }: DialogHeroHeaderProps) {
 	return (
-		<DialogHeader className={cn("px-5 pt-5 pb-4 border-b border-border/50", className)}>
-			<div className="flex items-center justify-between">
+		<DialogHeader className={cn("border-b border-border px-5 py-4", className)}>
+			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3 min-w-0">
-					<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+					<div
+						className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+						aria-hidden="true"
+					>
 						{icon}
 					</div>
 					<div className="min-w-0 flex-1">
 						<DialogTitle className="text-lg">{title}</DialogTitle>
 						{description && (
-							<DialogDescription className="text-xs mt-0.5 truncate">
+							<DialogDescription className="mt-1 break-words text-xs leading-5">
 								{description}
 							</DialogDescription>
 						)}

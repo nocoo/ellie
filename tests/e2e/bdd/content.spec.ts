@@ -175,6 +175,29 @@ test.describe("Feature: Forum Content", () => {
 	// is preserved under the stateful project.
 	// -------------------------------------------------------------------------
 
+	test("Given I open the standalone composer, When I publish a thread, Then its real subject and body appear on the new thread", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
+		await page.goto(`/forums/${FORUM_WITH_NEW_THREAD}/new-thread`);
+		const subject = `Standalone composer ${Date.now()}`;
+		await expect(page.getByRole("heading", { name: "发表主题", exact: true })).toBeVisible();
+		await page.getByLabel("主题标题").fill(subject);
+		await page
+			.getByRole("textbox", { name: "正文", exact: true })
+			.fill("A real locally created thread from the full-page composer.");
+		await page.getByRole("button", { name: "发布主题", exact: true }).click();
+		await page.waitForURL(/\/threads\/\d+/);
+		await expect(page.getByRole("heading", { name: subject, exact: true })).toBeVisible();
+		await expect(
+			page
+				.locator(".prose")
+				.filter({ hasText: "A real locally created thread from the full-page composer." })
+				.first(),
+		).toBeVisible();
+	});
+
 	test.describe
 		.serial("Thread CRUD", () => {
 			let createdThreadUrl = "";
