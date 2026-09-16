@@ -7,7 +7,7 @@
 // WRITE_GATE_EVENT with the restriction reason and code. This dialog
 // listens for that event and renders the appropriate message + CTA.
 
-import { Check } from "lucide-react";
+import { Check, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -69,11 +69,17 @@ export function WriteGateDialogMount() {
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>无法发送内容</DialogTitle>
+					<DialogTitle className="flex items-center gap-2">
+						<ShieldCheck className="h-5 w-5 text-primary" />
+						无法发送内容
+					</DialogTitle>
 					<DialogDescription>{detail.reason}</DialogDescription>
 				</DialogHeader>
 				{onboardingSteps.length > 0 && (
-					<ol aria-label="发帖前的引导步骤" className="flex items-start gap-2 px-1 py-2 text-xs">
+					<ol
+						aria-label="发帖前的引导步骤"
+						className="flex items-start gap-2 rounded-xl bg-muted/40 px-3 py-4 text-xs"
+					>
 						{onboardingSteps.map((step, idx) => (
 							<li
 								key={step.label}

@@ -120,12 +120,19 @@ export function UserModActionDialog({
 	onConfirm,
 }: UserModActionDialogProps) {
 	const config = MOD_ACTION_CONFIG[modAction];
+	const ActionIcon =
+		modAction === "nuke" ? Trash2 : modAction === "mute" || modAction === "unmute" ? VolumeX : Ban;
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent showCloseButton={false} className="sm:max-w-[400px]">
+		<Dialog open onOpenChange={(open) => !open && !loading && onClose()}>
+			<DialogContent showCloseButton={false} className="sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>{config.title}</DialogTitle>
-					<DialogDescription>{config.description(username)}</DialogDescription>
+					<DialogTitle className="flex items-center gap-2">
+						<ActionIcon className="h-5 w-5 text-primary" />
+						{config.title}
+					</DialogTitle>
+					<DialogDescription className="break-words leading-6">
+						{config.description(username)}
+					</DialogDescription>
 				</DialogHeader>
 				{message && (
 					<div
@@ -139,7 +146,7 @@ export function UserModActionDialog({
 						{message.text}
 					</div>
 				)}
-				<DialogFooter className="gap-2 sm:gap-0">
+				<DialogFooter>
 					<Button variant="outline" disabled={loading} onClick={onClose}>
 						取消
 					</Button>

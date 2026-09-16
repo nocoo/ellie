@@ -144,6 +144,30 @@ describe("FloatingToolbar", () => {
 		expect(mockPush).not.toHaveBeenCalled();
 	});
 
+	it("keeps navigation shortcuts inactive while a dialog is open", () => {
+		render(createElement(FloatingToolbar, { backHref: "/forums/1", nextHref: "/threads/1/2" }));
+		const dialog = document.createElement("div");
+		dialog.setAttribute("role", "dialog");
+		document.body.appendChild(dialog);
+		pressKey("Escape");
+		pressKey("ArrowRight");
+		expect(mockPush).not.toHaveBeenCalled();
+		dialog.remove();
+		pressKey("ArrowRight");
+		expect(mockPush).toHaveBeenCalledWith("/threads/1/2");
+	});
+
+	it("does not navigate while choosing a select option or composing text", () => {
+		render(createElement(FloatingToolbar, { nextHref: "/threads/1/2" }));
+		const select = document.createElement("select");
+		document.body.appendChild(select);
+		fireEvent.keyDown(select, { key: "ArrowRight" });
+		select.remove();
+		fireEvent.keyDown(window, { key: "ArrowRight", isComposing: true });
+		fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true });
+		expect(mockPush).not.toHaveBeenCalled();
+	});
+
 	// ─── Disabled prev/next do not navigate ───────────────────────────────
 
 	it("does not navigate on [ when prevHref is null", () => {
@@ -257,7 +281,7 @@ describe("FloatingToolbar", () => {
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "2" } });
 		// Click Go
-		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 		expect(mockPush).toHaveBeenCalledWith("/threads/1/2");
 	});
 
@@ -270,7 +294,7 @@ describe("FloatingToolbar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "1" } });
-		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 		expect(mockPush).toHaveBeenCalledWith("/threads/1");
 	});
 
@@ -296,7 +320,7 @@ describe("FloatingToolbar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "99" } });
-		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 		expect(mockPush).not.toHaveBeenCalled();
 	});
 
@@ -315,7 +339,7 @@ describe("FloatingToolbar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "3" } });
-		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 		expect(mockPush).toHaveBeenCalledWith("/threads/1/3?returnTo=%2Fforums%2F5%2F4");
 	});
 
@@ -332,7 +356,7 @@ describe("FloatingToolbar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "1" } });
-		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 		expect(mockPush).toHaveBeenCalledWith("/threads/1?returnTo=%2Fforums%2F5%2F4");
 	});
 
@@ -345,7 +369,7 @@ describe("FloatingToolbar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "2" } });
-		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 		expect(mockPush).toHaveBeenCalledWith("/threads/1/2");
 	});
 });

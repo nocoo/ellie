@@ -213,7 +213,7 @@ export function UserPopover({
 			<PopoverContent
 				side={side}
 				align={align}
-				className={cn("w-[320px] p-0 overflow-hidden", "glass-panel")}
+				className="w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl"
 			>
 				{/* Loading state */}
 				{loading && <PopoverLoading />}
@@ -352,7 +352,7 @@ export function UserPopover({
 
 function StatItem({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="bg-card/80 py-2 px-1 text-center">
+		<div className="bg-card py-2.5 px-1 text-center tabular-nums">
 			<div className="text-sm font-semibold text-foreground">{value}</div>
 			<div className="text-xs text-muted-foreground" data-testid="user-popover-stat-label">
 				{label}
@@ -363,12 +363,12 @@ function StatItem({ label, value }: { label: string; value: string }) {
 
 function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
 	return (
-		<div className="flex items-center justify-between text-xs">
-			<span className="flex items-center gap-1.5 text-muted-foreground">
+		<div className="flex items-start justify-between gap-3 text-xs">
+			<span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
 				{icon}
 				{label}
 			</span>
-			<span className="text-foreground">{value}</span>
+			<span className="min-w-0 break-words text-right text-foreground">{value}</span>
 		</div>
 	);
 }

@@ -51,7 +51,10 @@ export function Breadcrumbs({ items, mobileCompact = "none" }: BreadcrumbsProps)
 	}
 
 	return (
-		<nav className="flex items-center gap-1 text-sm text-muted-foreground">
+		<nav
+			aria-label="面包屑"
+			className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground"
+		>
 			{items.map((item, index) => {
 				// On mobile, hide the segment AND the chevron-prefix as a single
 				// inline-flex unit so collapsing a middle item doesn't leave a
@@ -60,20 +63,27 @@ export function Breadcrumbs({ items, mobileCompact = "none" }: BreadcrumbsProps)
 				return (
 					<span
 						key={item.label}
-						className={`flex items-center gap-1${mobileHidden ? " hidden sm:inline-flex" : ""}`}
+						className={`flex min-w-0 max-w-full items-center gap-1${mobileHidden ? " hidden sm:inline-flex" : ""}`}
 						data-testid={mobileHidden ? "breadcrumb-segment-mobile-hidden" : "breadcrumb-segment"}
 					>
-						{index > 0 && <ChevronRight className="h-3 w-3" />}
+						{index > 0 && <ChevronRight className="h-3 w-3 shrink-0" aria-hidden="true" />}
 						{item.href ? (
 							<Link
 								href={item.href}
-								className="flex items-center gap-1 hover:text-foreground transition-colors"
+								className="flex min-w-0 items-center gap-1 break-words hover:text-foreground transition-colors"
 							>
-								{item.icon === "home" && <Home className="h-3.5 w-3.5" />}
-								{item.label}
+								{item.icon === "home" && (
+									<Home className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+								)}
+								<span className="min-w-0 break-words">{item.label}</span>
 							</Link>
 						) : (
-							<span className="text-foreground font-medium">{item.label}</span>
+							<span
+								aria-current={index === items.length - 1 ? "page" : undefined}
+								className="min-w-0 break-words text-foreground font-medium"
+							>
+								{item.label}
+							</span>
 						)}
 					</span>
 				);

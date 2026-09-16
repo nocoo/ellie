@@ -55,13 +55,14 @@ function isInputTarget(e: KeyboardEvent): boolean {
 	return (
 		t instanceof HTMLInputElement ||
 		t instanceof HTMLTextAreaElement ||
+		t instanceof HTMLSelectElement ||
 		(t instanceof HTMLElement && t.isContentEditable)
 	);
 }
 
 /** Check if a keyboard event has any modifier keys */
 function hasModifier(e: KeyboardEvent): boolean {
-	return e.metaKey || e.ctrlKey || e.altKey;
+	return e.metaKey || e.ctrlKey || e.altKey || e.shiftKey;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +94,7 @@ function ToolbarButton({
 						onClick={disabled ? undefined : onClick}
 						disabled={disabled}
 						className={cn(
-							"inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+							"inline-flex items-center justify-center size-10 rounded-xl transition-colors sm:size-8 sm:rounded-lg",
 							disabled
 								? "text-muted-foreground/40 cursor-not-allowed"
 								: "text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer",
@@ -203,7 +204,7 @@ function JumpPagePopover({
 						value={value}
 						onChange={(e) => setValue(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter") handleGo();
+							if (e.key === "Enter" && !e.nativeEvent.isComposing) handleGo();
 							if (e.key === "Escape") onOpenChange(false);
 						}}
 						className="h-7 w-14 rounded-md border border-border bg-background px-1.5 text-xs text-center tabular-nums outline-none focus:border-ring focus:ring-1 focus:ring-ring/50"
@@ -215,7 +216,7 @@ function JumpPagePopover({
 						onClick={handleGo}
 						className="inline-flex h-7 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
 					>
-						Go
+						跳转
 					</button>
 				</div>
 			</PopoverContent>
@@ -272,7 +273,8 @@ export function FloatingToolbar({
 		if (canJumpPage) keyActions.g = () => setJumpPageOpen((prev) => !prev);
 
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (isInputTarget(e) || hasModifier(e)) return;
+			if (e.defaultPrevented || e.isComposing || isInputTarget(e) || hasModifier(e)) return;
+			if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return;
 			const action = keyActions[e.key];
 			if (action) {
 				e.preventDefault();
@@ -287,9 +289,12 @@ export function FloatingToolbar({
 	const showAction = actionType !== "none" && onAction;
 
 	return (
-		<div className="fixed bottom-4 right-4 z-40">
+		<div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40">
 			<TooltipProvider delay={300}>
-				<div className="flex items-center gap-0.5 rounded-lg bg-card/90 backdrop-blur-sm border border-border/60 shadow-md px-1 h-9">
+				<fieldset
+					aria-label="阅读工具"
+					className="flex items-center gap-0.5 rounded-2xl bg-card/95 backdrop-blur-sm border border-border shadow-lg px-1 py-1 sm:rounded-xl"
+				>
 					{/* Scroll to top */}
 					<ToolbarButton
 						onClick={scrollToTop}
@@ -351,11 +356,7 @@ export function FloatingToolbar({
 								onClick={onAction}
 								label={actionType === "reply" ? "快速回帖" : "发表新帖"}
 								shortcut={actionType === "reply" ? "r" : "n"}
-								className={
-									actionType === "reply"
-										? "text-primary hover:text-primary hover:bg-primary/10"
-										: "text-primary hover:text-primary hover:bg-primary/10"
-								}
+								className="text-primary hover:text-primary hover:bg-primary/10"
 							>
 								{actionType === "reply" ? (
 									<MessageSquarePlus className="h-4 w-4" />
@@ -365,7 +366,7 @@ export function FloatingToolbar({
 							</ToolbarButton>
 						</>
 					)}
-				</div>
+				</fieldset>
 			</TooltipProvider>
 		</div>
 	);
