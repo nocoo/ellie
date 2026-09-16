@@ -2,10 +2,11 @@
 
 import { Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { RotateCcw, Save } from "lucide-react";
+import { Link2, RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminSaveBar } from "@/components/admin/admin-save-bar";
 import { updateSettings } from "@/viewmodels/admin/settings";
 import { NavLinksEditor } from "./nav-links-editor";
 
@@ -75,17 +76,22 @@ export function LinkListSettings({
 	}, [dirty, settingKey, currentValue, router]);
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title={title}
+				title={
+					<span className="flex items-center gap-2">
+						<Link2 aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						{title}
+					</span>
+				}
 				description={description}
 				actions={
 					<>
-						<Button variant="outline" onClick={handleReset} disabled={!dirty || saving}>
+						<Button variant="outline" size="sm" onClick={handleReset} disabled={!dirty || saving}>
 							<RotateCcw className="mr-1 h-3.5 w-3.5" />
 							重置
 						</Button>
-						<Button onClick={handleSave} disabled={!dirty || saving}>
+						<Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
 							<Save className="mr-1 h-3.5 w-3.5" />
 							{saving ? "保存中..." : "保存"}
 						</Button>
@@ -97,9 +103,10 @@ export function LinkListSettings({
 			{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
 			{/* Link editor card */}
-			<LayerCard padding="none" className="p-4 md:p-6">
+			<LayerCard padding="none" className="p-4">
 				<NavLinksEditor settingKey={settingKey} value={currentValue} onChange={handleChange} />
 			</LayerCard>
+			<AdminSaveBar dirty={dirty} saving={saving} onReset={handleReset} onSave={handleSave} />
 		</div>
 	);
 }

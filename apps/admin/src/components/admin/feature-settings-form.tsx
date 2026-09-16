@@ -1,12 +1,22 @@
 "use client";
 
-import { Button, Checkbox, Input, Label, LayerCard } from "@nocoo/basalt";
+import { Badge, Button, Input, Label, LayerCard, Switch } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { RotateCcw, Save } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+	ListOrdered,
+	MessagesSquare,
+	RotateCcw,
+	Save,
+	ShieldCheck,
+	SlidersHorizontal,
+	Users,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { twMerge as cn } from "tailwind-merge";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminSaveBar } from "@/components/admin/admin-save-bar";
 import {
 	FEATURE_GROUPS,
 	type FeatureFieldDef,
@@ -15,6 +25,13 @@ import {
 	toFormValues,
 	updateSettings,
 } from "@/viewmodels/admin/features";
+
+const GROUP_ICONS: Record<string, LucideIcon> = {
+	access: ShieldCheck,
+	registration: Users,
+	content: MessagesSquare,
+	posting: ListOrdered,
+};
 
 // ---------------------------------------------------------------------------
 // Props
@@ -72,17 +89,22 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 	}, [formValues, savedValues, router]);
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="功能设置"
+				title={
+					<span className="flex items-center gap-2">
+						<SlidersHorizontal aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						功能设置
+					</span>
+				}
 				description="控制站点功能开关和访问限制，更改将在保存后立即生效"
 				actions={
 					<>
-						<Button variant="outline" onClick={handleReset} disabled={!dirty || saving}>
+						<Button variant="outline" size="sm" onClick={handleReset} disabled={!dirty || saving}>
 							<RotateCcw className="mr-1 h-3.5 w-3.5" />
 							重置
 						</Button>
-						<Button onClick={handleSave} disabled={!dirty || saving}>
+						<Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
 							<Save className="mr-1 h-3.5 w-3.5" />
 							{saving ? "保存中..." : "保存"}
 						</Button>
@@ -94,29 +116,61 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 			{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
 			{/* Feature groups */}
-			{FEATURE_GROUPS.map((group) => (
-				<LayerCard padding="none" key={group.id} className="p-4 md:p-6">
-					<h2 className="text-base font-semibold text-basalt-foreground">{group.title}</h2>
-					<p className="mt-1 text-sm text-basalt-muted-foreground">{group.description}</p>
+			<div className="grid items-start gap-4 xl:grid-cols-[200px_minmax(0,1fr)]">
+				<nav aria-label="设置分组" className="flex flex-wrap gap-1 xl:sticky xl:top-0 xl:flex-col">
+					{FEATURE_GROUPS.map((group) => (
+						<a
+							key={group.id}
+							href={`#${group.id}`}
+							className="rounded-md px-3 py-2 text-sm text-basalt-muted-foreground transition-colors hover:bg-basalt-accent hover:text-basalt-foreground"
+						>
+							{group.title}
+						</a>
+					))}
+				</nav>
+				<div className="min-w-0 space-y-4">
+					{FEATURE_GROUPS.map((group) => (
+						<LayerCard
+							padding="none"
+							key={group.id}
+							id={group.id}
+							className="scroll-mt-4 p-4 md:p-5"
+						>
+							<div className="mb-4 flex items-start justify-between gap-3 border-b border-basalt-border pb-3">
+								<div>
+									<h2 className="flex items-center gap-2 text-sm font-semibold">
+										{(() => {
+											const Icon = GROUP_ICONS[group.id];
+											return <Icon aria-hidden="true" className="h-4 w-4 text-basalt-primary" />;
+										})()}
+										{group.title}
+									</h2>
+									<p className="mt-1 text-xs text-basalt-muted-foreground">{group.description}</p>
+								</div>
+								<Badge variant="secondary">{group.fields.length} 项</Badge>
+							</div>
 
-					<div className="mt-4 space-y-4">
-						{group.fields.map((field) => (
-							<FeatureFieldInput
-								key={field.key}
-								field={field}
-								value={formValues[field.key] ?? ""}
-								onChange={handleChange}
-								disabled={
-									// Disable child fields if parent toggle is off
-									group.id === "posting" &&
-									field.key !== "features.posting.enabled" &&
-									formValues["features.posting.enabled"] !== "true"
-								}
-							/>
-						))}
-					</div>
-				</LayerCard>
-			))}
+							<div className="grid gap-3 lg:grid-cols-2">
+								{group.fields.map((field) => (
+									<FeatureFieldInput
+										key={field.key}
+										field={field}
+										value={formValues[field.key] ?? ""}
+										onChange={handleChange}
+										disabled={
+											// Disable child fields if parent toggle is off
+											group.id === "posting" &&
+											field.key !== "features.posting.enabled" &&
+											formValues["features.posting.enabled"] !== "true"
+										}
+									/>
+								))}
+							</div>
+						</LayerCard>
+					))}
+				</div>
+			</div>
+			<AdminSaveBar dirty={dirty} saving={saving} onReset={handleReset} onSave={handleSave} />
 		</div>
 	);
 }
@@ -138,9 +192,12 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 		return (
 			<LayerCard
 				padding="none"
-				className={cn("flex items-start gap-3 p-4 transition-colors", disabled && "opacity-50")}
+				className={cn(
+					"flex flex-row-reverse items-start gap-3 p-3 transition-colors",
+					disabled && "opacity-50",
+				)}
 			>
-				<Checkbox
+				<Switch
 					id={field.key}
 					checked={checked}
 					onCheckedChange={(newChecked) => onChange(field.key, newChecked ? "true" : "false")}
@@ -164,7 +221,10 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 		return (
 			<LayerCard
 				padding="none"
-				className={cn("flex items-center gap-4 p-4 transition-colors", disabled && "opacity-50")}
+				className={cn(
+					"flex flex-wrap items-center gap-3 p-3 transition-colors",
+					disabled && "opacity-50",
+				)}
 			>
 				<div className="flex-1 space-y-1">
 					<Label htmlFor={field.key} className="font-medium">
@@ -181,7 +241,7 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 						onChange={(e) => onChange(field.key, e.target.value)}
 						min={field.min ?? 0}
 						disabled={disabled}
-						className="w-20 text-center"
+						className="h-8 w-20 text-center"
 					/>
 					{field.suffix && (
 						<span className="text-sm text-basalt-muted-foreground">{field.suffix}</span>

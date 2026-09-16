@@ -18,9 +18,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Button, Input, LayerCard } from "@nocoo/basalt";
+import { Badge, Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
-import { useCallback, useId, useMemo, useRef } from "react";
+import { useCallback, useId, useMemo } from "react";
 import type { NavLinkItem } from "@/viewmodels/admin/settings";
 
 // ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 			padding="none"
 			ref={setNodeRef}
 			style={style}
-			className="flex items-center gap-2 p-2"
+			className="grid grid-cols-[24px_minmax(0,1fr)_32px] items-center gap-2 p-3 sm:grid-cols-[24px_minmax(100px,1fr)_minmax(160px,2fr)_32px]"
 		>
 			<Button
 				type="button"
@@ -98,27 +98,39 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 			>
 				<GripVertical className="h-4 w-4" />
 			</Button>
-			<Input
-				aria-label="显示名称"
-				value={item.label}
-				placeholder="显示名称"
-				onChange={(e) => onUpdate(item.id, "label", e.target.value)}
-				className="flex-1"
-			/>
-			<Input
-				aria-label="链接地址"
-				value={item.url}
-				placeholder="链接地址"
-				onChange={(e) => onUpdate(item.id, "url", e.target.value)}
-				className="flex-1"
-			/>
+			<div className="min-w-0 space-y-1">
+				<Label htmlFor={`${item.id}-label`} className="text-[11px] text-basalt-muted-foreground">
+					显示名称
+				</Label>
+				<Input
+					id={`${item.id}-label`}
+					aria-label="显示名称"
+					value={item.label}
+					placeholder="显示名称"
+					onChange={(e) => onUpdate(item.id, "label", e.target.value)}
+					className="h-8 min-w-0"
+				/>
+			</div>
+			<div className="col-start-2 row-start-2 min-w-0 space-y-1 sm:col-start-auto sm:row-start-auto">
+				<Label htmlFor={`${item.id}-url`} className="text-[11px] text-basalt-muted-foreground">
+					链接地址
+				</Label>
+				<Input
+					id={`${item.id}-url`}
+					aria-label="链接地址"
+					value={item.url}
+					placeholder="链接地址"
+					onChange={(e) => onUpdate(item.id, "url", e.target.value)}
+					className="h-8 min-w-0 font-mono text-xs"
+				/>
+			</div>
 			<Button
 				type="button"
 				variant="ghost"
 				size="icon"
 				onClick={() => onDelete(item.id)}
 				aria-label={`删除链接 ${item.label || "未命名"}`}
-				className="shrink-0 text-basalt-muted-foreground hover:text-basalt-destructive"
+				className="col-start-3 row-start-1 h-8 w-8 shrink-0 text-basalt-muted-foreground hover:text-basalt-destructive sm:col-start-auto sm:row-start-auto"
 			>
 				<Trash2 className="h-4 w-4" />
 			</Button>
@@ -132,7 +144,6 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 
 export function NavLinksEditor({ settingKey, value, onChange }: NavLinksEditorProps) {
 	const prefix = useId();
-	const lastEmittedRef = useRef(value);
 
 	const links = useMemo(() => parseLinks(value), [value]);
 
@@ -146,12 +157,11 @@ export function NavLinksEditor({ settingKey, value, onChange }: NavLinksEditorPr
 	const emit = useCallback(
 		(next: NavLinkWithId[]) => {
 			const json = serializeLinks(next);
-			if (json !== lastEmittedRef.current) {
-				lastEmittedRef.current = json;
+			if (json !== value) {
 				onChange(settingKey, json);
 			}
 		},
-		[onChange, settingKey],
+		[onChange, settingKey, value],
 	);
 
 	// Re-index IDs with the instance prefix for uniqueness
@@ -194,7 +204,18 @@ export function NavLinksEditor({ settingKey, value, onChange }: NavLinksEditorPr
 	}, [itemsWithIds, emit, prefix]);
 
 	return (
-		<div className="mt-4 space-y-2">
+		<div className="space-y-3">
+			<div className="flex flex-wrap items-center justify-between gap-2 border-b border-basalt-border pb-3">
+				<p className="text-xs text-basalt-muted-foreground">
+					拖动手柄排序；键盘可用空格选中、方向键移动。
+				</p>
+				<Badge variant="secondary">{itemsWithIds.length} 个链接</Badge>
+			</div>
+			{itemsWithIds.length === 0 && (
+				<p className="py-6 text-center text-sm text-basalt-muted-foreground">
+					尚未配置链接，点击下方添加。
+				</p>
+			)}
 			<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
 				<SortableContext items={itemsWithIds} strategy={verticalListSortingStrategy}>
 					{itemsWithIds.map((item) => (
