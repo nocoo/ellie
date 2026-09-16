@@ -183,4 +183,48 @@ test.describe("Admin Basalt integration", () => {
 		await page.keyboard.press("Escape");
 		await expect(menuTrigger).toBeFocused();
 	});
+
+	test("renders responsive charts with named keyboard tooltips and independent gradients", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		const series = [1, 2, 3].map((count) => ({ date: `2026-09-${13 + count}`, count }));
+		await page.route("**/api/admin/analytics/trend?**", (route) =>
+			route.fulfill({ json: { data: { metric: "users", range: "7d", series } } }),
+		);
+		await page.route("**/api/admin/analytics/checkin?**", (route) =>
+			route.fulfill({ json: { data: { range: "7d", series } } }),
+		);
+		await page.route("**/api/admin/analytics/forum-dist?**", (route) =>
+			route.fulfill({
+				json: {
+					data: {
+						range: "7d",
+						rows: Array.from({ length: 14 }, (_, i) => ({
+							forumId: i + 1,
+							forumName: `版块 ${i + 1}`,
+							posts: 20 - i,
+						})),
+					},
+				},
+			}),
+		);
+		await loginAsAdmin();
+		await page.goto("/admin/analytics");
+		const trend = page.getByRole("group", { name: "新注册趋势", exact: true });
+		const plot = trend.locator("svg.recharts-surface");
+		await expect(plot).toBeVisible();
+		await plot.focus();
+		await page.keyboard.press("ArrowRight");
+		await expect(trend.getByTestId("chart-tooltip")).toBeVisible();
+		await expect(trend.getByTestId("chart-tooltip")).toContainText("新注册");
+		await expect(trend.getByTestId("chart-tooltip")).toContainText("2026-09-");
+		const distribution = page.getByRole("group", { name: "版块回复数分布", exact: true });
+		await expect(distribution.locator(".recharts-bar-rectangle")).toHaveCount(12);
+		const gradientIds = await page
+			.locator("linearGradient")
+			.evaluateAll((nodes) => nodes.map((node) => node.id));
+		expect(gradientIds).toHaveLength(2);
+		expect(new Set(gradientIds).size).toBe(2);
+	});
 });

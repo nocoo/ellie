@@ -1,9 +1,10 @@
 "use client";
 
+import { AXIS_CONFIG, GRID_PROPS } from "@nocoo/basalt/charts/config";
+import { ChartFrame } from "@nocoo/basalt/charts/frame";
+import { ChartTooltipContent } from "@nocoo/basalt/charts/tooltip";
 import { useId } from "react";
 import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
-import { ChartTooltip } from "@/components/admin/analytics/chart-tooltip";
-import { DashboardResponsiveContainer } from "@/components/admin/analytics/responsive-container";
 import type { AnalyticsTrendPoint } from "@/viewmodels/admin/analytics";
 
 interface TrendChartProps {
@@ -14,7 +15,7 @@ interface TrendChartProps {
 
 /**
  * Pure AreaChart for a single time series. Caller controls the
- * outer dimensions via the parent div (we set 100% × 100%).
+ * dimensions through Basalt ChartFrame.
  *
  * `series` is expected dense (one point per day); the wrapping
  * viewmodel calls fill missing days with `count=0` so the x-axis is
@@ -27,31 +28,36 @@ interface TrendChartProps {
  */
 export function TrendChart({
 	series,
-	color = "var(--color-chart-primary, #3b82f6)",
+	color = "hsl(var(--basalt-chart-1))",
 	valueLabel = "count",
 }: TrendChartProps) {
 	const gradientId = useId();
 	const fillRef = `url(#${gradientId})`;
 	return (
-		<div className="h-72 w-full">
-			<DashboardResponsiveContainer>
-				<AreaChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-					<defs>
-						<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-							<stop offset="0%" stopColor={color} stopOpacity={0.35} />
-							<stop offset="100%" stopColor={color} stopOpacity={0} />
-						</linearGradient>
-					</defs>
-					<CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-					<XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={24} />
-					<YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={32} />
-					<Tooltip
-						cursor={{ stroke: "hsl(var(--border))", strokeDasharray: "3 3" }}
-						content={<ChartTooltip formatter={(value) => [Number(value), valueLabel]} />}
-					/>
-					<Area type="monotone" dataKey="count" stroke={color} strokeWidth={2} fill={fillRef} />
-				</AreaChart>
-			</DashboardResponsiveContainer>
-		</div>
+		<ChartFrame ariaLabel={`${valueLabel}趋势`} size="h-72 w-full">
+			<AreaChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+				<defs>
+					<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+						<stop offset="0%" stopColor={color} stopOpacity={0.35} />
+						<stop offset="100%" stopColor={color} stopOpacity={0} />
+					</linearGradient>
+				</defs>
+				<CartesianGrid {...GRID_PROPS} />
+				<XAxis {...AXIS_CONFIG} dataKey="date" minTickGap={24} />
+				<YAxis {...AXIS_CONFIG} allowDecimals={false} width={32} />
+				<Tooltip
+					cursor={{ stroke: "hsl(var(--basalt-border))", strokeDasharray: "3 3" }}
+					content={<ChartTooltipContent />}
+				/>
+				<Area
+					type="monotone"
+					dataKey="count"
+					name={valueLabel}
+					stroke={color}
+					strokeWidth={2}
+					fill={fillRef}
+				/>
+			</AreaChart>
+		</ChartFrame>
 	);
 }

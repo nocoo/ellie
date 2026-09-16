@@ -156,7 +156,7 @@ export function TrendTab(): React.JSX.Element {
 					{checkin && (
 						<TrendChart
 							series={checkin.series}
-							color="var(--color-chart-tertiary, #f59e0b)"
+							color="hsl(var(--basalt-chart-7))"
 							valueLabel="签到"
 						/>
 					)}

@@ -1,8 +1,9 @@
 "use client";
 
+import { AXIS_CONFIG, GRID_PROPS } from "@nocoo/basalt/charts/config";
+import { ChartFrame } from "@nocoo/basalt/charts/frame";
+import { ChartTooltipContent } from "@nocoo/basalt/charts/tooltip";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
-import { ChartTooltip } from "@/components/admin/analytics/chart-tooltip";
-import { DashboardResponsiveContainer } from "@/components/admin/analytics/responsive-container";
 import type { AnalyticsForumDistRow } from "@/viewmodels/admin/analytics";
 
 interface ForumDistChartProps {
@@ -20,19 +21,22 @@ interface ForumDistChartProps {
 export function ForumDistChart({ rows, limit = 12 }: ForumDistChartProps) {
 	const data = rows.slice(0, limit);
 	return (
-		<div className="h-[420px] w-full">
-			<DashboardResponsiveContainer>
-				<BarChart data={data} layout="vertical" margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
-					<CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-					<XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-					<YAxis dataKey="forumName" type="category" tick={{ fontSize: 11 }} width={140} />
-					<Tooltip
-						cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
-						content={<ChartTooltip formatter={(value) => [Number(value), "回复数"]} />}
-					/>
-					<Bar dataKey="posts" fill="var(--color-chart-secondary, #10b981)" radius={[0, 4, 4, 0]} />
-				</BarChart>
-			</DashboardResponsiveContainer>
-		</div>
+		<ChartFrame ariaLabel="版块回复数分布" size="h-[420px] w-full">
+			<BarChart data={data} layout="vertical" margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+				<CartesianGrid {...GRID_PROPS} horizontal={false} vertical />
+				<XAxis {...AXIS_CONFIG} type="number" allowDecimals={false} />
+				<YAxis {...AXIS_CONFIG} dataKey="forumName" type="category" width={140} />
+				<Tooltip
+					cursor={{ fill: "hsl(var(--basalt-muted) / 0.4)" }}
+					content={<ChartTooltipContent />}
+				/>
+				<Bar
+					dataKey="posts"
+					name="回复数"
+					fill="hsl(var(--basalt-chart-3))"
+					radius={[0, 4, 4, 0]}
+				/>
+			</BarChart>
+		</ChartFrame>
 	);
 }

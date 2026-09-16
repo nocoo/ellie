@@ -11,59 +11,18 @@
 //      gradient id it actually renders.
 //   3. ForumDistChart honours the `limit` prop (top-N truncation).
 //
-// We use happy-dom + testing-library and bypass the responsive-container
-// gate by stubbing `recharts`'s `ResponsiveContainer` to render its
-// child directly with a fixed width/height — otherwise the
-// `ResizeObserver`-driven `ready` flag in
-// `DashboardResponsiveContainer` keeps the chart unmounted in the test
-// DOM.
-
 // @vitest-environment happy-dom
 
-import { cloneElement, isValidElement } from "react";
+import { cloneElement, type ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Bypass the ResizeObserver-gated DashboardResponsiveContainer in the
-// test DOM — happy-dom does not paint, so the wrapper never flips its
-// `ready` flag and the chart stays unmounted. Render its child
-// directly so the underlying Recharts tree shows up.
-//
-// We also need to fan out width/height to the chart's only child
-// (AreaChart / BarChart). The real `ResponsiveContainer` measures
-// itself and passes width/height via cloneElement; our stub does the
-// same so the chart actually renders SVG content in happy-dom.
-vi.mock("@/components/admin/analytics/responsive-container", () => ({
-	DashboardResponsiveContainer: ({ children }: { children: React.ReactNode }) => {
-		if (isValidElement(children)) {
-			return cloneElement(children as React.ReactElement<{ width?: number; height?: number }>, {
-				width: 600,
-				height: 300,
-			});
-		}
-		return <>{children}</>;
-	},
+// Happy DOM has no layout; supply dimensions while exercising the real charts.
+vi.mock("@nocoo/basalt/charts/frame", () => ({
+	ChartFrame: ({ children }: { children: ReactElement<{ width: number; height: number }> }) =>
+		cloneElement(children, { width: 600, height: 300 }),
 }));
 
-vi.mock("recharts", async () => {
-	const actual = await vi.importActual<typeof import("recharts")>("recharts");
-	return {
-		...actual,
-		// Same fan-out behaviour for the raw Recharts ResponsiveContainer
-		// in case it is reached through a different path.
-		ResponsiveContainer: ({ children }: { children: React.ReactNode }) => {
-			if (isValidElement(children)) {
-				return cloneElement(children as React.ReactElement<{ width?: number; height?: number }>, {
-					width: 600,
-					height: 300,
-				});
-			}
-			return <>{children}</>;
-		},
-	};
-});
-
 import { cleanup, render } from "@testing-library/react";
-import type * as React from "react";
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
 import type { AnalyticsForumDistRow, AnalyticsTrendPoint } from "@/viewmodels/admin/analytics";
