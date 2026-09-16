@@ -11,13 +11,25 @@ import {
 	LayerCard,
 } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import {
+	Clock3,
+	Infinity as InfinityIcon,
+	MoreHorizontal,
+	Pencil,
+	Plus,
+	ScanLine,
+	Search,
+	ShieldBan,
+	ShieldCheck,
+	Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
@@ -246,7 +258,11 @@ export default function IpBansPage() {
 		{
 			key: "reason",
 			header: "原因",
-			cell: (row) => row.reason || <span className="text-basalt-muted-foreground">—</span>,
+			cell: (row) => (
+				<span className="block max-w-64 truncate" title={row.reason}>
+					{row.reason || "—"}
+				</span>
+			),
 		},
 		{
 			key: "createdBy",
@@ -262,6 +278,15 @@ export default function IpBansPage() {
 				) : (
 					row.adminName
 				),
+		},
+		{
+			key: "state",
+			header: "状态",
+			cell: (row) => (
+				<Badge variant={ipBanStateVariant(!row.expiresAt || row.expiresAt * 1000 > Date.now())}>
+					{row.expiresAt && row.expiresAt * 1000 <= Date.now() ? "已过期" : "生效中"}
+				</Badge>
+			),
 		},
 		{
 			key: "expiresAt",
@@ -287,13 +312,22 @@ export default function IpBansPage() {
 			cell: (row) => (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" className="h-8 w-8">
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={`IP ${row.ip} 操作`}
+						>
 							<MoreHorizontal className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditBan(row)}>编辑</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setEditBan(row)}>
+							<Pencil className="mr-2 h-4 w-4" />
+							编辑
+						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
+							<Trash2 className="mr-2 h-4 w-4" />
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -308,21 +342,58 @@ export default function IpBansPage() {
 	// ---------------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="IP 封禁"
+				title={
+					<span className="flex items-center gap-2">
+						<ShieldBan aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						IP 封禁
+					</span>
+				}
 				description="管理 IP 地址封禁"
 				actions={
-					<Button onClick={() => setCreateDialogOpen(true)}>
+					<Button size="sm" onClick={() => setCreateDialogOpen(true)}>
 						<Plus className="mr-2 h-4 w-4" />
 						添加封禁
 					</Button>
 				}
 			/>
+			<AdminMetrics
+				items={[
+					{
+						label: "筛选结果",
+						value: loading ? "—" : pagination.total,
+						icon: ShieldBan,
+						hint: "当前条件下的全部规则",
+					},
+					{
+						label: "本页生效规则",
+						value: loading
+							? "—"
+							: data.filter((r) => !r.expiresAt || r.expiresAt * 1000 > Date.now()).length,
+						icon: ShieldCheck,
+					},
+					{
+						label: "本页永久封禁",
+						value: loading ? "—" : data.filter((r) => !r.expiresAt).length,
+						icon: InfinityIcon,
+					},
+					{
+						label: "本页已过期",
+						value: loading
+							? "—"
+							: data.filter((r) => !!r.expiresAt && r.expiresAt * 1000 <= Date.now()).length,
+						icon: Clock3,
+					},
+				]}
+			/>
 
 			{/* IP Check Tool */}
-			<LayerCard padding="sm">
-				<h2 className="mb-2 text-sm font-medium text-basalt-foreground">IP 地址检测</h2>
+			<LayerCard padding="sm" className="space-y-2">
+				<h2 className="flex items-center gap-2 text-sm font-medium text-basalt-foreground">
+					<ScanLine aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+					IP 地址检测
+				</h2>
 				<div className="flex items-center gap-2">
 					<Input
 						aria-label="要检测的 IP 地址"
@@ -330,11 +401,12 @@ export default function IpBansPage() {
 						value={checkIpValue}
 						onChange={(e) => setCheckIpValue(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && handleCheckIp()}
-						className="min-w-0 max-w-xs"
+						className="h-8 min-w-0 max-w-xs"
 					/>
 					<Button
 						variant="outline"
-						className="shrink-0"
+						size="sm"
+						className="h-8 shrink-0"
 						onClick={handleCheckIp}
 						disabled={checkLoading || !checkIpValue.trim()}
 					>
@@ -369,8 +441,9 @@ export default function IpBansPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<LayerCard padding="none" className="p-1 overflow-x-auto">
+			<LayerCard padding="none" className="overflow-hidden">
 				<AdminDataTable
+					label="IP 封禁列表"
 					columns={columns}
 					data={data}
 					getRowId={(r) => r.id}

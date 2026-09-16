@@ -16,7 +16,17 @@ import {
 	Separator,
 } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
+import {
+	CircleCheck,
+	CircleX,
+	Clock3,
+	ExternalLink,
+	Eye,
+	Flag,
+	MoreHorizontal,
+	RefreshCw,
+	Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -24,6 +34,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import {
 	ADMIN_WIDE_DIALOG_BODY_CLASS,
@@ -282,7 +293,11 @@ export default function ReportsPage() {
 		{
 			key: "reason",
 			header: "理由",
-			cell: (row) => row.reason,
+			cell: (row) => (
+				<span className="block max-w-64 truncate" title={row.reason}>
+					{row.reason}
+				</span>
+			),
 		},
 		{
 			key: "createdAt",
@@ -293,7 +308,14 @@ export default function ReportsPage() {
 			key: "status",
 			header: "状态",
 			cell: (row) => (
-				<Badge variant={reportStatusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
+				<div>
+					<Badge variant={reportStatusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
+					{row.handledAt && (
+						<div className="mt-0.5 text-[11px] text-basalt-muted-foreground">
+							{formatDateTime(row.handledAt)}
+						</div>
+					)}
+				</div>
 			),
 		},
 		{
@@ -319,7 +341,12 @@ export default function ReportsPage() {
 			cell: (row) => (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" className="h-8 w-8">
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={`举报 #${row.id} 操作`}
+						>
 							<MoreHorizontal className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
@@ -346,15 +373,18 @@ export default function ReportsPage() {
 						{row.status === "pending" && (
 							<>
 								<DropdownMenuItem onClick={() => handleStatusChange(row, "resolved")}>
+									<CircleCheck aria-hidden="true" className="mr-2 h-4 w-4" />
 									标记已处理
 								</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => handleStatusChange(row, "dismissed")}>
+									<CircleX aria-hidden="true" className="mr-2 h-4 w-4" />
 									驳回举报
 								</DropdownMenuItem>
 								<Separator className="my-1" />
 							</>
 						)}
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
+							<Trash2 aria-hidden="true" className="mr-2 h-4 w-4" />
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -369,16 +399,51 @@ export default function ReportsPage() {
 	// ---------------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="举报管理"
+				title={
+					<span className="flex items-center gap-2">
+						<Flag aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						举报管理
+					</span>
+				}
 				description="处理用户举报的主题、回帖与用户"
 				actions={
-					<Button variant="outline" onClick={() => fetchData(pagination.page)} disabled={loading}>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => fetchData(pagination.page)}
+						disabled={loading}
+					>
 						<RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
 						刷新
 					</Button>
 				}
+			/>
+			<AdminMetrics
+				items={[
+					{
+						label: "筛选结果",
+						value: loading ? "—" : pagination.total,
+						icon: Flag,
+						hint: "当前条件下的全部举报",
+					},
+					{
+						label: "本页待处理",
+						value: loading ? "—" : data.filter((r) => r.status === "pending").length,
+						icon: Clock3,
+					},
+					{
+						label: "本页已处理",
+						value: loading ? "—" : data.filter((r) => r.status === "resolved").length,
+						icon: CircleCheck,
+					},
+					{
+						label: "本页已驳回",
+						value: loading ? "—" : data.filter((r) => r.status === "dismissed").length,
+						icon: CircleX,
+					},
+				]}
 			/>
 
 			<AdminFilters
@@ -388,8 +453,9 @@ export default function ReportsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<LayerCard padding="none" className="p-1 overflow-x-auto">
+			<LayerCard padding="none" className="overflow-hidden">
 				<AdminDataTable
+					label="举报管理列表"
 					columns={columns}
 					data={data}
 					getRowId={(r) => r.id}
@@ -423,12 +489,15 @@ export default function ReportsPage() {
 			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
 				<AdminDialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
 					<DialogHeader className="min-w-0 pr-8">
-						<DialogTitle>举报详情 #{detailReport?.id}</DialogTitle>
+						<DialogTitle className="flex items-center gap-2">
+							<Flag aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+							举报详情 #{detailReport?.id}
+						</DialogTitle>
 						<DialogDescription>查看举报的详细信息</DialogDescription>
 					</DialogHeader>
 					{detailReport && (
 						<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-4 py-2`}>
-							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm [&>span:nth-child(even)]:min-w-0 [&>span:nth-child(even)]:break-words">
+							<div className="grid grid-cols-[72px_1fr] gap-x-4 gap-y-3 rounded-lg border border-basalt-border p-4 text-sm [&>span:nth-child(even)]:min-w-0 [&>span:nth-child(even)]:break-words">
 								<span className="text-basalt-muted-foreground">类型</span>
 								<span>
 									<Badge variant={reportTypeVariant(detailReport.type)}>
@@ -515,16 +584,18 @@ export default function ReportsPage() {
 							</div>
 						</div>
 					)}
-					<DialogFooter className="gap-2 sm:gap-0">
+					<DialogFooter className="flex-wrap gap-2 border-t border-basalt-border pt-4 sm:gap-2">
 						{detailReport?.status === "pending" && (
 							<>
 								<Button
 									variant="outline"
 									onClick={() => handleStatusChange(detailReport, "dismissed")}
 								>
+									<CircleX aria-hidden="true" className="mr-2 h-4 w-4" />
 									驳回举报
 								</Button>
 								<Button onClick={() => handleStatusChange(detailReport, "resolved")}>
+									<CircleCheck aria-hidden="true" className="mr-2 h-4 w-4" />
 									标记已处理
 								</Button>
 							</>
@@ -538,6 +609,7 @@ export default function ReportsPage() {
 							variant="destructive"
 							onClick={() => detailReport && handleDelete(detailReport)}
 						>
+							<Trash2 aria-hidden="true" className="mr-2 h-4 w-4" />
 							删除
 						</Button>
 					</DialogFooter>

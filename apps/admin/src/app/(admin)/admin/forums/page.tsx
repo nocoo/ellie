@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@ellie/shared";
 import {
 	Badge,
 	Button,
@@ -10,23 +11,27 @@ import {
 	LayerCard,
 	Separator,
 } from "@nocoo/basalt";
-import { Empty } from "@nocoo/basalt/components/empty";
-import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
-	ChevronRight,
+	Eye,
+	EyeOff,
 	FolderOpen,
 	GitBranch,
 	Layers,
+	Merge,
 	MoreHorizontal,
+	Pencil,
 	Plus,
 	SquareStack,
+	Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { twMerge as cn } from "tailwind-merge";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
 import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
 import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
@@ -94,129 +99,6 @@ function TypeIcon({ type }: { type: string }) {
 		default:
 			return <SquareStack className="h-4 w-4 text-basalt-muted-foreground" />;
 	}
-}
-
-function TreeConnector({ depth, isLast }: { depth: number; isLast: boolean }) {
-	if (depth === 0) return null;
-
-	return (
-		<div className="flex items-center" style={{ width: `${depth * 24}px` }}>
-			{Array.from({ length: depth }).map((_, i) => (
-				<div key={`connector-${depth}-${i}`} className="relative h-full w-6 flex-shrink-0">
-					{i === depth - 1 ? (
-						// Last connector with branch line
-						<div className="absolute left-3 top-0 h-full">
-							<div
-								className={cn("absolute left-0 w-px bg-basalt-border", isLast ? "h-1/2" : "h-full")}
-							/>
-							<div className="absolute left-0 top-1/2 h-px w-3 bg-basalt-border" />
-						</div>
-					) : (
-						// Vertical line for ancestor levels
-						<div className="absolute left-3 top-0 h-full w-px bg-basalt-border" />
-					)}
-				</div>
-			))}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Forum row component
-// ---------------------------------------------------------------------------
-
-interface ForumRowProps {
-	node: ForumTreeNode;
-	isLast: boolean;
-	onEdit: (forum: Forum) => void;
-	onToggleStatus: (forum: Forum) => void;
-	onMerge: (forum: Forum) => void;
-	onDelete: (forum: Forum) => void;
-}
-
-function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: ForumRowProps) {
-	const hasChildren = node.children.length > 0;
-
-	return (
-		<div
-			className={cn(
-				"group flex items-center gap-3 border-b border-basalt-border/50 px-4 py-3 transition-colors hover:bg-basalt-accent/50",
-				node.depth === 0 && "bg-basalt-secondary/30",
-				node.status === 0 && "opacity-60",
-			)}
-		>
-			{/* Tree connector */}
-			<TreeConnector depth={node.depth} isLast={isLast} />
-
-			{/* Type icon */}
-			<div className="flex-shrink-0">
-				<TypeIcon type={node.type} />
-			</div>
-
-			{/* Expand indicator for groups */}
-			{node.depth === 0 && hasChildren && (
-				<ChevronRight className="h-4 w-4 text-basalt-muted-foreground rotate-90" />
-			)}
-
-			{/* Forum info */}
-			<div className="flex-1 min-w-0">
-				<div className="flex items-center gap-2">
-					<span className="font-medium text-basalt-foreground truncate">{node.name}</span>
-					<Badge variant={forumTypeVariant(node.type)}>{typeLabel(node.type)}</Badge>
-					<StatusBadge status={node.status} />
-				</div>
-				{node.description && (
-					<p className="mt-0.5 text-xs text-basalt-muted-foreground truncate">{node.description}</p>
-				)}
-			</div>
-
-			{/* Stats — fixed-width columns so numbers + labels line up vertically across rows */}
-			<div className="hidden sm:flex items-center gap-6 text-xs text-basalt-muted-foreground">
-				<div className="w-16 text-right tabular-nums">
-					<div className="font-medium text-basalt-foreground">{node.threads.toLocaleString()}</div>
-					<div>主题</div>
-				</div>
-				<div className="w-16 text-right tabular-nums">
-					<div className="font-medium text-basalt-foreground">{node.posts.toLocaleString()}</div>
-					<div>帖子</div>
-				</div>
-				<div className="w-12 text-right tabular-nums">
-					<div className="text-basalt-foreground">{node.displayOrder}</div>
-					<div>排序</div>
-				</div>
-			</div>
-
-			{/* Actions */}
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={`打开「${node.name}」操作菜单`}
-						className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-					>
-						<MoreHorizontal className="h-4 w-4" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuItem onClick={() => onEdit(node)}>编辑</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => onToggleStatus(node)}>
-						{node.status === 1 ? "隐藏" : "显示"}
-					</DropdownMenuItem>
-					<Separator className="my-1" />
-					<DropdownMenuItem onClick={() => onMerge(node)}>合并到...</DropdownMenuItem>
-					{node.threads === 0 && node.children.length === 0 && (
-						<>
-							<Separator className="my-1" />
-							<DropdownMenuItem onClick={() => onDelete(node)} className="text-basalt-destructive">
-								删除
-							</DropdownMenuItem>
-						</>
-					)}
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</div>
-	);
 }
 
 // ---------------------------------------------------------------------------
@@ -301,15 +183,6 @@ export default function ForumsPage() {
 
 	const tree = buildForumTree(filteredData);
 	const flatList = flattenForumTree(tree);
-
-	// Track last item at each depth level for connector rendering
-	const isLastAtDepth = (index: number, depth: number): boolean => {
-		for (let i = index + 1; i < flatList.length; i++) {
-			if (flatList[i].depth < depth) return true;
-			if (flatList[i].depth === depth) return false;
-		}
-		return true;
-	};
 
 	// -----------------------------------------------------------------------
 	// Handlers
@@ -422,6 +295,140 @@ export default function ForumsPage() {
 		[fetchData],
 	);
 
+	const columns: ColumnDef<ForumTreeNode>[] = [
+		{
+			key: "forum",
+			header: "版块层级",
+			cell: (node) => (
+				<div className="flex min-w-52 items-center gap-2" style={{ paddingLeft: node.depth * 20 }}>
+					<TypeIcon type={node.type} />
+					<div className="min-w-0">
+						<div className="flex items-center gap-2">
+							{node.type === "group" ? (
+								<span className="font-medium">{node.name}</span>
+							) : (
+								<Link
+									className="max-w-56 truncate font-medium hover:text-basalt-primary hover:underline"
+									href={`/admin/threads?forumId=${node.id}`}
+									title={node.name}
+								>
+									{node.name}
+								</Link>
+							)}
+							<Badge variant={forumTypeVariant(node.type)}>{typeLabel(node.type)}</Badge>
+						</div>
+						<p
+							className="mt-0.5 max-w-80 truncate text-[11px] text-basalt-muted-foreground"
+							title={node.description}
+						>
+							#{node.id}
+							{node.description ? ` · ${node.description}` : ""}
+						</p>
+					</div>
+				</div>
+			),
+		},
+		{ key: "status", header: "状态", cell: (node) => <StatusBadge status={node.status} /> },
+		{
+			key: "threads",
+			header: "主题",
+			className: "text-right tabular-nums",
+			cell: (node) => node.threads.toLocaleString(),
+		},
+		{
+			key: "posts",
+			header: "帖子",
+			className: "text-right tabular-nums",
+			cell: (node) => node.posts.toLocaleString(),
+		},
+		{
+			key: "moderators",
+			header: "版主",
+			cell: (node) => (
+				<span className="block max-w-32 truncate text-xs" title={node.moderators}>
+					{node.moderators || "—"}
+				</span>
+			),
+		},
+		{
+			key: "activity",
+			header: "最近活动",
+			cell: (node) => (
+				<div className="max-w-52">
+					<div className="text-xs tabular-nums">
+						{node.lastPostAt ? formatDate(node.lastPostAt) : "—"}
+						{node.lastPoster ? ` · ${node.lastPoster}` : ""}
+					</div>
+					{node.lastThreadId > 0 && (
+						<Link
+							href={`/admin/threads/${node.lastThreadId}`}
+							className="block truncate text-[11px] text-basalt-muted-foreground hover:underline"
+							title={node.lastThreadSubject}
+						>
+							{node.lastThreadSubject || `主题 #${node.lastThreadId}`}
+						</Link>
+					)}
+				</div>
+			),
+		},
+		{
+			key: "order",
+			header: "排序",
+			className: "text-right tabular-nums",
+			cell: (node) => node.displayOrder,
+		},
+		{
+			key: "actions",
+			header: "操作",
+			className: "w-12",
+			cell: (node) => (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label={`打开「${node.name}」操作菜单`}
+							className="h-8 w-8"
+						>
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onClick={() => setEditForum(node)}>
+							<Pencil className="mr-2 h-4 w-4" />
+							编辑
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => handleToggleStatus(node)}>
+							{node.status === 1 ? (
+								<EyeOff className="mr-2 h-4 w-4" />
+							) : (
+								<Eye className="mr-2 h-4 w-4" />
+							)}
+							{node.status === 1 ? "隐藏" : "显示"}
+						</DropdownMenuItem>
+						<Separator className="my-1" />
+						<DropdownMenuItem onClick={() => setMergeSource(node)}>
+							<Merge className="mr-2 h-4 w-4" />
+							合并到...
+						</DropdownMenuItem>
+						{node.threads === 0 && !rawData.some((f) => f.parentId === node.id) && (
+							<>
+								<Separator className="my-1" />
+								<DropdownMenuItem
+									onClick={() => handleDelete(node)}
+									className="text-basalt-destructive"
+								>
+									<Trash2 className="mr-2 h-4 w-4" />
+									删除
+								</DropdownMenuItem>
+							</>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			),
+		},
+	];
+
 	// -----------------------------------------------------------------------
 	// Render
 	// -----------------------------------------------------------------------
@@ -434,18 +441,38 @@ export default function ForumsPage() {
 	};
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="版块管理"
-				description={`${stats.groups} 个分区 · ${stats.forums} 个版块 · ${stats.subs} 个子版块`}
+				title={
+					<span className="flex items-center gap-2">
+						<Layers aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						版块管理
+					</span>
+				}
+				description="版块层级、内容规模与最近活动"
 				actions={
-					<Button onClick={() => setCreateOpen(true)}>
+					<Button size="sm" onClick={() => setCreateOpen(true)}>
 						<Plus className="mr-2 h-4 w-4" />
 						创建版块
 					</Button>
 				}
 			/>
 
+			<AdminMetrics
+				label="全部版块概览"
+				items={[
+					{ label: "分区", value: loading ? "—" : stats.groups, icon: Layers },
+					{ label: "主版块", value: loading ? "—" : stats.forums, icon: FolderOpen },
+					{ label: "子版块", value: loading ? "—" : stats.subs, icon: GitBranch },
+					{
+						label: "显示 / 隐藏",
+						value: loading
+							? "—"
+							: `${rawData.filter((f) => f.status === 1).length} / ${rawData.filter((f) => f.status === 0).length}`,
+						icon: Eye,
+					},
+				]}
+			/>
 			{/* Filters */}
 			<AdminFilters
 				filters={FILTERS}
@@ -457,65 +484,25 @@ export default function ForumsPage() {
 			{/* Page-level feedback (visibility toggle / merge) */}
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
-			{/* Tree view */}
 			<LayerCard padding="none" className="overflow-hidden">
-				{/* Table header */}
-				<LayerCard.Header className="flex items-center gap-3 text-xs font-medium text-basalt-muted-foreground">
-					<div className="flex-1">版块</div>
-					<div className="hidden sm:flex items-center gap-6">
-						<div className="w-16 text-right">主题</div>
-						<div className="w-16 text-right">帖子</div>
-						<div className="w-12 text-right">排序</div>
-					</div>
-					<div className="w-8" />
-				</LayerCard.Header>
-				<LayerCard.Well className="overflow-x-auto p-0">
-					{/* Loading state */}
-					{loading && (
-						<div role="status" className="flex items-center justify-center gap-2 py-12">
-							<Loader size={16} />
-							<span className="text-sm text-basalt-muted-foreground">加载中...</span>
-						</div>
-					)}
-
-					{/* Empty state */}
-					{!loading && flatList.length === 0 && (
-						<Empty
-							title="暂无版块"
-							icon={<SquareStack aria-hidden="true" />}
-							className="py-12"
-							action={
-								<Button
-									variant="outline"
-									size="sm"
-									className="mt-4"
-									onClick={() => setCreateOpen(true)}
-								>
-									<Plus className="mr-2 h-4 w-4" />
-									创建第一个分区
-								</Button>
-							}
-						/>
-					)}
-
-					{/* Forum list */}
-					{!loading &&
-						flatList.map((node, index) => (
-							<ForumRow
-								key={node.id}
-								node={node}
-								isLast={isLastAtDepth(index, node.depth)}
-								onEdit={setEditForum}
-								onToggleStatus={handleToggleStatus}
-								onMerge={setMergeSource}
-								onDelete={handleDelete}
-							/>
-						))}
-				</LayerCard.Well>
+				<AdminDataTable
+					label="版块层级列表"
+					columns={columns}
+					data={flatList}
+					getRowId={(node) => node.id}
+					loading={loading}
+					emptyMessage="暂无版块"
+				/>
+				<LayerCard.Footer className="justify-between text-xs text-basalt-muted-foreground">
+					<span>
+						显示 {flatList.length} 项 / 全部 {rawData.length} 项
+					</span>
+					<span>点击版块查看主题</span>
+				</LayerCard.Footer>
 			</LayerCard>
 
 			{/* Legend */}
-			<div className="flex items-center gap-6 text-xs text-basalt-muted-foreground">
+			<div className="flex flex-wrap items-center gap-4 text-xs text-basalt-muted-foreground">
 				<div className="flex items-center gap-1.5">
 					<TypeIcon type="group" />
 					<span>分区 (Group)</span>

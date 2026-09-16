@@ -11,12 +11,24 @@ import {
 } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { MoreHorizontal, Plus } from "lucide-react";
+import {
+	FlaskConical,
+	ListFilter,
+	MoreHorizontal,
+	Pencil,
+	Plus,
+	Replace,
+	ShieldBan,
+	Trash2,
+	Users,
+} from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
 import { censorActionVariant } from "@/viewmodels/admin/badges";
@@ -206,13 +218,22 @@ export default function CensorWordsPage() {
 		{
 			key: "find",
 			header: "词语",
-			cell: (row) => <span className="font-medium">{row.find}</span>,
+			cell: (row) => (
+				<span className="block max-w-56 truncate font-medium" title={row.find}>
+					{row.find}
+				</span>
+			),
 		},
 		{
 			key: "replacement",
 			header: "替换内容",
 			cell: (row) => (
-				<span className="text-basalt-muted-foreground">{replacementDisplay(row.replacement)}</span>
+				<span
+					className="block max-w-56 truncate text-basalt-muted-foreground"
+					title={replacementDisplay(row.replacement)}
+				>
+					{replacementDisplay(row.replacement)}
+				</span>
 			),
 		},
 		{
@@ -221,6 +242,21 @@ export default function CensorWordsPage() {
 			cell: (row) => (
 				<Badge variant={censorActionVariant(row.action)}>{actionLabel(row.action)}</Badge>
 			),
+		},
+		{
+			key: "admin",
+			header: "创建者",
+			cell: (row) =>
+				row.adminId > 0 ? (
+					<Link
+						href={`/admin/users/${row.adminId}`}
+						className="text-basalt-primary hover:underline"
+					>
+						{row.adminName || `UID ${row.adminId}`}
+					</Link>
+				) : (
+					row.adminName || "—"
+				),
 		},
 		{
 			key: "createdAt",
@@ -233,13 +269,22 @@ export default function CensorWordsPage() {
 			cell: (row) => (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" className="h-8 w-8">
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={`敏感词 ${row.find} 操作`}
+						>
 							<MoreHorizontal className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditWord(row)}>编辑</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setEditWord(row)}>
+							<Pencil className="mr-2 h-4 w-4" />
+							编辑
+						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
+							<Trash2 className="mr-2 h-4 w-4" />
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -250,16 +295,48 @@ export default function CensorWordsPage() {
 	];
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="敏感词"
+				title={
+					<span className="flex items-center gap-2">
+						<ListFilter aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						敏感词
+					</span>
+				}
 				description="管理敏感词过滤规则"
 				actions={
-					<Button onClick={() => setCreateDialogOpen(true)}>
+					<Button size="sm" onClick={() => setCreateDialogOpen(true)}>
 						<Plus className="mr-2 h-4 w-4" />
 						添加敏感词
 					</Button>
 				}
+			/>
+			<AdminMetrics
+				items={[
+					{
+						label: "筛选结果",
+						value: loading ? "—" : pagination.total,
+						icon: ListFilter,
+						hint: "当前条件下的全部规则",
+					},
+					{
+						label: "本页禁止发布",
+						value: loading ? "—" : data.filter((r) => r.action === "ban").length,
+						icon: ShieldBan,
+					},
+					{
+						label: "本页内容替换",
+						value: loading ? "—" : data.filter((r) => r.action === "replace").length,
+						icon: Replace,
+					},
+					{
+						label: "本页规则创建者",
+						value: loading
+							? "—"
+							: new Set(data.filter((r) => r.adminId > 0).map((r) => r.adminId)).size,
+						icon: Users,
+					},
+				]}
 			/>
 
 			<AdminFilters
@@ -269,8 +346,9 @@ export default function CensorWordsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<LayerCard padding="none" className="p-1 overflow-x-auto">
+			<LayerCard padding="none" className="overflow-hidden">
 				<AdminDataTable
+					label="敏感词列表"
 					columns={columns}
 					data={data}
 					getRowId={(r) => r.id}
@@ -291,24 +369,35 @@ export default function CensorWordsPage() {
 			/>
 
 			{/* Content Test Tool */}
-			<LayerCard padding="none" className="p-1 overflow-x-auto p-4">
-				<h2 className="mb-3 text-lg font-medium text-basalt-foreground">内容测试</h2>
+			<LayerCard padding="none" className="p-4">
+				<h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-basalt-foreground">
+					<FlaskConical aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+					内容测试
+				</h2>
 				<p className="mb-3 text-sm text-basalt-muted-foreground">
 					测试内容将如何被当前敏感词列表过滤。
 				</p>
-				<div className="space-y-3">
-					<InputArea
-						aria-label="要测试的内容"
-						value={testInput}
-						onChange={(e) => setTestInput(e.target.value)}
-						placeholder="输入要测试的内容..."
-						rows={3}
-					/>
-					<Button onClick={handleTestContent} disabled={testLoading || !testInput.trim()}>
-						{testLoading ? "测试中..." : "测试"}
-					</Button>
+				<div className="grid items-start gap-4 lg:grid-cols-2">
+					<div className="space-y-3">
+						<InputArea
+							aria-label="要测试的内容"
+							value={testInput}
+							onChange={(e) => setTestInput(e.target.value)}
+							placeholder="输入要测试的内容..."
+							rows={3}
+						/>
+						<Button onClick={handleTestContent} disabled={testLoading || !testInput.trim()}>
+							<FlaskConical aria-hidden="true" className="mr-2 h-4 w-4" />
+							{testLoading ? "测试中..." : "测试"}
+						</Button>
+					</div>
+					{!testResult && (
+						<div className="rounded-lg border border-dashed border-basalt-border p-4 text-sm text-basalt-muted-foreground">
+							输入内容并测试后，这里显示过滤结果与命中词语。
+						</div>
+					)}
 					{testResult && (
-						<LayerCard padding="none" className="p-3 text-sm">
+						<LayerCard padding="none" className="min-w-0 space-y-2 break-words p-4 text-sm">
 							<p className="mb-1">
 								<span className="font-medium">过滤结果:</span> {testResult.censored}
 							</p>

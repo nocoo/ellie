@@ -3,11 +3,13 @@
 import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Code } from "@nocoo/basalt/components/code";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { Activity, Globe, ScrollText, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminLogDetailDialog } from "@/components/admin/admin-log-detail-dialog";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import {
@@ -26,24 +28,20 @@ import {
 // ---------------------------------------------------------------------------
 
 const TARGET_TYPE_OPTIONS = [
-	{ value: "user", label: "user" },
-	{ value: "thread", label: "thread" },
-	{ value: "post", label: "post" },
-	{ value: "forum", label: "forum" },
-	{ value: "report", label: "report" },
-	{ value: "attachment", label: "attachment" },
-	{ value: "ip_ban", label: "ip_ban" },
-	{ value: "censor_word", label: "censor_word" },
-	{ value: "announcement", label: "announcement" },
-	{ value: "setting", label: "setting" },
+	{ value: "user", label: "用户" },
+	{ value: "thread", label: "主题" },
+	{ value: "post", label: "回复" },
+	{ value: "forum", label: "版块" },
+	{ value: "report", label: "举报" },
+	{ value: "attachment", label: "附件" },
+	{ value: "ip_ban", label: "IP 封禁" },
+	{ value: "censor_word", label: "敏感词" },
+	{ value: "announcement", label: "公告" },
+	{ value: "setting", label: "设置" },
 ];
 
-// NOTE: AdminFilters' search type is hardcoded to write `filters.search` (not
-// `filter.key`), so we cannot route an `action` filter through it. Action lives
-// as an inline controlled input on this page; only the targetType select goes
-// through AdminFilters.
 const FILTERS: FilterDef[] = [
-	{ key: "targetType", label: "targetType", type: "select", options: TARGET_TYPE_OPTIONS },
+	{ key: "targetType", label: "目标类型", type: "select", options: TARGET_TYPE_OPTIONS },
 ];
 
 // ---------------------------------------------------------------------------
@@ -197,7 +195,7 @@ export default function AdminLogsPage() {
 		},
 		{
 			key: "action",
-			header: "Action",
+			header: "操作",
 			cell: (row) => <Code className="px-1.5 py-0.5 text-xs">{row.action}</Code>,
 		},
 		{
@@ -257,99 +255,137 @@ export default function AdminLogsPage() {
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="操作日志" description="管理员操作审计记录（只读）" />
-
-			<AdminFilters
-				filters={FILTERS}
-				values={filters}
-				onFilterChange={handleFilterChange}
-				onClearAll={handleClearFilters}
+		<div className="space-y-4">
+			<PageHeader
+				title={
+					<span className="flex items-center gap-2">
+						<ScrollText aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						操作日志
+					</span>
+				}
+				description="管理员操作审计记录（只读）"
+			/>
+			<AdminMetrics
+				items={[
+					{
+						label: "筛选结果",
+						value: loading ? "—" : pagination.total,
+						icon: ScrollText,
+						hint: "当前条件下的全部记录",
+					},
+					{
+						label: "本页操作人员",
+						value: loading
+							? "—"
+							: new Set(data.filter((r) => r.adminId > 0).map((r) => r.adminId)).size,
+						icon: Users,
+					},
+					{
+						label: "本页操作类型",
+						value: loading ? "—" : new Set(data.map((r) => r.action)).size,
+						icon: Activity,
+					},
+					{
+						label: "本页来源 IP",
+						value: loading ? "—" : new Set(data.filter((r) => r.ip).map((r) => r.ip)).size,
+						icon: Globe,
+					},
+				]}
 			/>
 
-			<LayerCard padding="none" className="flex flex-wrap items-end gap-3 p-3">
-				<div className="grid gap-1">
-					<Label htmlFor="filter-action" className="text-xs text-basalt-muted-foreground">
-						Action（精确匹配）
-					</Label>
-					<form onSubmit={handleActionSubmit} className="relative">
+			<LayerCard padding="sm" className="space-y-3">
+				<AdminFilters
+					filters={FILTERS}
+					values={filters}
+					onFilterChange={handleFilterChange}
+					onClearAll={handleClearFilters}
+				/>
+
+				<div className="flex flex-wrap items-end gap-3 border-t border-basalt-border pt-3">
+					<div className="grid gap-1">
+						<Label htmlFor="filter-action" className="text-xs text-basalt-muted-foreground">
+							操作代码（精确匹配）
+						</Label>
+						<form onSubmit={handleActionSubmit} className="relative">
+							<Input
+								id="filter-action"
+								value={actionInput}
+								onChange={(e) => setActionInput(e.target.value)}
+								placeholder="如 user.ban，回车提交"
+								className="h-8 w-56 max-w-full pr-8"
+							/>
+							{actionInput && (
+								<Button
+									type="button"
+									onClick={handleActionClear}
+									aria-label="清除 action 过滤"
+									className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+									variant="ghost"
+									size="icon"
+								>
+									<X aria-hidden="true" className="h-3.5 w-3.5" />
+								</Button>
+							)}
+						</form>
+					</div>
+					<div className="grid gap-1">
+						<Label htmlFor="filter-admin-id" className="text-xs text-basalt-muted-foreground">
+							管理员 ID
+						</Label>
 						<Input
-							id="filter-action"
-							value={actionInput}
-							onChange={(e) => setActionInput(e.target.value)}
-							placeholder="如 user.ban，回车提交"
-							className="w-56 pr-8"
+							id="filter-admin-id"
+							type="number"
+							inputMode="numeric"
+							value={adminIdInput}
+							onChange={(e) => setAdminIdInput(e.target.value)}
+							placeholder="例如 1"
+							className="h-8 w-28"
 						/>
-						{actionInput && (
-							<Button
-								type="button"
-								onClick={handleActionClear}
-								aria-label="清除 action 过滤"
-								className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
-								variant="ghost"
-								size="icon"
-							>
-								×
-							</Button>
-						)}
-					</form>
-				</div>
-				<div className="grid gap-1">
-					<Label htmlFor="filter-admin-id" className="text-xs text-basalt-muted-foreground">
-						管理员 ID
-					</Label>
-					<Input
-						id="filter-admin-id"
-						type="number"
-						inputMode="numeric"
-						value={adminIdInput}
-						onChange={(e) => setAdminIdInput(e.target.value)}
-						placeholder="例如 1"
-						className="w-32"
-					/>
-				</div>
-				<div className="grid gap-1">
-					<Label htmlFor="filter-target-id" className="text-xs text-basalt-muted-foreground">
-						目标 ID
-					</Label>
-					<Input
-						id="filter-target-id"
-						type="number"
-						inputMode="numeric"
-						value={targetIdInput}
-						onChange={(e) => setTargetIdInput(e.target.value)}
-						placeholder="例如 3"
-						className="w-32"
-					/>
-				</div>
-				<div className="grid gap-1">
-					<Label htmlFor="filter-start-date" className="text-xs text-basalt-muted-foreground">
-						起始日期
-					</Label>
-					<Input
-						id="filter-start-date"
-						type="date"
-						value={startDate}
-						onChange={(e) => setStartDate(e.target.value)}
-						className="w-44"
-					/>
-				</div>
-				<div className="grid gap-1">
-					<Label htmlFor="filter-end-date" className="text-xs text-basalt-muted-foreground">
-						结束日期
-					</Label>
-					<Input
-						id="filter-end-date"
-						type="date"
-						value={endDate}
-						onChange={(e) => setEndDate(e.target.value)}
-						className="w-44"
-					/>
+					</div>
+					<div className="grid gap-1">
+						<Label htmlFor="filter-target-id" className="text-xs text-basalt-muted-foreground">
+							目标 ID
+						</Label>
+						<Input
+							id="filter-target-id"
+							type="number"
+							inputMode="numeric"
+							value={targetIdInput}
+							onChange={(e) => setTargetIdInput(e.target.value)}
+							placeholder="例如 3"
+							className="h-8 w-28"
+						/>
+					</div>
+					<div className="grid gap-1">
+						<Label htmlFor="filter-start-date" className="text-xs text-basalt-muted-foreground">
+							起始日期
+						</Label>
+						<Input
+							id="filter-start-date"
+							type="date"
+							value={startDate}
+							onChange={(e) => setStartDate(e.target.value)}
+							className="h-8 w-40"
+						/>
+					</div>
+					<div className="grid gap-1">
+						<Label htmlFor="filter-end-date" className="text-xs text-basalt-muted-foreground">
+							结束日期
+						</Label>
+						<Input
+							id="filter-end-date"
+							type="date"
+							value={endDate}
+							onChange={(e) => setEndDate(e.target.value)}
+							className="h-8 w-40"
+						/>
+					</div>
 				</div>
 			</LayerCard>
 
-			<LayerCard padding="none" className="p-1 overflow-x-auto">
+			<LayerCard padding="none" className="overflow-hidden">
 				<AdminDataTable
+					label="操作日志列表"
 					columns={columns}
 					data={data}
 					getRowId={(r) => r.id}
