@@ -108,3 +108,101 @@ test("requires typed confirmation before sending an attachment batch deletion", 
 	await expect(confirmation).toBeHidden();
 	expect(deletions).toBe(1);
 });
+
+for (const [action, status] of [
+	["封禁", -1],
+	["激活", 0],
+] as const) {
+	test(`confirms a user batch ${action} and preserves the selection after failure`, async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		let attempts = 0;
+		await page.route("**/api/admin/users/batch-status", (route) => {
+			attempts++;
+			expect(route.request().postDataJSON()).toEqual({ ids: [3], status });
+			return route.fulfill(
+				attempts === 1
+					? { status: 500, json: { error: { code: "UNAVAILABLE", message: "Local API failure" } } }
+					: { json: { data: { affected: 1, skipped: 0 } } },
+			);
+		});
+		await loginAsAdmin();
+		await page.goto("/admin/users");
+		await page.getByRole("checkbox", { name: "选择行 3", exact: true }).click();
+		await page.getByRole("button", { name: `批量${action}`, exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: `批量${action}用户`, exact: true });
+		expect(attempts).toBe(0);
+		await dialog.getByRole("button", { name: "取消", exact: true }).click();
+		expect(attempts).toBe(0);
+		await page.getByRole("button", { name: `批量${action}`, exact: true }).click();
+		await dialog.getByRole("button", { name: "确认", exact: true }).click();
+		await expect(dialog.getByRole("alert")).toContainText("Local API failure");
+		await expect(page.locator('[aria-label="选择行 3"]')).toBeChecked();
+		await dialog.getByRole("button", { name: "确认", exact: true }).click();
+		await expect(dialog).toBeHidden();
+		await expect(page.getByRole("region", { name: "批量操作", exact: true })).toBeHidden();
+		expect(attempts).toBe(2);
+	});
+}
+
+test("keeps report details available when a confirmed deletion fails", async ({
+	page,
+	loginAsAdmin,
+}) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	let attempts = 0;
+	await page.route("**/api/admin/reports**", (route) => {
+		if (route.request().method() === "POST") {
+			attempts++;
+			expect(route.request().postDataJSON()).toEqual({ ids: [9] });
+			return route.fulfill(
+				attempts === 1
+					? { status: 500, json: { error: { code: "UNAVAILABLE", message: "Local API failure" } } }
+					: { json: { data: { affected: 1 } } },
+			);
+		}
+		return route.fulfill({
+			json: {
+				data:
+					attempts > 1
+						? []
+						: [
+								{
+									id: 9,
+									type: "thread",
+									targetId: 662174,
+									reporterId: 3,
+									reporterName: "testuser",
+									reason: "Local report fixture",
+									status: "pending",
+									handlerId: null,
+									handlerName: "",
+									handledAt: null,
+									createdAt: 1_700_000_000,
+									threadId: 662174,
+									targetTitle: "Local thread",
+									targetName: null,
+								},
+							],
+				meta: { page: 1, pages: 1, limit: 20, total: 1 },
+			},
+		});
+	});
+	await loginAsAdmin();
+	await page.goto("/admin/reports");
+	await page.getByRole("button", { name: "#9", exact: true }).click();
+	const detail = page.getByRole("dialog", { name: "举报详情 #9", exact: true });
+	await detail.getByRole("button", { name: "删除", exact: true }).click();
+	const confirmation = page.getByRole("dialog", { name: "删除举报", exact: true });
+	expect(attempts).toBe(0);
+	await confirmation.getByRole("button", { name: "确认", exact: true }).click();
+	await expect(confirmation.getByRole("alert")).toContainText("Local API failure");
+	await confirmation.getByRole("button", { name: "取消", exact: true }).click();
+	await expect(detail).toBeVisible();
+	await detail.getByRole("button", { name: "删除", exact: true }).click();
+	await confirmation.getByRole("button", { name: "确认", exact: true }).click();
+	await expect(confirmation).toBeHidden();
+	await expect(detail).toBeHidden();
+	expect(attempts).toBe(2);
+});

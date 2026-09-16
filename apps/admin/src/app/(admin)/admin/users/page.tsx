@@ -425,6 +425,7 @@ export default function UsersPage() {
 
 			<AdminBatchBar
 				selectedCount={state.selectedIds.size}
+				disabled={state.statusBatchLoading || state.purgeBatchLoading}
 				actions={BATCH_ACTIONS}
 				onAction={actions.handleBatchAction}
 				onClear={() => actions.setSelectedIds(new Set())}
@@ -437,6 +438,17 @@ export default function UsersPage() {
 				loading={state.editLoading}
 				error={state.editError}
 				onSave={actions.handleEditSave}
+			/>
+
+			<AdminConfirmDialog
+				open={state.statusBatch !== null}
+				onOpenChange={(open) => !open && actions.closeStatusBatchDialog()}
+				title={state.statusBatch?.status === -1 ? "批量封禁用户" : "批量激活用户"}
+				description={`确定要${state.statusBatch?.status === -1 ? "封禁" : "激活"}选中的 ${state.statusBatch?.ids.length ?? 0} 个用户吗？${state.statusBatch?.status === -1 ? "封禁后这些用户将无法登录。" : "激活后这些用户将恢复正常账号状态。"}`}
+				variant={state.statusBatch?.status === -1 ? "destructive" : "default"}
+				loading={state.statusBatchLoading}
+				error={state.statusBatchError}
+				onConfirm={actions.handleStatusBatchConfirm}
 			/>
 
 			{/*
@@ -463,7 +475,7 @@ export default function UsersPage() {
 				open={state.purgeBatchOpen}
 				onOpenChange={(open) => !open && actions.closePurgeBatchDialog()}
 				title="批量彻底清除用户"
-				description={`将对所选 ${state.selectedIds.size} 个用户执行不可恢复的内容清除（主题、帖子、点评、附件、私信、R2 资源）+ 留下 tombstone。该操作逐个串行执行；员工账号 (role > 0) 会被服务端拒绝。`}
+				description={`将永久清除所选 ${state.selectedIds.size} 个用户的主题、帖子、点评、附件、私信与上传资源，并保留已清除账号记录。逐个执行并汇总结果，管理员和版主账号不能清除。`}
 				requireInput="ok"
 				inputPlaceholder="ok"
 				confirmLabel={`确认清除 ${state.selectedIds.size} 个`}

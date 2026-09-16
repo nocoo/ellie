@@ -115,6 +115,9 @@ export interface UsersAdminState {
 	editLoading: boolean;
 	/** Edit dialog inline error message (null if none) */
 	editError: string | null;
+	statusBatch: { ids: number[]; status: -1 | 0 } | null;
+	statusBatchLoading: boolean;
+	statusBatchError: string | null;
 	/** Batch purge confirm dialog open */
 	purgeBatchOpen: boolean;
 	/** Batch purge in-progress flag — disables confirm button + dialog close */
@@ -155,6 +158,8 @@ export interface UsersAdminActions {
 	handleEditSave: (id: number, update: UserUpdate) => Promise<void>;
 	/** Handle batch action on selected users */
 	handleBatchAction: (key: string) => Promise<void>;
+	closeStatusBatchDialog: () => void;
+	handleStatusBatchConfirm: () => Promise<void>;
 	/** Update selected IDs */
 	setSelectedIds: (ids: Set<string | number>) => void;
 	/** Close the batch purge dialog (also clears its inline error). */
@@ -418,6 +423,9 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	const [editUser, setEditUser] = useState<User | null>(null);
 	const [editLoading, setEditLoading] = useState(false);
 	const [editError, setEditError] = useState<string | null>(null);
+	const [statusBatch, setStatusBatch] = useState<UsersAdminState["statusBatch"]>(null);
+	const [statusBatchLoading, setStatusBatchLoading] = useState(false);
+	const [statusBatchError, setStatusBatchError] = useState<string | null>(null);
 
 	// Batch purge dialog state (Batch G).
 	const [purgeBatchOpen, setPurgeBatchOpen] = useState(false);
@@ -512,13 +520,13 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 
 	const handleBatchAction = useCallback(
 		async (key: string) => {
+			if (statusBatchLoading || purgeBatchLoading) return;
 			const ids = Array.from(selectedIds).map(Number);
 			if (ids.length === 0) return;
 
-			if (key === "ban") {
-				await batchSetStatus(ids, -1);
-			} else if (key === "activate") {
-				await batchSetStatus(ids, 0);
+			if (key === "ban" || key === "activate") {
+				setStatusBatchError(null);
+				setStatusBatch({ ids, status: key === "ban" ? -1 : 0 });
 			} else if (key === "purge") {
 				// Defer the actual purges until the operator types `ok` in
 				// the confirm dialog. The dialog reads selectedIds at
@@ -527,15 +535,32 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 				setPurgeBatchError(null);
 				setPurgeBatchSummary(null);
 				setPurgeBatchOpen(true);
-				return;
-			} else {
-				return;
 			}
-			setSelectedIds(new Set());
-			fetchData(pagination.page);
 		},
-		[selectedIds, fetchData, pagination.page],
+		[selectedIds, statusBatchLoading, purgeBatchLoading],
 	);
+
+	const closeStatusBatchDialog = useCallback(() => {
+		if (statusBatchLoading) return;
+		setStatusBatch(null);
+		setStatusBatchError(null);
+	}, [statusBatchLoading]);
+
+	const handleStatusBatchConfirm = useCallback(async () => {
+		if (!statusBatch || statusBatchLoading || purgeBatchLoading) return;
+		setStatusBatchLoading(true);
+		setStatusBatchError(null);
+		try {
+			await batchSetStatus(statusBatch.ids, statusBatch.status);
+			setStatusBatch(null);
+			setSelectedIds(new Set());
+			await fetchData(pagination.page);
+		} catch (error) {
+			setStatusBatchError(extractErrorMessage(error, "批量更新用户状态失败，请重试"));
+		} finally {
+			setStatusBatchLoading(false);
+		}
+	}, [statusBatch, statusBatchLoading, purgeBatchLoading, fetchData, pagination.page]);
 
 	const closePurgeBatchDialog = useCallback(() => {
 		if (purgeBatchLoading) return;
@@ -599,6 +624,9 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			editUser,
 			editLoading,
 			editError,
+			statusBatch,
+			statusBatchLoading,
+			statusBatchError,
 			purgeBatchOpen,
 			purgeBatchLoading,
 			purgeBatchError,
@@ -614,6 +642,8 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			closeEditDialog,
 			handleEditSave,
 			handleBatchAction,
+			closeStatusBatchDialog,
+			handleStatusBatchConfirm,
 			setSelectedIds,
 			closePurgeBatchDialog,
 			clearPurgeBatchSummary,

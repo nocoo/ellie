@@ -198,7 +198,7 @@ describe("useUsersAdmin", () => {
 		expect(result.current.state.editUser).toBeNull();
 	});
 
-	it("handleBatchAction ban calls batchSetStatus", async () => {
+	it("confirms batch bans before changing any user status", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
 		await waitFor(
@@ -215,12 +215,17 @@ describe("useUsersAdmin", () => {
 		await act(async () => {
 			await result.current.actions.handleBatchAction("ban");
 		});
+		expect(mockBatchSetStatus).not.toHaveBeenCalled();
+		expect(result.current.state.statusBatch).toEqual({ ids: [1, 2], status: -1 });
+		await act(async () => {
+			await result.current.actions.handleStatusBatchConfirm();
+		});
 
 		expect(mockBatchSetStatus).toHaveBeenCalledWith([1, 2], -1);
 		expect(result.current.state.selectedIds.size).toBe(0);
 	});
 
-	it("handleBatchAction activate calls batchSetStatus", async () => {
+	it("confirms batch activations before changing any user status", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
 		await waitFor(
@@ -237,8 +242,58 @@ describe("useUsersAdmin", () => {
 		await act(async () => {
 			await result.current.actions.handleBatchAction("activate");
 		});
+		expect(mockBatchSetStatus).not.toHaveBeenCalled();
+		expect(result.current.state.statusBatch).toEqual({ ids: [3], status: 0 });
+		await act(async () => {
+			await result.current.actions.handleStatusBatchConfirm();
+		});
 
 		expect(mockBatchSetStatus).toHaveBeenCalledWith([3], 0);
+	});
+
+	it("keeps failed batch status changes selected and prevents closing or repeating a pending request", async () => {
+		const { result } = renderHook(() => useUsersAdmin());
+		await waitFor(() => expect(result.current.state.loading).toBe(false));
+		act(() => result.current.actions.setSelectedIds(new Set([1, 2])));
+		await act(async () => result.current.actions.handleBatchAction("ban"));
+		let rejectRequest!: (error: Error) => void;
+		mockBatchSetStatus.mockImplementationOnce(
+			() =>
+				new Promise((_resolve, reject) => {
+					rejectRequest = reject;
+				}),
+		);
+		let pending!: Promise<void>;
+		act(() => {
+			pending = result.current.actions.handleStatusBatchConfirm();
+		});
+		expect(result.current.state.statusBatchLoading).toBe(true);
+		act(() => result.current.actions.closeStatusBatchDialog());
+		await act(async () => result.current.actions.handleStatusBatchConfirm());
+		expect(result.current.state.statusBatch).toEqual({ ids: [1, 2], status: -1 });
+		expect(mockBatchSetStatus).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			rejectRequest(new Error("Temporary failure"));
+			await pending;
+		});
+		expect(result.current.state.statusBatchError).toBe("Temporary failure");
+		expect(result.current.state.selectedIds).toEqual(new Set([1, 2]));
+		expect(result.current.state.statusBatchLoading).toBe(false);
+		await act(async () => result.current.actions.handleStatusBatchConfirm());
+		expect(mockBatchSetStatus).toHaveBeenCalledTimes(2);
+		expect(result.current.state.statusBatch).toBeNull();
+		expect(result.current.state.selectedIds.size).toBe(0);
+	});
+
+	it("cancels a status confirmation without modifying accounts", async () => {
+		const { result } = renderHook(() => useUsersAdmin());
+		await waitFor(() => expect(result.current.state.loading).toBe(false));
+		act(() => result.current.actions.setSelectedIds(new Set([1])));
+		await act(async () => result.current.actions.handleBatchAction("ban"));
+		act(() => result.current.actions.closeStatusBatchDialog());
+		await act(async () => result.current.actions.handleStatusBatchConfirm());
+		expect(mockBatchSetStatus).not.toHaveBeenCalled();
+		expect(result.current.state.selectedIds).toEqual(new Set([1]));
 	});
 
 	it("handleBatchAction with empty selection does nothing", async () => {
