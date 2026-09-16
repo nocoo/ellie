@@ -48,22 +48,27 @@ export function useFeatureFlags(): FeatureFlags {
 	const [isLoading, setIsLoading] = useState(initial === undefined);
 
 	useEffect(() => {
-		const controller = new AbortController();
+		let cancelled = false;
 
+		// Other mounted consumers share this request; leaving one view must
+		// not abort the load used by the remaining subscribers.
 		featureFlagsCache
-			.get(undefined, { signal: controller.signal })
+			.get()
 			.then((result) => {
+				if (cancelled) return;
 				setData(result);
 				setIsLoading(false);
 			})
 			.catch((err) => {
-				if (err?.name !== "AbortError") {
+				if (!cancelled) {
 					console.error("Failed to fetch feature flags:", err);
 					setIsLoading(false);
 				}
 			});
 
-		return () => controller.abort();
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	const getValue = (key: string): string => {

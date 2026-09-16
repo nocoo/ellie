@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { featureFlagsCache, useFeatureFlags } from "@/hooks/use-feature-flags";
 
@@ -12,10 +13,31 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe("useFeatureFlags with real React", () => {
+	afterEach(cleanup);
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 		// Explicit reset — do not rely on test ordering for cache state.
 		featureFlagsCache.clear();
+	});
+
+	it("keeps the shared load alive when StrictMode remounts a subscriber", async () => {
+		let finish!: () => void;
+		globalThis.fetch = vi.fn(
+			(_url, init) =>
+				new Promise<Response>((resolve, reject) => {
+					finish = () => resolve(jsonResponse({ "features.content.allow_new_thread": "false" }));
+					init?.signal?.addEventListener("abort", () =>
+						reject(new DOMException("Aborted", "AbortError")),
+					);
+				}),
+		) as typeof fetch;
+
+		const { result } = renderHook(() => useFeatureFlags(), { wrapper: StrictMode });
+		await act(async () => finish());
+		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+		expect(result.current.isLoading).toBe(false);
+		expect(result.current.canCreateThread).toBe(false);
 	});
 
 	it("fetches settings and resolves flags", async () => {
