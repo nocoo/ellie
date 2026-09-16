@@ -22,7 +22,7 @@
 import { Dialog, DialogHeader, DialogTitle } from "@nocoo/basalt";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { type UserDetailChangeKind, UserDetailPanel } from "@/components/admin/user-detail-panel";
-import { ADMIN_WIDE_DIALOG_BODY_CLASS } from "./dialog-presets";
+import { ADMIN_WIDE_DIALOG_BODY_CLASS, ADMIN_WIDE_DIALOG_CONTENT_CLASS } from "./dialog-presets";
 
 export interface UserDetailDialogProps {
 	/**
@@ -72,7 +72,7 @@ export function UserDetailDialog({
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
 			<AdminDialogContent
-				className="grid gap-4 w-[calc(100vw-2rem)] max-w-[min(1440px,calc(100vw-2rem))] overflow-hidden p-6 sm:max-w-[min(1440px,calc(100vw-2rem))] sm:w-[calc(100vw-2rem)]"
+				className={`${ADMIN_WIDE_DIALOG_CONTENT_CLASS} max-w-[min(1440px,calc(100vw-2rem))] sm:max-w-[min(1440px,calc(100vw-2rem))]`}
 				aria-describedby={undefined}
 			>
 				<DialogHeader className="min-w-0 pr-8">

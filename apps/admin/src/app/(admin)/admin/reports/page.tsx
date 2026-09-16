@@ -421,7 +421,7 @@ export default function ReportsPage() {
 
 			{/* Detail dialog */}
 			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
-				<AdminDialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
+				<AdminDialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
 					<DialogHeader className="min-w-0 pr-8">
 						<DialogTitle>举报详情 #{detailReport?.id}</DialogTitle>
 						<DialogDescription>查看举报的详细信息</DialogDescription>

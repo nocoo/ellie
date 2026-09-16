@@ -43,7 +43,7 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<AdminDialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
+			<AdminDialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
 				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle>操作日志详情</DialogTitle>
 					<DialogDescription>只读审计记录</DialogDescription>

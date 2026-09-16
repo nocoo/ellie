@@ -30,7 +30,7 @@
  *   region is responsible for its own scroll (see body class below).
  */
 export const ADMIN_WIDE_DIALOG_CONTENT_CLASS =
-	"w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)] max-w-5xl overflow-hidden";
+	"flex flex-col w-[calc(100vw-2rem)] sm:w-[calc(100vw-2rem)] max-w-5xl overflow-hidden";
 
 /**
  * Inner body wrapper className for wide admin detail dialogs.
@@ -39,4 +39,4 @@ export const ADMIN_WIDE_DIALOG_CONTENT_CLASS =
  * - `max-h-[80vh] overflow-y-auto`: keep the dialog within the viewport
  *   even when content is long; leaves room for header/footer.
  */
-export const ADMIN_WIDE_DIALOG_BODY_CLASS = "min-w-0 max-h-[80vh] overflow-y-auto";
+export const ADMIN_WIDE_DIALOG_BODY_CLASS = "min-h-0 min-w-0 max-h-[80vh] overflow-y-auto";

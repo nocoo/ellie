@@ -657,7 +657,7 @@ function KeyDetailDialog({
 }) {
 	return (
 		<Dialog open={state.open} onOpenChange={onOpenChange}>
-			<AdminDialogContent className={`grid gap-4 ${ADMIN_WIDE_DIALOG_CONTENT_CLASS}`}>
+			<AdminDialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
 				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle className="break-all font-mono text-sm">
 						{state.rawKey ?? "Key 详情"}

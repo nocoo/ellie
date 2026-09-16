@@ -812,6 +812,49 @@ test.describe("Feature: Admin Operation Logs", () => {
 		expect(lastRequestUrl).toContain("action=user.ban");
 	});
 
+	test("keeps long log details scrollable with the close button inside the dialog", async ({
+		page,
+	}) => {
+		const details = JSON.stringify(
+			Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`field_${i}`, `value_${i}`])),
+		);
+		await page.route("**/api/admin/admin-logs**", (route) =>
+			route.fulfill({
+				json: {
+					data: [{ ...LOG_FIXTURE[0], details }],
+					meta: { page: 1, pages: 1, limit: 20, total: 1 },
+				},
+			}),
+		);
+		for (const viewport of [
+			{ width: 375, height: 812 },
+			{ width: 320, height: 568 },
+			{ width: 1280, height: 720 },
+		]) {
+			await page.setViewportSize(viewport);
+			await page.goto("/admin/logs/operations");
+			await page.getByLabel("查看日志 #101 详情").click();
+			const dialog = page.getByRole("dialog", { name: "操作日志详情" });
+			await expect(dialog).toHaveCSS("opacity", "1");
+			const close = dialog.getByRole("button", { name: "关闭", exact: true });
+			const panelBox = await dialog.boundingBox();
+			const closeBox = await close.boundingBox();
+			if (!panelBox || !closeBox) throw new Error("Expected a visible dialog and close button");
+			expect(panelBox.y).toBeGreaterThanOrEqual(0);
+			expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport.height);
+			expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
+			const body = dialog.getByTestId("admin-log-details").locator("..").locator("..");
+			expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+				true,
+			);
+			await body.evaluate((element) => {
+				element.scrollTop = element.scrollHeight;
+			});
+			await close.click();
+			await expect(dialog).toBeHidden();
+		}
+	});
+
 	test("Given the operation logs list, When I open a JSON-details row and then a non-JSON row, Then the detail dialog pretty-prints JSON for the first and falls back to raw text with a marker for the second", async ({
 		page,
 	}) => {
@@ -957,6 +1000,33 @@ test.describe("Feature: Admin Reports List", () => {
 	// real /api/admin/reports** instead of the in-memory fixture.
 	test.afterEach(async ({ page }) => {
 		await page.unroute("**/api/admin/reports**");
+	});
+
+	test("keeps report actions visible when a long reason scrolls", async ({ page }) => {
+		await page.route("**/api/admin/reports**", (route) =>
+			route.fulfill({
+				json: {
+					data: [{ ...REPORT_FIXTURE[0], reason: "需要审核的详细举报理由。".repeat(100) }],
+					meta: { page: 1, pages: 1, limit: 20, total: 1 },
+				},
+			}),
+		);
+		await page.setViewportSize({ width: 375, height: 812 });
+		await page.goto("/admin/reports");
+		await page.getByRole("button", { name: "#1", exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: "举报详情 #1", exact: true });
+		await expect(dialog).toHaveCSS("opacity", "1");
+		const panelBox = await dialog.boundingBox();
+		if (!panelBox) throw new Error("Expected a visible report dialog");
+		for (const name of ["驳回举报", "标记已处理", "删除"]) {
+			const action = dialog.getByRole("button", { name, exact: true });
+			const box = await action.boundingBox();
+			if (!box) throw new Error(`Expected a visible ${name} button`);
+			expect(box.y + box.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
+			await action.click({ trial: true });
+		}
+		await page.keyboard.press("Escape");
+		await expect(dialog).toBeHidden();
 	});
 
 	test("Given the reports page, Then per-type rows render correct target links, and When I filter type=用户, Then only the user row remains", async ({
