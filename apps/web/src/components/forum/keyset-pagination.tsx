@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 
 interface KeysetPaginationProps {
-	total: number;
+	total: number | null;
 	totalLabel?: string;
 	prevHref: string | null;
 	nextHref: string | null;
@@ -21,11 +21,13 @@ export function KeysetPagination({
 	className,
 }: KeysetPaginationProps) {
 	return (
-		<div className={className ?? "flex items-center justify-between py-2"}>
-			<span className="text-xs text-muted-foreground">
-				共 {formatNumber(total)} {totalLabel}
-			</span>
-			<div className="flex items-center gap-2">
+		<div className={className ?? "flex flex-wrap items-center justify-between gap-3 py-2"}>
+			{total !== null && (
+				<span className="text-xs text-muted-foreground">
+					共 {formatNumber(total)} {totalLabel}
+				</span>
+			)}
+			<div className="ml-auto flex items-center gap-2">
 				{prevHref ? (
 					<Button
 						variant="outline"

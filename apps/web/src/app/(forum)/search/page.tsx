@@ -80,6 +80,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
 	const postsPerPage = await getCachedPostsPerPage();
 	const items = enrichThreads(data.results.items);
+	const total = sp.cursor ? null : data.results.total;
+	const countLabel = total === null ? "本页显示" : "找到";
 	const breadcrumbs = [
 		{ label: homeLabel, href: "/" },
 		{ label: "搜索", href: "/search" },
@@ -128,8 +130,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 							) : (
 								<div className="overflow-hidden rounded-xl border border-border">
 									<div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-										找到{" "}
-										<strong className="font-semibold text-foreground">{data.results.total}</strong>{" "}
+										{countLabel}{" "}
+										<strong className="font-semibold text-foreground">
+											{total ?? items.length}
+										</strong>{" "}
 										条相关主题
 									</div>
 									<ThreadListHeader />
@@ -141,7 +145,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
 							{data.results.items.length > 0 && (
 								<KeysetPagination
-									total={data.results.total}
+									total={total}
 									totalLabel="条结果"
 									prevHref={null}
 									nextHref={
