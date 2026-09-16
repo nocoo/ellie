@@ -4,6 +4,8 @@
 // MVVM: This is the View layer. State and logic are in useUsersAdmin hook.
 
 import { Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Eye, Pencil } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
@@ -16,7 +18,6 @@ import { AdminPagination } from "@/components/admin/admin-pagination";
 import { buildUserColumns } from "@/components/admin/columns/user-columns";
 import { UserDetailDialog } from "@/components/admin/user-detail-dialog";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
-import { PageHeader } from "@/components/layout/page-header";
 import { formatPurgeBatchSummary, useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
 import type { User } from "@/viewmodels/admin/users";
@@ -283,7 +284,7 @@ export default function UsersPage() {
 
 	return (
 		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="用户" subtitle="管理论坛用户及权限" />
+			<PageHeader title="用户" description="管理论坛用户及权限" />
 
 			<AdminFilters
 				filters={FILTERS}
@@ -338,7 +339,7 @@ export default function UsersPage() {
 					);
 				})()}
 
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+			<LayerCard padding="none" className="p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={state.data}
@@ -350,7 +351,7 @@ export default function UsersPage() {
 					emptyMessage="暂无用户"
 				/>
 				<AdminPagination pagination={state.pagination} onPageChange={actions.handlePageChange} />
-			</div>
+			</LayerCard>
 
 			<AdminBatchBar
 				selectedCount={state.selectedIds.size}

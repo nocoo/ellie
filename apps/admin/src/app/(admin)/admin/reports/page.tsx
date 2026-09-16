@@ -15,6 +15,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -27,7 +29,6 @@ import {
 	ADMIN_WIDE_DIALOG_BODY_CLASS,
 	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
 } from "@/components/admin/dialog-presets";
-import { PageHeader } from "@/components/layout/page-header";
 import { reportStatusVariant, reportTypeVariant } from "@/viewmodels/admin/badges";
 import {
 	batchDeleteReports,
@@ -368,8 +369,8 @@ export default function ReportsPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="举报管理"
-				subtitle="处理用户举报的主题、回帖与用户"
-				action={
+				description="处理用户举报的主题、回帖与用户"
+				actions={
 					<Button variant="outline" onClick={() => fetchData(pagination.page)} disabled={loading}>
 						<RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
 						刷新
@@ -384,7 +385,7 @@ export default function ReportsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+			<LayerCard padding="none" className="p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={data}
@@ -396,7 +397,7 @@ export default function ReportsPage() {
 					emptyMessage="暂无举报记录"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
-			</div>
+			</LayerCard>
 
 			<AdminBatchBar
 				selectedCount={selectedIds.size}

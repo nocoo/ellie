@@ -2,6 +2,7 @@
 
 import { Button, Checkbox, Input, Label } from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
+import { LayerCard } from "@nocoo/basalt";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -98,7 +99,7 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 
 			{/* Feature groups */}
 			{FEATURE_GROUPS.map((group) => (
-				<div key={group.id} className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-6">
+				<LayerCard padding="none" key={group.id} className="p-4 md:p-6">
 					<h2 className="text-base font-semibold text-foreground">{group.title}</h2>
 					<p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
 
@@ -118,7 +119,7 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 							/>
 						))}
 					</div>
-				</div>
+				</LayerCard>
 			))}
 		</div>
 	);

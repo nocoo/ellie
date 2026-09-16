@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Loader2, Lock, Pencil, Trash2, Unlock } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -13,7 +15,6 @@ import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-p
 import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
 import { ThreadBatchMoveDialog } from "@/components/admin/thread-batch-move-dialog";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
-import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import {
@@ -480,7 +481,7 @@ function ThreadsPageInner() {
 
 	return (
 		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="主题" subtitle="管理论坛主题" />
+			<PageHeader title="主题" description="管理论坛主题" />
 
 			<AdminFilters
 				filters={filterDefs}
@@ -491,7 +492,7 @@ function ThreadsPageInner() {
 
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+			<LayerCard padding="none" className="p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={data}
@@ -503,7 +504,7 @@ function ThreadsPageInner() {
 					emptyMessage="暂无主题"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
-			</div>
+			</LayerCard>
 
 			<AdminBatchBar
 				selectedCount={selectedIds.size}

@@ -36,7 +36,9 @@
 // matches the original single-page version.
 
 import { formatNumber } from "@ellie/shared";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { Badge, Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -305,23 +307,26 @@ export function UserDetailPanel({
 		<div className="space-y-6">
 			{showBack && <BackLinkButton onClick={() => router.push("/admin/users")} />}
 
-			{/*
-			 * Header row — identity on the left, action buttons on the right.
-			 * Actions moved up from a bottom "danger zone" per哥 2026-07-09
-			 * so operators can act without hunting to the fold. On sm the row
-			 * wraps and actions stack under the identity.
-			 */}
-			<div className="flex flex-wrap items-center gap-4">
-				<UserAvatar uid={user.id} username={user.username} avatarPath={user.avatarPath} size={48} />
-				<div className="min-w-0 flex-1">
-					<h1 className="text-2xl font-semibold text-foreground">{user.username}</h1>
-					<div className="mt-1 flex flex-wrap items-center gap-2">
+			<PageHeader
+				title={
+					<span className="flex items-center gap-3">
+						<UserAvatar
+							uid={user.id}
+							username={user.username}
+							avatarPath={user.avatarPath}
+							size={48}
+						/>
+						<span>{user.username}</span>
+					</span>
+				}
+				description={
+					<span className="flex flex-wrap items-center gap-2">
 						<Badge variant={userStatusVariant(user.status)}>{statusLabel(user.status)}</Badge>
 						<Badge variant={userRoleVariant(user.role)}>{roleLabel(user.role)}</Badge>
-						<span className="text-sm text-muted-foreground">ID: {user.id}</span>
-					</div>
-				</div>
-				<div className="ml-auto">
+						<span>ID: {user.id}</span>
+					</span>
+				}
+				actions={
 					<UserActionButtons
 						user={user}
 						unbanLoading={unbanLoading}
@@ -336,8 +341,8 @@ export function UserDetailPanel({
 							setPurgeDialogOpen(true);
 						}}
 					/>
-				</div>
-			</div>
+				}
+			/>
 
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
@@ -355,11 +360,11 @@ export function UserDetailPanel({
 			 * On lg drops to 2×2, on md/sm collapses to a single column.
 			 */}
 			<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-				<Card size="sm">
-					<CardHeader>
-						<CardTitle>基本资料</CardTitle>
-					</CardHeader>
-					<CardContent>
+				<LayerCard padding="sm">
+					<LayerCard.Header>
+						<h2 className="text-sm font-medium">基本资料</h2>
+					</LayerCard.Header>
+					<LayerCard.Well>
 						<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">邮箱</dt>
 							<dd className="break-all">{user.email || "—"}</dd>
@@ -374,14 +379,14 @@ export function UserDetailPanel({
 							<dt className="text-muted-foreground">最后登录</dt>
 							<dd>{fmtTimestamp(user.lastLogin)}</dd>
 						</dl>
-					</CardContent>
-				</Card>
+					</LayerCard.Well>
+				</LayerCard>
 
-				<Card size="sm">
-					<CardHeader>
-						<CardTitle>元信息</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
+				<LayerCard padding="sm">
+					<LayerCard.Header>
+						<h2 className="text-sm font-medium">元信息</h2>
+					</LayerCard.Header>
+					<LayerCard.Well className="space-y-4">
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip. */}
 						<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
@@ -447,14 +452,14 @@ export function UserDetailPanel({
 								</dl>
 							</div>
 						)}
-					</CardContent>
-				</Card>
+					</LayerCard.Well>
+				</LayerCard>
 
-				<Card size="sm">
-					<CardHeader>
-						<CardTitle>用户内容</CardTitle>
-					</CardHeader>
-					<CardContent>
+				<LayerCard padding="sm">
+					<LayerCard.Header>
+						<h2 className="text-sm font-medium">用户内容</h2>
+					</LayerCard.Header>
+					<LayerCard.Well>
 						<div className="space-y-3">
 							<SegmentedSwitch
 								ariaLabel="切换用户内容视图"
@@ -510,8 +515,8 @@ export function UserDetailPanel({
 								</div>
 							)}
 						</div>
-					</CardContent>
-				</Card>
+					</LayerCard.Well>
+				</LayerCard>
 
 				{/*
 				 * Write-permission checklist. Tombstone users get no card —

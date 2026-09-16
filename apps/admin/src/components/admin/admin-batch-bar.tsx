@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
 import { X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +30,7 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 
 	return (
 		<div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in">
-			<div className="flex items-center gap-3 rounded-xl bg-secondary px-4 py-2.5 shadow-lg">
+			<LayerCard padding="none" className="flex items-center gap-3 px-4 py-2.5 shadow-lg">
 				<span className="text-sm font-medium text-foreground">{selectedCount} 已选</span>
 				<div className="h-4 w-px bg-border" />
 				{actions.map((action) => (
@@ -50,7 +51,7 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 				>
 					<X className="h-4 w-4" />
 				</button>
-			</div>
+			</LayerCard>
 		</div>
 	);
 }

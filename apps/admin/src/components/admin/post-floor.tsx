@@ -9,6 +9,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
 import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "@/components/admin/user-avatar";
@@ -53,7 +54,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 	const { author } = post;
 
 	return (
-		<div className="rounded-[var(--radius-card,14px)] bg-secondary overflow-hidden">
+		<LayerCard padding="none" className="overflow-hidden">
 			{/* Floor header */}
 			<div className="flex items-center justify-between border-b border-border/50 bg-background/30 px-4 py-2">
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -155,6 +156,6 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 					</div>
 				</div>
 			</div>
-		</div>
+		</LayerCard>
 	);
 }

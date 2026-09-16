@@ -1,4 +1,5 @@
 import { formatNumber } from "@ellie/shared";
+import { LayerCard } from "@nocoo/basalt";
 import type { ElementType } from "react";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +24,7 @@ export interface StatCardProps {
 
 export function StatCard({ label, value, icon: Icon, subItems }: StatCardProps) {
 	return (
-		<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-5">
+		<LayerCard padding="none" className="p-4 md:p-5">
 			<div className="flex items-start justify-between">
 				<div className="space-y-1">
 					<p className="text-xs md:text-sm text-muted-foreground">{label}</p>
@@ -49,6 +50,6 @@ export function StatCard({ label, value, icon: Icon, subItems }: StatCardProps) 
 					))}
 				</ul>
 			)}
-		</div>
+		</LayerCard>
 	);
 }

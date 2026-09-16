@@ -11,7 +11,8 @@
 // Each chart has its own loader + error slot, mirroring the previous inline
 // page implementation.
 
-import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+
 import { useCallback, useEffect, useState } from "react";
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
@@ -118,9 +119,9 @@ export function TrendTab(): React.JSX.Element {
 				))}
 			</div>
 
-			<Card>
-				<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<CardTitle className="text-base font-semibold">趋势曲线</CardTitle>
+			<LayerCard>
+				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<h2 className="text-sm font-medium text-base font-semibold">趋势曲线</h2>
 					<div className="flex flex-wrap gap-2">
 						{ANALYTICS_TREND_METRICS.map((m) => (
 							<button
@@ -137,20 +138,20 @@ export function TrendTab(): React.JSX.Element {
 							</button>
 						))}
 					</div>
-				</CardHeader>
-				<CardContent>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{trendError && <p className="text-sm text-destructive">趋势加载失败：{trendError}</p>}
 					{trend && <TrendChart series={trend.series} valueLabel={METRIC_LABELS[trend.metric]} />}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base font-semibold">
+			<LayerCard>
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium text-base font-semibold">
 						{RANGE_LABELS[range]} 各版块发帖分布
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
+					</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{forumDistError && (
 						<p className="text-sm text-destructive">分布加载失败：{forumDistError}</p>
 					)}
@@ -158,14 +159,16 @@ export function TrendTab(): React.JSX.Element {
 					{forumDist && forumDist.rows.length === 0 && (
 						<p className="text-sm text-muted-foreground">该时段暂无发帖数据。</p>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base font-semibold">{RANGE_LABELS[range]} 签到趋势</CardTitle>
-				</CardHeader>
-				<CardContent>
+			<LayerCard>
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium text-base font-semibold">
+						{RANGE_LABELS[range]} 签到趋势
+					</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{checkinError && <p className="text-sm text-destructive">签到加载失败：{checkinError}</p>}
 					{checkin && (
 						<TrendChart
@@ -174,8 +177,8 @@ export function TrendTab(): React.JSX.Element {
 							valueLabel="签到"
 						/>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		</div>
 	);
 }

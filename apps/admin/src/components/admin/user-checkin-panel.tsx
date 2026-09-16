@@ -17,7 +17,8 @@
 // checkin state from inside the user-detail page. There is no global
 // dashboard.
 
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@ellie/ui";
+import { Button, Input, Label } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -158,40 +159,40 @@ export function UserCheckinPanel({ userId }: Props) {
 
 	if (loading && !detail) {
 		return (
-			<Card size="sm">
-				<CardHeader>
-					<CardTitle>签到</CardTitle>
-				</CardHeader>
-				<CardContent>
+			<LayerCard padding="sm">
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium">签到</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					<div className="flex items-center justify-center py-10">
 						<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
 					</div>
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		);
 	}
 
 	if (error) {
 		return (
-			<Card size="sm">
-				<CardHeader>
-					<CardTitle>签到</CardTitle>
-				</CardHeader>
-				<CardContent>
+			<LayerCard padding="sm">
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium">签到</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					<AdminInlineMessage variant="error" text={error} />
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		);
 	}
 
 	const aggregate = detail?.checkin ?? null;
 
 	return (
-		<Card size="sm">
-			<CardHeader>
-				<CardTitle>签到</CardTitle>
-			</CardHeader>
-			<CardContent className="space-y-4">
+		<LayerCard padding="sm">
+			<LayerCard.Header>
+				<h2 className="text-sm font-medium">签到</h2>
+			</LayerCard.Header>
+			<LayerCard.Well className="space-y-4">
 				{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
 				{/*
@@ -294,7 +295,7 @@ export function UserCheckinPanel({ userId }: Props) {
 						</p>
 					</form>
 				</div>
-			</CardContent>
-		</Card>
+			</LayerCard.Well>
+		</LayerCard>
 	);
 }

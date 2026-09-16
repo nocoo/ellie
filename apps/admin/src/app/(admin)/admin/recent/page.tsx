@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Lightbox, type LightboxImage } from "@ellie/ui";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Loader2, Trash2 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -12,7 +13,6 @@ import { buildPostColumns } from "@/components/admin/columns/post-columns";
 import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
 import { buildUserColumns } from "@/components/admin/columns/user-columns";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
-import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { getAttachmentUrl } from "@/lib/cdn";
 import type { Attachment } from "@/viewmodels/admin/attachments";
@@ -341,7 +341,7 @@ function RecentPageInner() {
 
 	return (
 		<div className="space-y-6">
-			<PageHeader title="增量管理" subtitle={`${TIME_RANGE_LABELS[timeRange]}新增内容概览`} />
+			<PageHeader title="增量管理" description={`${TIME_RANGE_LABELS[timeRange]}新增内容概览`} />
 
 			{/* Time range selector */}
 			<div className="flex flex-wrap items-center gap-4">

@@ -11,6 +11,8 @@ import {
 	type LightboxImage,
 } from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	Download,
 	ExternalLink,
@@ -27,7 +29,6 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
-import { PageHeader } from "@/components/layout/page-header";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
 	type Attachment,
@@ -526,8 +527,8 @@ export default function AttachmentsPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="附件管理"
-				subtitle={`共 ${stats.total} 个附件 · ${stats.images} 张图片 · ${stats.files} 个文件`}
-				action={
+				description={`共 ${stats.total} 个附件 · ${stats.images} 张图片 · ${stats.files} 个文件`}
+				actions={
 					<div className="flex items-center rounded-lg bg-secondary p-1">
 						<button
 							type="button"
@@ -568,7 +569,7 @@ export default function AttachmentsPage() {
 			/>
 
 			{/* Content */}
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto overflow-hidden">
+			<LayerCard padding="none" className="p-1 overflow-x-auto overflow-hidden">
 				{/* Select all header */}
 				{data.length > 0 && (
 					<div className="flex items-center gap-3 px-4 py-2.5 border-b bg-secondary/30">
@@ -631,7 +632,7 @@ export default function AttachmentsPage() {
 
 				{/* Pagination */}
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
-			</div>
+			</LayerCard>
 
 			{/* Batch action bar */}
 			<AdminBatchBar

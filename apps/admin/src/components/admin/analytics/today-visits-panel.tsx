@@ -20,7 +20,8 @@
  * per-session dedup; the wording reflects what the data can support.
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -167,11 +168,11 @@ export function TodayVisitsPanel() {
 	return (
 		<>
 			{/* ── KPI row (aggregate, KV-cached on worker) ────────────────── */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base font-semibold">今日访问</CardTitle>
-				</CardHeader>
-				<CardContent>
+			<LayerCard>
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium text-base font-semibold">今日访问</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{kpiError && <p className="text-sm text-destructive">KPI 加载失败：{kpiError}</p>}
 					{kpi && (
 						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -192,13 +193,13 @@ export function TodayVisitsPanel() {
 							/>
 						</div>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 
 			{/* ── Detail list (realtime, no-store) ────────────────────────── */}
-			<Card>
-				<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-					<CardTitle className="text-base font-semibold">访问明细</CardTitle>
+			<LayerCard>
+				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+					<h2 className="text-sm font-medium text-base font-semibold">访问明细</h2>
 					<div className="flex flex-wrap gap-1 text-xs">
 						<FilterPill
 							active={pathKindFilter === ""}
@@ -222,8 +223,8 @@ export function TodayVisitsPanel() {
 							</FilterPill>
 						))}
 					</div>
-				</CardHeader>
-				<CardContent>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{listError && <p className="text-sm text-destructive">明细加载失败：{listError}</p>}
 					{list && list.rows.length === 0 && (
 						<p className="text-sm text-muted-foreground">该筛选条件下暂无记录。</p>
@@ -301,8 +302,8 @@ export function TodayVisitsPanel() {
 							</div>
 						</div>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		</>
 	);
 }

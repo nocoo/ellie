@@ -1,5 +1,5 @@
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { FeatureSettingsForm } from "@/components/admin/feature-settings-form";
-import { PageHeader } from "@/components/layout/page-header";
 import { fetchSettingsDetailed } from "@/viewmodels/admin/settings.server";
 
 export default async function FeatureSettingsPage() {
@@ -15,7 +15,10 @@ export default async function FeatureSettingsPage() {
 
 	return (
 		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="功能设置" subtitle="控制站点功能开关和访问限制，更改将在保存后立即生效" />
+			<PageHeader
+				title="功能设置"
+				description="控制站点功能开关和访问限制，更改将在保存后立即生效"
+			/>
 
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">

@@ -6,7 +6,8 @@
  * KPI summary card row + detail list with raw IP/UA (admin-only, no masking).
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
@@ -108,11 +109,11 @@ export function LoginAttemptsPanel() {
 	return (
 		<>
 			{/* ── KPI row (aggregate, KV-cached on worker) ────────────────── */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base font-semibold">今日登录尝试</CardTitle>
-				</CardHeader>
-				<CardContent>
+			<LayerCard>
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium text-base font-semibold">今日登录尝试</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{kpiError && <p className="text-sm text-destructive">KPI 加载失败：{kpiError}</p>}
 					{kpi && (
 						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -125,13 +126,13 @@ export function LoginAttemptsPanel() {
 							<KpiCell label="成功用户" value={kpi.uniqueUsers} />
 						</div>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 
 			{/* ── Detail list with reveal ─────────────────────────────────── */}
-			<Card>
-				<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<CardTitle className="text-base font-semibold">登录明细</CardTitle>
+			<LayerCard>
+				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<h2 className="text-sm font-medium text-base font-semibold">登录明细</h2>
 					<div className="flex flex-wrap items-center gap-2 text-xs">
 						<FilterGroup
 							value={okFilter}
@@ -158,8 +159,8 @@ export function LoginAttemptsPanel() {
 							]}
 						/>
 					</div>
-				</CardHeader>
-				<CardContent>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{listError && <p className="text-sm text-destructive">明细加载失败：{listError}</p>}
 					{list && list.rows.length === 0 && (
 						<p className="text-sm text-muted-foreground">该筛选条件下暂无记录。</p>
@@ -252,8 +253,8 @@ export function LoginAttemptsPanel() {
 							</div>
 						</div>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		</>
 	);
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { Input, Label } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
@@ -8,7 +10,6 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminLogDetailDialog } from "@/components/admin/admin-log-detail-dialog";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
-import { PageHeader } from "@/components/layout/page-header";
 import {
 	type AdminLog,
 	type AdminLogFilters,
@@ -257,7 +258,7 @@ export default function AdminLogsPage() {
 
 	return (
 		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="操作日志" subtitle="管理员操作审计记录（只读）" />
+			<PageHeader title="操作日志" description="管理员操作审计记录（只读）" />
 
 			<AdminFilters
 				filters={FILTERS}
@@ -266,7 +267,7 @@ export default function AdminLogsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="flex flex-wrap items-end gap-3 rounded-xl bg-secondary p-3">
+			<LayerCard padding="none" className="flex flex-wrap items-end gap-3 p-3">
 				<div className="grid gap-1">
 					<Label htmlFor="filter-action" className="text-xs text-muted-foreground">
 						Action（精确匹配）
@@ -343,9 +344,9 @@ export default function AdminLogsPage() {
 						className="w-44"
 					/>
 				</div>
-			</div>
+			</LayerCard>
 
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+			<LayerCard padding="none" className="p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={data}
@@ -354,7 +355,7 @@ export default function AdminLogsPage() {
 					emptyMessage="暂无操作日志"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
-			</div>
+			</LayerCard>
 
 			<AdminLogDetailDialog
 				open={selectedLog !== null}

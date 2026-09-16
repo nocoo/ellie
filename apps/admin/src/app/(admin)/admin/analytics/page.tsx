@@ -24,17 +24,17 @@
 //   - Unknown values fall back to `trend` (the next click writes the
 //     normalized value back to the URL).
 
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
 import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
 import { TrendTab } from "@/components/admin/analytics/tabs/trend-tab";
-import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { StatCard } from "@/components/admin/stat-card";
-import { PageHeader } from "@/components/layout/page-header";
-import { Section } from "@/components/layout/section";
+
 import { type AnalyticsOverview, parseOverview } from "@/viewmodels/admin/analytics";
 
 // ---------------------------------------------------------------------------
@@ -129,10 +129,10 @@ function AnalyticsPageInner(): React.JSX.Element {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="数据分析"
-				subtitle="今日 KPI 与近期趋势（基于业务表实时聚合，KV 缓存 60s ~ 5min）"
+				description="今日 KPI 与近期趋势（基于业务表实时聚合，KV 缓存 60s ~ 5min）"
 			/>
 
-			<Section title="今日 KPI">
+			<SectionRule title="今日 KPI">
 				{overviewError && (
 					<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
 						今日 KPI 加载失败：{overviewError}
@@ -146,13 +146,13 @@ function AnalyticsPageInner(): React.JSX.Element {
 						<StatCard label="今日签到" value={overview.today.checkins} icon={CalendarCheck} />
 					</div>
 				)}
-			</Section>
+			</SectionRule>
 
 			<section className="space-y-3">
-				<SectionHeader
+				<SectionRule
 					title="分析视图"
-					description={TAB_DESCRIPTIONS[activeTab]}
-					action={
+					hint={TAB_DESCRIPTIONS[activeTab]}
+					actions={
 						<SegmentedSwitch
 							ariaLabel="切换数据分析视图"
 							value={activeTab}

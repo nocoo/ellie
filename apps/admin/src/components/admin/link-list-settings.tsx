@@ -1,10 +1,11 @@
 "use client";
 
 import { Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { PageHeader } from "@/components/layout/page-header";
 import { updateSettings } from "@/viewmodels/admin/settings";
 import { NavLinksEditor } from "./nav-links-editor";
 
@@ -75,7 +76,7 @@ export function LinkListSettings({
 
 	return (
 		<div className="space-y-6 md:space-y-8">
-			<PageHeader title={title} subtitle={description} />
+			<PageHeader title={title} description={description} />
 
 			{/* Action bar */}
 			<div className="flex items-center justify-end gap-2">
@@ -103,9 +104,9 @@ export function LinkListSettings({
 			)}
 
 			{/* Link editor card */}
-			<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-6">
+			<LayerCard padding="none" className="p-4 md:p-6">
 				<NavLinksEditor settingKey={settingKey} value={currentValue} onChange={handleChange} />
-			</div>
+			</LayerCard>
 		</div>
 	);
 }

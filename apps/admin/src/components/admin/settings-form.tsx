@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Checkbox, Input, Label } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -97,10 +98,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 
 			{/* Setting groups */}
 			{SETTING_GROUPS.map((group) => (
-				<div
-					key={group.prefix}
-					className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-6"
-				>
+				<LayerCard padding="none" key={group.prefix} className="p-4 md:p-6">
 					<h2 className="text-base font-semibold text-foreground">{group.title}</h2>
 					<p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
 
@@ -114,7 +112,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 							/>
 						))}
 					</div>
-				</div>
+				</LayerCard>
 			))}
 		</div>
 	);

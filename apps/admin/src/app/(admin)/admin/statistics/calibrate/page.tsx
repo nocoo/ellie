@@ -3,11 +3,6 @@
 import {
 	Badge,
 	Button,
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
 	Input,
 	Table,
 	TableBody,
@@ -16,9 +11,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { AlertCircle, Calculator, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { PageHeader } from "@/components/layout/page-header";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -183,25 +179,25 @@ export default function StatsCalibratePage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="统计校准"
-				subtitle="查看和校准预计算的统计计数器。点击「运行统计」执行 COUNT(*) 查询获取真实值，然后选择「同步真实值」或手动调整偏移量。"
+				description="查看和校准预计算的统计计数器。点击「运行统计」执行 COUNT(*) 查询获取真实值，然后选择「同步真实值」或手动调整偏移量。"
 			/>
 
 			{/* Today's posts card */}
-			<Card>
-				<CardHeader className="pb-3">
+			<LayerCard>
+				<LayerCard.Header className="pb-3">
 					<div className="flex items-center gap-2">
 						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
 							<Calculator className="h-5 w-5" />
 						</div>
 						<div>
-							<CardTitle className="text-base">今日发帖</CardTitle>
-							<CardDescription className="text-xs">
+							<h2 className="text-sm font-medium text-base">今日发帖</h2>
+							<p className="text-xs text-basalt-muted-foreground text-xs">
 								存储在 KV 中，每日北京时间 0 点重置
-							</CardDescription>
+							</p>
 						</div>
 					</div>
-				</CardHeader>
-				<CardContent>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					<div className="flex items-center gap-4 text-sm">
 						<div>
 							<span className="text-muted-foreground">今日发帖：</span>
@@ -212,15 +208,15 @@ export default function StatsCalibratePage() {
 							<span className="font-medium">{todayDate || "未初始化"}</span>
 						</div>
 					</div>
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 
 			{/* Main calibration card */}
-			<Card>
-				<CardHeader>
+			<LayerCard>
+				<LayerCard.Header>
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
-							<CardTitle className="text-base">计数器校准</CardTitle>
+							<h2 className="text-sm font-medium text-base">计数器校准</h2>
 							{hasDrift && (
 								<Badge variant="destructive" className="gap-1">
 									<AlertCircle className="h-3 w-3" />
@@ -245,11 +241,11 @@ export default function StatsCalibratePage() {
 							</Button>
 						</div>
 					</div>
-					<CardDescription>
+					<p className="text-xs text-basalt-muted-foreground">
 						「存储值」是预计算的计数器，「真实值」是 COUNT(*) 查询结果（点击运行统计后显示）
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
+					</p>
+				</LayerCard.Header>
+				<LayerCard.Well>
 					{error && (
 						<div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
 							{error}
@@ -348,15 +344,15 @@ export default function StatsCalibratePage() {
 							同步真实值
 						</Button>
 					</div>
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 
 			{/* Info card */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">说明</CardTitle>
-				</CardHeader>
-				<CardContent className="text-sm text-muted-foreground space-y-2">
+			<LayerCard>
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium text-base">说明</h2>
+				</LayerCard.Header>
+				<LayerCard.Well className="text-sm text-muted-foreground space-y-2">
 					<p>
 						<strong>预计算计数器</strong>
 						：为避免 COUNT(*)
@@ -378,8 +374,8 @@ export default function StatsCalibratePage() {
 						<strong>应用偏移</strong>
 						：在存储值基础上加减指定的偏移量，用于精细调整。
 					</p>
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		</div>
 	);
 }

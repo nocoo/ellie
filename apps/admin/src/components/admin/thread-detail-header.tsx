@@ -18,6 +18,8 @@
 
 import { formatNumber } from "@ellie/shared";
 import { Badge, Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -61,133 +63,135 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 	}
 
 	return (
-		<div className="rounded-xl bg-secondary p-1 overflow-x-auto p-4 md:p-6">
-			<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-				<div className="space-y-2 min-w-0">
-					{/* Forum breadcrumb — root-first, current forum is the tail.
+		<div className="space-y-4">
+			<PageHeader
+				title={thread.subject}
+				actions={
+					<div className="flex gap-2 shrink-0">
+						<Button variant="outline" size="sm" onClick={onEdit}>
+							<Pencil className="mr-2 h-4 w-4" />
+							编辑
+						</Button>
+						<Button variant="destructive" size="sm" onClick={onDelete}>
+							<Trash2 className="mr-2 h-4 w-4" />
+							删除
+						</Button>
+					</div>
+				}
+			/>
+			<LayerCard>
+				<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+					<div className="space-y-2 min-w-0">
+						{/* Forum breadcrumb — root-first, current forum is the tail.
 					    Last segment is non-linked so it reads as the "you are
 					    here" anchor for the thread. Non-last segments link to
 					    the threads list filtered by that forum
 					    (`/admin/threads?forumId=<id>`) because admin doesn't
 					    have per-forum detail routes — H.3.1 reviewer feedback.
 					 */}
-					<nav aria-label="版块路径" className="flex flex-wrap items-center gap-1 text-xs">
-						{breadcrumb.map((node, idx) => {
-							const isLast = idx === breadcrumb.length - 1;
-							return (
-								<span key={node.id} className="flex items-center gap-1">
-									{idx > 0 && <span className="text-muted-foreground">/</span>}
-									{isLast ? (
-										<span className="text-muted-foreground">{node.name}</span>
-									) : (
-										<Link
-											href={`/admin/threads?forumId=${node.id}`}
-											className="text-primary hover:underline"
-										>
-											{node.name}
-										</Link>
-									)}
-								</span>
-							);
-						})}
-					</nav>
+						<nav aria-label="版块路径" className="flex flex-wrap items-center gap-1 text-xs">
+							{breadcrumb.map((node, idx) => {
+								const isLast = idx === breadcrumb.length - 1;
+								return (
+									<span key={node.id} className="flex items-center gap-1">
+										{idx > 0 && <span className="text-muted-foreground">/</span>}
+										{isLast ? (
+											<span className="text-muted-foreground">{node.name}</span>
+										) : (
+											<Link
+												href={`/admin/threads?forumId=${node.id}`}
+												className="text-primary hover:underline"
+											>
+												{node.name}
+											</Link>
+										)}
+									</span>
+								);
+							})}
+						</nav>
 
-					<h1 className="text-xl md:text-2xl font-semibold text-foreground break-words">
-						{thread.subject}
-					</h1>
+						<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+							<span>
+								作者:{" "}
+								{thread.authorId > 0 ? (
+									<Link
+										href={`/admin/users/${thread.authorId}`}
+										className="text-primary hover:underline"
+									>
+										{thread.authorName}
+									</Link>
+								) : (
+									thread.authorName
+								)}
+							</span>
+							<span>·</span>
+							<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
+							<span>·</span>
+							<span>{formatNumber(thread.replies)} 回复</span>
+							<span>·</span>
+							<span>{formatNumber(thread.views)} 浏览</span>
+						</div>
 
-					<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-						<span>
-							作者:{" "}
-							{thread.authorId > 0 ? (
-								<Link
-									href={`/admin/users/${thread.authorId}`}
-									className="text-primary hover:underline"
-								>
-									{thread.authorName}
-								</Link>
-							) : (
-								thread.authorName
-							)}
-						</span>
-						<span>·</span>
-						<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
-						<span>·</span>
-						<span>{formatNumber(thread.replies)} 回复</span>
-						<span>·</span>
-						<span>{formatNumber(thread.views)} 浏览</span>
-					</div>
-
-					{/* Last-poster line — only render when there IS a last reply
+						{/* Last-poster line — only render when there IS a last reply
 					    (lastPostAt > 0). lastPosterId may still be 0 (worker
 					    couldn't join the user row); in that case render the
 					    name as plain text rather than a dead link. */}
-					{thread.lastPostAt > 0 && thread.lastPoster && (
-						<div className="text-sm text-muted-foreground">
-							最后回复:{" "}
-							{thread.lastPosterId > 0 ? (
-								<Link
-									href={`/admin/users/${thread.lastPosterId}`}
-									className="text-primary hover:underline"
-								>
-									{thread.lastPoster}
-								</Link>
-							) : (
-								thread.lastPoster
-							)}
-							<span> · {new Date(thread.lastPostAt * 1000).toLocaleString()}</span>
-						</div>
-					)}
+						{thread.lastPostAt > 0 && thread.lastPoster && (
+							<div className="text-sm text-muted-foreground">
+								最后回复:{" "}
+								{thread.lastPosterId > 0 ? (
+									<Link
+										href={`/admin/users/${thread.lastPosterId}`}
+										className="text-primary hover:underline"
+									>
+										{thread.lastPoster}
+									</Link>
+								) : (
+									thread.lastPoster
+								)}
+								<span> · {new Date(thread.lastPostAt * 1000).toLocaleString()}</span>
+							</div>
+						)}
 
-					{/* Status badges — sticky / closed / digest / highlight.
+						{/* Status badges — sticky / closed / digest / highlight.
 					    Highlight is new in H.3 to match list-row parity; the
 					    encoded RGB bitmask is treated as "set vs unset" via
 					    `threadHighlightVariant`. */}
-					<div className="flex flex-wrap gap-1.5">
-						{thread.sticky > 0 && (
-							<Badge variant={threadStickyVariant(thread.sticky)}>
-								{stickyLabel(thread.sticky)}
-							</Badge>
-						)}
-						{thread.closed > 0 && (
-							<Badge variant={threadClosedVariant(thread.closed)}>已锁定</Badge>
-						)}
-						{thread.digest > 0 && (
-							<Badge variant={threadDigestVariant(thread.digest)}>
-								{digestLabel(thread.digest)}
-							</Badge>
-						)}
-						{thread.highlight > 0 && (
-							<Badge variant={threadHighlightVariant(thread.highlight)}>高亮</Badge>
-						)}
-					</div>
+						<div className="flex flex-wrap gap-1.5">
+							{thread.sticky > 0 && (
+								<Badge variant={threadStickyVariant(thread.sticky)}>
+									{stickyLabel(thread.sticky)}
+								</Badge>
+							)}
+							{thread.closed > 0 && (
+								<Badge variant={threadClosedVariant(thread.closed)}>已锁定</Badge>
+							)}
+							{thread.digest > 0 && (
+								<Badge variant={threadDigestVariant(thread.digest)}>
+									{digestLabel(thread.digest)}
+								</Badge>
+							)}
+							{thread.highlight > 0 && (
+								<Badge variant={threadHighlightVariant(thread.highlight)}>高亮</Badge>
+							)}
+						</div>
 
-					{/* Structural meta chips — typeName / special / recommends /
+						{/* Structural meta chips — typeName / special / recommends /
 					    isAuthorFirstThread. Reviewer asked these be GROUPED
 					    rather than concatenated into one long string so each
 					    one is independently scannable / hideable. */}
-					{metaChips.length > 0 && (
-						<div className="flex flex-wrap gap-1.5">
-							{metaChips.map((chip) => (
-								<Badge key={chip.key} variant="secondary">
-									{chip.label}
-								</Badge>
-							))}
-						</div>
-					)}
+						{metaChips.length > 0 && (
+							<div className="flex flex-wrap gap-1.5">
+								{metaChips.map((chip) => (
+									<Badge key={chip.key} variant="secondary">
+										{chip.label}
+									</Badge>
+								))}
+							</div>
+						)}
+					</div>
 				</div>
-
-				<div className="flex gap-2 shrink-0">
-					<Button variant="outline" size="sm" onClick={onEdit}>
-						<Pencil className="mr-2 h-4 w-4" />
-						编辑
-					</Button>
-					<Button variant="destructive" size="sm" onClick={onDelete}>
-						<Trash2 className="mr-2 h-4 w-4" />
-						删除
-					</Button>
-				</div>
-			</div>
+			</LayerCard>
 		</div>
 	);
 }

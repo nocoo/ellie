@@ -8,6 +8,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -16,7 +18,6 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
-import { PageHeader } from "@/components/layout/page-header";
 import { censorActionVariant } from "@/viewmodels/admin/badges";
 import {
 	actionLabel,
@@ -253,8 +254,8 @@ export default function CensorWordsPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="敏感词"
-				subtitle="管理敏感词过滤规则"
-				action={
+				description="管理敏感词过滤规则"
+				actions={
 					<Button onClick={() => setCreateDialogOpen(true)}>
 						<Plus className="mr-2 h-4 w-4" />
 						添加敏感词
@@ -269,7 +270,7 @@ export default function CensorWordsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+			<LayerCard padding="none" className="p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={data}
@@ -281,7 +282,7 @@ export default function CensorWordsPage() {
 					emptyMessage="暂无敏感词"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
-			</div>
+			</LayerCard>
 
 			<AdminBatchBar
 				selectedCount={selectedIds.size}
@@ -291,7 +292,7 @@ export default function CensorWordsPage() {
 			/>
 
 			{/* Content Test Tool */}
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto p-4">
+			<LayerCard padding="none" className="p-1 overflow-x-auto p-4">
 				<h2 className="mb-3 text-lg font-medium text-foreground">内容测试</h2>
 				<p className="mb-3 text-sm text-muted-foreground">测试内容将如何被当前敏感词列表过滤。</p>
 				<div className="space-y-3">
@@ -318,7 +319,7 @@ export default function CensorWordsPage() {
 						</div>
 					)}
 				</div>
-			</div>
+			</LayerCard>
 
 			<CensorWordCreateDialog
 				open={createDialogOpen || editWord !== null}

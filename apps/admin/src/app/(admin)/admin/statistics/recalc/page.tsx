@@ -1,18 +1,11 @@
 "use client";
 
-import {
-	Badge,
-	Button,
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@ellie/ui";
+import { Badge, Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Database, Loader2, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
 import { useCallback, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
-import { PageHeader } from "@/components/layout/page-header";
 import {
 	formatPercent,
 	formatProcessedTotal,
@@ -102,22 +95,22 @@ function RecalcCard({ config }: { config: CardConfig }) {
 	else if (isRunning) primaryLabel = "运行中（自动推进）";
 
 	return (
-		<Card>
-			<CardHeader className="pb-3">
+		<LayerCard>
+			<LayerCard.Header className="pb-3">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
 							{config.icon}
 						</div>
-						<CardTitle className="text-base">{config.title}</CardTitle>
+						<h2 className="text-sm font-medium text-base">{config.title}</h2>
 					</div>
 					{status && (
 						<Badge variant={snapshotStatusVariant(status)}>{snapshotStatusLabel(status)}</Badge>
 					)}
 				</div>
-				<CardDescription className="text-xs">{config.description}</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-3">
+				<p className="text-xs text-basalt-muted-foreground text-xs">{config.description}</p>
+			</LayerCard.Header>
+			<LayerCard.Well className="space-y-3">
 				{loading && !snapshot ? (
 					<div className="flex items-center text-xs text-muted-foreground">
 						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -202,7 +195,7 @@ function RecalcCard({ config }: { config: CardConfig }) {
 						</Button>
 					)}
 				</div>
-			</CardContent>
+			</LayerCard.Well>
 
 			<AdminConfirmDialog
 				open={resetOpen}
@@ -214,7 +207,7 @@ function RecalcCard({ config }: { config: CardConfig }) {
 				loading={isPosting}
 				onConfirm={onReset}
 			/>
-		</Card>
+		</LayerCard>
 	);
 }
 
@@ -227,7 +220,7 @@ export default function StatisticsPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="统计计算"
-				subtitle="分批重新计算数据库中的统计数据。点击「开始计算」后由前端自动以 ~1.5s 间隔推进，可随时关闭窗口再回来——KV 状态会保留 24h。"
+				description="分批重新计算数据库中的统计数据。点击「开始计算」后由前端自动以 ~1.5s 间隔推进，可随时关闭窗口再回来——KV 状态会保留 24h。"
 			/>
 
 			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -236,11 +229,11 @@ export default function StatisticsPage() {
 				))}
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">说明</CardTitle>
-				</CardHeader>
-				<CardContent className="text-sm text-muted-foreground space-y-2">
+			<LayerCard>
+				<LayerCard.Header>
+					<h2 className="text-sm font-medium text-base">说明</h2>
+				</LayerCard.Header>
+				<LayerCard.Well className="text-sm text-muted-foreground space-y-2">
 					<p>
 						<strong>job 模式</strong>
 						：版块/主题/用户/帖子版块同步都以 KV 为状态机，每次 POST 推进一批，超时不会丢失进度。
@@ -255,8 +248,8 @@ export default function StatisticsPage() {
 						会自动重试，不会变红灯。
 					</p>
 					<p className="text-xs">建议在低峰期执行；推进期间页面会以约 1.5 秒间隔自动轮询。</p>
-				</CardContent>
-			</Card>
+				</LayerCard.Well>
+			</LayerCard>
 		</div>
 	);
 }

@@ -1,8 +1,9 @@
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { FileText, MessageSquare, MessagesSquare, Users } from "lucide-react";
 import Link from "next/link";
 import { StatCard } from "@/components/admin/stat-card";
-import { PageHeader } from "@/components/layout/page-header";
-import { Section } from "@/components/layout/section";
 import { activeForums, type DashboardStats } from "@/viewmodels/admin/dashboard";
 import { fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 
@@ -33,7 +34,7 @@ export default async function DashboardPage() {
 
 	return (
 		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="仪表盘" subtitle="论坛数据一览" />
+			<PageHeader title="仪表盘" description="论坛数据一览" />
 
 			{error && (
 				<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
@@ -43,16 +44,16 @@ export default async function DashboardPage() {
 
 			{stats && (
 				<>
-					<Section title="概览">
+					<SectionRule title="概览">
 						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 							<StatCard label="用户总数" value={stats.users.total} icon={Users} />
 							<StatCard label="主题总数" value={stats.threads.total} icon={FileText} />
 							<StatCard label="今日发帖" value={stats.posts.today} icon={MessageSquare} />
 							<StatCard label="活跃版块" value={activeForums(stats)} icon={MessagesSquare} />
 						</div>
-					</Section>
+					</SectionRule>
 
-					<Section title="详细">
+					<SectionRule title="详细">
 						<div className="grid gap-4 sm:grid-cols-2">
 							<StatCard
 								label="用户"
@@ -81,7 +82,7 @@ export default async function DashboardPage() {
 								subItems={[{ label: "隐藏", value: stats.forums.hidden }]}
 							/>
 
-							<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-5">
+							<LayerCard padding="none" className="p-4 md:p-5">
 								<p className="text-xs md:text-sm text-muted-foreground">快捷入口</p>
 								<ul className="mt-3 space-y-2">
 									{QUICK_LINKS.map((link) => (
@@ -95,9 +96,9 @@ export default async function DashboardPage() {
 										</li>
 									))}
 								</ul>
-							</div>
+							</LayerCard>
 						</div>
-					</Section>
+					</SectionRule>
 				</>
 			)}
 		</div>

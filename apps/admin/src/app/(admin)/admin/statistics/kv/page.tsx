@@ -33,8 +33,6 @@
 import {
 	Badge,
 	Button,
-	Card,
-	CardContent,
 	ConfirmDialog,
 	Dialog,
 	DialogContent,
@@ -48,6 +46,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -56,9 +57,7 @@ import {
 	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
 } from "@/components/admin/dialog-presets";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
-import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
-import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { readAdminKvJson } from "@/lib/admin-kv-fetch";
 
@@ -961,8 +960,8 @@ export default function KvMonitorPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="KV 缓存监控"
-				subtitle="查看 Worker KV 中各业务缓存家族的存量、TTL 与命中指标；展开家族可看 key 列表 / 过期时间，敏感家族仅展示数量与 TTL，不展开 value。"
-				action={
+				description="查看 Worker KV 中各业务缓存家族的存量、TTL 与命中指标；展开家族可看 key 列表 / 过期时间，敏感家族仅展示数量与 TTL，不展开 value。"
+				actions={
 					<Button
 						variant="outline"
 						size="sm"
@@ -979,9 +978,9 @@ export default function KvMonitorPage() {
 			/>
 
 			{notice && (
-				<Card>
-					<CardContent className="py-3 text-sm text-muted-foreground">{notice}</CardContent>
-				</Card>
+				<LayerCard>
+					<LayerCard.Well className="py-3 text-sm text-muted-foreground">{notice}</LayerCard.Well>
+				</LayerCard>
 			)}
 
 			{/*
@@ -992,14 +991,14 @@ export default function KvMonitorPage() {
 			 * each panel — the switcher is now the panel's title.
 			 */}
 			<section className="space-y-3">
-				<SectionHeader
+				<SectionRule
 					title="视图"
-					description={
+					hint={
 						activeView === "overview"
 							? "每个家族对应 kv-registry.ts 中一条声明。计数是按 family pattern 的 KV.list 扫描结果（最多 1000 条），超出时以「+」标注。点击左侧箭头展开查看 key 列表与到期时间。"
 							: "Op 维度来自 kv_cache_metrics_minute 表（migration 0035）。按家族聚合，仅显示家族级总计；不存在按 key 的命中计数。"
 					}
-					action={
+					actions={
 						<SegmentedSwitch
 							ariaLabel="切换 KV 监控视图"
 							value={activeView}
@@ -1015,8 +1014,8 @@ export default function KvMonitorPage() {
 				{activeView === "overview" && (
 					<div role="tabpanel" aria-label="家族总览" className="space-y-3">
 						{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
-						<Card>
-							<CardContent>
+						<LayerCard>
+							<LayerCard.Well>
 								<OverviewTable
 									rows={overviewRows}
 									loading={overviewLoading}
@@ -1030,31 +1029,31 @@ export default function KvMonitorPage() {
 									onDelete={handleAskDelete}
 									onRefreshFamily={handleRefreshFamily}
 								/>
-							</CardContent>
-						</Card>
+							</LayerCard.Well>
+						</LayerCard>
 					</div>
 				)}
 
 				{activeView === "metrics" && (
 					<div role="tabpanel" aria-label="家族级命中指标" className="space-y-3">
 						{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
-						<Card>
-							<CardContent>
+						<LayerCard>
+							<LayerCard.Well>
 								<MetricsTable
 									summaries={summaries}
 									minutes={METRICS_MINUTES}
 									loading={metricsLoading}
 								/>
-							</CardContent>
-						</Card>
+							</LayerCard.Well>
+						</LayerCard>
 					</div>
 				)}
 			</section>
 
 			<section className="space-y-3">
-				<SectionHeader title="说明" />
-				<Card>
-					<CardContent className="space-y-2 text-sm text-muted-foreground">
+				<SectionRule title="说明" />
+				<LayerCard>
+					<LayerCard.Well className="space-y-2 text-sm text-muted-foreground">
 						<p>
 							<Trash2 className="mr-1 inline h-3 w-3" />
 							删除 / 失效操作会写入操作日志（<code>kv.bump_gen</code> /<code>kv.delete_key</code>
@@ -1070,8 +1069,8 @@ export default function KvMonitorPage() {
 							<strong>命中率</strong> 按 <code>hit / (hit + miss)</code> 推导，仅在家族级别有效；
 							不展示按 key 的命中数据。
 						</p>
-					</CardContent>
-				</Card>
+					</LayerCard.Well>
+				</LayerCard>
 			</section>
 
 			<KeyDetailDialog

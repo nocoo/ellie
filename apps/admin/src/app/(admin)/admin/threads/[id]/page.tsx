@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -209,9 +210,12 @@ export default function ThreadDetailPage() {
 					<ArrowLeft className="mr-2 h-4 w-4" />
 					返回主题列表
 				</Button>
-				<div className="rounded-xl bg-secondary p-1 overflow-x-auto p-8 text-center text-muted-foreground">
+				<LayerCard
+					padding="none"
+					className="p-1 overflow-x-auto p-8 text-center text-muted-foreground"
+				>
 					{error}
-				</div>
+				</LayerCard>
 			</div>
 		);
 	}
@@ -252,9 +256,9 @@ export default function ThreadDetailPage() {
 
 			{/* Pagination */}
 			{pagination.pages > 1 && (
-				<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+				<LayerCard padding="none" className="p-1 overflow-x-auto">
 					<AdminPagination pagination={paginationInfo} onPageChange={handlePageChange} />
-				</div>
+				</LayerCard>
 			)}
 
 			{/* Dialogs */}

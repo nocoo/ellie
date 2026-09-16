@@ -11,7 +11,8 @@
 // would duplicate the fetch on every mount. Failure to load settings falls
 // back to FEATURE_DEFAULTS so the card never blocks the detail view.
 
-import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+
 import { AlertCircle, Check, Info, X } from "lucide-react";
 import { useMemo } from "react";
 import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
@@ -66,11 +67,11 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 	}, [result]);
 
 	return (
-		<Card size="sm">
-			<CardHeader>
-				<CardTitle>写权限体检</CardTitle>
-			</CardHeader>
-			<CardContent className="space-y-3">
+		<LayerCard padding="sm">
+			<LayerCard.Header>
+				<h2 className="text-sm font-medium">写权限体检</h2>
+			</LayerCard.Header>
+			<LayerCard.Well className="space-y-3">
 				{loading ? (
 					<p className="text-sm text-muted-foreground">正在读取站点设置…</p>
 				) : (
@@ -104,8 +105,8 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 						</p>
 					</>
 				)}
-			</CardContent>
-		</Card>
+			</LayerCard.Well>
+		</LayerCard>
 	);
 }
 

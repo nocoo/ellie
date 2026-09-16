@@ -10,6 +10,8 @@ import {
 	DropdownMenuTrigger,
 } from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	ChevronRight,
 	FolderOpen,
@@ -26,7 +28,6 @@ import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
 import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
 import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
-import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { forumStatusVariant, forumTypeVariant } from "@/viewmodels/admin/badges";
 import {
@@ -434,8 +435,8 @@ export default function ForumsPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="版块管理"
-				subtitle={`${stats.groups} 个分区 · ${stats.forums} 个版块 · ${stats.subs} 个子版块`}
-				action={
+				description={`${stats.groups} 个分区 · ${stats.forums} 个版块 · ${stats.subs} 个子版块`}
+				actions={
 					<Button onClick={() => setCreateOpen(true)}>
 						<Plus className="mr-2 h-4 w-4" />
 						创建版块
@@ -455,7 +456,7 @@ export default function ForumsPage() {
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
 			{/* Tree view */}
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto overflow-hidden">
+			<LayerCard padding="none" className="p-1 overflow-x-auto overflow-hidden">
 				{/* Table header */}
 				<div className="flex items-center gap-3 border-b bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
 					<div className="flex-1">版块</div>
@@ -504,7 +505,7 @@ export default function ForumsPage() {
 							onDelete={handleDelete}
 						/>
 					))}
-			</div>
+			</LayerCard>
 
 			{/* Legend */}
 			<div className="flex items-center gap-6 text-xs text-muted-foreground">

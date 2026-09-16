@@ -9,6 +9,8 @@ import {
 	DropdownMenuTrigger,
 	Input,
 } from "@ellie/ui";
+import { LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -19,7 +21,6 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
-import { PageHeader } from "@/components/layout/page-header";
 import { ipBanExpiryVariant, ipBanStateVariant } from "@/viewmodels/admin/badges";
 import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
 import { formatExpiry } from "@/viewmodels/admin/ip-bans";
@@ -309,8 +310,8 @@ export default function IpBansPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="IP 封禁"
-				subtitle="管理 IP 地址封禁"
-				action={
+				description="管理 IP 地址封禁"
+				actions={
 					<Button onClick={() => setCreateDialogOpen(true)}>
 						<Plus className="mr-2 h-4 w-4" />
 						添加封禁
@@ -319,7 +320,7 @@ export default function IpBansPage() {
 			/>
 
 			{/* IP Check Tool */}
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto p-4">
+			<LayerCard padding="none" className="p-1 overflow-x-auto p-4">
 				<h2 className="mb-2 text-sm font-medium text-foreground">IP 地址检测</h2>
 				<div className="flex items-center gap-2">
 					<Input
@@ -356,7 +357,7 @@ export default function IpBansPage() {
 						)}
 					</div>
 				)}
-			</div>
+			</LayerCard>
 
 			<AdminFilters
 				filters={FILTERS}
@@ -365,7 +366,7 @@ export default function IpBansPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+			<LayerCard padding="none" className="p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={data}
@@ -377,7 +378,7 @@ export default function IpBansPage() {
 					emptyMessage="暂无 IP 封禁记录"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
-			</div>
+			</LayerCard>
 
 			<AdminBatchBar
 				selectedCount={selectedIds.size}
