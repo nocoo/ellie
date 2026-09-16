@@ -6,12 +6,22 @@ vi.mock("@/lib/admin-api", () => ({
 }));
 
 import { adminApi } from "@/lib/admin-api";
-import { fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
+import { fetchDashboardActivity, fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 import { fetchSettingsDetailed } from "@/viewmodels/admin/settings.server";
 
 const mockGet = adminApi.get as ReturnType<typeof vi.fn>;
 
 describe("dashboard.server", () => {
+	it("preserves available activity when a source fails", async () => {
+		mockGet.mockImplementation((path: string) =>
+			path.endsWith("visits")
+				? Promise.reject(new Error("Unavailable"))
+				: Promise.resolve({ data: { totalAttempts: 10 } }),
+		);
+		const activity = await fetchDashboardActivity();
+		expect(activity.visits).toBeNull();
+		expect(activity.logins?.totalAttempts).toBe(10);
+	});
 	it("fetchDashboardStats calls adminApi.get", async () => {
 		mockGet.mockResolvedValue({
 			data: {

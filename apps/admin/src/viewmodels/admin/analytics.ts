@@ -145,6 +145,25 @@ export const RANGE_LABELS: Record<AnalyticsRange, string> = {
 	"90d": "近 90 天",
 };
 
+export function metricShare(value: number, total: number): string {
+	if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return "—";
+	return `${((value / total) * 100).toLocaleString("zh-CN", { maximumFractionDigits: 1 })}%`;
+}
+
+export function summarizeTrend(series: AnalyticsTrendPoint[]) {
+	const total = series.reduce((sum, point) => sum + point.count, 0);
+	const peak = series.reduce<AnalyticsTrendPoint | null>(
+		(best, point) => (!best || point.count > best.count ? point : best),
+		null,
+	);
+	return {
+		total,
+		average: series.length ? total / series.length : null,
+		peak,
+		activeDays: series.filter((point) => point.count > 0).length,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Login-history (P4) — types + parsers
 // ---------------------------------------------------------------------------
