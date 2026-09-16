@@ -6,21 +6,17 @@ import {
 	invalidateThreadListForForums,
 	invalidateUserCaches,
 } from "../../lib/cache/invalidate";
-import {
-	buildDeletePostChildStatements,
-	buildDeleteThreadChildStatements,
-} from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
-import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
+import { buildContentRecalcStatements } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
-import { batchDecrementUserPosts } from "../../lib/userCounters";
+import { deleteUserContent } from "../../lib/userContentDelete";
+import { buildUserCounterDecrementStatements } from "../../lib/userCounters";
 import { buildTombstoneStatement } from "../../lib/userTombstone";
-import { POST_VISIBLE, postVisible, THREAD_VISIBLE, threadVisible } from "../../lib/visibility";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import { errorResponse } from "../../middleware/error";
 
@@ -477,11 +473,10 @@ const userConfig: EntityConfig = {
 
 async function fetchTombstoneIds(env: Env, ids: number[]): Promise<number[]> {
 	if (ids.length === 0) return [];
-	const placeholders = ids.map(() => "?").join(",");
 	const r = await env.DB.prepare(
-		`SELECT id FROM users WHERE id IN (${placeholders}) AND status = -99`,
+		"SELECT id FROM users WHERE id IN (SELECT value FROM json_each(?)) AND status = -99",
 	)
-		.bind(...ids)
+		.bind(JSON.stringify(ids))
 		.all();
 	return (r.results as { id: number }[]).map((row) => row.id);
 }
@@ -580,184 +575,6 @@ export const getById = withEntityAuth(
 
 export const update = withEntityAuth(userConfig, createUpdateHandler(userConfig));
 
-// ─── Content deletion helper (shared by ban + nuke) ──────────────────────────
-
-interface ContentDeletionResult {
-	threadsDeleted: number;
-	postsDeleted: number;
-	affectedForumIds: number[];
-	hadDigestThread: boolean;
-}
-
-async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
-	// 1. Fetch threads, standalone posts (grouped by forum), standalone posts
-	// (grouped by thread), and standalone post ids in parallel — all four are
-	// independent SELECT-only queries against the same userId. Halves the D1
-	// round-trip latency on a heavy admin operation.
-	//
-	// The standalone post id snapshot must be taken BEFORE the deletion batch
-	// runs so that `buildDeletePostChildStatements` can clear FK children
-	// (attachments + post_comments) keyed on those post ids — these tables
-	// reference posts WITHOUT ON DELETE CASCADE, and embedding a SELECT
-	// against `posts` inside the same batch would see post-delete state.
-	const [threads, standalonePosts, standaloneThreadUpdates, standalonePostIdRows] =
-		await Promise.all([
-			env.DB.prepare("SELECT id, forum_id, replies, digest FROM threads WHERE author_id = ?")
-				.bind(userId)
-				.all(),
-			env.DB.prepare(
-				"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY forum_id",
-			)
-				.bind(userId, userId)
-				.all(),
-			env.DB.prepare(
-				"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY thread_id",
-			)
-				.bind(userId, userId)
-				.all(),
-			env.DB.prepare(
-				"SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
-			)
-				.bind(userId, userId)
-				.all<{ id: number }>(),
-		]);
-	const threadRows = threads.results as {
-		id: number;
-		forum_id: number;
-		replies: number;
-		digest: number;
-	}[];
-	const userThreadIds = threadRows.map((t) => t.id);
-	const standalonePostIds = standalonePostIdRows.results.map((r) => r.id);
-
-	// 2. Group forum impact from user's threads (thread count + all posts in those threads)
-	const forumThreadCounts = new Map<number, number>();
-	const forumPostCounts = new Map<number, number>();
-	for (const t of threadRows) {
-		forumThreadCounts.set(t.forum_id, (forumThreadCounts.get(t.forum_id) ?? 0) + 1);
-		forumPostCounts.set(t.forum_id, (forumPostCounts.get(t.forum_id) ?? 0) + t.replies + 1);
-	}
-
-	const standaloneRows = standalonePosts.results as { forum_id: number; cnt: number }[];
-	const standaloneThreadRows = standaloneThreadUpdates.results as {
-		thread_id: number;
-		cnt: number;
-	}[];
-
-	// 5. Collateral damage: other users' posts in the user's threads
-	// These posts will be deleted too, so we need to decrement those authors' post counts
-	const collateralAuthorCounts = new Map<number, number>();
-	if (threadRows.length > 0) {
-		const threadIds = threadRows.map((t) => t.id);
-		const placeholders = threadIds.map(() => "?").join(",");
-		const collateralPosts = await env.DB.prepare(
-			`SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (${placeholders}) AND author_id != ? GROUP BY author_id`,
-		)
-			.bind(...threadIds, userId)
-			.all();
-		for (const row of collateralPosts.results as { author_id: number; cnt: number }[]) {
-			collateralAuthorCounts.set(row.author_id, row.cnt);
-		}
-	}
-
-	// Build batch
-	const statements: D1PreparedStatement[] = [];
-
-	// Purge FK children (attachments + post_comments) BEFORE the parent
-	// posts/threads go away. Neither child column is ON DELETE CASCADE, so
-	// any DELETE FROM posts/threads here without these prefixes raises a
-	// FOREIGN KEY constraint failure (500). Keyed on snapshot ids gathered
-	// above — never sub-query the same tables we're mutating in this batch.
-	statements.push(...buildDeleteThreadChildStatements(env, userThreadIds));
-	statements.push(...buildDeletePostChildStatements(env, standalonePostIds));
-
-	// Delete all posts in user's threads (cascade)
-	for (const t of threadRows) {
-		statements.push(env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(t.id));
-	}
-
-	// Delete user's threads
-	for (const t of threadRows) {
-		statements.push(env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(t.id));
-	}
-
-	// Delete user's standalone posts (replies in other threads). Use the
-	// snapshot ids — the previous form
-	// `WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads ...)`
-	// re-evaluates the sub-query against `threads` AFTER this same batch has
-	// already deleted the user's threads, drifting the parent delete set away
-	// from the snapshot the FK child purge above was keyed on. Snapshot id
-	// IN (...) is the only form that keeps both contracts identical.
-	if (standalonePostIds.length > 0) {
-		const ph = standalonePostIds.map(() => "?").join(",");
-		statements.push(
-			env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...standalonePostIds),
-		);
-	}
-
-	// Update thread reply counts for affected threads
-	for (const row of standaloneThreadRows) {
-		statements.push(
-			env.DB.prepare("UPDATE threads SET replies = replies - ? WHERE id = ?").bind(
-				row.cnt,
-				row.thread_id,
-			),
-		);
-	}
-
-	// Update forum counts for deleted threads
-	for (const [forumId, threadCount] of forumThreadCounts) {
-		const postCount = forumPostCounts.get(forumId) ?? 0;
-		statements.push(
-			env.DB.prepare(
-				"UPDATE forums SET threads = threads - ?, posts = posts - ? WHERE id = ?",
-			).bind(threadCount, postCount, forumId),
-		);
-	}
-
-	// Update forum counts for standalone posts
-	for (const row of standaloneRows) {
-		statements.push(
-			env.DB.prepare("UPDATE forums SET posts = posts - ? WHERE id = ?").bind(
-				row.cnt,
-				row.forum_id,
-			),
-		);
-	}
-
-	if (statements.length > 0) {
-		await env.DB.batch(statements);
-	}
-
-	// Recalc metadata for all affected forums and threads
-	const allAffectedForumIds = new Set<number>();
-	for (const forumId of forumThreadCounts.keys()) {
-		allAffectedForumIds.add(forumId);
-	}
-	for (const row of standaloneRows) {
-		allAffectedForumIds.add(row.forum_id);
-	}
-	// Recalc forum + thread metadata for everything affected, in parallel.
-	await Promise.all([
-		...Array.from(allAffectedForumIds, (forumId) => recalcForumMetadata(env, forumId)),
-		...standaloneThreadRows.map((row) => recalcThreadMetadata(env, row.thread_id)),
-	]);
-
-	// Decrement collateral authors' post counts (other users' posts in deleted threads)
-	await batchDecrementUserPosts(env, collateralAuthorCounts);
-
-	const totalPostsDeleted =
-		threadRows.reduce((sum, t) => sum + t.replies + 1, 0) +
-		standaloneRows.reduce((sum, r) => sum + r.cnt, 0);
-
-	return {
-		threadsDeleted: threadRows.length,
-		postsDeleted: totalPostsDeleted,
-		affectedForumIds: Array.from(allAffectedForumIds),
-		hadDigestThread: threadRows.some((t) => t.digest > 0),
-	};
-}
-
 // ─── #39 POST /api/admin/users/:id/ban ───────────────────────────────────────
 
 export const ban = withEntityAuth(
@@ -808,11 +625,8 @@ export const ban = withEntityAuth(
 		// Ban + delete all content
 		const result = await deleteUserContent(env, id);
 
-		// Status update + audit log + cache invalidation are independent.
+		// Audit and cache invalidation run after the deletion transaction commits.
 		const banDeleteOps: Promise<unknown>[] = [
-			env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?")
-				.bind(id)
-				.run(),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.ban",
 				targetType: "user",
@@ -826,6 +640,7 @@ export const ban = withEntityAuth(
 			}),
 			invalidateThreadListForForums(env, result.affectedForumIds),
 			bumpForumSummaryGen(env),
+			invalidateUserCachesForIds(env, [id, ...result.collateralAuthorIds]),
 		];
 		if (result.hadDigestThread) banDeleteOps.push(bumpDigestGen(env));
 		await Promise.all(banDeleteOps);
@@ -919,16 +734,11 @@ export const nuke = withEntityAuth(
 		}
 
 		// Nuke = ban + delete content + zero credits (always deletes content)
-		const result = await deleteUserContent(env, id);
+		const result = await deleteUserContent(env, id, { resetCredits: true });
 
-		// User-counter zeroing UPDATE, volatile-cache invalidation, and the
-		// audit-log write are all independent. Fan out.
+		// Invalidate caches and write the audit after the atomic DB cleanup.
 		const nukeOps: Promise<unknown>[] = [
-			env.DB.prepare(
-				"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0, coins = 0 WHERE id = ?",
-			)
-				.bind(id)
-				.run(),
+			invalidateUserCachesForIds(env, [id, ...result.collateralAuthorIds]),
 			invalidateThreadListForForums(env, result.affectedForumIds),
 			bumpForumSummaryGen(env),
 			writeAdminLog(env, resolveActor(request, env), {
@@ -961,9 +771,8 @@ export const nuke = withEntityAuth(
 //
 // D4-b SCOPE (replaces D4-a 501 skeleton; merges original D4-c R2 step):
 //   - DB cleanup + counter repair + tombstone in a single env.DB.batch().
-//   - After DB batch: recalcThreadMetadata / recalcForumMetadata for affected
-//     rows (failures throw — endpoint returns 500; R2 not yet attempted).
-//   - After recalc + invalidateForumSummaryV2: best-effort R2 deletes (avatar +
+//   - Counter and latest-content metadata repair are inside that same batch.
+//   - After DB commit + cache invalidation: best-effort R2 deletes (avatar +
 //     attachments). R2 failures DO NOT fail the request — reported in response.
 //
 // AUDIT TABLES INTENTIONALLY NOT TOUCHED:
@@ -995,9 +804,6 @@ export const nuke = withEntityAuth(
 //
 // Failure semantics:
 //   - DB batch failure → 500. Nothing else runs. SQLite rolls back the batch.
-//   - recalcMetadata failure → 500. DB is already committed; R2 NOT touched.
-//     Operator must re-run /api/admin/users/:id/recalc-counters or related
-//     repair tools. Log line tags the affected ids.
 //   - R2 failures → 200 with response.r2.failed[] populated. DB is the source
 //     of truth; orphan R2 objects can be cleaned by a future GC pass.
 
@@ -1060,7 +866,7 @@ async function parsePurgeBody(
 			),
 		};
 	}
-	const confirm = body.confirm;
+	const confirm = body?.confirm;
 	if (typeof confirm !== "string") {
 		return {
 			ok: false,
@@ -1256,43 +1062,10 @@ function buildPurgeBatch(
 		env.DB.prepare("DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?").bind(id, id),
 	);
 
-	for (const tid of pre.survivorThreadIds) {
-		stmts.push(
-			env.DB.prepare(
-				`UPDATE threads
-				   SET replies = (
-				     SELECT COUNT(*) FROM posts
-				      WHERE thread_id = ? AND is_first = 0 AND ${POST_VISIBLE}
-				   )
-				 WHERE id = ?`,
-			).bind(tid, tid),
-		);
-	}
-
-	for (const fid of pre.affectedForumIds) {
-		stmts.push(
-			env.DB.prepare(
-				`UPDATE forums
-				   SET threads = (
-				     SELECT COUNT(*) FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}
-				   ),
-				   posts = (
-				     SELECT COUNT(*) FROM posts p JOIN threads t ON p.thread_id = t.id
-				      WHERE p.forum_id = ? AND ${postVisible("p")} AND ${threadVisible("t")}
-				   )
-				 WHERE id = ?`,
-			).bind(fid, fid, fid),
-		);
-	}
-
-	for (const [authorId, delta] of pre.collateralAuthorDelta) {
-		stmts.push(
-			env.DB.prepare("UPDATE users SET posts = MAX(0, posts - ?) WHERE id = ?").bind(
-				delta,
-				authorId,
-			),
-		);
-	}
+	stmts.push(
+		...buildContentRecalcStatements(env, pre.survivorThreadIds, pre.affectedForumIds),
+		...buildUserCounterDecrementStatements(env, pre.collateralAuthorDelta),
+	);
 
 	stmts.push(buildTombstoneStatement(env, id, 0, nowSec));
 	return stmts;
@@ -1316,14 +1089,6 @@ async function purgeR2Cleanup(
 		}
 	}
 	return { deletedCount, failed };
-}
-
-async function runPurgeRecalc(env: Env, pre: PurgePreflight): Promise<void> {
-	// Survivor-thread + affected-forum recalcs are independent — fan out.
-	await Promise.all([
-		...pre.survivorThreadIds.map((tid) => recalcThreadMetadata(env, tid)),
-		...Array.from(pre.affectedForumIds, (fid) => recalcForumMetadata(env, fid)),
-	]);
 }
 
 export const purge = withEntityAuth(
@@ -1367,26 +1132,6 @@ export const purge = withEntityAuth(
 			);
 		}
 
-		try {
-			await runPurgeRecalc(env, pre);
-		} catch (err) {
-			console.error("[purge] recalcMetadata failed AFTER tombstone committed", {
-				userId: id,
-				survivorThreadIds: pre.survivorThreadIds,
-				affectedForumIds: pre.affectedForumIds,
-				err,
-			});
-			return errorResponse(
-				"PURGE_RECALC_FAILED",
-				500,
-				{
-					message:
-						"Tombstone + content cleanup committed; last_post metadata recalc failed. Re-run recalc tools.",
-				},
-				origin,
-			);
-		}
-
 		// Cache invalidations are all independent (different keys) — fan out.
 		// Per-forum thread-list bumps for every affected forum (we KNOW the
 		// set here, so don't fall back to bumpThreadListGenAll). If any of
@@ -1396,10 +1141,7 @@ export const purge = withEntityAuth(
 		const purgeOps: Promise<unknown>[] = [
 			invalidateThreadListForForums(env, pre.affectedForumIds),
 			bumpForumSummaryGen(env),
-			invalidateUserCache(env, id),
-			...Array.from(pre.collateralAuthorDelta.keys(), (authorId) =>
-				invalidateUserCache(env, authorId),
-			),
+			invalidateUserCachesForIds(env, [id, ...pre.collateralAuthorDelta.keys()]),
 		];
 		if (purgeHadDigest) purgeOps.push(bumpDigestGen(env));
 		await Promise.all(purgeOps);
@@ -1539,9 +1281,8 @@ export const batchStatus = withEntityAuth(
 			return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
 		}
 
-		const placeholders = ids.map(() => "?").join(",");
-		await env.DB.prepare(`UPDATE users SET status = ? WHERE id IN (${placeholders})`)
-			.bind(body.status, ...ids)
+		await env.DB.prepare("UPDATE users SET status = ? WHERE id IN (SELECT value FROM json_each(?))")
+			.bind(body.status, JSON.stringify(ids))
 			.run();
 
 		// docs/19 §6: status change must drop user:mini + user:public for
@@ -1601,9 +1342,8 @@ export const batchRole = withEntityAuth(
 			return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
 		}
 
-		const placeholders = ids.map(() => "?").join(",");
-		await env.DB.prepare(`UPDATE users SET role = ? WHERE id IN (${placeholders})`)
-			.bind(body.role, ...ids)
+		await env.DB.prepare("UPDATE users SET role = ? WHERE id IN (SELECT value FROM json_each(?))")
+			.bind(body.role, JSON.stringify(ids))
 			.run();
 
 		// docs/19 §6: role change feeds the visibility bucket and the
@@ -1718,60 +1458,15 @@ export const batchRecalcCounters = withEntityAuth(
 			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
-		// Batch recalculate: for each user, compute counts and update
-		// Three GROUP BY counts (threads/posts/digests) are independent
-		// reads keyed on the same user-id list. Run via Promise.all to halve
-		// the round-trip cost of this admin recalculation.
-		const placeholders = userIds.map(() => "?").join(",");
-
-		const [threadCounts, postCounts, digestCounts] = await Promise.all([
-			env.DB.prepare(
-				`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) GROUP BY author_id`,
-			)
-				.bind(...userIds)
-				.all(),
-			env.DB.prepare(
-				`SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN (${placeholders}) GROUP BY author_id`,
-			)
-				.bind(...userIds)
-				.all(),
-			env.DB.prepare(
-				`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) AND digest > 0 GROUP BY author_id`,
-			)
-				.bind(...userIds)
-				.all(),
+		// One statement keeps the whole update atomic and avoids a 1000-ID
+		// parameter list or a 1000-statement transaction.
+		await env.DB.batch([
+			env.DB.prepare(`UPDATE users SET
+				threads = (SELECT COUNT(*) FROM threads WHERE author_id = users.id),
+				posts = (SELECT COUNT(*) FROM posts WHERE author_id = users.id),
+				digest_posts = (SELECT COUNT(*) FROM threads WHERE author_id = users.id AND digest > 0)
+				WHERE id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(userIds)),
 		]);
-
-		const threadMap = new Map(
-			threadCounts.results.map((r) => [
-				(r as { author_id: number }).author_id,
-				(r as { cnt: number }).cnt,
-			]),
-		);
-		const postMap = new Map(
-			postCounts.results.map((r) => [
-				(r as { author_id: number }).author_id,
-				(r as { cnt: number }).cnt,
-			]),
-		);
-		const digestMap = new Map(
-			digestCounts.results.map((r) => [
-				(r as { author_id: number }).author_id,
-				(r as { cnt: number }).cnt,
-			]),
-		);
-
-		// Batch update all users
-		const statements = userIds.map((uid) =>
-			env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?").bind(
-				threadMap.get(uid) ?? 0,
-				postMap.get(uid) ?? 0,
-				digestMap.get(uid) ?? 0,
-				uid,
-			),
-		);
-
-		await env.DB.batch(statements);
 
 		// docs/19 §6: per-id user cache invalidation (legacy + v2). Chunked
 		// to avoid fan-out storms when called with the implicit "all active

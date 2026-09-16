@@ -8,7 +8,66 @@
 // - Posts: invisible = 0 (POST_VISIBLE)
 
 import type { Env } from "./env";
-import { POST_VISIBLE, THREAD_VISIBLE } from "./visibility";
+import { POST_VISIBLE, postVisible, THREAD_VISIBLE, threadVisible } from "./visibility";
+
+/**
+ * Repair counters and latest-content metadata inside the deletion transaction.
+ * At most two statements / two bindings, even for thousands of affected rows.
+ * Call after posts/threads are deleted, with the pre-deletion affected ID snapshot.
+ */
+export function buildContentRecalcStatements(
+	env: Env,
+	threadIds: number[],
+	forumIds: number[],
+): D1PreparedStatement[] {
+	const statements: D1PreparedStatement[] = [];
+	if (threadIds.length) {
+		statements.push(
+			env.DB.prepare(`
+			WITH latest AS (
+				SELECT t.id AS thread_id,
+				       COALESCE(p.created_at, t.created_at) AS posted_at,
+				       COALESCE(p.author_name, t.author_name) AS poster,
+				       COALESCE(p.author_id, t.author_id) AS poster_id,
+				       COALESCE(p.anonymous, t.anonymous_author) AS anonymous
+				FROM threads t LEFT JOIN posts p ON p.id = (
+					SELECT id FROM posts WHERE thread_id = t.id AND ${POST_VISIBLE}
+					ORDER BY position DESC LIMIT 1
+				)
+				WHERE t.id IN (SELECT value FROM json_each(?))
+			)
+			UPDATE threads SET
+				replies = (SELECT COUNT(*) FROM posts WHERE thread_id = threads.id AND is_first = 0 AND ${POST_VISIBLE}),
+				(last_post_at, last_poster, last_poster_id, anonymous_last_poster) =
+				(SELECT posted_at, poster, poster_id, anonymous FROM latest WHERE thread_id = threads.id)
+			WHERE id IN (SELECT thread_id FROM latest)
+		`).bind(JSON.stringify(threadIds)),
+		);
+	}
+	if (forumIds.length) {
+		statements.push(
+			env.DB.prepare(`
+			WITH latest AS (
+				SELECT f.id AS forum_id, t.id AS thread_id, t.last_post_at, t.last_poster, t.last_poster_id, t.subject
+				FROM forums f LEFT JOIN threads t ON t.id = (
+					SELECT id FROM threads WHERE forum_id = f.id AND ${THREAD_VISIBLE}
+					ORDER BY last_post_at DESC LIMIT 1
+				)
+				WHERE f.id IN (SELECT value FROM json_each(?))
+			)
+			UPDATE forums SET
+				threads = (SELECT COUNT(*) FROM threads WHERE forum_id = forums.id AND ${THREAD_VISIBLE}),
+				posts = (SELECT COUNT(*) FROM posts p JOIN threads t ON p.thread_id = t.id
+				         WHERE p.forum_id = forums.id AND ${postVisible("p")} AND ${threadVisible("t")}),
+				(last_thread_id, last_post_at, last_poster, last_poster_id, last_thread_subject) =
+				(SELECT COALESCE(thread_id, 0), COALESCE(last_post_at, 0), COALESCE(last_poster, ''),
+				        COALESCE(last_poster_id, 0), COALESCE(subject, '') FROM latest WHERE forum_id = forums.id)
+			WHERE id IN (SELECT forum_id FROM latest)
+		`).bind(JSON.stringify(forumIds)),
+		);
+	}
+	return statements;
+}
 
 /**
  * Recalculate forum metadata from its visible threads.

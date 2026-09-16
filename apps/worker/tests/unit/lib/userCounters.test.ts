@@ -58,7 +58,7 @@ describe("userCounters", () => {
 			await batchDecrementUserPosts(env, authorCounts);
 
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(2);
+			expect(batchCalls[0].length).toBe(1);
 		});
 
 		it("should no-op for empty map", async () => {

@@ -10,7 +10,7 @@ describe("buildDeleteThreadChildStatements", () => {
 		expect(env.DB.prepare as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
 	});
 
-	it("emits attachments + post_comments + recommended cleanup with placeholders", () => {
+	it("emits attachments + post_comments + recommended cleanup with a JSON snapshot", () => {
 		const captured: { sql: string; params: unknown[] }[] = [];
 		const env = {
 			DB: {
@@ -28,27 +28,35 @@ describe("buildDeleteThreadChildStatements", () => {
 
 		const sqls = captured.map((c) => c.sql);
 		expect(
-			sqls.some((s) => /DELETE FROM attachments WHERE thread_id IN \(\?,\?,\?\)/.test(s)),
+			sqls.some((s) =>
+				/DELETE FROM attachments WHERE thread_id IN \(SELECT value FROM json_each\(\?\)\)/.test(s),
+			),
 		).toBe(true);
 		expect(
-			sqls.some((s) => /DELETE FROM post_comments WHERE thread_id IN \(\?,\?,\?\)/.test(s)),
+			sqls.some((s) =>
+				/DELETE FROM post_comments WHERE thread_id IN \(SELECT value FROM json_each\(\?\)\)/.test(
+					s,
+				),
+			),
 		).toBe(true);
 		// Per migration 0045 contract: deleting a thread must also purge
 		// `forum_recommended_threads`, otherwise the (forum_id, thread_id)
 		// PK slot would block a future re-recommend on the same id.
 		expect(
 			sqls.some((s) =>
-				/DELETE FROM forum_recommended_threads WHERE thread_id IN \(\?,\?,\?\)/.test(s),
+				/DELETE FROM forum_recommended_threads WHERE thread_id IN \(SELECT value FROM json_each\(\?\)\)/.test(
+					s,
+				),
 			),
 		).toBe(true);
 
 		// Every bind got the exact thread id list.
 		for (const c of captured) {
-			expect(c.params).toEqual([10, 11, 12]);
+			expect(c.params).toEqual(["[10,11,12]"]);
 		}
 	});
 
-	it("scales placeholders to match thread id count", () => {
+	it("uses one binding even for a thousand thread IDs", () => {
 		const captured: string[] = [];
 		const env = {
 			DB: {
@@ -60,9 +68,12 @@ describe("buildDeleteThreadChildStatements", () => {
 				})),
 			},
 		} as unknown as Env;
-		buildDeleteThreadChildStatements(env, [1]);
-		// `?` placeholders without trailing comma when only one id is supplied.
-		expect(captured.every((s) => /thread_id IN \(\?\)/.test(s))).toBe(true);
+		buildDeleteThreadChildStatements(
+			env,
+			Array.from({ length: 1000 }, (_, i) => i + 1),
+		);
+		// Binding count stays constant, below the D1 limit.
+		expect(captured.every((s) => (s.match(/\?/g) ?? []).length === 1)).toBe(true);
 	});
 });
 

@@ -145,6 +145,11 @@ export async function getUserProfiles(
  * @param userId - User ID whose cache to invalidate
  */
 export async function invalidateUserCache(env: Env, userId: number): Promise<void> {
-	await env.KV.delete(`${USER_CACHE_PREFIX}${userId}`);
-	recordDelete(METRICS_FAMILY);
+	try {
+		await env.KV.delete(`${USER_CACHE_PREFIX}${userId}`);
+		recordDelete(METRICS_FAMILY);
+	} catch (err) {
+		recordError(METRICS_FAMILY);
+		console.warn(`[user-cache] delete failed id=${userId}`, err);
+	}
 }

@@ -35,12 +35,14 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 	};
 });
 
-vi.mock("../../../src/lib/recalcMetadata", () => ({
+vi.mock(import("../../../src/lib/recalcMetadata"), async (importOriginal) => ({
+	...(await importOriginal()),
 	recalcForumMetadata: vi.fn(async () => {}),
 	recalcThreadMetadata: vi.fn(async () => {}),
 }));
 
-vi.mock("../../../src/lib/userCounters", () => ({
+vi.mock(import("../../../src/lib/userCounters"), async (importOriginal) => ({
+	...(await importOriginal()),
 	decrementUserPosts: vi.fn(async () => {}),
 	decrementUserThreads: vi.fn(async () => {}),
 	batchDecrementUserPosts: vi.fn(async () => {}),
@@ -273,7 +275,7 @@ describe("forum:summary:gen + thread:list:gen v2 parity — admin destructive ha
 				"SELECT COUNT(*) as cnt FROM threads WHERE author_id": { cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [],
+				"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
 				"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
 			},
 		});

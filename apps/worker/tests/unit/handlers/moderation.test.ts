@@ -1117,7 +1117,7 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 				},
 			},
 			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [],
+				"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
 				"SELECT forum_id, COUNT": [],
 				"SELECT thread_id, COUNT": [],
 			},
@@ -1132,7 +1132,9 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 
 		// Verify the final UPDATE was called
 		const updateCall = calls.find((c) =>
-			c.sql.includes("UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0"),
+			c.sql.includes(
+				"UPDATE users SET status = -1, threads = 0, posts = 0, digest_posts = 0, credits = 0",
+			),
 		);
 		expect(updateCall).toBeDefined();
 	});
@@ -1151,10 +1153,13 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+				"SELECT id, forum_id, digest FROM threads WHERE author_id": [
 					{ id: 30, forum_id: 1, replies: 1, digest: 0 },
 				],
-				"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 1 }],
+				"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+					{ id: 80, thread_id: 30, forum_id: 1, author_id: 10 },
+					{ id: 81, thread_id: 40, forum_id: 1, author_id: 10 },
+				],
 				"SELECT thread_id, COUNT(*) as cnt FROM posts": [{ thread_id: 40, cnt: 1 }],
 			},
 		});
@@ -1182,39 +1187,24 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		expect(fkPurgeCommPost).toBeDefined();
 
 		// ── Verify subquery-based core delete SQL exists ──
-		const deletePosts = calls.find((c) =>
-			c.sql.includes("DELETE FROM posts WHERE thread_id IN (SELECT"),
-		);
-		const deleteStandalone = calls.find(
-			(c) =>
-				c.sql.includes("DELETE FROM posts WHERE author_id") && c.sql.includes("thread_id NOT IN"),
-		);
-		const deleteThreads = calls.find((c) => c.sql.includes("DELETE FROM threads WHERE author_id"));
+		const deletePosts = calls.find((c) => c.sql.includes("DELETE FROM posts WHERE id IN (SELECT"));
+		const deleteThreads = calls.find((c) => c.sql.includes("DELETE FROM threads WHERE id IN"));
 		expect(deletePosts).toBeDefined();
-		expect(deleteStandalone).toBeDefined();
 		expect(deleteThreads).toBeDefined();
 
-		// ── Verify batch ordering: all 7 delete stmts in ONE batch ──
-		// The deletion batch is a single atomic unit. Find the batch that
-		// contains the FK purge + core deletes (7 statements).
-		const deleteBatch = batchCalls.find(
-			(batch) =>
-				batch.length === 7 &&
-				calls.some((c) => c.sql.includes("DELETE FROM attachments WHERE thread_id IN (SELECT")),
-		);
-		expect(deleteBatch).toBeDefined();
-		// Verify the batch is well under D1 limits
-		expect(deleteBatch?.length).toBeLessThanOrEqual(80);
+		// Content, recommendations, counters and account reset share one batch.
+		expect(batchCalls).toHaveLength(1);
+		expect(batchCalls[0].length).toBeLessThanOrEqual(12);
 
 		// Verify ordering within calls: FK purge before parent deletes
 		const idxFkAtt = calls.findIndex((c) =>
 			c.sql.includes("DELETE FROM attachments WHERE thread_id IN (SELECT"),
 		);
 		const idxDeletePosts = calls.findIndex((c) =>
-			c.sql.includes("DELETE FROM posts WHERE thread_id IN (SELECT"),
+			c.sql.includes("DELETE FROM posts WHERE id IN (SELECT"),
 		);
 		const idxDeleteThreads = calls.findIndex((c) =>
-			c.sql.includes("DELETE FROM threads WHERE author_id"),
+			c.sql.includes("DELETE FROM threads WHERE id IN"),
 		);
 		expect(idxFkAtt).toBeLessThan(idxDeletePosts);
 		expect(idxDeletePosts).toBeLessThan(idxDeleteThreads);
@@ -1237,21 +1227,16 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		// The old implementation would generate N statements per thread and
 		// expand all IDs into IN(...) placeholders, exceeding D1 limits.
 		const THREAD_COUNT = 200;
-		const STANDALONE_FORUM_COUNT = 5;
 		const threadRows = Array.from({ length: THREAD_COUNT }, (_, i) => ({
 			id: 1000 + i,
 			forum_id: (i % 3) + 1,
 			replies: 10,
 			digest: i === 0 ? 1 : 0,
 		}));
-		const standaloneForumRows = Array.from({ length: STANDALONE_FORUM_COUNT }, (_, i) => ({
-			forum_id: 10 + i,
-			cnt: 50,
-		}));
-		const standaloneThreadRows = Array.from({ length: 100 }, (_, i) => ({
-			thread_id: 5000 + i,
-			cnt: 3,
-		}));
+		const postRows = threadRows.flatMap((t, index) => [
+			{ id: index * 2 + 1, thread_id: t.id, forum_id: t.forum_id, author_id: 99 },
+			{ id: index * 2 + 2, thread_id: t.id, forum_id: t.forum_id, author_id: 200 + index },
+		]);
 
 		const token = await makeModToken(1);
 		const { db, calls, batchCalls } = createMockDb({
@@ -1266,13 +1251,8 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 500 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
-				"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id": standaloneForumRows,
-				"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id": standaloneThreadRows,
-				"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (SELECT": [
-					{ author_id: 200, cnt: 50 },
-					{ author_id: 201, cnt: 30 },
-				],
+				"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
+				"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": postRows,
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -1297,26 +1277,23 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 
 		// Collateral author query must use subquery, not expanded IN(...)
 		const collateralQuery = calls.find(
-			(c) => c.sql.includes("SELECT author_id, COUNT(*)") && c.sql.includes("thread_id IN (SELECT"),
+			(c) =>
+				c.sql.includes("SELECT id, thread_id, forum_id, author_id FROM posts") &&
+				c.sql.includes("thread_id IN (SELECT"),
 		);
 		expect(collateralQuery).toBeDefined();
 		// Must NOT have an expanded IN with literal placeholders
 		const expandedCollateral = calls.find(
 			(c) =>
-				c.sql.includes("SELECT author_id, COUNT(*)") &&
+				c.sql.includes("SELECT id, thread_id, forum_id, author_id FROM posts") &&
 				c.sql.includes("thread_id IN (?") &&
 				!c.sql.includes("SELECT id FROM threads"),
 		);
 		expect(expandedCollateral).toBeUndefined();
 
-		// Counter update batches must be chunked (each batch ≤ 80 statements)
-		for (const batch of batchCalls) {
-			expect(batch.length).toBeLessThanOrEqual(80);
-		}
-
-		// The deletion batch must be exactly 7 statements (fixed, regardless of data size)
-		const deleteBatch = batchCalls.find((batch) => batch.length === 7);
-		expect(deleteBatch).toBeDefined();
+		expect(data.data.postsDeleted).toBe(postRows.length);
+		expect(batchCalls).toHaveLength(1);
+		expect(batchCalls[0].length).toBeLessThanOrEqual(12);
 	});
 });
 
@@ -2481,8 +2458,8 @@ describe("unbanUser — edge cases", () => {
 // nukeUser — step-level diagnostics
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("nukeUser — step-level error labels", () => {
-	it("tags D1 batch-delete failures with [nuke:batch-delete]", async () => {
+describe("nukeUser — atomic batch failures", () => {
+	it("propagates D1 transaction failure to the router", async () => {
 		const token = await makeModToken(1);
 		let batchCallCount = 0;
 		const { db } = createMockDb({
@@ -2497,7 +2474,7 @@ describe("nukeUser — step-level error labels", () => {
 				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+				"SELECT id, forum_id, digest FROM threads WHERE author_id": [
 					{ id: 100, forum_id: 1, replies: 2, digest: 0 },
 				],
 				"SELECT forum_id, COUNT": [{ forum_id: 1, cnt: 1 }],
@@ -2517,48 +2494,10 @@ describe("nukeUser — step-level error labels", () => {
 		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
 		// nukeUser has no internal try-catch — the error bubbles to the
 		// router's top-level catch, so the promise rejects here.
-		await expect(nukeUser(req, env)).rejects.toThrow("[nuke:batch-delete]");
-	});
-
-	it("tags D1 counter-batch failures with [nuke:batch-counters]", async () => {
-		const token = await makeModToken(1);
-		let batchCallCount = 0;
-		const { db } = createMockDb({
-			firstResults: {
-				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": {
-					id: 10,
-					username: "spammer",
-					status: 0,
-					role: 0,
-				},
-				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
-			},
-			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
-					{ id: 100, forum_id: 1, replies: 2, digest: 0 },
-				],
-				"SELECT forum_id, COUNT": [{ forum_id: 1, cnt: 1 }],
-				"SELECT thread_id, COUNT": [{ thread_id: 200, cnt: 1 }],
-				"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [],
-			},
-		});
-		db.batch = vi.fn(async () => {
-			batchCallCount++;
-			// 1st call = delete batch (succeeds)
-			if (batchCallCount === 2) {
-				// 2nd call = counter batch
-				throw new Error("D1_ERROR: too many SQL variables");
-			}
-			return [];
-		}) as unknown as D1Database["batch"];
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
-		await expect(nukeUser(req, env)).rejects.toThrow("[nuke:batch-counters]");
+		await expect(nukeUser(req, env)).rejects.toThrow("SQLITE_BUSY");
 	});
 });
 
-// nukeUser — edge cases
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("nukeUser — edge cases", () => {
@@ -2624,7 +2563,11 @@ describe("nukeUser — edge cases", () => {
 				"SELECT COUNT(*) as cnt FROM attachments": { cnt: 3 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+				"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+					{ id: 1, thread_id: 100, forum_id: 1, author_id: 20 },
+					{ id: 2, thread_id: 200, forum_id: 3, author_id: 10 },
+				],
+				"SELECT id, forum_id, digest FROM threads WHERE author_id": [
 					{ id: 100, forum_id: 1, replies: 2 },
 					{ id: 101, forum_id: 2, replies: 0 },
 				],

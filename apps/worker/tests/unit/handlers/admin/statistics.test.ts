@@ -1082,13 +1082,9 @@ describe("admin statistics handlers", () => {
 
 		// Phase C.1 (msg=b43a2bc9) — the v1/v2 KV invalidate contracts
 		// differ: `invalidateUserCache` (v1, user-cache.ts:147) is a raw
-		// `await env.KV.delete(...)` that propagates KV errors, while
-		// `deleteUserMini` / `deleteUserPublicVariants` (v2,
-		// cache/invalidate.ts) wrap KV.delete in try/catch + console.warn
-		// and swallow failures. So only v1 errors should fail the tick.
-		// We assert each side explicitly instead of accepting both 200/500.
+		// Legacy and v2 cache failures must not undo an already committed counter repair.
 
-		it("advance: v1 KV invalidate failure surfaces as 500 RECALC_FAILED with cursor unchanged", async () => {
+		it("advance: v1 KV invalidate failure is best effort and the committed batch advances", async () => {
 			const { db } = createMockDb({
 				allResults: {
 					"FROM users WHERE status >= 0 AND id >": [{ id: 10 }],
@@ -1102,11 +1098,7 @@ describe("admin statistics handlers", () => {
 				...makeInitialPayload({ kind: "users", total: 100, now: 1_700_000_000_000 }),
 				batchSize: 10,
 			});
-			// Fail only the v1 `user:mini:<id>` key. v1's helper does a
-			// raw `await env.KV.delete(...)` so the error propagates →
-			// advance throws → tickJob marks the job `failed` with the
-			// cursor unchanged for the next POST to retry (idempotent
-			// UPDATE).
+			// Fail only the legacy cache key.
 			const kv = env.KV as KVNamespace & { delete: ReturnType<typeof vi.fn> };
 			(kv.delete as ReturnType<typeof vi.fn>).mockImplementation(async (key: string) => {
 				if (
@@ -1122,10 +1114,10 @@ describe("admin statistics handlers", () => {
 				createAdminRequest("POST", "/api/admin/statistics/recalc-users"),
 				env,
 			);
-			expect(res.status).toBe(500);
+			expect(res.status).toBe(200);
 			const persisted = await readJob(env, "users");
-			expect(persisted?.status).toBe("failed");
-			expect(persisted?.cursor).toBe(0);
+			expect(persisted?.status).toBe("done");
+			expect(persisted?.cursor).toBe(10);
 		});
 
 		it("advance: v2-only KV invalidate failure is swallowed and tick still succeeds", async () => {

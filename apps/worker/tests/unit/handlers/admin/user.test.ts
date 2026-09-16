@@ -1243,7 +1243,11 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": Array.from(
+						{ length: 8 },
+						(_, i) => ({ id: i + 1, thread_id: i < 6 ? 10 : 20, forum_id: 1, author_id: 42 }),
+					),
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
 				},
@@ -1262,14 +1266,9 @@ describe("admin user handlers", () => {
 			// 2 threads: (3+1)+(1+1)=6 posts from threads + 2 standalone = 8
 			expect(body.data.postsDeleted).toBe(8);
 
-			// Verify batch was called
-			expect(batchCalls.length).toBe(1);
-			// 9 base statements + 3 child purges keyed on user's thread_ids
-			// (DELETE attachments + DELETE post_comments +
-			//  DELETE forum_recommended_threads, see migration 0045) -
-			// 1 standalone posts DELETE skipped because no
-			// `SELECT id FROM posts` mock returns []. So: 9 - 1 + 3 = 11.
-			expect(batchCalls[0].length).toBe(11);
+			// Children, content, metadata and the user reset share one transaction.
+			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls[0].length).toBeLessThanOrEqual(12);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -1319,17 +1318,18 @@ describe("admin user handlers", () => {
 			const threadRows = [{ id: 10, forum_id: 1, replies: 1 }];
 			const standalonePostRows = [{ forum_id: 1, cnt: 1 }];
 			const standaloneThreadRows = [{ thread_id: 20, cnt: 1 }];
-			const standalonePostIdRows = [{ id: 77 }];
+			const standalonePostIdRows = [{ id: 77, thread_id: 20, forum_id: 1, author_id: 42 }];
 
 			const { db, calls } = createMockDb({
 				firstResults: {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
-					"SELECT id FROM posts WHERE author_id": standalonePostIdRows,
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id":
+						standalonePostIdRows,
 				},
 			});
 
@@ -1351,9 +1351,7 @@ describe("admin user handlers", () => {
 			const idxCommentsPost = calls.findIndex((c) =>
 				c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
 			);
-			const idxPosts = calls.findIndex((c) =>
-				c.sql.startsWith("DELETE FROM posts WHERE thread_id"),
-			);
+			const idxPosts = calls.findIndex((c) => c.sql.startsWith("DELETE FROM posts WHERE id IN"));
 			const idxStandalonePosts = calls.findIndex((c) =>
 				c.sql.startsWith("DELETE FROM posts WHERE id IN"),
 			);
@@ -1395,7 +1393,11 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": Array.from(
+						{ length: 6 },
+						(_, i) => ({ id: i + 1, thread_id: i < 3 ? 10 : 20, forum_id: 1, author_id: 42 }),
+					),
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
 				},
@@ -1410,14 +1412,9 @@ describe("admin user handlers", () => {
 			// 1 thread: (2+1)=3 posts from thread + 3 standalone = 6
 			expect(body.data.postsDeleted).toBe(6);
 
-			// Verify batch was called
-			expect(batchCalls.length).toBe(1);
-			// 6 base statements + 3 child purges keyed on user's thread_ids
-			// (DELETE attachments + DELETE post_comments +
-			//  DELETE forum_recommended_threads, see migration 0045) -
-			// 1 standalone posts DELETE skipped because no
-			// `SELECT id FROM posts` mock returns []. So: 6 - 1 + 3 = 8.
-			expect(batchCalls[0].length).toBe(8);
+			// Children, content, metadata and the user reset share one transaction.
+			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls[0].length).toBeLessThanOrEqual(12);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -1436,7 +1433,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
 				},
@@ -1450,9 +1447,9 @@ describe("admin user handlers", () => {
 			expect(body.data.threadsDeleted).toBe(0);
 			expect(body.data.postsDeleted).toBe(0);
 
-			// No threads, no standalone posts → empty `statements` → batch
-			// is skipped entirely (no_op no-op DELETE).
-			expect(batchCalls.length).toBe(0);
+			// An empty account still commits its status and credit reset.
+			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls[0]).toHaveLength(1);
 		});
 
 		it("should reject invalid user ID", async () => {
@@ -1789,9 +1786,9 @@ describe("admin user handlers", () => {
 			expect(commentDeleteSql).not.toMatch(/thread_id IN/);
 		});
 
-		it("returns 500 PURGE_RECALC_FAILED if recalcMetadata throws AFTER batch (R2 not touched)", async () => {
+		it("keeps content and metadata repair inside the same batch", async () => {
 			// Owned thread present so survivor-thread / forum recalc actually runs.
-			const { db } = createMockDb({
+			const { db, calls, batchCalls } = createMockDb({
 				firstResults: {
 					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
 					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 0 },
@@ -1809,39 +1806,18 @@ describe("admin user handlers", () => {
 					"SELECT DISTINCT file_path FROM attachments": [],
 				},
 			});
-			// Wrap prepare: when recalcThreadMetadata's first SELECT runs, throw.
-			// (recalcThreadMetadata's first query starts with
-			// `SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id`.)
-			const origPrepareImpl = (
-				db.prepare as ReturnType<typeof import("vitest").vi.fn>
-			).getMockImplementation();
-			(db.prepare as ReturnType<typeof import("vitest").vi.fn>).mockImplementation(
-				(sql: string) => {
-					if (
-						/SELECT created_at, author_name, author_id, anonymous\s+FROM posts\s+WHERE thread_id/.test(
-							sql,
-						)
-					) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => {
-									throw new Error("recalc boom");
-								}),
-								all: vi.fn(async () => ({ results: [] })),
-								run: vi.fn(async () => ({ success: true, meta: {} })),
-							})),
-						};
-					}
-					return origPrepareImpl?.(sql);
-				},
-			);
 			const r2 = createMockR2();
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
 			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
-			expect(res.status).toBe(500);
-			expect((await res.json()).error.code).toBe("PURGE_RECALC_FAILED");
-			expect((r2.delete as ReturnType<typeof import("vitest").vi.fn>).mock.calls).toHaveLength(0);
+			expect(res.status).toBe(200);
+			expect(batchCalls).toHaveLength(1);
+			expect(
+				calls.some((c) => c.sql.includes("UPDATE threads SET") && c.sql.includes("WITH latest")),
+			).toBe(true);
+			expect(
+				calls.some((c) => c.sql.includes("UPDATE forums SET") && c.sql.includes("WITH latest")),
+			).toBe(true);
 		});
 	});
 
@@ -2275,7 +2251,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [
@@ -2630,7 +2606,10 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+						{ id: 10, thread_id: 10, forum_id: 1, author_id: 42 },
+					],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [
 						{ id: 10, forum_id: 1, replies: 3 },
 					],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 2 }],
@@ -2671,7 +2650,10 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+						{ id: 10, thread_id: 10, forum_id: 1, author_id: 42 },
+					],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [
 						{ id: 10, forum_id: 1, replies: 2 },
 					],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 3 }],

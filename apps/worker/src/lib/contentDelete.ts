@@ -16,10 +16,6 @@
 
 import type { Env } from "./env";
 
-function buildPlaceholders(n: number): string {
-	return new Array(n).fill("?").join(",");
-}
-
 /**
  * Build child-row purge statements keyed on `post_id`. Use immediately before
  * any `DELETE FROM posts WHERE id IN (...)` statement to prevent FK violations
@@ -27,10 +23,14 @@ function buildPlaceholders(n: number): string {
  */
 export function buildDeletePostChildStatements(env: Env, postIds: number[]): D1PreparedStatement[] {
 	if (postIds.length === 0) return [];
-	const ph = buildPlaceholders(postIds.length);
+	const ids = JSON.stringify(postIds);
 	return [
-		env.DB.prepare(`DELETE FROM attachments WHERE post_id IN (${ph})`).bind(...postIds),
-		env.DB.prepare(`DELETE FROM post_comments WHERE post_id IN (${ph})`).bind(...postIds),
+		env.DB.prepare(
+			"DELETE FROM attachments WHERE post_id IN (SELECT value FROM json_each(?))",
+		).bind(ids),
+		env.DB.prepare(
+			"DELETE FROM post_comments WHERE post_id IN (SELECT value FROM json_each(?))",
+		).bind(ids),
 	];
 }
 
@@ -59,13 +59,17 @@ export function buildDeleteThreadChildStatements(
 	threadIds: number[],
 ): D1PreparedStatement[] {
 	if (threadIds.length === 0) return [];
-	const ph = buildPlaceholders(threadIds.length);
+	const ids = JSON.stringify(threadIds);
 	return [
-		env.DB.prepare(`DELETE FROM attachments WHERE thread_id IN (${ph})`).bind(...threadIds),
-		env.DB.prepare(`DELETE FROM post_comments WHERE thread_id IN (${ph})`).bind(...threadIds),
-		env.DB.prepare(`DELETE FROM forum_recommended_threads WHERE thread_id IN (${ph})`).bind(
-			...threadIds,
-		),
+		env.DB.prepare(
+			"DELETE FROM attachments WHERE thread_id IN (SELECT value FROM json_each(?))",
+		).bind(ids),
+		env.DB.prepare(
+			"DELETE FROM post_comments WHERE thread_id IN (SELECT value FROM json_each(?))",
+		).bind(ids),
+		env.DB.prepare(
+			"DELETE FROM forum_recommended_threads WHERE thread_id IN (SELECT value FROM json_each(?))",
+		).bind(ids),
 	];
 }
 

@@ -37,6 +37,7 @@ export function isReadStatement(sql: string): boolean {
 interface InternalStatement extends D1PreparedStatement {
 	__sql: string;
 	__isRead: boolean;
+	__executeSync: () => D1Result;
 }
 
 function makeStatement(sqlite: Database, sql: string, bound: unknown[]): InternalStatement {
@@ -48,6 +49,8 @@ function makeStatement(sqlite: Database, sql: string, bound: unknown[]): Interna
 	stmt.__isRead = isRead;
 
 	stmt.bind = (...newArgs: unknown[]) => {
+		// Match production D1, rather than bun:sqlite's much larger limit.
+		if (newArgs.length > 100) throw new Error("D1_ERROR: too many SQL variables");
 		return makeStatement(sqlite, sql, newArgs);
 	};
 
@@ -58,16 +61,17 @@ function makeStatement(sqlite: Database, sql: string, bound: unknown[]): Interna
 		return (row[col] as T) ?? null;
 	}) as InternalStatement["first"];
 
-	stmt.all = (async <T = unknown>() => {
+	const allSync = <T = unknown>(): D1Result<T> => {
 		const results = sqlite.prepare(sql).all(...args) as T[];
 		return {
 			success: true,
 			meta: emptyMeta(),
 			results,
 		};
-	}) as InternalStatement["all"];
+	};
+	stmt.all = (async <T = unknown>() => allSync<T>()) as InternalStatement["all"];
 
-	stmt.run = (async <T = unknown>() => {
+	const runSync = <T = unknown>() => {
 		const r = sqlite.prepare(sql).run(...args);
 		return {
 			success: true,
@@ -78,7 +82,9 @@ function makeStatement(sqlite: Database, sql: string, bound: unknown[]): Interna
 				last_row_id: Number(r.lastInsertRowid),
 			},
 		} as D1Result<T>;
-	}) as InternalStatement["run"];
+	};
+	stmt.run = (async <T = unknown>() => runSync<T>()) as InternalStatement["run"];
+	stmt.__executeSync = () => (isRead ? allSync() : runSync());
 
 	stmt.raw = (async () => {
 		return sqlite.prepare(sql).values(...args) as unknown[][];
@@ -112,19 +118,11 @@ export function wrapAsD1(sqlite: Database): D1Database {
 	const prepare = (sql: string): D1PreparedStatement => makeStatement(sqlite, sql, []);
 
 	const batch = async <T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> => {
-		const out: D1Result<T>[] = [];
-		for (const s of statements) {
-			const internal = s as Partial<InternalStatement> & D1PreparedStatement;
-			const isRead =
-				internal.__isRead === true ||
-				(typeof internal.__sql === "string" && isReadStatement(internal.__sql));
-			if (isRead) {
-				out.push((await s.all<T>()) as D1Result<T>);
-			} else {
-				out.push((await s.run<T>()) as D1Result<T>);
-			}
-		}
-		return out;
+		// Run synchronously in one SQLite transaction. A failure at any point
+		// must roll back earlier statements, just like a real D1 batch.
+		return sqlite.transaction(() =>
+			statements.map((s) => (s as InternalStatement).__executeSync() as D1Result<T>),
+		)();
 	};
 
 	const exec = async (sql: string): Promise<D1ExecResult> => {
