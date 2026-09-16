@@ -374,28 +374,34 @@ cap-widget {
 /* ==========================================================================
    Tongji architectural pencil backgrounds
    ========================================================================== */
+.site-art-frame {
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	overflow: hidden;
+	pointer-events: none;
+	user-select: none;
+}
 .forum-header-art,
 .site-footer-art {
 	position: absolute;
-	right: 0;
+	left: 54%;
 	bottom: 0;
+	width: min(94%, 96rem);
+	height: 100%;
+	transform: translateX(-50%);
 	pointer-events: none;
 	user-select: none;
 	background-image: var(--sketch-light);
 	background-repeat: no-repeat;
-	background-position: right bottom;
+	background-position: center bottom;
 	background-size: contain;
-	mask-image: linear-gradient(90deg, transparent, #000 42%);
+	mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
 }
 .forum-header-art {
-	z-index: -1;
-	width: min(70%, 44rem);
-	height: 100%;
 	opacity: 0.4;
 }
 .site-footer-art {
-	width: min(76%, 45rem);
-	height: calc(100% + 3rem);
 	opacity: 0.5;
 }
 .dark .forum-header-art,
@@ -409,13 +415,15 @@ cap-widget {
 	opacity: 0.36;
 }
 @media (max-width: 639px) {
-	.forum-header-art {
-		width: 88%;
-		opacity: 0.24;
+	.site-art-frame {
+		opacity: 0.65;
 	}
+	.forum-header-art,
 	.site-footer-art {
-		width: 90%;
-		opacity: 0.3;
+		left: 50%;
+		width: 100%;
+		background-size: auto 100%;
+		background-position: 62% bottom;
 	}
 }
 @media (forced-colors: active) {

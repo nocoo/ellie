@@ -1,0 +1,27 @@
+{
+	"createdAt": "2026-09-16T11:32:32.409782+00:00",
+	"provider": "Azure OpenAI",
+	"route": "/openai/v1/images/edits",
+	"credentialSource": "workflow/.envrc via direnv",
+	"parameters": {
+		"model": "gpt-image-2.5-flare",
+		"size": "3072x1024",
+		"quality": "high",
+		"n": "1",
+		"background": "opaque",
+		"output_format": "png"
+	},
+	"promptSha256": "781f570df52d83066ad359dde4a3961ccf924d83c8a6fac4db6ec4adaa0ca7d6",
+	"references": [
+		{
+			"index": 1,
+			"file": "original.png",
+			"sha256": "67ad05d2a29c9e822fc87ec0babd731883560775889f76eab7729e32a9f4d3d2"
+		},
+		{
+			"index": 2,
+			"file": "Shanghai, China skyline.jpg",
+			"sha256": "6bc5e85bad8b2a19a1ec2d4bc97fff5f04b50f66c388658bd83b4a5634ee7f78"
+		}
+	]
+}

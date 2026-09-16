@@ -1,4 +1,4 @@
-import { SITE_ASSET_BASE, siteArtworkBackground } from "@ellie/shared";
+import { FORUM_ART_BASE, siteArtworkBackground } from "@ellie/shared";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties } from "react";
@@ -8,20 +8,22 @@ import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
 export function SiteFooter({ vm }: { vm: GlobalFooterViewModel }) {
 	return (
 		<footer
-			className="site-footer relative mt-8 overflow-hidden border-t border-border bg-card"
+			className="site-footer relative isolate mt-8 overflow-hidden border-t border-border bg-card"
 			data-testid="site-footer"
 		>
-			<div
-				className="site-footer-art"
-				aria-hidden="true"
-				data-testid="site-footer-bg-wrap"
-				style={
-					{
-						"--sketch-light": siteArtworkBackground(vm.bgLight),
-						"--sketch-dark": siteArtworkBackground(vm.bgDark),
-					} as CSSProperties
-				}
-			/>
+			<div className="site-art-frame width-container" aria-hidden="true">
+				<div
+					className="site-footer-art"
+					aria-hidden="true"
+					data-testid="site-footer-bg-wrap"
+					style={
+						{
+							"--sketch-light": siteArtworkBackground(vm.bgLight),
+							"--sketch-dark": siteArtworkBackground(vm.bgDark),
+						} as CSSProperties
+					}
+				/>
+			</div>
 			<div className="width-container relative flex min-h-40 flex-wrap items-center justify-between gap-6 py-6 sm:min-h-44 sm:py-8">
 				<div className="flex items-center gap-5">
 					<div className="hidden sm:block" data-testid="site-footer-logo-wrap">
@@ -53,7 +55,7 @@ export function SiteFooter({ vm }: { vm: GlobalFooterViewModel }) {
 								<ArrowUpRight className="size-3" aria-hidden="true" />
 							</a>
 						))}
-					<a href={`${SITE_ASSET_BASE}/credits.html`} className="hover:text-primary">
+					<a href={`${FORUM_ART_BASE}/credits.html`} className="hover:text-primary">
 						图纹致谢
 					</a>
 				</nav>

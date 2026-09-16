@@ -230,16 +230,17 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 export function ForumHeader({ vm }: { vm: HeaderViewModel }) {
 	return (
 		<header className="forum-header relative isolate border-b border-border bg-card">
-			<div
-				className="forum-header-art"
-				aria-hidden="true"
-				style={
-					{
-						"--sketch-light": SITE_ART.header.light.imageSet,
-						"--sketch-dark": SITE_ART.header.dark.imageSet,
-					} as CSSProperties
-				}
-			/>
+			<div className="site-art-frame width-container" aria-hidden="true">
+				<div
+					className="forum-header-art"
+					style={
+						{
+							"--sketch-light": SITE_ART.header.light.imageSet,
+							"--sketch-dark": SITE_ART.header.dark.imageSet,
+						} as CSSProperties
+					}
+				/>
+			</div>
 			<TopBar vm={vm} />
 			<NavBar vm={vm} />
 			<SearchStatsBar vm={vm} />

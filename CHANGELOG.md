@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.2] - 2026-09-16
+
+### Changed
+
+- **Forum artwork follows the content on wide screens.** Header and footer drawings share the main content container, remain centered slightly to its right in fixed and full-width layouts, and stay aligned when the width toggle changes. Mobile crops retain the main landmarks without adding header height or intercepting navigation.
+- **Wider Shanghai and campus pencil panoramas.** Reference-guided Flare edits extend the approved scenes across native 3072-pixel masters. Proportionate crops, light/dark WebP variants and versioned R2 delivery preserve the landmark shapes and source credits. Existing logos, admin artwork and custom footer image settings remain supported.
+
 ## [1.10.1] - 2026-09-16
 
 ### Changed

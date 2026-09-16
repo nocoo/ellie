@@ -1,0 +1,62 @@
+{
+	"reviewedOn": "2026-09-16",
+	"sources": [
+		{
+			"file": "Shanghai, China skyline.jpg",
+			"author": "Quintin Soloviev",
+			"license": "CC BY 4.0",
+			"url": "https://commons.wikimedia.org/wiki/File:Shanghai,_China_skyline.jpg",
+			"use": "Modern Lujiazui skyline",
+			"sha256": "6bc5e85bad8b2a19a1ec2d4bc97fff5f04b50f66c388658bd83b4a5634ee7f78"
+		},
+		{
+			"file": "Tongjidaxue Tushuguan.JPG",
+			"author": "Fayhoo",
+			"license": "CC BY-SA 3.0",
+			"url": "https://commons.wikimedia.org/wiki/File:Tongjidaxue_Tushuguan.JPG",
+			"use": "Siping Road library entrance wing and visible upper facade",
+			"sha256": "b8e6e89743f16320f5b2e62d5937c208206f9e1aa8e77ac8afb27e8f6bdfb0dd"
+		},
+		{
+			"file": "Tongji huabiao.jpg",
+			"author": "Nilei.net",
+			"license": "CC BY-SA 3.0",
+			"url": "https://commons.wikimedia.org/wiki/File:Tongji_huabiao.jpg",
+			"use": "Complete Guoli pillar; photograph taken in 2006",
+			"sha256": "08da073ce5878c41c82b3c0988e5cd60e478619542040eb968a1593dfe7aca0a"
+		},
+		{
+			"file": "Tongji guolizhu 1280px.jpg",
+			"author": "search255",
+			"license": "CC BY-SA 3.0",
+			"url": "https://commons.wikimedia.org/wiki/File:Tongji_guolizhu_1280px.jpg",
+			"use": "Guoli pillar capital and finial",
+			"sha256": "feced9dd5a10ffaa8fcf05776e3e0fa536331979afe9ff7534b47dcfffef9a55"
+		},
+		{
+			"file": "Metasequoia glyptostroboides in Golden Valley Tree Park, May 2022 01.jpg",
+			"author": "Calistemon",
+			"license": "CC BY-SA 4.0",
+			"url": "https://commons.wikimedia.org/wiki/File:Metasequoia_glyptostroboides_in_Golden_Valley_Tree_Park,_May_2022_01.jpg",
+			"use": "Dawn redwood botanical structure",
+			"sha256": "5ffeccf29593b943a40562ca974f570a3cd83f62c64ade7bee1c8c0225d04392"
+		}
+	],
+	"officialLibraryHistory": "https://www.lib.tongji.edu.cn/index.php?classid=12115",
+	"derivedFrom": [
+		{
+			"name": "header",
+			"url": "https://t.no.mt/ellie/site/1.10.1/originals/header.png",
+			"sha256": "67ad05d2a29c9e822fc87ec0babd731883560775889f76eab7729e32a9f4d3d2",
+			"license": "CC BY-SA 4.0",
+			"use": "Approved original illustration supplied to the image editing request"
+		},
+		{
+			"name": "footer",
+			"url": "https://t.no.mt/ellie/site/1.10.1/originals/footer.png",
+			"sha256": "969ccea58245072189b47db8b1ceb0c75aff78c2e300e6b64b3a905b1f7213a9",
+			"license": "CC BY-SA 4.0",
+			"use": "Approved original illustration supplied to the image editing request"
+		}
+	]
+}

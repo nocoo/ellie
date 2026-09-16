@@ -1,0 +1,334 @@
+{
+	"cdn": "https://t.no.mt/ellie/site/1.10.2",
+	"bucket": "tongjinet",
+	"prefix": "ellie/site/1.10.2/",
+	"generatedWith": "gpt-image-2.5-flare",
+	"crops": {
+		"header": [0, 208, 3072, 848],
+		"footer": [0, 144, 3072, 928]
+	},
+	"originals": [
+		{
+			"name": "header",
+			"url": "https://t.no.mt/ellie/site/1.10.2/originals/header.png",
+			"bytes": 2960879,
+			"sha256": "bfeac832048120c5debeefed8afafd358812484cc7c1527df685071854b381f4"
+		},
+		{
+			"name": "footer",
+			"url": "https://t.no.mt/ellie/site/1.10.2/originals/footer.png",
+			"bytes": 3438096,
+			"sha256": "0750250f66bb2d3d3266978b37dfeb8254ea55eb8c07dc1107bd59f75e4d5a3f"
+		}
+	],
+	"files": [
+		{
+			"file": "header-light-768.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-768.webp",
+			"source": "header/original.png",
+			"width": 768,
+			"height": 160,
+			"bytes": 18220,
+			"sha256": "ff5d45f9997cfd8c1cc0d4b63467c438b9f8cb1f97a0dee132d5808486aaeebe",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "header-light-768.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-768.jpg",
+			"source": "header/original.png",
+			"width": 768,
+			"height": 160,
+			"bytes": 15852,
+			"sha256": "358435fa0b20c849e3d43655231bf2787c7c26e5c631c306fc48aa589dd5454f",
+			"theme": "light",
+			"alpha": false
+		},
+		{
+			"file": "header-light-1536.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-1536.webp",
+			"source": "header/original.png",
+			"width": 1536,
+			"height": 320,
+			"bytes": 72946,
+			"sha256": "9245f96313250c2f0c7a7f26f507046b13b1e48212a2fd351c311b20c9441e34",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "header-light-1536.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-1536.jpg",
+			"source": "header/original.png",
+			"width": 1536,
+			"height": 320,
+			"bytes": 59950,
+			"sha256": "283858191b4a0c40a01d9066a0679e6a36ff28f77f734e112697d8c74c1ec0b6",
+			"theme": "light",
+			"alpha": false
+		},
+		{
+			"file": "header-light-3072.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-3072.webp",
+			"source": "header/original.png",
+			"width": 3072,
+			"height": 640,
+			"bytes": 287102,
+			"sha256": "3dc7959106c9e994a7f10507fb38eee2f336bf70ffd877c4161fe7f834ebe120",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "header-light-3072.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-3072.jpg",
+			"source": "header/original.png",
+			"width": 3072,
+			"height": 640,
+			"bytes": 238522,
+			"sha256": "15a3d47a6bae4589727789eb2dc96399a2bd5c4b25f5704a3c1b43e031e0e18b",
+			"theme": "light",
+			"alpha": false
+		},
+		{
+			"file": "header-light-3072.png",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-light-3072.png",
+			"source": "header/original.png",
+			"width": 3072,
+			"height": 640,
+			"bytes": 463042,
+			"sha256": "3390ecf394438adadfc3c84333ffd68ecc447f984e3bbfa42194e1e5d3f9f723",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "header-dark-768.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-768.webp",
+			"source": "header/original.png",
+			"width": 768,
+			"height": 160,
+			"bytes": 18218,
+			"sha256": "3d62c527ff5e45950ece6cefb70c8b37646c6e1eadea830e9644c0aa0e0eb01b",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "header-dark-768.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-768.jpg",
+			"source": "header/original.png",
+			"width": 768,
+			"height": 160,
+			"bytes": 15040,
+			"sha256": "d94510227b5376def750c7a0057c833b5e12157e860430a3d9a4c275842c686c",
+			"theme": "dark",
+			"alpha": false
+		},
+		{
+			"file": "header-dark-1536.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-1536.webp",
+			"source": "header/original.png",
+			"width": 1536,
+			"height": 320,
+			"bytes": 72944,
+			"sha256": "8a3a6a92629bfcca55fa71e8daac8d03c1e2309d8b8f4f943e49c92513b50155",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "header-dark-1536.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-1536.jpg",
+			"source": "header/original.png",
+			"width": 1536,
+			"height": 320,
+			"bytes": 56864,
+			"sha256": "7ffd2e095585d55cf4d3131514cba6e6cad292701d066cd618c371a3747bc950",
+			"theme": "dark",
+			"alpha": false
+		},
+		{
+			"file": "header-dark-3072.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-3072.webp",
+			"source": "header/original.png",
+			"width": 3072,
+			"height": 640,
+			"bytes": 287100,
+			"sha256": "c08e43e1dcb4e4195580e6881ede759836498584290ab5738c79189509147f17",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "header-dark-3072.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-3072.jpg",
+			"source": "header/original.png",
+			"width": 3072,
+			"height": 640,
+			"bytes": 224312,
+			"sha256": "ee9de6481ab7ab06408aaa0b5869f3e64a9a3bd17a026365ee16576d0ecbefcb",
+			"theme": "dark",
+			"alpha": false
+		},
+		{
+			"file": "header-dark-3072.png",
+			"url": "https://t.no.mt/ellie/site/1.10.2/header-dark-3072.png",
+			"source": "header/original.png",
+			"width": 3072,
+			"height": 640,
+			"bytes": 462376,
+			"sha256": "9b536d286b34963c739081a75ceaeed9eb0590e213e597b86ccf630c2f4e9b08",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "footer-light-768.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-768.webp",
+			"source": "footer/original.png",
+			"width": 768,
+			"height": 196,
+			"bytes": 43510,
+			"sha256": "9a3752c7dcffef0e197c88cee8c296439c5b9e5f68500f21b2d39fd09dd16554",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "footer-light-768.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-768.jpg",
+			"source": "footer/original.png",
+			"width": 768,
+			"height": 196,
+			"bytes": 32687,
+			"sha256": "cc052de293f23014fbef0906fd524f8e2ccc66fdf1f4487c525b9139b5f6c797",
+			"theme": "light",
+			"alpha": false
+		},
+		{
+			"file": "footer-light-1536.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-1536.webp",
+			"source": "footer/original.png",
+			"width": 1536,
+			"height": 392,
+			"bytes": 169446,
+			"sha256": "d8fc76669562155108548814bdc0c86724b81e74b2bdb6d1c07f59460325e72e",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "footer-light-1536.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-1536.jpg",
+			"source": "footer/original.png",
+			"width": 1536,
+			"height": 392,
+			"bytes": 131813,
+			"sha256": "6d80bbaade7d1136063e72bd69925b63463b00a24f28f5ce26adc7b4acdcb150",
+			"theme": "light",
+			"alpha": false
+		},
+		{
+			"file": "footer-light-3072.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-3072.webp",
+			"source": "footer/original.png",
+			"width": 3072,
+			"height": 784,
+			"bytes": 626372,
+			"sha256": "d6a75846e4155e918747fef2af287467272c3752694725405d1ef65bf5f8f980",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "footer-light-3072.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-3072.jpg",
+			"source": "footer/original.png",
+			"width": 3072,
+			"height": 784,
+			"bytes": 518232,
+			"sha256": "9c95dfcbd45b69bed942b14ef3a1fd359dbcd526706eac757b1ab8b0f92c2933",
+			"theme": "light",
+			"alpha": false
+		},
+		{
+			"file": "footer-light-3072.png",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-light-3072.png",
+			"source": "footer/original.png",
+			"width": 3072,
+			"height": 784,
+			"bytes": 979856,
+			"sha256": "7127398efd4aba10af3acd4d64ad17865e7fe312050a752af4007a17d971d997",
+			"theme": "light",
+			"alpha": true
+		},
+		{
+			"file": "footer-dark-768.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-768.webp",
+			"source": "footer/original.png",
+			"width": 768,
+			"height": 196,
+			"bytes": 43508,
+			"sha256": "ed2af39944364d04da7e89079fffafb9e19bc3979b6ef7b5d199e8b483c29ce8",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "footer-dark-768.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-768.jpg",
+			"source": "footer/original.png",
+			"width": 768,
+			"height": 196,
+			"bytes": 31156,
+			"sha256": "8ce99fc2fc1a969c48b67a4d70fdf9a1c3a19b645183a0cc8074e89c5165cac5",
+			"theme": "dark",
+			"alpha": false
+		},
+		{
+			"file": "footer-dark-1536.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-1536.webp",
+			"source": "footer/original.png",
+			"width": 1536,
+			"height": 392,
+			"bytes": 169444,
+			"sha256": "695e6892fd6a81b2659a7ae5bb76693ea0b09082f327dd9c161e22579849cf63",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "footer-dark-1536.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-1536.jpg",
+			"source": "footer/original.png",
+			"width": 1536,
+			"height": 392,
+			"bytes": 124975,
+			"sha256": "215f07db8c4b779070619b5c73ff4b895769073e65e3ada82a65bf73dd8ceaa3",
+			"theme": "dark",
+			"alpha": false
+		},
+		{
+			"file": "footer-dark-3072.webp",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-3072.webp",
+			"source": "footer/original.png",
+			"width": 3072,
+			"height": 784,
+			"bytes": 626370,
+			"sha256": "9a354306c5dfee4fb254fb5e4f5c60d692821b9555068fe8fa06f0e3ee32e84a",
+			"theme": "dark",
+			"alpha": true
+		},
+		{
+			"file": "footer-dark-3072.jpg",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-3072.jpg",
+			"source": "footer/original.png",
+			"width": 3072,
+			"height": 784,
+			"bytes": 487129,
+			"sha256": "ee51dba02eee82c9aec0a6b3b035e9ce114eedc5e30deab1f34a46f20d361b04",
+			"theme": "dark",
+			"alpha": false
+		},
+		{
+			"file": "footer-dark-3072.png",
+			"url": "https://t.no.mt/ellie/site/1.10.2/footer-dark-3072.png",
+			"source": "footer/original.png",
+			"width": 3072,
+			"height": 784,
+			"bytes": 978845,
+			"sha256": "c0b4cab2fc1e33d40428f677dba27d2a96f25ee65a869858b16adf733c3aba88",
+			"theme": "dark",
+			"alpha": true
+		}
+	]
+}

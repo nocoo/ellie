@@ -1,5 +1,6 @@
-/** Immutable, pre-optimized R2 assets. See assets/site/tongji-20260916/manifest.json. */
+/** Immutable, pre-optimized R2 assets. Manifests and source credits live in assets/site/. */
 export const SITE_ASSET_BASE = "https://t.no.mt/ellie/site/1.10.1";
+export const FORUM_ART_BASE = "https://t.no.mt/ellie/site/1.10.2";
 
 export const FORUM_LOGOS = {
 	light: `${SITE_ASSET_BASE}/forum-logo-light-600.webp`,
@@ -13,17 +14,23 @@ export const ADMIN_LOGO = {
 		.join(", "),
 };
 
-function artwork(name: string, width: number) {
-	const src = `${SITE_ASSET_BASE}/${name}-${width}.webp`;
+function artwork(name: string, width: number, base = SITE_ASSET_BASE) {
+	const src = `${base}/${name}-${width}.webp`;
 	return {
 		src,
-		imageSet: `image-set(url("${src}") 1x, url("${SITE_ASSET_BASE}/${name}-${width * 2}.webp") 2x)`,
+		imageSet: `image-set(url("${src}") 1x, url("${base}/${name}-${width * 2}.webp") 2x)`,
 	};
 }
 
 export const SITE_ART = {
-	header: { light: artwork("header-light", 384), dark: artwork("header-dark", 384) },
-	footer: { light: artwork("footer-light", 384), dark: artwork("footer-dark", 384) },
+	header: {
+		light: artwork("header-light", 768, FORUM_ART_BASE),
+		dark: artwork("header-dark", 768, FORUM_ART_BASE),
+	},
+	footer: {
+		light: artwork("footer-light", 768, FORUM_ART_BASE),
+		dark: artwork("footer-dark", 768, FORUM_ART_BASE),
+	},
 	admin: { light: artwork("admin-light", 384), dark: artwork("admin-dark", 384) },
 };
 
@@ -36,6 +43,12 @@ const LEGACY_ASSETS = new Map([
 	["https://t.no.mt/ellie/Bg-shanghai-dark.png", SITE_ART.footer.dark.src],
 	["https://t.no.mt/ellie/bg_footer_light_01.jpg", SITE_ART.footer.light.src],
 	["https://t.no.mt/ellie/bg_footer_dark_01.jpg", SITE_ART.footer.dark.src],
+	...(["light", "dark"] as const).flatMap((theme) =>
+		[384, 768, 1536].map(
+			(width) =>
+				[`${SITE_ASSET_BASE}/footer-${theme}-${width}.webp`, SITE_ART.footer[theme].src] as const,
+		),
+	),
 ]);
 
 /** Upgrade only the shipped assets; preserve custom URLs and deliberately empty settings. */

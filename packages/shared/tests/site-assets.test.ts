@@ -8,6 +8,9 @@ describe("shipped site artwork migration", () => {
 		expect(resolveSiteAsset("https://t.no.mt/ellie/bg_footer_light_01.jpg")).toBe(
 			SITE_ART.footer.light.src,
 		);
+		expect(resolveSiteAsset("https://t.no.mt/ellie/site/1.10.1/footer-light-384.webp")).toBe(
+			SITE_ART.footer.light.src,
+		);
 		for (const custom of ["https://example.com/custom.png?v=2", "/own-logo.svg", "", "toString"]) {
 			expect(resolveSiteAsset(custom)).toBe(custom);
 		}
@@ -17,7 +20,7 @@ describe("shipped site artwork migration", () => {
 		expect(siteArtworkBackground("https://t.no.mt/ellie/Bg-shanghai-dark.png")).toBe(
 			SITE_ART.footer.dark.imageSet,
 		);
-		expect(siteArtworkBackground(SITE_ART.header.light.src)).toContain("header-light-768.webp");
+		expect(siteArtworkBackground(SITE_ART.header.light.src)).toContain("header-light-1536.webp");
 		expect(siteArtworkBackground(SITE_ART.admin.dark.src)).toContain("admin-dark-768.webp");
 		expect(siteArtworkBackground('https://example.com/art (1).png?name="test"')).toBe(
 			'url("https://example.com/art (1).png?name=\\"test\\"")',

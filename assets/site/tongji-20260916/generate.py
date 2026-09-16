@@ -22,7 +22,7 @@ def save(path, value):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("study", type=Path)
 parser.add_argument("--image", action="append", type=Path, required=True)
-parser.add_argument("--size", choices=["1536x1024", "1024x1024"], default="1536x1024")
+parser.add_argument("--size", choices=["1536x1024", "1024x1024", "3072x1024"], default="1536x1024")
 args = parser.parse_args()
 directory = args.study.resolve()
 if (directory / "request.json").exists():

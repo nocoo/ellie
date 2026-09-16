@@ -6,6 +6,7 @@ export { ApiError } from "./api-error";
 
 export {
 	ADMIN_LOGO,
+	FORUM_ART_BASE,
 	FORUM_LOGOS,
 	resolveSiteAsset,
 	SITE_ART,

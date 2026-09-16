@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Export the approved Tongji sketches and existing logos; never alter the masters.
 
-Run: uv run --with pillow python scripts/prepare-site-art.py
+Run: uv run --with pillow python scripts/prepare-site-art.py [--panorama]
 Native Flare responses and downloaded references live in the ignored study directory.
 """
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -20,13 +21,13 @@ PALETTE = {"light": (82, 104, 120), "dark": (183, 199, 209)}
 PAPER = {"light": (250, 251, 252), "dark": (24, 31, 39)}
 
 
-def record(path, source, size, **extra):
-    return {"file": path.name, "url": f"{CDN}/{path.name}", "source": source,
+def record(path, source, size, cdn=CDN, **extra):
+    return {"file": path.name, "url": f"{cdn}/{path.name}", "source": source,
             "width": size[0], "height": size[1], "bytes": path.stat().st_size,
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), **extra}
 
 
-def exports(image, stem, widths, theme, source, pencil_color=None):
+def exports(image, stem, widths, theme, source, pencil_color=None, *, output=OUTPUT, cdn=CDN):
     items = []
     for width in widths:
         size = (width, round(image.height * width / image.width))
@@ -38,8 +39,8 @@ def exports(image, stem, widths, theme, source, pencil_color=None):
             scaled = Image.new("RGBA", size, pencil_color)
             scaled.putalpha(alpha)
         for extension in ("webp", "jpg", *(["png"] if width == max(widths) else [])):
-            path = OUTPUT / f"{stem}-{width}.{extension}"
-            pending = OUTPUT / f".{stem}-{width}.{extension}"
+            path = output / f"{stem}-{width}.{extension}"
+            pending = output / f".{stem}-{width}.{extension}"
             if extension == "jpg":
                 flat = Image.new("RGB", size, PAPER[theme])
                 flat.paste(scaled, mask=scaled.getchannel("A"))
@@ -49,16 +50,21 @@ def exports(image, stem, widths, theme, source, pencil_color=None):
             else:
                 scaled.save(pending, optimize=True)
             pending.replace(path)
-            items.append(record(path, source, size, theme=theme, alpha=extension != "jpg"))
+            items.append(record(path, source, size, cdn=cdn, theme=theme, alpha=extension != "jpg"))
     return items
 
 
-def pencil_layer(original, crop):
+def pencil_layer(original, crop, panorama=False):
     image = original.crop(crop).convert("RGB")
     # Remove the near-white paper; retain continuous alpha in individual pencil strokes.
     alpha = ImageOps.grayscale(image).point(lambda v: round(max(0, min(255, (247 - v) * 1.65))))
     edge = Image.new("L", (image.width, 1))
-    edge.putdata([round(255 * min(1, x / (image.width * 0.3))) for x in range(image.width)])
+    if panorama:
+        edge.putdata([round(255 * min(1, x / (image.width * 0.12),
+                                     (image.width - 1 - x) / (image.width * 0.12)))
+                      for x in range(image.width)])
+    else:
+        edge.putdata([round(255 * min(1, x / (image.width * 0.3))) for x in range(image.width)])
     alpha = ImageChops.multiply(alpha, edge.resize(image.size))
     # A short feather at the sheet edges prevents a rectangular image boundary.
     vertical = Image.new("L", (1, image.height))
@@ -68,46 +74,58 @@ def pencil_layer(original, crop):
 
 
 def main():
-    OUTPUT.mkdir(parents=True, exist_ok=True)
-    RECORD.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--panorama", action="store_true", help="Export the wider v1.10.2 forum art")
+    panorama = parser.parse_args().panorama
+    study = ROOT / "reference/artwork/tongji-panorama-20260916" if panorama else STUDY
+    output = study / "delivery"
+    archive = ROOT / "assets/site/tongji-panorama-20260916" if panorama else RECORD
+    cdn = "https://t.no.mt/ellie/site/1.10.2" if panorama else CDN
+    output.mkdir(parents=True, exist_ok=True)
+    archive.mkdir(parents=True, exist_ok=True)
     items = []
-    crops = {"header": (0, 180, 1536, 984), "footer": (0, 64, 1536, 1008),
-             "admin": (0, 64, 1024, 1008)}
+    # Crop only surplus paper/water; preserve the complete spires and tree crowns.
+    crops = ({"header": (0, 208, 3072, 848), "footer": (0, 144, 3072, 928)} if panorama else
+             {"header": (0, 180, 1536, 984), "footer": (0, 64, 1536, 1008),
+              "admin": (0, 64, 1024, 1008)})
     for name, crop in crops.items():
-        source = STUDY / name / "original.png"
-        alpha = pencil_layer(Image.open(source), crop)
+        source = study / name / "original.png"
+        alpha = pencil_layer(Image.open(source), crop, panorama)
         for theme, color in PALETTE.items():
             layer = Image.new("RGBA", alpha.size, color)
             layer.putalpha(alpha)
-            widths = [384, 768, 1536] if name != "admin" else [192, 384, 768]
+            widths = ([768, 1536, 3072] if panorama else
+                      [384, 768, 1536] if name != "admin" else [192, 384, 768])
             items.extend(exports(layer, f"{name}-{theme}", widths, theme,
-                                 f"{name}/original.png", color))
+                                 f"{name}/original.png", color, output=output, cdn=cdn))
 
-    for theme in PALETTE:
-        source = STUDY / "legacy" / f"Logo-{theme}-2.png"
-        items.extend(exports(Image.open(source).convert("RGBA"), f"forum-logo-{theme}",
-                             [120, 240, 360, 600], theme, f"legacy/{source.name}"))
+    if not panorama:
+        for theme in PALETTE:
+            source = STUDY / "legacy" / f"Logo-{theme}-2.png"
+            items.extend(exports(Image.open(source).convert("RGBA"), f"forum-logo-{theme}",
+                                 [120, 240, 360, 600], theme, f"legacy/{source.name}"))
 
-    # Keep the existing transparent elephant foreground used by the admin UI.
-    items.extend(exports(Image.open(ROOT / "logo.png").convert("RGBA"), "admin-logo",
-                         [24, 48, 96, 192, 384, 768], "light", "logo.png"))
+        # Keep the existing transparent elephant foreground used by the admin UI.
+        items.extend(exports(Image.open(ROOT / "logo.png").convert("RGBA"), "admin-logo",
+                             [24, 48, 96, 192, 384, 768], "light", "logo.png"))
 
     originals = []
     for name in crops:
-        path = STUDY / name / "original.png"
-        originals.append({"name": name, "url": f"{CDN}/originals/{name}.png",
+        path = study / name / "original.png"
+        originals.append({"name": name, "url": f"{cdn}/originals/{name}.png",
                           "bytes": path.stat().st_size,
                           "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-    manifest = {"cdn": CDN, "bucket": "tongjinet", "prefix": "ellie/site/1.10.1/",
-                "generatedWith": "gpt-image-2.5-flare", "originals": originals, "files": items}
-    (RECORD / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent="\t") + "\n")
+    manifest = {"cdn": cdn, "bucket": "tongjinet", "prefix": cdn.removeprefix("https://t.no.mt/") + "/",
+                "generatedWith": "gpt-image-2.5-flare", "crops": crops,
+                "originals": originals, "files": items}
+    (archive / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent="\t") + "\n")
     for name in crops:
         for suffix in ["prompt.txt", "request.json", "response.json"]:
-            target = RECORD / f"{name}-{suffix}"
-            target.write_bytes((STUDY / name / suffix).read_bytes())
+            target = archive / f"{name}-{suffix}"
+            target.write_bytes((study / name / suffix).read_bytes())
     print(f"Exported {len(items)} assets ({sum(i['bytes'] for i in items):,} bytes)")
     for i in items:
-        if i["file"].endswith("-768.webp") or i["file"].endswith("-240.webp"):
+        if i["file"].endswith("-1536.webp" if panorama else "-768.webp") or i["file"].endswith("-240.webp"):
             print(f"{i['file']}: {i['width']} × {i['height']}, {i['bytes']:,} bytes")
 
 

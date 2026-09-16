@@ -1,0 +1,42 @@
+{
+	"createdAt": "2026-09-16T11:32:40.162166+00:00",
+	"provider": "Azure OpenAI",
+	"route": "/openai/v1/images/edits",
+	"credentialSource": "workflow/.envrc via direnv",
+	"parameters": {
+		"model": "gpt-image-2.5-flare",
+		"size": "3072x1024",
+		"quality": "high",
+		"n": "1",
+		"background": "opaque",
+		"output_format": "png"
+	},
+	"promptSha256": "c2192092e36c688afefc207e3dc68cffd0b1cf1a3ffc6c55db98677cd4612821",
+	"references": [
+		{
+			"index": 1,
+			"file": "original.png",
+			"sha256": "969ccea58245072189b47db8b1ceb0c75aff78c2e300e6b64b3a905b1f7213a9"
+		},
+		{
+			"index": 2,
+			"file": "Tongjidaxue Tushuguan.JPG",
+			"sha256": "b8e6e89743f16320f5b2e62d5937c208206f9e1aa8e77ac8afb27e8f6bdfb0dd"
+		},
+		{
+			"index": 3,
+			"file": "Tongji huabiao.jpg",
+			"sha256": "08da073ce5878c41c82b3c0988e5cd60e478619542040eb968a1593dfe7aca0a"
+		},
+		{
+			"index": 4,
+			"file": "Tongji guolizhu 1280px.jpg",
+			"sha256": "feced9dd5a10ffaa8fcf05776e3e0fa536331979afe9ff7534b47dcfffef9a55"
+		},
+		{
+			"index": 5,
+			"file": "Metasequoia glyptostroboides in Golden Valley Tree Park, May 2022 01.jpg",
+			"sha256": "5ffeccf29593b943a40562ca974f570a3cd83f62c64ade7bee1c8c0225d04392"
+		}
+	]
+}
