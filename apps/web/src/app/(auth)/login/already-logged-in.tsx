@@ -1,9 +1,9 @@
 "use client";
 
+import { ArrowRight, CircleUserRound, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
-import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
 import { AuthIdCard } from "../_components/auth-id-card";
 
@@ -44,28 +44,32 @@ export default function AlreadyLoggedIn({ username }: AlreadyLoggedInProps) {
 
 	return (
 		<AuthIdCard topCenter="Since 2002">
-			<div className="flex justify-center mb-6">
-				<ForumLogo height={40} />
-			</div>
-
-			<div className="text-center space-y-4">
-				<div className="space-y-1.5">
-					<p className="text-base font-medium">你已登录</p>
-					{username && <p className="text-sm text-muted-foreground">当前账号：{username}</p>}
+			<div className="mx-auto w-full max-w-sm space-y-5">
+				<div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+					<CircleUserRound className="size-6" aria-hidden="true" />
+				</div>
+				<div className="space-y-2">
+					<h1 className="text-2xl font-semibold tracking-tight">你已登录</h1>
+					{username && (
+						<p className="break-words text-sm text-muted-foreground">当前账号：{username}</p>
+					)}
 				</div>
 
-				<Button onClick={handleGoHome} className="w-full h-[58px] text-base">
+				<Button onClick={handleGoHome} disabled={signingOut} className="h-11 w-full">
 					前往首页
+					<ArrowRight className="size-4" aria-hidden="true" />
 				</Button>
 
-				<button
+				<Button
 					type="button"
+					variant="outline"
 					onClick={handleSwitchAccount}
 					disabled={signingOut}
-					className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+					className="h-11 w-full"
 				>
+					<LogOut className="size-4" aria-hidden="true" />
 					{signingOut ? "退出中..." : "切换账号"}
-				</button>
+				</Button>
 			</div>
 		</AuthIdCard>
 	);

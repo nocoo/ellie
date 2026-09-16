@@ -1,9 +1,9 @@
 "use client";
 
+import { ArrowRight, KeyRound, UserRound, UserRoundPlus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
 import { CapWidget } from "@/components/cap-widget";
-import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -42,6 +42,7 @@ function LoginFormInner() {
 	const [redirecting, setRedirecting] = useState(false);
 	const [error, setError] = useState<string | null>(loginErrorMessage(errorFromUrl));
 	const [registerOpen, setRegisterOpen] = useState(false);
+	const [registerBusy, setRegisterBusy] = useState(false);
 
 	// Synchronous in-flight lock: React state updates are async, so two rapid
 	// clicks within the same tick can both pass an `if (loading) return` gate.
@@ -100,102 +101,117 @@ function LoginFormInner() {
 
 	return (
 		<AuthIdCard topCenter="Since 2002">
-			{/* Logo */}
-			<div className="flex justify-center mb-6">
-				<ForumLogo height={40} />
-			</div>
-
-			<form onSubmit={handleSubmit} className="space-y-4">
-				{/* Error */}
-				{error && <AuthErrorBanner message={error} />}
-
-				{/* Username */}
-				<div className="space-y-2">
-					<Label htmlFor="username" className="text-sm">
-						用户名
-					</Label>
-					<Input
-						id="username"
-						type="text"
-						value={username}
-						onChange={(e) => setUsername(e.target.value)}
-						placeholder="请输入用户名"
-						disabled={busy}
-						autoComplete="username"
-						className="h-[58px] text-base"
-					/>
+			<div className="mx-auto w-full max-w-sm">
+				<div className="mb-7">
+					<h1 className="text-2xl font-semibold tracking-tight">欢迎回来</h1>
+					<p className="mt-2 text-sm text-muted-foreground">登录同济网论坛，继续你的校园生活。</p>
 				</div>
 
-				{/* Password */}
-				<div className="space-y-2">
-					<Label htmlFor="password" className="text-sm">
-						密码
-					</Label>
-					<Input
-						id="password"
-						type="password"
-						value={password}
-						onChange={(e) => setPassword(e.target.value)}
-						placeholder="请输入密码"
-						disabled={busy}
-						autoComplete="current-password"
-						className="h-[58px] text-base"
-					/>
-				</div>
+				<form onSubmit={handleSubmit} className="space-y-4">
+					{/* Error */}
+					{error && <AuthErrorBanner message={error} />}
 
-				{/* Cap CAPTCHA — required. When endpoint is missing, fail-closed:
-				    show an error banner and the submit button stays disabled. */}
-				{capConfigured ? (
-					<div className="flex items-center justify-center h-[58px]">
-						<CapWidget
-							apiEndpoint={CAP_API_ENDPOINT}
-							onSolve={setCapToken}
-							onError={() => setCapToken("")}
+					{/* Username */}
+					<div className="space-y-2">
+						<Label htmlFor="username" className="flex items-center gap-2 text-sm">
+							<UserRound className="size-3.5 text-muted-foreground" aria-hidden="true" />
+							用户名
+						</Label>
+						<Input
+							id="username"
+							type="text"
+							value={username}
+							onChange={(e) => setUsername(e.target.value)}
+							placeholder="请输入用户名"
+							disabled={busy}
+							autoComplete="username"
+							className="h-11 text-base"
 						/>
 					</div>
-				) : (
-					<AuthErrorBanner message="人机验证服务未就绪，暂时无法登录，请稍后再试或联系管理员。" />
-				)}
 
-				{/* Submit */}
-				<Button
-					type="submit"
-					disabled={!canSubmit || busy}
-					aria-busy={busy}
-					className="w-full h-[58px] text-base"
+					{/* Password */}
+					<div className="space-y-2">
+						<Label htmlFor="password" className="flex items-center gap-2 text-sm">
+							<KeyRound className="size-3.5 text-muted-foreground" aria-hidden="true" />
+							密码
+						</Label>
+						<Input
+							id="password"
+							type="password"
+							value={password}
+							onChange={(e) => setPassword(e.target.value)}
+							placeholder="请输入密码"
+							disabled={busy}
+							autoComplete="current-password"
+							className="h-11 text-base"
+						/>
+					</div>
+
+					{/* Cap CAPTCHA — required. When endpoint is missing, fail-closed:
+				    show an error banner and the submit button stays disabled. */}
+					{capConfigured ? (
+						<div className="flex min-h-14 items-center justify-center">
+							<CapWidget
+								apiEndpoint={CAP_API_ENDPOINT}
+								onSolve={setCapToken}
+								onError={() => setCapToken("")}
+							/>
+						</div>
+					) : (
+						<AuthErrorBanner message="人机验证服务未就绪，暂时无法登录，请稍后再试或联系管理员。" />
+					)}
+
+					{/* Submit */}
+					<Button
+						type="submit"
+						disabled={!canSubmit || busy}
+						aria-busy={busy}
+						className="h-11 w-full text-sm"
+					>
+						{submitLabel}
+						<ArrowRight className="size-4" aria-hidden="true" />
+					</Button>
+				</form>
+
+				<AuthDivider />
+
+				{/* Register dialog trigger */}
+				<Dialog
+					open={registerOpen}
+					onOpenChange={(open) => {
+						if (!registerBusy) setRegisterOpen(open);
+					}}
 				>
-					{submitLabel}
-				</Button>
-			</form>
-
-			<AuthDivider />
-
-			{/* Register dialog trigger */}
-			<Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
-				<DialogTrigger
-					render={
-						<Button variant="outline" className="w-full h-[58px] text-base">
-							创建新账号
-						</Button>
-					}
-				/>
-				<DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto" showCloseButton>
-					<DialogHeader>
-						<DialogTitle>注册新账号</DialogTitle>
-						<DialogDescription>创建您的同济网论坛账号</DialogDescription>
-					</DialogHeader>
-					<RegisterFormDialog
-						onSuccess={() => {
-							setRegisterOpen(false);
-							window.location.href = callbackUrl;
-						}}
+					<DialogTrigger
+						render={
+							<Button variant="outline" className="h-11 w-full text-sm">
+								<UserRoundPlus className="size-4" aria-hidden="true" />
+								创建新账号
+							</Button>
+						}
 					/>
-				</DialogContent>
-			</Dialog>
+					<DialogContent
+						className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
+						showCloseButton={!registerBusy}
+					>
+						<DialogHeader>
+							<DialogTitle>注册新账号</DialogTitle>
+							<DialogDescription>创建您的同济网论坛账号</DialogDescription>
+						</DialogHeader>
+						<RegisterFormDialog
+							onPendingChange={setRegisterBusy}
+							onSuccess={() => {
+								setRegisterOpen(false);
+								window.location.href = callbackUrl;
+							}}
+						/>
+					</DialogContent>
+				</Dialog>
 
-			{/* Contact-admin hint — rendered only after CAPTCHA solve to keep
+				{/* Contact-admin hint — rendered only after CAPTCHA solve to keep
 			    the email hidden from naive scrapers. */}
-			<AuthHelpHint visible={capConfigured && Boolean(capToken)} />
+				<AuthHelpHint visible={capConfigured && Boolean(capToken)} />
+			</div>
 		</AuthIdCard>
 	);
 }
@@ -205,7 +221,7 @@ export default function LoginForm() {
 		<Suspense
 			fallback={
 				<div className="flex min-h-screen items-center justify-center">
-					<p className="text-muted-foreground">Loading...</p>
+					<p className="text-muted-foreground">加载中…</p>
 				</div>
 			}
 		>

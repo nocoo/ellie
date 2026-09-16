@@ -4,7 +4,7 @@
 // CAP env is module-level (read at import time). We use dynamic imports
 // + `vi.resetModules()` per test so each describe can control whether
 // CAP is configured.
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement, useEffect } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -179,7 +179,7 @@ describe("RegisterFormDialog — layout", () => {
 		vi.doMock("@/components/cap-widget", inertCapMock);
 	});
 
-	it("renders 3-column section headers", async () => {
+	it("renders account, education and optional profile sections", async () => {
 		const { RegisterFormDialog } = await loadForm();
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
 		expect(screen.getByText("账号信息")).toBeTruthy();
@@ -255,6 +255,43 @@ describe("onSuccess behavior", () => {
 		vi.clearAllMocks();
 		process.env.NEXT_PUBLIC_CAP_API_ENDPOINT = "https://cap.example.com";
 		vi.doMock("@/components/cap-widget", autoSolveCapMock);
+	});
+
+	it("blocks duplicate registration and unlocks after a failed request", async () => {
+		const { RegisterFormDialog } = await loadForm();
+		const onPendingChange = vi.fn();
+		let resolveRequest!: (value: { error: string }) => void;
+		mockRegisterUser.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveRequest = resolve;
+				}),
+		);
+		const { container } = render(createElement(RegisterFormDialog, { onPendingChange }));
+		for (const [label, value] of [
+			["用户名", "testuser"],
+			["密码", "password123"],
+			["确认密码", "password123"],
+			["邮箱", "test@example.com"],
+			["身份类型", "校内人士"],
+			["校区", "四平路校区"],
+		]) {
+			fireEvent.change(screen.getByLabelText(label), { target: { value } });
+		}
+		const form = container.querySelector("form");
+		if (!form) throw new Error("Registration form not found");
+		act(() => {
+			fireEvent.submit(form);
+			fireEvent.submit(form);
+		});
+		expect(mockRegisterUser).toHaveBeenCalledTimes(1);
+		expect(onPendingChange).toHaveBeenLastCalledWith(true);
+		await act(async () => {
+			resolveRequest({ error: "USERNAME_TAKEN" });
+		});
+		expect(screen.getByRole("alert")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "创建账号" }).hasAttribute("disabled")).toBe(false);
+		expect(onPendingChange).toHaveBeenLastCalledWith(false);
 	});
 
 	it("does not call onSuccess when signIn fails", async () => {

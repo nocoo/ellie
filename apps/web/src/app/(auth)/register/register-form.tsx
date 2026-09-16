@@ -1,17 +1,20 @@
 "use client";
 
+import { ArrowRight, ChevronDown, GraduationCap, UserRound, UserRoundPlus } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { registerUser } from "@/actions/auth";
 import { CapWidget } from "@/components/cap-widget";
-import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { checkUsernameAvailability } from "@/lib/forum-browser-api";
 import { safeRedirect } from "@/lib/safe-redirect";
+import { cn } from "@/lib/utils";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import {
 	buildRegisterProfile,
@@ -131,13 +134,14 @@ function PostingConditionsNote() {
 // ---------------------------------------------------------------------------
 
 interface RegisterFormCoreProps {
-	/** "standalone" = /register page with AuthIdCard; "dialog" = wider 3-column */
+	/** Standalone page and login dialog share all fields and validation. */
 	variant: "standalone" | "dialog";
 	/** Called on successful registration (dialog closes itself) */
 	onSuccess?: () => void;
+	onPendingChange?: (pending: boolean) => void;
 }
 
-function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
+function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormCoreProps) {
 	const searchParams = useSearchParams();
 	const callbackUrl = safeRedirect(searchParams.get("redirect"));
 
@@ -147,6 +151,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 	const [email, setEmail] = useState("");
 	const [capToken, setCapToken] = useState("");
 	const [loading, setLoading] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
 
@@ -203,8 +208,10 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		}
 
 		setUsernameStatus("checking");
+		let cancelled = false;
 		const timer = setTimeout(async () => {
 			const data = await checkUsernameAvailability(username.trim());
+			if (cancelled) return;
 			if (data.available) {
 				setUsernameStatus("available");
 			} else if (data.reason === "error") {
@@ -214,13 +221,18 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 			}
 		}, 500);
 
-		return () => clearTimeout(timer);
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+		};
 	}, [username]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!canSubmit || loading) return;
-
+		if (!canSubmit || submittingRef.current) return;
+		submittingRef.current = true;
+		let completed = false;
+		onPendingChange?.(true);
 		setLoading(true);
 		setError(null);
 
@@ -237,7 +249,8 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				return;
 			}
 
-			// Registration success → auto-login via signIn
+			completed = true;
+			// Keep the create request locked even if automatic sign-in fails.
 			const { signIn } = await import("next-auth/react");
 			const signInResult = await signIn("credentials", {
 				username: username.trim(),
@@ -245,20 +258,26 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				redirect: false,
 			});
 
-			if (signInResult?.error) {
+			if (!signInResult?.ok || signInResult.error) {
 				// Registration succeeded but auto-login failed — redirect to login
 				window.location.href = `/login?redirect=${encodeURIComponent(callbackUrl)}`;
-			} else if (signInResult?.ok) {
-				if (onSuccess) {
-					onSuccess();
-				} else {
-					window.location.href = callbackUrl;
-				}
+			} else if (onSuccess) {
+				onSuccess();
+			} else {
+				window.location.href = callbackUrl;
 			}
 		} catch {
-			setError("网络错误，请重试");
+			if (completed) {
+				window.location.href = `/login?redirect=${encodeURIComponent(callbackUrl)}`;
+			} else {
+				setError("网络错误，请重试");
+			}
 		} finally {
-			setLoading(false);
+			if (!completed) {
+				submittingRef.current = false;
+				setLoading(false);
+				onPendingChange?.(false);
+			}
 		}
 	};
 
@@ -282,7 +301,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					placeholder="2-15 个字符"
 					disabled={loading}
 					autoComplete="username"
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 				{usernameError && username.trim() && (
 					<p className="text-xs text-destructive">{usernameError}</p>
@@ -307,7 +326,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					placeholder="至少 6 个字符"
 					disabled={loading}
 					autoComplete="new-password"
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 				<StrengthBar strength={strength} />
 			</div>
@@ -325,7 +344,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					placeholder="再次输入密码"
 					disabled={loading}
 					autoComplete="new-password"
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 				{passwordMismatch && <p className="text-xs text-destructive">两次输入的密码不一致</p>}
 			</div>
@@ -343,13 +362,13 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					placeholder="your@email.com"
 					disabled={loading}
 					autoComplete="email"
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 				{emailError && <p className="text-xs text-destructive">{emailError}</p>}
 			</div>
 
 			{/* Birthday */}
-			<div className="space-y-2">
+			<div className="space-y-2 sm:col-span-2">
 				<Label className="text-sm">出生日期</Label>
 				<div className="flex gap-2">
 					<Input
@@ -357,8 +376,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						value={birthYear}
 						onChange={(e) => setBirthYear(e.target.value)}
 						placeholder="年"
+						aria-label="出生年份"
 						disabled={loading}
-						className="h-[58px] text-base flex-1"
+						className="h-11 min-w-0 text-base flex-1"
 						inputMode="numeric"
 					/>
 					<Input
@@ -366,8 +386,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						value={birthMonth}
 						onChange={(e) => setBirthMonth(e.target.value)}
 						placeholder="月"
+						aria-label="出生月份"
 						disabled={loading}
-						className="h-[58px] text-base w-16"
+						className="h-11 min-w-0 text-base w-16"
 						inputMode="numeric"
 					/>
 					<Input
@@ -375,8 +396,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						value={birthDay}
 						onChange={(e) => setBirthDay(e.target.value)}
 						placeholder="日"
+						aria-label="出生日期"
 						disabled={loading}
-						className="h-[58px] text-base w-16"
+						className="h-11 min-w-0 text-base w-16"
 						inputMode="numeric"
 					/>
 				</div>
@@ -401,7 +423,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					value={graduateSchool}
 					onChange={(e) => setGraduateSchool(e.target.value)}
 					disabled={loading}
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 			</div>
 
@@ -416,7 +438,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					value={campus}
 					onChange={(e) => setCampus(e.target.value)}
 					disabled={loading}
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 			</div>
 		</>
@@ -436,7 +458,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					value={gender}
 					onChange={(e) => setGender(Number(e.target.value))}
 					disabled={loading}
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 			</div>
 
@@ -449,22 +471,24 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						value={resideProvince}
 						onChange={(e) => setResideProvince(e.target.value)}
 						placeholder="省份"
+						aria-label="现居省份"
 						disabled={loading}
-						className="h-[58px] text-base flex-1"
+						className="h-11 min-w-0 text-base flex-1"
 					/>
 					<Input
 						type="text"
 						value={resideCity}
 						onChange={(e) => setResideCity(e.target.value)}
 						placeholder="城市"
+						aria-label="现居城市"
 						disabled={loading}
-						className="h-[58px] text-base flex-1"
+						className="h-11 min-w-0 text-base flex-1"
 					/>
 				</div>
 			</div>
 
 			{/* Bio */}
-			<div className="space-y-2">
+			<div className="space-y-2 sm:col-span-2">
 				<Label htmlFor="reg-bio" className="text-sm">
 					个人简介
 				</Label>
@@ -491,7 +515,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					onChange={(e) => setInterest(e.target.value)}
 					placeholder="爱好特长"
 					disabled={loading}
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 			</div>
 
@@ -507,7 +531,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					onChange={(e) => setQq(e.target.value)}
 					placeholder="QQ 号码"
 					disabled={loading}
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 					inputMode="numeric"
 				/>
 				{qqError && <p className="text-xs text-destructive">{qqError}</p>}
@@ -525,11 +549,11 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					onChange={(e) => setSite(e.target.value)}
 					placeholder="https://..."
 					disabled={loading}
-					className="h-[58px] text-base"
+					className="h-11 min-w-0 text-base"
 				/>
 				{siteError && <p className="text-xs text-destructive">{siteError}</p>}
 			</div>
-			<div className="space-y-2">
+			<div className="space-y-2 sm:col-span-2">
 				<Label htmlFor="reg-signature" className="text-sm">
 					个性签名
 				</Label>
@@ -546,11 +570,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		</>
 	);
 
-	/** CAPTCHA widget in a 58px container for visual alignment.
-	 *  Fail-closed: when CAP is not configured, show an error banner instead
-	 *  of silently allowing registration. */
+	/** CAP is required: missing configuration keeps registration disabled. */
 	const captchaField = capConfigured ? (
-		<div className="flex items-center justify-center h-[58px]">
+		<div className="flex min-h-14 items-center justify-center">
 			<CapWidget
 				apiEndpoint={CAP_API_ENDPOINT}
 				onSolve={setCapToken}
@@ -561,125 +583,61 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		<AuthErrorBanner message="人机验证服务未就绪，暂时无法注册，请稍后再试或联系管理员。" />
 	);
 
-	// ---------------------------------------------------------------------------
-	// Dialog variant — wide 3-column layout
-	// ---------------------------------------------------------------------------
-
-	if (variant === "dialog") {
-		return (
-			<form onSubmit={handleSubmit} className="space-y-5">
-				{error && <AuthErrorBanner message={error} />}
-
-				<div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
-					{/* Left column — Account */}
-					<div className="space-y-4">
-						<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
-							账号信息
-						</p>
-						{accountFields}
-					</div>
-
-					{/* Middle column — Education */}
-					<div className="space-y-4">
-						<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
-							教育信息
-						</p>
-						{educationFields}
-					</div>
-
-					{/* Right column — Personal */}
-					<div className="space-y-4">
-						<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
-							个人信息（选填）
-						</p>
-						{personalFields}
-					</div>
-				</div>
-
-				<PostingConditionsNote />
-
-				{/* CAPTCHA + Submit — side by side on wide screens, stacked on narrow */}
-				<div className="flex flex-col sm:flex-row gap-3">
-					{captchaField}
-					<Button
-						type="submit"
-						disabled={!canSubmit || loading}
-						className="h-[58px] text-base flex-1"
-					>
-						{loading ? "注册中..." : "创建账号"}
-					</Button>
-				</div>
-			</form>
-		);
-	}
-
-	// ---------------------------------------------------------------------------
-	// Standalone variant — narrow single-column inside AuthIdCard
-	// ---------------------------------------------------------------------------
-
-	const year = new Date().getFullYear();
-
-	return (
-		<AuthIdCard topCenter={year}>
-			{/* Logo */}
-			<div className="flex justify-center mb-4">
-				<ForumLogo height={40} />
-			</div>
-
-			<p className="text-lg font-semibold text-foreground text-center">加入我们</p>
-			<p className="mt-1 text-sm text-muted-foreground text-center">创建您的账号</p>
-
-			<form onSubmit={handleSubmit} className="mt-5 space-y-4">
-				{/* Error */}
-				{error && <AuthErrorBanner message={error} />}
-
-				{accountFields}
-
-				{/* Education fields — required, always visible */}
-				<div className="space-y-4">
-					<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
-						教育信息
-					</p>
-					{educationFields}
-				</div>
-
-				{/* Personal fields — collapsible, optional */}
-				<details className="group">
-					<summary className="cursor-pointer text-sm font-medium text-foreground/80 border-b border-border pb-1.5 mb-3 select-none list-none flex items-center justify-between">
-						个人信息（选填）
-						<span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">
-							▼
-						</span>
-					</summary>
-					<div className="space-y-4">{personalFields}</div>
-				</details>
-
-				<PostingConditionsNote />
-
-				{/* CAPTCHA above submit */}
+	const form = (
+		<form onSubmit={handleSubmit} className="space-y-5" aria-busy={loading}>
+			{error && <AuthErrorBanner message={error} />}
+			<fieldset className="min-w-0">
+				<legend className="mb-3 flex items-center gap-2 text-sm font-semibold">
+					<UserRound className="size-4 text-primary" aria-hidden="true" />
+					账号信息
+				</legend>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{accountFields}</div>
+			</fieldset>
+			<fieldset className="min-w-0 border-t border-border pt-4">
+				<legend className="flex items-center gap-2 pr-3 text-sm font-semibold">
+					<GraduationCap className="size-4 text-primary" aria-hidden="true" />
+					教育信息
+				</legend>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{educationFields}</div>
+			</fieldset>
+			<details className="group rounded-xl border border-border bg-muted/20 p-4">
+				<summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
+					个人信息（选填）
+					<ChevronDown
+						className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+						aria-hidden="true"
+					/>
+				</summary>
+				<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">{personalFields}</div>
+			</details>
+			<PostingConditionsNote />
+			<div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
 				{captchaField}
-
-				{/* Submit */}
-				<Button
-					type="submit"
-					disabled={!canSubmit || loading}
-					className="w-full h-[58px] text-base"
-				>
+				<Button type="submit" disabled={!canSubmit || loading} className="h-11 flex-1">
+					<UserRoundPlus className="size-4" aria-hidden="true" />
 					{loading ? "注册中..." : "创建账号"}
 				</Button>
-			</form>
+			</div>
+		</form>
+	);
 
-			<AuthDivider />
+	if (variant === "dialog") return form;
 
-			{/* Login link */}
-			<a href="/login" className="block">
-				<Button variant="outline" className="w-full h-[58px] text-base">
-					已有账号，去登录
-				</Button>
-			</a>
-
-			{/* Contact-admin hint — only rendered after CAPTCHA solve to keep
-			    the email hidden from naive scrapers. */}
+	return (
+		<AuthIdCard topCenter="Since 2002">
+			<div className="mb-6">
+				<h1 className="text-2xl font-semibold tracking-tight">加入我们</h1>
+				<p className="mt-2 text-sm text-muted-foreground">创建您的账号，和同济人一起分享与交流。</p>
+			</div>
+			{form}
+			<AuthDivider label="已有账号" />
+			<Link
+				href={`/login?redirect=${encodeURIComponent(callbackUrl)}`}
+				className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full")}
+			>
+				已有账号，去登录
+				<ArrowRight className="size-4" aria-hidden="true" />
+			</Link>
 			<AuthHelpHint visible={capConfigured && Boolean(capToken)} />
 		</AuthIdCard>
 	);
@@ -694,7 +652,7 @@ export default function RegisterForm() {
 		<Suspense
 			fallback={
 				<div className="flex min-h-screen items-center justify-center">
-					<p className="text-muted-foreground">Loading...</p>
+					<p className="text-muted-foreground">加载中…</p>
 				</div>
 			}
 		>
@@ -707,16 +665,19 @@ export default function RegisterForm() {
 // Dialog variant export (used by login page)
 // ---------------------------------------------------------------------------
 
-export function RegisterFormDialog({ onSuccess }: { onSuccess?: () => void }) {
+export function RegisterFormDialog({
+	onSuccess,
+	onPendingChange,
+}: Omit<RegisterFormCoreProps, "variant">) {
 	return (
 		<Suspense
 			fallback={
 				<div className="flex items-center justify-center py-12">
-					<p className="text-muted-foreground">Loading...</p>
+					<p className="text-muted-foreground">加载中…</p>
 				</div>
 			}
 		>
-			<RegisterFormCore variant="dialog" onSuccess={onSuccess} />
+			<RegisterFormCore variant="dialog" onSuccess={onSuccess} onPendingChange={onPendingChange} />
 		</Suspense>
 	);
 }

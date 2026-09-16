@@ -1,111 +1,66 @@
-// app/(auth)/_components/auth-id-card.tsx — Auth page chrome shared by
-// login and register forms. Wraps a fullscreen background (radial glow +
-// theme toggle) around a fixed-width "ID badge" card with primary top
-// strip (punch hole + topCenter slot + barcode) and secondary bottom strip
-// ("安全连接"). Children render inside the form area.
-//
-// Inline radial glow / boxShadow are migrated verbatim from the original
-// login-form / register-form so visual output stays identical.
-
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { BookOpen, GraduationCap, MessageCircle, ShieldCheck, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { type ReactNode, useEffect, useState } from "react";
+import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AuthBarcode } from "./auth-barcode";
 
 interface AuthIdCardProps {
-	/** Centered text in the primary top strip (e.g. "Since 2002" or "{year}"). */
 	topCenter: ReactNode;
 	children: ReactNode;
 }
 
-const RADIAL_GLOW_BG = [
-	"radial-gradient(ellipse 70% 55% at 50% 50%,",
-	"hsl(var(--foreground) / 0.045) 0%,",
-	"hsl(var(--foreground) / 0.04) 10%,",
-	"hsl(var(--foreground) / 0.032) 20%,",
-	"hsl(var(--foreground) / 0.025) 32%,",
-	"hsl(var(--foreground) / 0.018) 45%,",
-	"hsl(var(--foreground) / 0.011) 58%,",
-	"hsl(var(--foreground) / 0.006) 72%,",
-	"hsl(var(--foreground) / 0.002) 86%,",
-	"transparent 100%)",
-].join(" ");
-
-const ID_CARD_BOX_SHADOW_LIGHT = [
-	"0 1px 2px rgba(0,0,0,0.06)",
-	"0 4px 8px rgba(0,0,0,0.04)",
-	"0 12px 24px rgba(0,0,0,0.06)",
-	"0 24px 48px rgba(0,0,0,0.04)",
-	"0 0 0 0.5px rgba(0,0,0,0.02)",
-	"0 0 60px rgba(0,0,0,0.03)",
-].join(", ");
-
-// Dark variant — keep deep black drop to lift the card off the dark
-// background, plus a very faint white edge/ambient glow. Stays subtle so
-// the card never reads as a glowing white-outlined panel.
-const ID_CARD_BOX_SHADOW_DARK = [
-	"0 0 0 1px rgba(255,255,255,0.04)",
-	"0 12px 32px rgba(0,0,0,0.35)",
-	"0 0 48px rgba(255,255,255,0.025)",
-].join(", ");
-
 export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 	return (
-		<div
-			className="relative flex min-h-screen flex-col bg-background overflow-hidden"
-			style={
-				{
-					"--auth-id-card-shadow-light": ID_CARD_BOX_SHADOW_LIGHT,
-					"--auth-id-card-shadow-dark": ID_CARD_BOX_SHADOW_DARK,
-				} as CSSProperties
-			}
-		>
-			{/* Radial glow */}
-			<div
-				className="pointer-events-none absolute inset-0"
-				style={{ background: RADIAL_GLOW_BG }}
-			/>
-
-			{/* Theme toggle */}
-			<div className="absolute top-4 right-4 z-10">
+		<div className="relative flex min-h-dvh flex-col bg-background">
+			<div className="flex justify-end px-4 pt-3 sm:px-6">
 				<ThemeToggle />
 			</div>
-
-			{/* Centered content */}
-			<div className="flex flex-1 items-center justify-center p-4">
-				{/* Badge card — boxShadow flips with the .dark theme via CSS var */}
-				<div className="relative w-[308px] overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06] shadow-[var(--auth-id-card-shadow-light)] dark:shadow-[var(--auth-id-card-shadow-dark)]">
-					{/* Header strip with decorations */}
-					<div className="bg-primary px-5 py-3">
-						<div className="flex items-center justify-between">
-							{/* Punch hole */}
-							<div
-								className="h-3 w-6 rounded-full bg-background/80"
-								style={{
-									boxShadow:
-										"inset 0 1px 2px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
-								}}
-							/>
-							<span className="text-xs font-medium text-primary-foreground/60 tracking-wider">
-								{topCenter}
-							</span>
-							<div className="h-4">
-								<AuthBarcode />
+			<main className="flex flex-1 items-center justify-center px-4 pb-8 pt-3 sm:px-6 sm:pb-12">
+				<div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border bg-card shadow-sm lg:grid-cols-[0.8fr_1.2fr]">
+					<div className="relative flex flex-col overflow-hidden bg-[#123a56] p-6 text-white sm:p-8 lg:p-10">
+						<div className="relative z-10 flex items-center justify-between gap-4">
+							<Link href="/" aria-label="同济网论坛首页">
+								<ForumLogo height={32} variant="dark" />
+							</Link>
+							<span className="text-xs tracking-wide text-white/65">{topCenter}</span>
+						</div>
+						<div className="relative z-10 hidden flex-1 flex-col justify-center py-16 lg:flex">
+							<div className="mb-6 flex size-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
+								<GraduationCap className="size-6" aria-hidden="true" />
+							</div>
+							<p className="text-3xl font-semibold leading-snug tracking-tight">
+								校园的日常，
+								<br />
+								在这里继续。
+							</p>
+							<p className="mt-4 max-w-xs text-sm leading-7 text-white/75">
+								分享见闻，交流所学。和同学、校友一起，记录每一个值得留下的瞬间。
+							</p>
+							<div className="mt-8 flex flex-wrap gap-2 text-xs text-white/85">
+								<span className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-2">
+									<MessageCircle className="size-3.5" aria-hidden="true" />
+									校园交流
+								</span>
+								<span className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-2">
+									<BookOpen className="size-3.5" aria-hidden="true" />
+									经验分享
+								</span>
 							</div>
 						</div>
+						<div
+							className="pointer-events-none absolute -bottom-24 -right-24 hidden size-80 rounded-full border-[40px] border-white/5 lg:block"
+							aria-hidden="true"
+						/>
 					</div>
-
-					{/* Form content */}
-					<div className="flex flex-1 flex-col px-6 pt-6 pb-5">{children}</div>
-
-					{/* Footer strip */}
-					<div className="flex items-center justify-center border-t border-border bg-secondary/50 py-2">
-						<div className="flex items-center gap-1">
-							<div className="h-1 w-1 rounded-full bg-success/70 animate-pulse" />
-							<span className="text-xs text-muted-foreground/60 tracking-wider">安全连接</span>
-						</div>
+					<div className="flex min-w-0 flex-col justify-center p-5 sm:p-8 lg:p-10">
+						{children}
+						<p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+							<ShieldCheck className="size-3.5" aria-hidden="true" />
+							请使用自己的账号登录
+						</p>
 					</div>
 				</div>
-			</div>
+			</main>
 		</div>
 	);
 }
@@ -117,8 +72,12 @@ export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 
 export function AuthErrorBanner({ message }: { message: string }) {
 	return (
-		<div className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive text-center">
-			{message}
+		<div
+			role="alert"
+			className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-3 text-sm leading-relaxed text-destructive"
+		>
+			<TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+			<span>{message}</span>
 		</div>
 	);
 }
