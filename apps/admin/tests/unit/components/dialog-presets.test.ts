@@ -1,9 +1,6 @@
 // Pin the wide-dialog preset class tokens so a future refactor can't
 // silently shrink the KV / log / reports detail dialogs back to a
 // narrow `sm:max-w-lg` look.
-//
-// Convention matches `section-header.test.ts` / `segmented-switch.test.ts`:
-// no DOM render — just lock the visual contract.
 
 import { describe, expect, it } from "vitest";
 import {
