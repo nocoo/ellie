@@ -19,9 +19,7 @@ export class HomePage {
 
 	/** Forum group containers */
 	get forumGroups() {
-		return this.page
-			.locator('[data-testid="forum-groups"] > div, .space-y-4 > div')
-			.filter({ has: this.page.locator("h2") });
+		return this.page.locator('section[id^="forum-group-"]');
 	}
 
 	/** Digest showcase section */

@@ -19,7 +19,7 @@ export class ForumPage {
 
 	/** New thread button - text is "发表新帖" */
 	get newThreadButton() {
-		return this.page.locator(FORUM.newThreadButton);
+		return this.page.locator(FORUM.newThreadButton).first();
 	}
 
 	/** Thread list container - inside Card > CardContent */
@@ -35,14 +35,14 @@ export class ForumPage {
 		return this.page.locator('a[href^="/threads/"]');
 	}
 
-	/** Breadcrumbs navigation - plain nav without aria-label */
+	/** Breadcrumbs navigation */
 	get breadcrumbs() {
-		return this.page.locator("nav.flex.items-center.gap-1");
+		return this.page.getByRole("navigation", { name: "面包屑" });
 	}
 
 	/** Empty state message */
 	get emptyState() {
-		return this.page.locator("text=暂无帖子");
+		return this.page.getByText("暂无主题", { exact: true });
 	}
 
 	/** Click new thread button and wait for dialog */

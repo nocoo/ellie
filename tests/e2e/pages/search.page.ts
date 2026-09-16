@@ -26,9 +26,7 @@ export class SearchPage {
 
 	/** Search results list */
 	get results() {
-		return this.page.locator(
-			'[data-testid="search-results"] a[href^="/threads/"], .divide-y a[href^="/threads/"]',
-		);
+		return this.page.getByTestId("thread-item").locator('a[href^="/threads/"]:visible');
 	}
 
 	/** No results message */

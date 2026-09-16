@@ -67,14 +67,10 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		}
 	});
 
-	test("Given I open the homepage as anonymous at 375px, Then the TopBar collapses to h-14, the search-stats bar is hidden, and the SiteFooter logo wrap is hidden", async ({
+	test("Given I open the homepage as anonymous at 375px, Then the TopBar stays compact, search remains usable, and the SiteFooter logo wrap is hidden", async ({
 		page,
 	}) => {
-		// Given: anonymous mobile viewport. Merges MOB-02-A (TopBar h-14 +
-		// SearchStatsBar hidden) with MOB-12 (SiteFooter logo wrap hidden)
-		// because both assert hide-on-mobile invariants against the same /
-		// anonymous landing — splitting them would re-pay the goto + header
-		// wait for two strict-CSS assertions.
+		// Mobile keeps the search entry while collapsing auxiliary decoration.
 		await page.setViewportSize({ width: 375, height: 667 });
 		await page.goto("/");
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
@@ -86,8 +82,9 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		expect(box).not.toBeNull();
 		if (box) expect(box.height).toBeLessThan(72);
 
-		// Then: SearchStatsBar (hidden sm:block) is not visible.
-		await expect(page.locator('[data-testid="forum-search-stats-bar"]')).toBeHidden();
+		// Then: the mobile search field and its submit control remain reachable.
+		await expect(page.getByRole("searchbox", { name: "搜索主题", exact: true })).toBeVisible();
+		await expect(page.getByRole("button", { name: "提交搜索", exact: true })).toBeVisible();
 
 		// Then: SiteFooter logo wrap (hidden sm:block) is not visible, but
 		// the footer itself + background wrap are mounted.
@@ -246,15 +243,15 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		await forumPage.goto(POPULATED_FORUM_ID);
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
 
-		// Then: NavBar gradient strip is centered (x > 0) and capped at
-		// content-max-width 1200px.
-		const navStrip = page.locator(".nav-gradient").first();
+		// Then: navigation is centered (x > 0) and capped at
+		// the forum's 1280px content width.
+		const navStrip = page.getByRole("navigation", { name: "论坛导航" });
 		await expect(navStrip).toBeVisible({ timeout: 15_000 });
 		const navBox = await navStrip.boundingBox();
 		expect(navBox).not.toBeNull();
 		if (navBox) {
 			expect(navBox.x).toBeGreaterThan(0);
-			expect(navBox.width).toBeLessThanOrEqual(1200 + 1);
+			expect(navBox.width).toBeLessThanOrEqual(1280 + 1);
 		}
 
 		// Then: new-post button visible at ≥sm (existence-conditional).
@@ -297,7 +294,7 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		await expect(page.getByTestId("site-footer-logo-wrap")).toBeVisible();
 	});
 
-	test("Given I open the homepage at 375px, Then the nav-gradient strip leaves at least 8px of edge padding (no edge-to-edge layout)", async ({
+	test("Given I open the homepage at 375px, Then the navigation leaves at least 8px of edge padding", async ({
 		page,
 	}) => {
 		// Given: anonymous mobile viewport
@@ -305,8 +302,8 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		await page.goto("/");
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
 
-		// Then: nav-gradient must align with content cards (≥8px each side).
-		const navStrip = page.locator(".nav-gradient").first();
+		// Then: navigation aligns with content cards (≥8px each side).
+		const navStrip = page.getByRole("navigation", { name: "论坛导航" });
 		await expect(navStrip).toBeVisible({ timeout: 15_000 });
 		const box = await navStrip.boundingBox();
 		expect(box).not.toBeNull();

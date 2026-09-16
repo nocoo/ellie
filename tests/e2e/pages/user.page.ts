@@ -29,9 +29,9 @@ export class UserPage {
 
 	/** Stats cards (threads/posts/digest/credits/coins) */
 	get statsCards() {
-		// Stats are in .grid-cols-5 with p.text-lg inside
+		// The five equal columns contain a value and its label.
 		return this.page.locator(".grid-cols-5 > a, .grid-cols-5 > div").filter({
-			has: this.page.locator("p.text-lg"),
+			has: this.page.locator("span.tabular-nums"),
 		});
 	}
 
@@ -45,11 +45,9 @@ export class UserPage {
 		return this.page.locator('a[href*="tab=posts"]');
 	}
 
-	/** Tab navigation - plain div.flex, not role="tablist" */
+	/** Link-based content navigation */
 	get tabNav() {
-		return this.page.locator("div.flex.items-center.gap-1").filter({
-			has: this.page.locator('a[href*="tab="], span'),
-		});
+		return this.page.getByRole("navigation", { name: "用户内容分类" });
 	}
 
 	/** Threads tab */

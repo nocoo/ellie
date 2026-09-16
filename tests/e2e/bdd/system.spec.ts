@@ -132,6 +132,28 @@ test.describe("Feature: System & Layout", () => {
 		await expect(page.locator('button[type="submit"]')).toBeVisible();
 	});
 
+	test("Given a narrow phone, When I open registration as a page or dialog, Then the create-account button keeps its 44px touch target", async ({
+		page,
+	}) => {
+		for (const width of [320, 375, 390]) {
+			await page.setViewportSize({ width, height: 844 });
+			for (const variant of ["page", "dialog"]) {
+				await page.goto(variant === "page" ? "/register" : "/login");
+				if (variant === "dialog") {
+					await page.getByRole("button", { name: "创建新账号", exact: true }).click();
+				}
+				const submit = page.getByRole("button", { name: "创建账号", exact: true });
+				await submit.scrollIntoViewIfNeeded();
+				await expect(submit).toBeInViewport();
+				const box = await submit.boundingBox();
+				expect(box?.height, `${variant} registration at ${width}px`).toBeGreaterThanOrEqual(44);
+				expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+					width + 1,
+				);
+			}
+		}
+	});
+
 	test("Given I am on a populated forum page, When I open the new-thread dialog at desktop and 375px, Then the dialog fits the viewport and its footer buttons stay inside the dialog box", async ({
 		page,
 		loginAs,

@@ -127,9 +127,7 @@ test.describe("Feature: Forum Navigation", () => {
 		await page.goto(`/forums/${POPULATED_FORUM_ID}`);
 
 		// When: type into the header search input and press Enter
-		// CSS fallback: header renders two copies (mobile + desktop); aria-label
-		// is the only stable hook shared by both.
-		const searchInput = page.locator('input[aria-label="搜索主题和用户"]').first();
+		const searchInput = page.getByRole("searchbox", { name: "搜索主题", exact: true });
 		await expect(searchInput).toBeVisible({ timeout: 15_000 });
 		await searchInput.fill("测试");
 		await searchInput.press("Enter");
@@ -251,10 +249,15 @@ test.describe("Feature: Forum Navigation", () => {
 		await page.goto("/digest");
 		await page.waitForLoadState("networkidle");
 
-		// Then: heading, hero stat block, and section tagline render
+		// Then: list heading and all four real digest counts render.
 		await expect(page.getByText("精华帖列表")).toBeVisible();
-		await expect(page.getByText("篇精华")).toBeVisible();
-		await expect(page.getByText("论坛精华 · 知识殿堂")).toBeVisible();
+		await expect(page.getByRole("heading", { name: "论坛精华", exact: true })).toBeVisible();
+		for (const label of ["全部精华", "精华 I", "精华 II", "精华 III"]) {
+			const metric = page
+				.locator("dl > div")
+				.filter({ has: page.getByText(label, { exact: true }) });
+			await expect(metric.locator("dd")).toHaveText(/[\d,]+/);
+		}
 	});
 
 	test("Given I am logged in, When I open the search page, Then I see the search input, the 搜索 button, and the empty-state prompt", async ({

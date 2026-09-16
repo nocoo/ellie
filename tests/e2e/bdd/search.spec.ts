@@ -43,9 +43,7 @@ test.describe("Feature: Forum Search", () => {
 		await page.waitForURL("**/");
 
 		// When: type into the header search input and press Enter
-		// CSS fallback: header renders two copies (mobile + desktop); aria-label
-		// is the only stable hook shared by both.
-		const searchInput = page.locator('input[aria-label="搜索主题和用户"]').first();
+		const searchInput = page.getByRole("searchbox", { name: "搜索主题", exact: true });
 		await expect(searchInput).toBeVisible();
 		await searchInput.fill("测试");
 		await searchInput.press("Enter");

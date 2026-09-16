@@ -142,10 +142,9 @@ test.describe("Feature: Social & User Journey", () => {
 		await expect(page.locator("h1")).toBeVisible();
 
 		// When: click the breadcrumb back to /forums/<id>
-		// CSS fallback: the breadcrumb container is scoped via its layout
-		// classes; bare a[href^="/forums/"] would match thread-row links too.
+		// Scope to the breadcrumb so header and thread-row links cannot match.
 		const breadcrumbForumLink = page
-			.locator("nav.flex.items-center.gap-1")
+			.getByRole("navigation", { name: "面包屑" })
 			.locator('a[href^="/forums/"]')
 			.first();
 		await expect(breadcrumbForumLink).toBeVisible();
@@ -167,7 +166,7 @@ test.describe("Feature: Social & User Journey", () => {
 		await page.waitForURL("**/me");
 
 		// Then: breadcrumb copy
-		await expect(page.getByText("我的账号")).toBeVisible();
+		await expect(page.getByRole("heading", { name: "我的账号", exact: true })).toBeVisible();
 
 		// Then: section#email renders. (Avatar card is covered by the system
 		// spec UJ-02 follow-up — keep this scenario focused on the legacy

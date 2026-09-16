@@ -26,9 +26,9 @@ export class ThreadPage {
 		return this.page.locator("h1");
 	}
 
-	/** Breadcrumbs navigation - plain nav without aria-label */
+	/** Breadcrumbs navigation */
 	get breadcrumbs() {
-		return this.page.locator("nav.flex.items-center.gap-1");
+		return this.page.getByRole("navigation", { name: "面包屑" });
 	}
 
 	/** Post cards */

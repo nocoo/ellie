@@ -189,7 +189,7 @@ test.describe("Feature: Forum Content", () => {
 			.fill("A real locally created thread from the full-page composer.");
 		await page.getByRole("button", { name: "发布主题", exact: true }).click();
 		await page.waitForURL(/\/threads\/\d+/);
-		await expect(page.getByRole("heading", { name: subject, exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { level: 1 })).toContainText(subject);
 		await expect(
 			page
 				.locator(".prose")
