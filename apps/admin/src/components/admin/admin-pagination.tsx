@@ -71,11 +71,11 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 	}
 
 	return (
-		<div className="flex items-center justify-between px-2 py-3">
-			<p className="text-sm text-basalt-muted-foreground">
+		<div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 px-2 py-3">
+			<p className="whitespace-nowrap text-sm text-basalt-muted-foreground">
 				{computeItemRange(page, limit, total)} / {formatNumber(total)}
 			</p>
-			<div className="flex items-center gap-1">
+			<div className="flex max-w-full flex-wrap items-center gap-1">
 				<Button
 					variant="ghost"
 					size="icon"

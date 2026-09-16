@@ -64,7 +64,7 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 	return (
 		<div className="space-y-4">
 			<PageHeader
-				title={thread.subject}
+				title={<span className="wrap-anywhere">{thread.subject}</span>}
 				actions={
 					<div className="flex gap-2 shrink-0">
 						<Button variant="outline" size="sm" onClick={onEdit}>
