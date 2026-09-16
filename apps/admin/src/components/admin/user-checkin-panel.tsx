@@ -17,9 +17,10 @@
 // checkin state from inside the user-detail page. There is no global
 // dashboard.
 
-import { Button, DescriptionList, Input, Label, LayerCard } from "@nocoo/basalt";
+import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 
+import { AlertCircle, CalendarCheck, Check } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { extractErrorMessage } from "@/lib/admin-error";
@@ -161,7 +162,10 @@ export function UserCheckinPanel({ userId }: Props) {
 		return (
 			<LayerCard padding="sm">
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium">签到</h2>
+					<h2 className="flex items-center gap-2 text-sm font-medium">
+						<CalendarCheck aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+						签到
+					</h2>
 				</LayerCard.Header>
 				<LayerCard.Well>
 					<div className="flex items-center justify-center py-10">
@@ -176,7 +180,10 @@ export function UserCheckinPanel({ userId }: Props) {
 		return (
 			<LayerCard padding="sm">
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium">签到</h2>
+					<h2 className="flex items-center gap-2 text-sm font-medium">
+						<CalendarCheck aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+						签到
+					</h2>
 				</LayerCard.Header>
 				<LayerCard.Well>
 					<AdminInlineMessage variant="error" text={error} />
@@ -190,7 +197,10 @@ export function UserCheckinPanel({ userId }: Props) {
 	return (
 		<LayerCard padding="sm">
 			<LayerCard.Header>
-				<h2 className="text-sm font-medium">签到</h2>
+				<h2 className="flex items-center gap-2 text-sm font-medium">
+					<CalendarCheck aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+					签到
+				</h2>
 			</LayerCard.Header>
 			<LayerCard.Well className="space-y-4">
 				{message && <AdminInlineMessage variant={message.type} text={message.text} />}
@@ -206,19 +216,24 @@ export function UserCheckinPanel({ userId }: Props) {
 				<div className="grid gap-6 lg:grid-cols-4 lg:gap-4">
 					{/* Left 3/4 — aggregate + timeline */}
 					<div className="space-y-4 lg:col-span-3">
-						<DescriptionList columns={2}>
-							<DescriptionList.Item term="累计天数">
-								{aggregate?.totalDays ?? 0}
-							</DescriptionList.Item>
-							<DescriptionList.Item term="本月">{aggregate?.monthDays ?? 0}</DescriptionList.Item>
-							<DescriptionList.Item term="连续">{aggregate?.streakDays ?? 0}</DescriptionList.Item>
-							<DescriptionList.Item term="累计奖励">
-								{aggregate?.rewardTotal ?? 0}
-							</DescriptionList.Item>
-							<DescriptionList.Item term="最后签到" className="sm:col-span-2">
-								{fmtTimestamp(aggregate?.lastCheckinAt ?? 0)}
-							</DescriptionList.Item>
-						</DescriptionList>
+						<dl className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+							{[
+								{ label: "累计天数", value: aggregate?.totalDays ?? 0 },
+								{ label: "本月签到", value: aggregate?.monthDays ?? 0 },
+								{ label: "连续天数", value: aggregate?.streakDays ?? 0 },
+								{ label: "累计奖励", value: aggregate?.rewardTotal ?? 0 },
+							].map(({ label, value }) => (
+								<div key={label}>
+									<dt className="text-basalt-muted-foreground">{label}</dt>
+									<dd className="mt-1 text-xl font-semibold tabular-nums">
+										{value.toLocaleString("zh-CN")}
+									</dd>
+								</div>
+							))}
+						</dl>
+						<p className="text-xs text-basalt-muted-foreground">
+							最后签到 · {fmtTimestamp(aggregate?.lastCheckinAt ?? 0)}
+						</p>
 
 						<div>
 							<p className="mb-2 text-sm text-basalt-muted-foreground">
@@ -237,8 +252,9 @@ export function UserCheckinPanel({ userId }: Props) {
 												key={date}
 												type="button"
 												onClick={() => handleToggleDay(date)}
-												disabled={isBusy || busyDate !== null}
+												disabled={isBusy || busyDate !== null || streakSaving || loading}
 												title={`${date}${checked ? "（已签到）" : ""}`}
+												aria-label={`${date} ${checked ? "已签到，点击取消" : "未签到，点击补签"}`}
 												data-testid={`checkin-day-${date}`}
 												className={`h-10 flex-col gap-0 p-1 text-[10px] ${checked ? "border-basalt-badge-green-foreground/40 bg-basalt-badge-green-foreground/10 text-basalt-badge-green-foreground" : ""} ${isToday ? "ring-1 ring-basalt-primary" : ""}`}
 												variant={checked ? "secondary" : "outline"}
@@ -246,7 +262,9 @@ export function UserCheckinPanel({ userId }: Props) {
 												aria-pressed={checked}
 											>
 												<span>{date.slice(5)}</span>
-												<span className="font-medium">{checked ? "✓" : "·"}</span>
+												<span className="font-medium">
+													{checked ? <Check aria-hidden="true" className="h-3 w-3" /> : "·"}
+												</span>
 											</Button>
 										);
 									})}
@@ -270,13 +288,13 @@ export function UserCheckinPanel({ userId }: Props) {
 								value={streakInput}
 								onChange={(e) => setStreakInput(e.target.value)}
 								className="max-w-[10rem]"
-								disabled={!aggregate || streakSaving}
+								disabled={!aggregate || streakSaving || busyDate !== null || loading}
 							/>
 							<Button
 								type="submit"
 								size="sm"
 								variant="outline"
-								disabled={!aggregate || streakSaving}
+								disabled={!aggregate || streakSaving || busyDate !== null || loading}
 							>
 								{streakSaving ? "保存中..." : "保存"}
 							</Button>
@@ -288,7 +306,8 @@ export function UserCheckinPanel({ userId }: Props) {
 							</p>
 						)}
 						<p className="text-xs text-basalt-muted-foreground">
-							⚠️ 手动设置的连续天数会在下一次「按日补签 / 取消签到」时被基于历史的自动重算覆盖。
+							<AlertCircle aria-hidden="true" className="mr-1 inline h-3.5 w-3.5" />
+							手动设置的连续天数会在下一次「按日补签 / 取消签到」时被基于历史的自动重算覆盖。
 						</p>
 					</form>
 				</div>

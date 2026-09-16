@@ -19,7 +19,7 @@
 import { formatNumber } from "@ellie/shared";
 import { Badge, Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Files, MessageSquare, Pencil, ThumbsUp, Trash2 } from "lucide-react";
 import Link from "next/link";
 import {
 	threadClosedVariant,
@@ -64,7 +64,13 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 	return (
 		<div className="space-y-4">
 			<PageHeader
-				title={<span className="wrap-anywhere">{thread.subject}</span>}
+				title={
+					<span className="flex items-start gap-2">
+						<Files aria-hidden="true" className="mt-1 h-5 w-5 shrink-0 text-basalt-primary" />
+						<span className="wrap-anywhere">{thread.subject}</span>
+					</span>
+				}
+				description={`主题 #${thread.id}`}
 				actions={
 					<div className="flex gap-2 shrink-0">
 						<Button variant="outline" size="sm" onClick={onEdit}>
@@ -78,8 +84,8 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 					</div>
 				}
 			/>
-			<LayerCard>
-				<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+			<LayerCard padding="sm">
+				<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
 					<div className="space-y-2 min-w-0">
 						{/* Forum breadcrumb — root-first, current forum is the tail.
 					    Last segment is non-linked so it reads as the "you are
@@ -99,7 +105,7 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 										) : (
 											<Link
 												href={`/admin/threads?forumId=${node.id}`}
-												className="text-basalt-primary hover:underline"
+												className="break-all text-basalt-primary hover:underline"
 											>
 												{node.name}
 											</Link>
@@ -109,13 +115,13 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 							})}
 						</nav>
 
-						<div className="flex flex-wrap items-center gap-2 text-sm text-basalt-muted-foreground">
+						<div className="flex flex-wrap items-center gap-2 text-xs text-basalt-muted-foreground">
 							<span>
 								作者:{" "}
 								{thread.authorId > 0 ? (
 									<Link
 										href={`/admin/users/${thread.authorId}`}
-										className="text-basalt-primary hover:underline"
+										className="break-all text-basalt-primary hover:underline"
 									>
 										{thread.authorName}
 									</Link>
@@ -125,10 +131,6 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 							</span>
 							<span>·</span>
 							<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
-							<span>·</span>
-							<span>{formatNumber(thread.replies)} 回复</span>
-							<span>·</span>
-							<span>{formatNumber(thread.views)} 浏览</span>
 						</div>
 
 						{/* Last-poster line — only render when there IS a last reply
@@ -136,12 +138,12 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 					    couldn't join the user row); in that case render the
 					    name as plain text rather than a dead link. */}
 						{thread.lastPostAt > 0 && thread.lastPoster && (
-							<div className="text-sm text-basalt-muted-foreground">
+							<div className="text-xs text-basalt-muted-foreground">
 								最后回复:{" "}
 								{thread.lastPosterId > 0 ? (
 									<Link
 										href={`/admin/users/${thread.lastPosterId}`}
-										className="text-basalt-primary hover:underline"
+										className="break-all text-basalt-primary hover:underline"
 									>
 										{thread.lastPoster}
 									</Link>
@@ -189,6 +191,21 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 							</div>
 						)}
 					</div>
+					<dl className="grid grid-cols-3 gap-3 text-xs" aria-label="主题互动数据">
+						{[
+							{ label: "回复", value: thread.replies, icon: MessageSquare },
+							{ label: "浏览", value: thread.views, icon: Eye },
+							{ label: "推荐", value: thread.recommends, icon: ThumbsUp },
+						].map(({ label, value, icon: Icon }) => (
+							<div key={label}>
+								<dt className="flex items-center gap-1.5 text-basalt-muted-foreground">
+									<Icon aria-hidden="true" className="h-3.5 w-3.5" />
+									{label}
+								</dt>
+								<dd className="mt-1 text-xl font-semibold tabular-nums">{formatNumber(value)}</dd>
+							</div>
+						))}
+					</dl>
 				</div>
 			</LayerCard>
 		</div>

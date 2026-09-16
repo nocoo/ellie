@@ -49,13 +49,27 @@ import {
 } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { ArrowLeft, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
+import {
+	ArrowLeft,
+	Coins,
+	Files,
+	Globe,
+	MessageSquare,
+	Pencil,
+	Search,
+	Shield,
+	ShieldOff,
+	Trash2,
+	Trophy,
+	UserRound,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import { UserAvatar } from "@/components/admin/user-avatar";
@@ -310,19 +324,19 @@ export function UserDetailPanel({
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			{showBack && <BackLinkButton onClick={() => router.push("/admin/users")} />}
 
 			<PageHeader
 				title={
-					<span className="flex items-center gap-3">
+					<span className="flex min-w-0 items-center gap-3">
 						<UserAvatar
 							uid={user.id}
 							username={user.username}
 							avatarPath={user.avatarPath}
 							size={48}
 						/>
-						<span>{user.username}</span>
+						<span className="min-w-0 break-all">{user.username}</span>
 					</span>
 				}
 				description={
@@ -352,34 +366,39 @@ export function UserDetailPanel({
 
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
-			{/*
-			 * Divider between top-level modules only (哥 2026-07-09 rule):
-			 * "只有大的模块之间才保留分割线". Header → four-column row is
-			 * such a boundary; internals of each Card are borderless.
-			 */}
-			<Separator className="border-basalt-border" decorative={false} />
+			<AdminMetrics
+				label="用户数据概览"
+				items={[
+					{
+						label: "主题",
+						value: user.threads,
+						icon: Files,
+						hint:
+							user.digestPosts == null
+								? undefined
+								: `其中 ${formatNumber(user.digestPosts)} 个精华主题`,
+					},
+					{ label: "帖子（含首帖）", value: user.posts, icon: MessageSquare, hint: "账号内容计数" },
+					{ label: "积分", value: user.credits, icon: Trophy },
+					{ label: "金币", value: user.coins, icon: Coins },
+				]}
+			/>
 
-			{/*
-			 * Row 1 — four modules side by side on xl (基本资料 / 元信息 /
-			 * 用户内容 / 写权限体检). Cards use `size="sm"` for tighter
-			 * padding since we now share the horizontal space four ways.
-			 * On lg drops to 2×2, on md/sm collapses to a single column.
-			 */}
-			<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+			<div
+				className={`grid items-start gap-4 md:grid-cols-2 ${tombstoned ? "" : "xl:grid-cols-3"}`}
+			>
 				<LayerCard padding="sm">
 					<LayerCard.Header>
-						<h2 className="text-sm font-medium">基本资料</h2>
+						<h2 className="flex items-center gap-2 text-sm font-medium">
+							<UserRound aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+							基本资料
+						</h2>
 					</LayerCard.Header>
 					<LayerCard.Well>
 						<DescriptionList columns={1}>
 							<DescriptionList.Item term="邮箱">
 								<div className="break-all">{user.email || "—"}</div>
 							</DescriptionList.Item>
-							<DescriptionList.Item term="积分">{formatNumber(user.credits)}</DescriptionList.Item>
-							<DescriptionList.Item term="主题数">
-								{formatNumber(user.threads)}
-							</DescriptionList.Item>
-							<DescriptionList.Item term="帖子数">{formatNumber(user.posts)}</DescriptionList.Item>
 							<DescriptionList.Item term="注册时间">
 								{fmtTimestamp(user.regDate)}
 							</DescriptionList.Item>
@@ -392,14 +411,17 @@ export function UserDetailPanel({
 
 				<LayerCard padding="sm">
 					<LayerCard.Header>
-						<h2 className="text-sm font-medium">元信息</h2>
+						<h2 className="flex items-center gap-2 text-sm font-medium">
+							<Globe aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+							登录与网络
+						</h2>
 					</LayerCard.Header>
 					<LayerCard.Well className="space-y-4">
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip. */}
 						<DescriptionList columns={1}>
 							<DescriptionList.Item term="注册 IP">
 								<div className="flex flex-wrap items-center gap-1">
-									<span className="font-mono">{fmtIp(user.regIp)}</span>
+									<span className="min-w-0 break-all font-mono">{fmtIp(user.regIp)}</span>
 									<IpLookupInline ip={user.regIp} />
 									{user.regIp && user.regIp.trim().length > 0 && (
 										<Button
@@ -417,7 +439,7 @@ export function UserDetailPanel({
 							</DescriptionList.Item>
 							<DescriptionList.Item term="上次登录 IP">
 								<div className="flex flex-wrap items-center gap-1">
-									<span className="font-mono">{fmtIp(user.lastIp)}</span>
+									<span className="min-w-0 break-all font-mono">{fmtIp(user.lastIp)}</span>
 									<IpLookupInline ip={user.lastIp} />
 									{user.lastIp && user.lastIp.trim().length > 0 && (
 										<Button
@@ -441,12 +463,12 @@ export function UserDetailPanel({
 						{user.onlineIp && user.onlineIp.trim().length > 0 && (
 							<div className="space-y-2">
 								<div className="text-xs text-basalt-muted-foreground">
-									当前在线 · 软指标 · TTL 15min
+									最近在线记录 · 15 分钟内的活动信号
 								</div>
 								<DescriptionList columns={1}>
 									<DescriptionList.Item term="当前 IP">
 										<div className="flex flex-wrap items-center gap-1">
-											<span className="font-mono">{fmtIp(user.onlineIp)}</span>
+											<span className="min-w-0 break-all font-mono">{fmtIp(user.onlineIp)}</span>
 											<IpLookupInline ip={user.onlineIp} />
 										</div>
 									</DescriptionList.Item>
@@ -466,68 +488,6 @@ export function UserDetailPanel({
 					</LayerCard.Well>
 				</LayerCard>
 
-				<LayerCard padding="sm">
-					<LayerCard.Header>
-						<h2 className="text-sm font-medium">用户内容</h2>
-					</LayerCard.Header>
-					<LayerCard.Well>
-						<Tabs
-							className="space-y-3"
-							value={activeContentTab}
-							onValueChange={(value) => setActiveContentTab(value as "threads" | "posts")}
-						>
-							<TabsList aria-label={"切换用户内容视图"} className="max-w-full overflow-x-auto">
-								{[
-									{
-										value: "threads",
-										label: `主题（${formatNumber(user.threads)}）`,
-									},
-									{
-										value: "posts",
-										label: `帖子（${formatNumber(user.posts)}）`,
-									},
-								].map((option) => (
-									<TabsTrigger key={option.value} value={option.value}>
-										{option.label}
-									</TabsTrigger>
-								))}
-							</TabsList>
-
-							<TabsContent value="threads" aria-label="用户主题列表" className="space-y-2">
-								{state.threadsError && (
-									<AdminInlineMessage variant="error" text={state.threadsError} />
-								)}
-								<AdminDataTable<Thread>
-									columns={threadColumns}
-									data={state.threads}
-									getRowId={(t) => t.id}
-									loading={state.threadsLoading}
-									emptyMessage="此用户没有主题"
-								/>
-								<AdminPagination
-									pagination={state.threadsPagination}
-									onPageChange={actions.setThreadsPage}
-								/>
-							</TabsContent>
-
-							<TabsContent value="posts" aria-label="用户帖子列表" className="space-y-2">
-								{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
-								<AdminDataTable<UserDetailPost>
-									columns={postColumns}
-									data={state.posts}
-									getRowId={(p) => p.id}
-									loading={state.postsLoading}
-									emptyMessage="此用户没有帖子"
-								/>
-								<AdminPagination
-									pagination={state.postsPagination}
-									onPageChange={actions.setPostsPage}
-								/>
-							</TabsContent>
-						</Tabs>
-					</LayerCard.Well>
-				</LayerCard>
-
 				{/*
 				 * Write-permission checklist. Tombstone users get no card —
 				 * every row would just render "status skip" (same short-
@@ -535,6 +495,71 @@ export function UserDetailPanel({
 				 */}
 				{!tombstoned && <UserWritePermissionCard user={user} />}
 			</div>
+
+			<LayerCard padding="sm">
+				<LayerCard.Header>
+					<h2 className="flex items-center gap-2 text-sm font-medium">
+						<Files aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+						用户内容
+					</h2>
+				</LayerCard.Header>
+				<LayerCard.Well>
+					<Tabs
+						className="space-y-3"
+						value={activeContentTab}
+						onValueChange={(value) => setActiveContentTab(value as "threads" | "posts")}
+					>
+						<TabsList aria-label={"切换用户内容视图"} className="max-w-full overflow-x-auto">
+							{[
+								{
+									value: "threads",
+									label: `主题（${formatNumber(user.threads)}）`,
+								},
+								{
+									value: "posts",
+									label: `帖子（含首帖 · ${formatNumber(user.posts)}）`,
+								},
+							].map((option) => (
+								<TabsTrigger key={option.value} value={option.value}>
+									{option.label}
+								</TabsTrigger>
+							))}
+						</TabsList>
+
+						<TabsContent value="threads" aria-label="用户主题列表" className="space-y-2">
+							{state.threadsError && (
+								<AdminInlineMessage variant="error" text={state.threadsError} />
+							)}
+							<AdminDataTable<Thread>
+								columns={threadColumns}
+								data={state.threads}
+								getRowId={(t) => t.id}
+								loading={state.threadsLoading}
+								emptyMessage="此用户没有主题"
+							/>
+							<AdminPagination
+								pagination={state.threadsPagination}
+								onPageChange={actions.setThreadsPage}
+							/>
+						</TabsContent>
+
+						<TabsContent value="posts" aria-label="用户帖子列表" className="space-y-2">
+							{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
+							<AdminDataTable<UserDetailPost>
+								columns={postColumns}
+								data={state.posts}
+								getRowId={(p) => p.id}
+								loading={state.postsLoading}
+								emptyMessage="此用户没有帖子"
+							/>
+							<AdminPagination
+								pagination={state.postsPagination}
+								onPageChange={actions.setPostsPage}
+							/>
+						</TabsContent>
+					</Tabs>
+				</LayerCard.Well>
+			</LayerCard>
 
 			{/*
 			 * Row 2 — check-in panel. Renders its own internal 3:1 split
@@ -581,7 +606,7 @@ export function UserDetailPanel({
 					if (!open) setPurgeError(null);
 				}}
 				title="彻底清除用户"
-				description={`将永久删除 ${user.username} 的全部主题、帖子、点评、附件、私信，并清空 R2 文件并写入 tombstone。此操作不可逆，无法恢复。`}
+				description={`将永久删除 ${user.username} 的全部主题、帖子、点评、附件、私信和存储文件，并清除账号资料。此操作不可逆，无法恢复。`}
 				requireInput="ok"
 				inputPlaceholder="输入 ok 以确认"
 				variant="destructive"
@@ -676,7 +701,11 @@ const threadColumns: ColumnDef<Thread>[] = [
 		key: "subject",
 		header: "标题",
 		cell: (t) => (
-			<Link href={`/admin/threads/${t.id}`} className="font-medium hover:underline">
+			<Link
+				href={`/admin/threads/${t.id}`}
+				className="block max-w-xl truncate font-medium hover:underline"
+				title={t.subject}
+			>
 				{t.subject}
 			</Link>
 		),
@@ -685,13 +714,13 @@ const threadColumns: ColumnDef<Thread>[] = [
 		key: "replies",
 		header: "回复",
 		cell: (t) => formatNumber(t.replies),
-		className: "text-right",
+		className: "text-right tabular-nums",
 	},
 	{
 		key: "views",
 		header: "浏览",
 		cell: (t) => formatNumber(t.views),
-		className: "text-right",
+		className: "text-right tabular-nums",
 	},
 	{
 		key: "lastPost",
@@ -707,7 +736,7 @@ const postColumns: ColumnDef<UserDetailPost>[] = [
 		cell: (p) => (
 			<Link
 				href={`/admin/threads/${p.threadId}`}
-				className="hover:underline"
+				className="block max-w-72 truncate hover:underline"
 				title={p.threadSubject ?? `#${p.threadId}`}
 			>
 				{p.threadSubject ?? `#${p.threadId}`}
@@ -717,7 +746,14 @@ const postColumns: ColumnDef<UserDetailPost>[] = [
 	{
 		key: "content",
 		header: "内容",
-		cell: (p) => <span className="line-clamp-2 text-sm">{p.content}</span>,
+		cell: (p) => (
+			<span
+				className="line-clamp-2 min-w-48 max-w-xl whitespace-normal break-words text-sm"
+				title={p.content}
+			>
+				{p.content}
+			</span>
+		),
 	},
 	{
 		key: "isFirst",

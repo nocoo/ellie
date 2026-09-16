@@ -13,7 +13,7 @@
 
 import { LayerCard } from "@nocoo/basalt";
 
-import { AlertCircle, Check, Info, X } from "lucide-react";
+import { AlertCircle, Check, Info, ShieldCheck, X } from "lucide-react";
 import { useMemo } from "react";
 import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
 import type { User } from "@/viewmodels/admin/users";
@@ -69,7 +69,10 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 	return (
 		<LayerCard padding="sm">
 			<LayerCard.Header>
-				<h2 className="text-sm font-medium">写权限体检</h2>
+				<h2 className="flex items-center gap-2 text-sm font-medium">
+					<ShieldCheck aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+					写权限体检
+				</h2>
 			</LayerCard.Header>
 			<LayerCard.Well className="space-y-3">
 				{loading ? (
@@ -79,10 +82,10 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 						{error && (
 							<p className="flex items-start gap-2 text-xs text-basalt-muted-foreground">
 								<AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-								<span>{error}（使用默认设置继续渲染）</span>
+								<span>{error}。以下按默认设置预览，需重新加载后确认实际权限。</span>
 							</p>
 						)}
-						<ul className="space-y-1.5 text-sm" data-testid="write-permission-checklist">
+						<ul className="space-y-2 text-xs" data-testid="write-permission-checklist">
 							{result.items.map((item) => (
 								<ChecklistRow key={item.id} item={item} />
 							))}
@@ -95,13 +98,15 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 						 */}
 						<p
 							className={
-								result.canWrite
-									? "text-sm text-basalt-badge-green-foreground"
-									: "text-sm text-basalt-destructive"
+								error
+									? "text-xs text-basalt-muted-foreground"
+									: result.canWrite
+										? "text-xs text-basalt-badge-green-foreground"
+										: "text-xs text-basalt-destructive"
 							}
 							data-testid="write-permission-conclusion"
 						>
-							{conclusion}
+							{error ? "站点规则未加载，暂时无法确认写权限。" : conclusion}
 						</p>
 					</>
 				)}
@@ -118,7 +123,7 @@ function ChecklistRow({ item }: { item: CheckItem }) {
 			// (账号状态 / 邮箱验证 / 写入权限 / 注册天数 / 用户头像) even at
 			// slightly larger user font sizes, so nothing wraps in the
 			// narrow 4-up card grid.
-			className="grid grid-cols-[1.25rem_5rem_1fr] items-baseline gap-2"
+			className="grid grid-cols-[1rem_4.5rem_minmax(0,1fr)] items-baseline gap-2"
 			data-item-id={item.id}
 			data-item-status={item.status}
 		>

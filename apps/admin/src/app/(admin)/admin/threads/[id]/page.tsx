@@ -2,7 +2,7 @@
 
 import { Button, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessagesSquare } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
@@ -212,7 +212,7 @@ export default function ThreadDetailPage() {
 				</Button>
 				<LayerCard
 					padding="none"
-					className="p-1 overflow-x-auto p-8 text-center text-basalt-muted-foreground"
+					className="overflow-x-auto p-8 text-center text-basalt-muted-foreground"
 				>
 					{error}
 				</LayerCard>
@@ -231,7 +231,7 @@ export default function ThreadDetailPage() {
 	};
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			{/* Back button */}
 			<Button variant="ghost" size="sm" onClick={() => router.push("/admin/threads")}>
 				<ArrowLeft className="mr-2 h-4 w-4" />
@@ -247,7 +247,16 @@ export default function ThreadDetailPage() {
 				onDelete={handleDeleteThread}
 			/>
 
-			{/* Posts list */}
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<h2 className="flex items-center gap-2 text-sm font-medium">
+					<MessagesSquare aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+					帖子内容
+				</h2>
+				<span className="text-xs text-basalt-muted-foreground">
+					共 {pagination.total.toLocaleString("zh-CN")} 条（含首帖） · 第 {pagination.page} /{" "}
+					{Math.max(1, pagination.pages)} 页
+				</span>
+			</div>
 			<div className="space-y-3">
 				{posts.map((post) => (
 					<PostFloor key={post.id} post={post} onEdit={setEditPost} onDelete={handleDeletePost} />
