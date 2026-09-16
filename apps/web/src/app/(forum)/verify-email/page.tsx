@@ -29,9 +29,11 @@
 //   so a deep link is always informational rather than a surprise
 //   redirect.
 
+import { MailCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
@@ -52,8 +54,13 @@ export default async function VerifyEmailPage() {
 	];
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 			<Breadcrumbs items={breadcrumbs} />
+			<ForumPageHeader
+				icon={<MailCheck />}
+				title="邮箱验证"
+				description="验证你的邮箱地址，完成账号验证。"
+			/>
 			<EmailVerificationCard
 				user={toEmailVerificationUserView(self)}
 				capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}

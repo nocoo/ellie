@@ -477,7 +477,7 @@ describe("EmailVerificationCard toast integration", () => {
 
 		// Success banner in the form
 		expect(screen.getByRole("status")).toBeTruthy();
-		expect(screen.getByText("✓ 邮箱验证成功")).toBeTruthy();
+		expect(screen.getByText("邮箱验证成功")).toBeTruthy();
 
 		// Send/verify buttons gone
 		expect(screen.queryByText("发送验证码")).toBeNull();

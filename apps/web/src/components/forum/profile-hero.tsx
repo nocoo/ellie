@@ -4,7 +4,8 @@
 // Displays user identity and optional edit functionality
 // Includes mod actions for Admin/SuperMod users
 
-import { Pencil, User } from "lucide-react";
+import { CalendarDays, Mail, MapPin, Pencil, Settings2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
@@ -52,28 +53,39 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 
 	return (
 		<>
-			<Card
-				size="sm"
-				className="bg-gradient-to-br from-forum-accent/5 via-background to-forum-accent/[0.02]"
-			>
-				<CardContent>
-					<div className="flex items-center gap-4">
-						<TrackedUserAvatar uid={user.id} username={user.username} size="lg" />
+			<Card className="rounded-2xl border-t-2 border-t-primary py-5">
+				<CardContent className="px-5">
+					<div className="flex flex-wrap items-center gap-4 sm:gap-5">
+						<TrackedUserAvatar
+							uid={user.id}
+							username={user.username}
+							size="lg"
+							className="size-16 rounded-xl after:rounded-xl sm:size-20 [&_img]:rounded-xl"
+						/>
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2 flex-wrap">
-								<User className="h-5 w-5 text-forum-accent shrink-0" />
-								<h1 className="text-base font-semibold text-foreground">{user.username}</h1>
+								<h1 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+									{user.username}
+								</h1>
 								<Badge variant={getUserRoleBadgeVariant(user.role)}>
 									{formatUserRole(user.role)}
 								</Badge>
 							</div>
-							<div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-								<span>UID: {user.id}</span>
-								<span>·</span>
-								<span>注册于 {formatRelativeTime(user.regDate)}</span>
+							<div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+								<span className="tabular-nums">UID: {user.id}</span>
+								<span className="inline-flex items-center gap-1.5">
+									<CalendarDays className="size-3.5" aria-hidden="true" />
+									注册于 {formatRelativeTime(user.regDate)}
+								</span>
+								{user.campus && (
+									<span className="inline-flex items-center gap-1.5">
+										<MapPin className="size-3.5" aria-hidden="true" />
+										{user.campus}
+									</span>
+								)}
 							</div>
 						</div>
-						<div className="flex items-center gap-2 shrink-0">
+						<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
 							{/* Edit profile button (own profile only) */}
 							{isOwnProfile && (
 								<Button
@@ -82,8 +94,29 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 									className="gap-1.5"
 									onClick={() => setEditOpen(true)}
 								>
-									<Pencil className="h-3.5 w-3.5" />
-									<span className="hidden sm:inline">编辑资料</span>
+									<Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+									编辑资料
+								</Button>
+							)}
+							{isOwnProfile && (
+								<Button
+									variant="ghost"
+									size="sm"
+									nativeButton={false}
+									render={<Link href="/me" role="link" />}
+								>
+									<Settings2 className="size-4" aria-hidden="true" />
+									我的账号
+								</Button>
+							)}
+							{session?.user && !isOwnProfile && user.id > 0 && (
+								<Button
+									size="sm"
+									nativeButton={false}
+									render={<Link href={`/messages?to=${user.id}`} role="link" />}
+								>
+									<Mail className="size-4" aria-hidden="true" />
+									发站内信
 								</Button>
 							)}
 							{/* Report button (any logged-in non-owner). Worker still guards self-report. */}

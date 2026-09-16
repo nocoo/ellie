@@ -2,16 +2,17 @@
 
 "use client";
 
-import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Reply, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError, deleteMessage, fetchMessage, type Message } from "@/viewmodels/forum/messages";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { useForumToast } from "./forum-toast";
@@ -58,6 +59,8 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [deleteOpen, setDeleteOpen] = useState(false);
+	const deleteInFlight = useRef(false);
 
 	// Reply dialog state
 	const [isReplyOpen, setIsReplyOpen] = useState(false);
@@ -91,8 +94,8 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 
 	// Handle delete
 	const handleDelete = async () => {
-		if (!confirm("确定要删除这条站内信吗？")) return;
-
+		if (deleteInFlight.current) return;
+		deleteInFlight.current = true;
 		setIsDeleting(true);
 		try {
 			await deleteMessage(messageId);
@@ -101,6 +104,8 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 		} catch (err) {
 			const message = err instanceof ApiError ? err.message : "删除失败，请重试";
 			toast.error({ title: "删除失败", description: message });
+		} finally {
+			deleteInFlight.current = false;
 			setIsDeleting(false);
 		}
 	};
@@ -159,91 +164,86 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 			{/* Breadcrumbs */}
 			<BreadcrumbBar items={breadcrumbs} />
 
-			{/* Back link */}
-			<div className="flex items-center gap-2">
-				<Link
-					href="/messages"
-					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-				>
-					<ArrowLeft className="h-4 w-4" />
-					返回列表
-				</Link>
-			</div>
-
-			{/* Message card */}
-			<div className="rounded-lg border border-border bg-card p-4">
-				{/* Header */}
-				<div className="flex items-start justify-between border-b border-border pb-4">
-					<div className="flex items-start gap-3">
-						<Link href={`/users/${message.senderId}`}>
-							<ForumAvatar
-								userId={message.senderId}
-								userName={message.senderName}
-								size="lg"
-								shadow
-							/>
-						</Link>
-						<div>
-							<div className="flex items-center gap-2">
-								<Link
-									href={`/users/${message.senderId}`}
-									className="font-medium text-foreground hover:text-primary"
-								>
-									{message.senderName}
-								</Link>
-								<span className="text-muted-foreground">发给</span>
-								<Link
-									href={`/users/${message.receiverId}`}
-									className="font-medium text-foreground hover:text-primary"
-								>
-									{message.receiverName}
-								</Link>
-							</div>
-							<div className="mt-1 text-xs text-muted-foreground">
-								{formatMessageDate(message.createdAt)}
-							</div>
-						</div>
-					</div>
-
-					{/* Actions */}
-					<div className="flex items-center gap-2">
-						<Button variant="outline" size="sm" onClick={handleReply}>
-							<Reply className="h-4 w-4 mr-1" />
+			<ForumPageHeader
+				icon={<Mail />}
+				title={message.subject || "站内信"}
+				description={formatMessageDate(message.createdAt)}
+				actions={
+					<>
+						<Button
+							variant="ghost"
+							nativeButton={false}
+							render={<Link href="/messages" role="link" />}
+						>
+							<ArrowLeft className="size-4" aria-hidden="true" />
+							返回列表
+						</Button>
+						<Button onClick={handleReply}>
+							<Reply className="size-4" aria-hidden="true" />
 							回复
 						</Button>
 						<Button
 							variant="outline"
-							size="sm"
-							onClick={handleDelete}
+							size="icon"
+							onClick={() => setDeleteOpen(true)}
 							disabled={isDeleting}
+							aria-label="删除站内信"
 							className="text-destructive hover:text-destructive"
 						>
-							{isDeleting ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : (
-								<Trash2 className="h-4 w-4" />
-							)}
+							<Trash2 className="size-4" aria-hidden="true" />
 						</Button>
+					</>
+				}
+			/>
+			<article className="overflow-hidden rounded-2xl border border-border bg-card">
+				<div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-4 sm:px-5">
+					{message.senderId > 0 ? (
+						<Link href={`/users/${message.senderId}`} className="shrink-0">
+							<ForumAvatar userId={message.senderId} userName={message.senderName} size="md" />
+						</Link>
+					) : (
+						<ForumAvatar userId={0} userName={message.senderName || "未知用户"} size="md" />
+					)}
+					<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+						{message.senderId > 0 ? (
+							<Link
+								href={`/users/${message.senderId}`}
+								className="break-all font-medium hover:text-primary"
+							>
+								{message.senderName}
+							</Link>
+						) : (
+							<span>{message.senderName || "未知用户"}</span>
+						)}
+						<span className="text-xs text-muted-foreground">发给</span>
+						{message.receiverId > 0 ? (
+							<Link
+								href={`/users/${message.receiverId}`}
+								className="break-all font-medium hover:text-primary"
+							>
+								{message.receiverName}
+							</Link>
+						) : (
+							<span>{message.receiverName || "未知用户"}</span>
+						)}
 					</div>
 				</div>
-
-				{/* Subject */}
-				{message.subject && (
-					<div className="pt-4 pb-2">
-						<h2 className="font-medium text-foreground">{message.subject}</h2>
-					</div>
-				)}
-
-				{/* Content */}
-				<div
-					className={cn(
-						"py-4 text-sm text-foreground leading-relaxed whitespace-pre-wrap",
-						!message.subject && "pt-4",
-					)}
-				>
+				<div className="min-h-40 whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-4 py-5 text-[15px] leading-7 text-foreground sm:px-5">
 					{message.content}
 				</div>
-			</div>
+			</article>
+			<ConfirmDialog
+				open={deleteOpen}
+				onOpenChange={(open) => {
+					if (!isDeleting) setDeleteOpen(open);
+				}}
+				title="删除站内信"
+				description="确定要删除这条站内信吗？删除后将从你的信箱中移除。"
+				confirmText="确认删除"
+				variant="destructive"
+				loading={isDeleting}
+				onConfirm={handleDelete}
+			/>
 
 			{/* Reply dialog */}
 			<ComposeMessageDialog

@@ -16,8 +16,10 @@
 
 import type { ThreadBadgeSource } from "@ellie/types";
 import { decodeHighlight, getThreadBadges } from "@ellie/types";
+import { Award } from "lucide-react";
 import Link from "next/link";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { ThreadRowIcon } from "@/components/forum/thread-row-icon";
 import {
 	filterIconRedundantBadges,
 	getDigestIconSrc,
@@ -33,7 +35,7 @@ import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/for
  *
  * Columns: Icon(28px) | 主题(flex) | 板块(8rem) | 回复·查看(7rem) | 时间(5.5rem)
  */
-export const PROFILE_ROW_GRID_COLS = "28px minmax(0,1fr) 8rem 7rem 5.5rem";
+export const PROFILE_ROW_GRID_COLS = "28px minmax(0,1fr) 6rem 6rem 5.5rem";
 
 /**
  * Minimal structural source for a profile-list row.
@@ -86,7 +88,7 @@ export function UserProfileListRow({
 		<Link
 			href={`/threads/${thread.id}`}
 			prefetch={false}
-			className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
+			className="min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 			style={highlightStyle(hl)}
 		>
 			{thread.subject}
@@ -97,7 +99,7 @@ export function UserProfileListRow({
 		<Link
 			href={`/forums/${thread.forumId}`}
 			prefetch={false}
-			className="text-xs text-muted-foreground hover:text-primary transition-colors truncate"
+			className="block max-w-full truncate text-xs text-muted-foreground hover:text-primary transition-colors"
 		>
 			{forumName}
 		</Link>
@@ -112,13 +114,12 @@ export function UserProfileListRow({
 		>
 			{/* Desktop layout: explicit 5-column grid so all three tabs align. */}
 			<div
-				className="hidden sm:grid items-center gap-2 px-2 py-2"
+				className="hidden sm:grid items-center gap-2 px-3 py-3"
 				style={{ gridTemplateColumns: PROFILE_ROW_GRID_COLS }}
 			>
 				{/* Col 1: Icon */}
 				<div className="flex justify-center" data-testid="row-col-icon">
-					{/* eslint-disable-next-line @next/next/no-img-element */}
-					<img src={iconSrc} alt="" className="shrink-0 opacity-70" />
+					<ThreadRowIcon iconSrc={iconSrc} isGlobalAnnouncement={thread.sticky === 2} />
 				</div>
 				{/* Col 2: 主题 (title + badges + digest icon) */}
 				<div className="min-w-0 flex items-center gap-1.5" data-testid="row-col-title">
@@ -129,8 +130,11 @@ export function UserProfileListRow({
 					)}
 					{titleLink}
 					{digestSrc && (
-						// eslint-disable-next-line @next/next/no-img-element
-						<img src={digestSrc} alt="digest" className="shrink-0" />
+						<Award
+							role="img"
+							aria-label={`精华 ${thread.digest}`}
+							className="size-4 shrink-0 text-success"
+						/>
 					)}
 				</div>
 				{/* Col 3: 板块 */}
@@ -154,11 +158,14 @@ export function UserProfileListRow({
 			</div>
 
 			{/* Mobile layout: two-row compact */}
-			<div className="sm:hidden px-3 py-2">
+			<div className="sm:hidden px-3 py-3">
 				{/* Row 1: Icon + title + time */}
 				<div className="flex items-start gap-1.5">
-					{/* eslint-disable-next-line @next/next/no-img-element */}
-					<img src={iconSrc} alt="" className="shrink-0 opacity-70 mt-0.5" />
+					<ThreadRowIcon
+						iconSrc={iconSrc}
+						isGlobalAnnouncement={thread.sticky === 2}
+						extraClass="mt-0.5"
+					/>
 					<div className="min-w-0 flex-1">
 						{badges.length > 0 && (
 							<div className="flex items-center gap-1.5">
@@ -168,8 +175,11 @@ export function UserProfileListRow({
 						<div className="flex items-center gap-1.5">
 							{titleLink}
 							{digestSrc && (
-								// eslint-disable-next-line @next/next/no-img-element
-								<img src={digestSrc} alt="digest" className="shrink-0" />
+								<Award
+									role="img"
+									aria-label={`精华 ${thread.digest}`}
+									className="size-4 shrink-0 text-success"
+								/>
 							)}
 						</div>
 					</div>
@@ -178,7 +188,7 @@ export function UserProfileListRow({
 					</span>
 				</div>
 				{/* Row 2: forum chip · stats */}
-				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-2 ml-6 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 					{forumChip}
 					{forumChip && <span className="shrink-0">·</span>}
 					<span className="tabular-nums shrink-0">{statsText}</span>
@@ -199,7 +209,7 @@ export function UserProfileListRow({
 export function UserProfileListHeader() {
 	return (
 		<div
-			className="hidden sm:grid items-center gap-2 px-2 py-1.5 border-b border-border text-xs text-muted-foreground bg-muted/30"
+			className="hidden sm:grid items-center gap-2 px-3 py-3 border-b border-border text-xs text-muted-foreground bg-muted/30"
 			style={{ gridTemplateColumns: PROFILE_ROW_GRID_COLS }}
 			data-testid="user-profile-list-header"
 		>

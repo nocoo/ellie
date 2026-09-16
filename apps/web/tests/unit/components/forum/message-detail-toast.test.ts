@@ -65,16 +65,6 @@ function renderMessageDetail() {
 	);
 }
 
-/** Find the delete button (the one that is neither "回复" nor "返回") */
-function getDeleteButton(): HTMLElement {
-	const buttons = screen.getAllByRole("button");
-	const btn = buttons.find(
-		(b) => !b.textContent?.includes("回复") && !b.textContent?.includes("返回"),
-	);
-	expect(btn).toBeTruthy();
-	return btn as HTMLElement;
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -103,7 +93,11 @@ describe("MessageDetailClient delete toast integration", () => {
 		});
 
 		await act(async () => {
-			fireEvent.click(getDeleteButton());
+			fireEvent.click(screen.getByRole("button", { name: "删除站内信" }));
+		});
+		expect(deleteMessage).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 		});
 
 		await waitFor(() => {
@@ -124,7 +118,11 @@ describe("MessageDetailClient delete toast integration", () => {
 		});
 
 		await act(async () => {
-			fireEvent.click(getDeleteButton());
+			fireEvent.click(screen.getByRole("button", { name: "删除站内信" }));
+		});
+		expect(deleteMessage).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 		});
 
 		await waitFor(() => {
@@ -146,7 +144,11 @@ describe("MessageDetailClient delete toast integration", () => {
 		});
 
 		await act(async () => {
-			fireEvent.click(getDeleteButton());
+			fireEvent.click(screen.getByRole("button", { name: "删除站内信" }));
+		});
+		expect(deleteMessage).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 		});
 
 		await waitFor(() => {

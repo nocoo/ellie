@@ -1,11 +1,25 @@
 "use client";
 
 import { CHECKIN_MOODS, type CheckinLevel, type CheckinMood, type UserCheckin } from "@ellie/types";
+import {
+	Award,
+	CalendarCheck2,
+	CalendarDays,
+	CircleCheck,
+	Clock3,
+	Coins,
+	Flame,
+	Loader2,
+	Smile,
+} from "lucide-react";
 import Image from "next/image";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { useForumToast } from "@/components/forum/forum-toast";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ApiError, apiClient } from "@/lib/api-client";
 
 // ─── Types ─────────────────────────────────────────────────
@@ -48,13 +62,14 @@ function MoodButton({
 		<button
 			type="button"
 			onClick={() => onSelect(code)}
-			className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition-colors ${
+			aria-pressed={selected}
+			className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
 				selected
 					? "border-primary bg-primary/10"
-					: "border-transparent hover:border-muted-foreground/30 hover:bg-muted/50"
+					: "border-border bg-card hover:border-primary/40 hover:bg-muted/50"
 			}`}
 		>
-			<Image src={`/emot/${code}.gif`} alt={label} width={48} height={48} unoptimized />
+			<Image src={`/emot/${code}.gif`} alt="" width={48} height={48} unoptimized />
 			<span className="text-xs text-muted-foreground">{label}</span>
 		</button>
 	);
@@ -70,10 +85,11 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 	const [message, setMessage] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [result, setResult] = useState<CheckinResult | null>(null);
+	const submittingRef = useRef(false);
 
 	const handleCheckin = useCallback(async () => {
-		if (!selectedMood || submitting) return;
-
+		if (!selectedMood || submittingRef.current) return;
+		submittingRef.current = true;
 		setSubmitting(true);
 		try {
 			const res = await apiClient.post<CheckinResult>("/api/v1/checkin", {
@@ -100,176 +116,147 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 							: "签到失败，请稍后重试";
 			toast.error({ title: "签到失败", description: msg });
 		} finally {
+			submittingRef.current = false;
 			setSubmitting(false);
 		}
-	}, [selectedMood, message, submitting, toast]);
+	}, [selectedMood, message, toast]);
 
-	// ── Already checked in today ────────────────────────────
-	if (status.checkedInToday) {
-		const checkin = result?.checkin ?? status.checkin;
-		const level = result?.level ?? status.level;
-		const moodLabel = checkin?.mood ? CHECKIN_MOODS[checkin.mood as CheckinMood] : undefined;
+	const checkin = result?.checkin ?? status.checkin;
+	const level = result?.level ?? status.level;
+	const moodLabel = checkin?.mood ? CHECKIN_MOODS[checkin.mood as CheckinMood] : undefined;
+	const stats = [
+		{ label: "累计签到", value: `${checkin?.totalDays ?? 0} 天`, icon: CalendarDays },
+		{ label: "连续签到", value: `${checkin?.streakDays ?? 0} 天`, icon: Flame },
+		{ label: "本月签到", value: `${checkin?.monthDays ?? 0} 天`, icon: CalendarCheck2 },
+		{ label: "累计奖励", value: `${checkin?.rewardTotal ?? 0} 同钱`, icon: Coins },
+	];
 
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>今日签到</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-col items-center gap-4 py-4">
-						{checkin?.mood && (
-							<Image
-								src={`/emot/${checkin.mood}.gif`}
-								alt={moodLabel ?? ""}
-								width={64}
-								height={64}
-								unoptimized
-							/>
-						)}
-						<p className="text-lg font-medium text-green-600">今天已签到 ✓</p>
-						{result && (
-							<p className="text-sm text-muted-foreground">
-								获得 <span className="font-medium text-amber-600">{result.reward}</span> 同钱
-							</p>
-						)}
-						{checkin?.message && (
-							<p className="text-sm text-muted-foreground italic">"{checkin.message}"</p>
-						)}
-					</div>
-
-					{/* Stats */}
-					{checkin && (
-						<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 sm:grid-cols-4">
-							<StatItem label="累计签到" value={`${checkin.totalDays} 天`} />
-							<StatItem label="连续签到" value={`${checkin.streakDays} 天`} />
-							<StatItem label="本月签到" value={`${checkin.monthDays} 天`} />
-							<StatItem label="累计奖励" value={`${checkin.rewardTotal} 同钱`} />
+	return (
+		<div className="space-y-4">
+			<ForumPageHeader
+				icon={<CalendarCheck2 />}
+				title="每日签到"
+				description="每天 04:00 — 23:00（北京时间），记录心情，领取签到奖励。"
+				actions={
+					level && (
+						<Badge variant="outline" className="gap-1.5 py-1.5">
+							<Award className="size-4 text-primary" aria-hidden="true" />
+							LV.{level.level} {level.label}
+						</Badge>
+					)
+				}
+			>
+				<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+					{stats.map(({ label, value, icon: Icon }) => (
+						<div key={label} className="min-w-0">
+							<dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+								<Icon className="size-3.5" aria-hidden="true" />
+								{label}
+							</dt>
+							<dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</dd>
 						</div>
-					)}
-
-					{level && (
-						<div className="mt-3 text-center text-sm text-muted-foreground">
-							签到等级：
-							<span className="font-medium text-foreground">
-								LV.{level.level} {level.label}
-							</span>
+					))}
+				</dl>
+			</ForumPageHeader>
+			<Card className="rounded-2xl">
+				<CardContent className="p-4 sm:px-5">
+					{status.checkedInToday ? (
+						<div className="flex flex-col items-center gap-4 py-6 text-center">
+							{checkin?.mood && (
+								<Image
+									src={`/emot/${checkin.mood}.gif`}
+									alt={moodLabel ?? ""}
+									width={64}
+									height={64}
+									unoptimized
+								/>
+							)}
+							<h2 className="flex items-center gap-2 text-lg font-semibold text-success">
+								<CircleCheck className="size-5" aria-hidden="true" />
+								今天已签到
+							</h2>
+							{result && (
+								<p className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm">
+									<Coins className="size-4 text-primary" aria-hidden="true" />
+									获得 <strong className="font-semibold text-primary">{result.reward}</strong> 同钱
+								</p>
+							)}
+							{checkin?.message && (
+								<p className="max-w-xl break-words text-sm leading-relaxed text-muted-foreground">
+									“{checkin.message}”
+								</p>
+							)}
 						</div>
+					) : !status.withinWindow ? (
+						<div className="flex flex-col items-center gap-3 py-8 text-center">
+							<Clock3 className="size-10 text-primary/60" aria-hidden="true" />
+							<h2 className="text-lg font-semibold">签到尚未开放</h2>
+							<p className="text-sm text-muted-foreground">当前不在签到时段内，请稍后再来</p>
+						</div>
+					) : (
+						<form
+							className="space-y-6"
+							onSubmit={(event) => {
+								event.preventDefault();
+								handleCheckin();
+							}}
+						>
+							<fieldset disabled={submitting}>
+								<legend className="mb-3 flex items-center gap-2 text-sm font-semibold">
+									<Smile className="size-4 text-primary" aria-hidden="true" />
+									今天的心情
+								</legend>
+								<div className="grid grid-cols-3 gap-2 lg:grid-cols-9">
+									{MOOD_CODES.map((code) => (
+										<MoodButton
+											key={code}
+											code={code}
+											label={CHECKIN_MOODS[code]}
+											selected={selectedMood === code}
+											onSelect={setSelectedMood}
+										/>
+									))}
+								</div>
+							</fieldset>
+							<div className="space-y-2">
+								<label
+									htmlFor="checkin-message"
+									className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium"
+								>
+									想说的话{" "}
+									<span className="text-xs font-normal text-muted-foreground">
+										可选 · {message.length}/100 字
+									</span>
+								</label>
+								<Input
+									id="checkin-message"
+									type="text"
+									maxLength={100}
+									value={message}
+									disabled={submitting}
+									onChange={(event) => setMessage(event.target.value)}
+									placeholder="分享一下今天的心情..."
+									className="h-11"
+								/>
+							</div>
+							<div className="flex justify-end border-t border-border pt-4">
+								<Button
+									type="submit"
+									disabled={!selectedMood || submitting}
+									className="h-11 w-full sm:w-auto sm:min-w-36"
+								>
+									{submitting ? (
+										<Loader2 className="size-4 animate-spin" aria-hidden="true" />
+									) : (
+										<CalendarCheck2 className="size-4" aria-hidden="true" />
+									)}
+									{submitting ? "签到中..." : "签到"}
+								</Button>
+							</div>
+						</form>
 					)}
 				</CardContent>
 			</Card>
-		);
-	}
-
-	// ── Outside checkin window ───────────────────────────────
-	if (!status.withinWindow) {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>每日签到</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-col items-center gap-3 py-6">
-						<p className="text-muted-foreground">签到时间为每天 04:00 — 23:00</p>
-						<p className="text-sm text-muted-foreground">当前不在签到时段内，请稍后再来</p>
-					</div>
-
-					{/* Still show stats if user has history */}
-					{status.checkin && (
-						<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 sm:grid-cols-4">
-							<StatItem label="累计签到" value={`${status.checkin.totalDays} 天`} />
-							<StatItem label="连续签到" value={`${status.checkin.streakDays} 天`} />
-							<StatItem label="本月签到" value={`${status.checkin.monthDays} 天`} />
-							<StatItem label="累计奖励" value={`${status.checkin.rewardTotal} 同钱`} />
-						</div>
-					)}
-
-					{status.level && (
-						<div className="mt-3 text-center text-sm text-muted-foreground">
-							签到等级：
-							<span className="font-medium text-foreground">
-								LV.{status.level.level} {status.level.label}
-							</span>
-						</div>
-					)}
-				</CardContent>
-			</Card>
-		);
-	}
-
-	// ── Ready to check in ───────────────────────────────────
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>每日签到</CardTitle>
-			</CardHeader>
-			<CardContent>
-				{/* Mood selection */}
-				<div className="mb-4">
-					<p className="mb-2 text-sm font-medium">今天的心情</p>
-					<div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-9">
-						{MOOD_CODES.map((code) => (
-							<MoodButton
-								key={code}
-								code={code}
-								label={CHECKIN_MOODS[code]}
-								selected={selectedMood === code}
-								onSelect={setSelectedMood}
-							/>
-						))}
-					</div>
-				</div>
-
-				{/* Message input */}
-				<div className="mb-4">
-					<label htmlFor="checkin-message" className="mb-1 block text-sm font-medium">
-						想说的话 <span className="font-normal text-muted-foreground">(可选, 最多 100 字)</span>
-					</label>
-					<input
-						id="checkin-message"
-						type="text"
-						maxLength={100}
-						value={message}
-						onChange={(e) => setMessage(e.target.value)}
-						placeholder="分享一下今天的心情..."
-						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					/>
-				</div>
-
-				{/* Submit */}
-				<Button onClick={handleCheckin} disabled={!selectedMood || submitting} className="w-full">
-					{submitting ? "签到中..." : "签到"}
-				</Button>
-
-				{/* Existing stats */}
-				{status.checkin && (
-					<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 sm:grid-cols-4">
-						<StatItem label="累计签到" value={`${status.checkin.totalDays} 天`} />
-						<StatItem label="连续签到" value={`${status.checkin.streakDays} 天`} />
-						<StatItem label="本月签到" value={`${status.checkin.monthDays} 天`} />
-						<StatItem label="累计奖励" value={`${status.checkin.rewardTotal} 同钱`} />
-					</div>
-				)}
-
-				{status.level && (
-					<div className="mt-3 text-center text-sm text-muted-foreground">
-						签到等级：
-						<span className="font-medium text-foreground">
-							LV.{status.level.level} {status.level.label}
-						</span>
-					</div>
-				)}
-			</CardContent>
-		</Card>
-	);
-}
-
-// ─── Stat Item ──────────────────────────────────────────────
-
-function StatItem({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex flex-col items-center rounded-md bg-muted/50 p-2">
-			<span className="text-xs text-muted-foreground">{label}</span>
-			<span className="text-sm font-medium">{value}</span>
 		</div>
 	);
 }

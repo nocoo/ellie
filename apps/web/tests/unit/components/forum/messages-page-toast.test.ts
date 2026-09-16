@@ -119,6 +119,10 @@ describe("MessagesPageClient toast integration", () => {
 		await act(async () => {
 			fireEvent.click(deleteButtons[0]);
 		});
+		expect(deleteMessage).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+		});
 
 		await waitFor(() => {
 			expect(screen.getByText("站内信已删除")).toBeTruthy();
@@ -139,6 +143,10 @@ describe("MessagesPageClient toast integration", () => {
 		const deleteButtons = screen.getAllByTitle("删除");
 		await act(async () => {
 			fireEvent.click(deleteButtons[0]);
+		});
+		expect(deleteMessage).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 		});
 
 		await waitFor(() => {
@@ -162,6 +170,10 @@ describe("MessagesPageClient toast integration", () => {
 		await act(async () => {
 			fireEvent.click(deleteButtons[0]);
 		});
+		expect(deleteMessage).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+		});
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
@@ -170,6 +182,37 @@ describe("MessagesPageClient toast integration", () => {
 			expect(errorToast?.textContent).toContain("删除失败");
 		});
 		expect(globalThis.alert).not.toHaveBeenCalled();
+	});
+
+	it("cancelling deletion leaves the message untouched", async () => {
+		renderMessagesPage();
+		await screen.findByText("Alice");
+		fireEvent.click(screen.getAllByTitle("删除")[0]);
+		fireEvent.click(screen.getByRole("button", { name: "取消" }));
+		expect(deleteMessage).not.toHaveBeenCalled();
+		expect(screen.getByText("Alice")).toBeTruthy();
+	});
+
+	it("ignores an older inbox response after switching to the outbox", async () => {
+		let resolveInbox!: (value: Awaited<ReturnType<typeof fetchMessages>>) => void;
+		vi.mocked(fetchMessages)
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					resolveInbox = resolve;
+				}),
+			)
+			.mockResolvedValueOnce({
+				messages: [{ ...MOCK_MESSAGES[0], receiverName: "Outbox recipient" }],
+				nextCursor: null,
+			});
+		renderMessagesPage();
+		fireEvent.click(screen.getByRole("button", { name: "发信箱" }));
+		await screen.findByText("Outbox recipient");
+		await act(async () => {
+			resolveInbox({ messages: MOCK_MESSAGES, nextCursor: null, unreadCount: 1 });
+		});
+		expect(screen.getByText("Outbox recipient")).toBeTruthy();
+		expect(screen.queryByText("Alice")).toBeNull();
 	});
 
 	// -------------------------------------------------------------------------

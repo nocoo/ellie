@@ -17,6 +17,7 @@
 //   page repaints from the fresh URL, then call `router.refresh()` to
 //   re-run the server component for any avatar-dependent rendering.
 
+import { ImagePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "@/components/forum/avatar-upload";
 import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
@@ -38,15 +39,15 @@ export function MeAvatarSection({ userId }: MeAvatarSectionProps) {
 	};
 
 	return (
-		<div className="rounded-xl border border-border bg-card/60 p-4 sm:p-5">
+		<div className="flex h-full flex-col rounded-2xl border border-border bg-card p-4 sm:p-5">
 			<div className="mb-3 flex items-center gap-2">
-				<span className="h-1 w-1 rounded-full bg-primary" />
-				<h3 id="avatar-section-heading" className="text-sm font-medium text-foreground">
+				<ImagePlus className="size-4 text-primary" aria-hidden="true" />
+				<h2 id="avatar-section-heading" className="text-base font-semibold text-foreground">
 					头像
-				</h3>
+				</h2>
 			</div>
 			<p className="mb-4 text-xs text-muted-foreground leading-relaxed">
-				设置头像后即可发帖/回帖/评论。支持 JPG、PNG，最大 200 KB。
+				上传一张便于识别的头像。支持 JPG、PNG，最大 200 KB。
 			</p>
 			<AvatarUpload currentUrl={avatarUrl} onUploadComplete={handleAvatarUploadComplete} />
 		</div>

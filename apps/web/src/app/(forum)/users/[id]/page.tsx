@@ -1,5 +1,6 @@
 // Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
+import { Award, Coins, MessageCircle, MessageSquare, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
@@ -86,6 +87,28 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 	const settings = await fetchPublicSettings();
 	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
 	const breadcrumbs = buildUserBreadcrumbs(data.user.username, homeLabel);
+	const stats = [
+		{
+			label: "主题数",
+			value: data.user.threads,
+			icon: MessageSquare,
+			href: `/users/${userId}?tab=threads`,
+		},
+		{
+			label: "回复数",
+			value: data.user.posts,
+			icon: MessageCircle,
+			href: `/users/${userId}?tab=posts`,
+		},
+		{
+			label: "精华",
+			value: data.user.digestPosts,
+			icon: Award,
+			href: `/users/${userId}?tab=digest`,
+		},
+		{ label: "积分", value: data.user.credits, icon: Sparkles },
+		{ label: "同钱", value: data.user.coins ?? 0, icon: Coins },
+	];
 
 	return (
 		<div className="space-y-4">
@@ -97,64 +120,42 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			{/* Hero: avatar + identity + edit button */}
 			<ProfileHero user={data.user} />
 
-			{/* Stats */}
-			<div className="grid grid-cols-5 gap-2">
-				<Link href={`/users/${userId}?tab=threads`}>
-					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
-						<CardContent className="text-center">
-							<p className="text-lg font-semibold text-foreground">
-								{formatCompactNumber(data.user.threads)}
-							</p>
-							<p className="mt-1 text-xs text-muted-foreground">主题数</p>
-						</CardContent>
-					</Card>
-				</Link>
-				<Link href={`/users/${userId}?tab=posts`}>
-					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
-						<CardContent className="text-center">
-							<p className="text-lg font-semibold text-foreground">
-								{formatCompactNumber(data.user.posts)}
-							</p>
-							<p className="mt-1 text-xs text-muted-foreground">回复数</p>
-						</CardContent>
-					</Card>
-				</Link>
-				<Link href={`/users/${userId}?tab=digest`}>
-					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
-						<CardContent className="text-center">
-							<p className="text-lg font-semibold text-foreground">
-								{formatCompactNumber(data.user.digestPosts)}
-							</p>
-							<p className="mt-1 text-xs text-muted-foreground">精华</p>
-						</CardContent>
-					</Card>
-				</Link>
-				<Card size="sm">
-					<CardContent className="text-center">
-						<p className="text-lg font-semibold text-foreground">
-							{formatCompactNumber(data.user.credits)}
-						</p>
-						<p className="mt-1 text-xs text-muted-foreground">积分</p>
-					</CardContent>
-				</Card>
-				<Card size="sm">
-					<CardContent className="text-center">
-						<p className="text-lg font-semibold text-foreground">
-							{formatCompactNumber(data.user.coins ?? 0)}
-						</p>
-						<p className="mt-1 text-xs text-muted-foreground">同钱</p>
-					</CardContent>
-				</Card>
+			<div className="grid grid-cols-5 divide-x divide-border overflow-hidden rounded-2xl border border-border bg-card">
+				{stats.map(({ label, value, icon: Icon, href }) => {
+					const content = (
+						<>
+							<Icon className="size-4 text-primary" aria-hidden="true" />
+							<span className="text-lg font-semibold tabular-nums text-foreground sm:text-xl">
+								{formatCompactNumber(value)}
+							</span>
+							<span className="text-xs text-muted-foreground">{label}</span>
+						</>
+					);
+					const className = "flex min-w-0 flex-col items-center gap-1.5 px-1 py-4";
+					return href ? (
+						<Link
+							key={label}
+							href={href}
+							className={`${className} transition-colors hover:bg-accent`}
+						>
+							{content}
+						</Link>
+					) : (
+						<div key={label} className={className}>
+							{content}
+						</div>
+					);
+				})}
 			</div>
 
 			{/* Personal Info Card — only if any fields are non-empty */}
 			<UserInfoCard user={data.user} />
 
 			{/* Tabs + content */}
-			<Card size="sm">
+			<Card className="rounded-2xl">
 				{/* Tabs (Link-based for RSC) */}
 				<CardHeader className="border-b">
-					<div className="flex items-center gap-1">
+					<nav aria-label="用户内容分类" className="flex flex-wrap items-center gap-1">
 						{PROFILE_TABS.map((t) => {
 							const active = data.tab === t.key;
 							// Show digest count in tab label if user has digest posts
@@ -165,7 +166,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 							return active ? (
 								<span
 									key={t.key}
-									className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-sm font-medium text-foreground"
+									className="inline-flex h-9 items-center rounded-lg bg-primary/10 px-3 text-sm font-semibold text-primary"
+									aria-current="page"
 									data-testid="user-profile-tab-active"
 								>
 									{label}
@@ -174,14 +176,17 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								<Link
 									key={t.key}
 									href={`/users/${userId}?tab=${t.key}`}
-									className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+									className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
 									data-testid="user-profile-tab-inactive"
 								>
 									{label}
 								</Link>
 							);
 						})}
-					</div>
+						<span className="ml-auto text-xs text-muted-foreground tabular-nums">
+							共 {activeData.total} 条
+						</span>
+					</nav>
 				</CardHeader>
 
 				{/* Tab content */}

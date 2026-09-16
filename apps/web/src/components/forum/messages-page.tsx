@@ -3,14 +3,16 @@
 
 "use client";
 
-import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
+import { CheckCheck, Inbox, Loader2, Mail, PenLine, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { MessageListItem, SidebarItem } from "@/viewmodels/forum/messages";
 import {
@@ -45,64 +47,6 @@ const SIDEBAR_ICONS: Record<SidebarItem["icon"], React.ElementType> = {
 	send: Send,
 };
 
-// ---------------------------------------------------------------------------
-// Left sidebar
-// ---------------------------------------------------------------------------
-
-function MessagesSidebar({
-	items,
-	activeBox,
-	onBoxChange,
-	unreadCount,
-}: {
-	items: SidebarItem[];
-	activeBox: "inbox" | "outbox";
-	onBoxChange: (v: "inbox" | "outbox") => void;
-	unreadCount: number;
-}) {
-	return (
-		<aside className="w-[160px] flex-shrink-0">
-			<h2 className="text-base font-bold text-foreground mb-3">站内信</h2>
-			<nav className="flex flex-col gap-0.5">
-				{items.map((item) => {
-					const Icon = SIDEBAR_ICONS[item.icon];
-					const isActive = item.value === activeBox;
-					const badge = item.value === "inbox" && unreadCount > 0 ? unreadCount : undefined;
-
-					return (
-						<button
-							key={item.value}
-							type="button"
-							onClick={() => onBoxChange(item.value)}
-							className={cn(
-								"flex items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors text-left",
-								isActive ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground",
-							)}
-						>
-							<Icon className="h-4 w-4 flex-shrink-0" />
-							<span>{item.label}</span>
-							{badge !== undefined && (
-								<span
-									className={cn(
-										"text-xs",
-										isActive ? "text-primary font-bold" : "text-muted-foreground",
-									)}
-								>
-									({badge})
-								</span>
-							)}
-						</button>
-					);
-				})}
-			</nav>
-		</aside>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Header section with title, compose button, and mark all read
-// ---------------------------------------------------------------------------
-
 function MessagesHeaderSection({
 	activeBox,
 	unreadCount,
@@ -117,84 +61,59 @@ function MessagesHeaderSection({
 	isMarkingAllRead: boolean;
 }) {
 	return (
-		<div className="rounded-sm border border-border bg-gradient-to-br from-primary/5 via-background to-primary/[0.02] p-4">
-			<div className="flex items-start gap-4">
-				{/* Icon and title */}
-				<div className="flex-1 min-w-0">
-					<div className="flex items-center gap-2">
-						<Mail className="h-6 w-6 text-primary shrink-0" />
-						<h1 className="text-lg font-semibold text-foreground">站内信</h1>
-					</div>
-					<p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">私信沟通，畅所欲言</p>
-				</div>
-				{/* Actions */}
-				<div className="flex items-center gap-2 shrink-0">
+		<ForumPageHeader
+			icon={<Mail />}
+			title="站内信"
+			description="在这里查看来信，继续与社区成员的交流。"
+			actions={
+				<>
 					{activeBox === "inbox" && unreadCount > 0 && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={onMarkAllRead}
-							disabled={isMarkingAllRead}
-							className="gap-2"
-						>
-							<CheckCheck className="h-4 w-4" />
+						<Button variant="outline" onClick={onMarkAllRead} disabled={isMarkingAllRead}>
+							<CheckCheck className="size-4" aria-hidden="true" />
 							{isMarkingAllRead ? "处理中..." : "全部已读"}
 						</Button>
 					)}
-					<Button onClick={onCompose} className="shrink-0 gap-2 bg-primary hover:bg-primary/90">
-						<PenLine className="h-4 w-4" />
+					<Button onClick={onCompose}>
+						<PenLine className="size-4" aria-hidden="true" />
 						写站内信
 					</Button>
-				</div>
-			</div>
-			{activeBox === "inbox" && unreadCount > 0 && (
-				<div className="mt-3 pt-3 border-t border-border/50 text-sm text-muted-foreground">
-					您有 <span className="font-bold text-primary">{unreadCount}</span> 条未读站内信
-				</div>
-			)}
-		</div>
+				</>
+			}
+		/>
 	);
 }
-
-// ---------------------------------------------------------------------------
-// Header with box tabs (moved compose button to header section)
-// ---------------------------------------------------------------------------
 
 function MessagesHeader({
 	activeBox,
 	onBoxChange,
+	unreadCount,
 }: {
 	activeBox: "inbox" | "outbox";
-	onBoxChange: (v: "inbox" | "outbox") => void;
+	onBoxChange: (value: "inbox" | "outbox") => void;
+	unreadCount: number;
 }) {
-	const tabs = [
-		{ value: "inbox" as const, label: "收信箱" },
-		{ value: "outbox" as const, label: "发信箱" },
-	];
-
 	return (
-		<div className="flex items-center border-b border-border pb-0">
-			<div className="flex items-end">
-				{tabs.map((tab) => {
-					const isActive = tab.value === activeBox;
-					return (
-						<button
-							key={tab.value}
-							type="button"
-							onClick={() => onBoxChange(tab.value)}
-							className={cn(
-								"px-4 py-2 text-sm font-medium transition-colors border border-border -mb-px",
-								isActive
-									? "bg-card text-foreground border-b-card"
-									: "bg-muted text-muted-foreground hover:text-foreground border-b-border",
-							)}
-						>
-							{tab.label}
-						</button>
-					);
-				})}
-			</div>
-		</div>
+		<nav aria-label="站内信分类" className="flex items-center gap-2 border-b border-border p-3">
+			{SIDEBAR_ITEMS.map((item) => {
+				const Icon = SIDEBAR_ICONS[item.icon];
+				return (
+					<Button
+						key={item.value}
+						variant={item.value === activeBox ? "secondary" : "ghost"}
+						aria-pressed={item.value === activeBox}
+						onClick={() => onBoxChange(item.value)}
+					>
+						<Icon className="size-4" aria-hidden="true" />
+						{item.label}
+						{item.value === "inbox" && unreadCount > 0 && (
+							<span className="rounded-md bg-primary/10 px-1.5 text-xs font-semibold text-primary tabular-nums">
+								{unreadCount}
+							</span>
+						)}
+					</Button>
+				);
+			})}
+		</nav>
 	);
 }
 
@@ -233,84 +152,88 @@ function MessageRow({
 	return (
 		<div
 			className={cn(
-				"flex gap-3 border-b border-border py-4 last:border-b-0",
-				!message.isRead && isInbox && "bg-muted/30",
+				"group flex min-w-0 gap-3 border-b border-border/60 px-4 py-4 last:border-b-0 transition-colors hover:bg-accent/50",
+				!message.isRead && isInbox && "bg-primary/[0.03]",
 			)}
 		>
-			{/* Avatar */}
-			<div className="flex-shrink-0">
-				<Link href={`/users/${peerId}`} prefetch={false}>
-					<ForumAvatar userId={peerId} userName={peerName} size="lg" shadow />
+			{peerId > 0 ? (
+				<Link href={`/users/${peerId}`} prefetch={false} className="shrink-0">
+					<ForumAvatar userId={peerId} userName={peerName} size="md" />
 				</Link>
-			</div>
-
-			{/* Content */}
-			<div className="flex-1 min-w-0">
-				{/* Header */}
-				<div className="text-sm">
-					{isInbox ? (
-						<>
-							<Link
-								href={`/users/${peerId}`}
-								prefetch={false}
-								className="font-bold text-foreground hover:text-primary"
-							>
-								{peerName}
-							</Link>
-							<span className="text-muted-foreground"> 发来：</span>
-						</>
+			) : (
+				<ForumAvatar userId={0} userName={peerName || "未知用户"} size="md" />
+			)}
+			<div className="min-w-0 flex-1">
+				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+					{!isInbox && <span>发送给</span>}
+					{peerId > 0 ? (
+						<Link
+							href={`/users/${peerId}`}
+							prefetch={false}
+							className="max-w-40 truncate font-medium text-foreground hover:text-primary"
+						>
+							{peerName}
+						</Link>
 					) : (
-						<>
-							<span className="text-muted-foreground">发送给 </span>
-							<Link
-								href={`/users/${peerId}`}
-								prefetch={false}
-								className="font-bold text-foreground hover:text-primary"
-							>
-								{peerName}
-							</Link>
-							<span className="text-muted-foreground">：</span>
-						</>
+						<span>{peerName || "未知用户"}</span>
 					)}
-					{message.subject && (
-						<span className="font-medium text-foreground ml-1">{message.subject}</span>
-					)}
-					{!message.isRead && isInbox && (
-						<span className="ml-2 inline-block h-2 w-2 rounded-full bg-destructive" title="未读" />
-					)}
+					<time
+						dateTime={new Date(message.createdAt * 1000).toISOString()}
+						className="sm:ml-auto tabular-nums"
+					>
+						{formatMessageDate(message.createdAt)}
+					</time>
 				</div>
-
-				{/* Preview */}
 				<Link
 					href={`/messages/${message.id}`}
 					prefetch={false}
-					className="block mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 hover:text-foreground"
+					className="mt-1.5 block space-y-1 rounded-sm focus-visible:outline-2 focus-visible:outline-primary"
 				>
-					{message.preview}
+					<span
+						className={cn(
+							"block break-words line-clamp-2 text-sm text-foreground",
+							!message.isRead && isInbox ? "font-semibold" : "font-medium",
+						)}
+					>
+						{message.subject || "无主题"}
+					</span>
+					<span className="block break-words line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+						{message.preview}
+					</span>
 				</Link>
-
-				{/* Footer */}
-				<div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
-					<span>{formatMessageDate(message.createdAt)}</span>
-					<div className="flex items-center gap-2">
-						<Link
-							href={`/messages/${message.id}`}
-							prefetch={false}
-							className="text-primary hover:underline"
-						>
-							查看
-						</Link>
-						<button
-							type="button"
-							onClick={() => onDelete(message.id)}
-							className="text-muted-foreground hover:text-destructive"
-							title="删除"
-						>
-							<Trash2 className="h-3.5 w-3.5" />
-						</button>
-					</div>
+				<div className="mt-2 flex items-center gap-3 text-xs">
+					<span
+						className={cn(
+							"inline-flex items-center gap-1.5",
+							!message.isRead && isInbox ? "text-primary" : "text-muted-foreground",
+						)}
+					>
+						{message.isRead ? (
+							<CheckCheck className="size-3.5" aria-hidden="true" />
+						) : (
+							<Mail className="size-3.5" aria-hidden="true" />
+						)}
+						{message.isRead ? "已读" : "未读"}
+					</span>
+					<Link
+						href={`/messages/${message.id}`}
+						prefetch={false}
+						className="text-primary hover:underline"
+					>
+						查看
+					</Link>
 				</div>
 			</div>
+			<Button
+				variant="ghost"
+				size="icon"
+				className="shrink-0 self-center text-muted-foreground hover:text-destructive"
+				onClick={() => onDelete(message.id)}
+				title="删除"
+				aria-label="删除站内信"
+			>
+				<Trash2 className="size-4" aria-hidden="true" />
+			</Button>
 		</div>
 	);
 }
@@ -335,19 +258,25 @@ function MessageList({
 	hasMore: boolean;
 }) {
 	if (isLoading && messages.length === 0) {
-		return <div className="py-12 text-center text-sm text-muted-foreground">加载中...</div>;
+		return (
+			<div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+				<Loader2 className="size-4 animate-spin" aria-hidden="true" />
+				加载中...
+			</div>
+		);
 	}
 
 	if (messages.length === 0) {
 		return (
-			<div className="py-12 text-center text-sm text-muted-foreground">
+			<div className="flex flex-col items-center gap-3 py-16 text-center text-sm text-muted-foreground">
+				<Inbox className="size-8 text-primary/60" aria-hidden="true" />
 				{box === "inbox" ? "收信箱为空" : "发信箱为空"}
 			</div>
 		);
 	}
 
 	return (
-		<div className="mt-2">
+		<div>
 			{messages.map((msg) => (
 				<MessageRow key={msg.id} message={msg} box={box} onDelete={onDelete} />
 			))}
@@ -382,6 +311,10 @@ export function MessagesPageClient({
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+	const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+	const [isDeleting, setIsDeleting] = useState(false);
+	const deleteInFlight = useRef(false);
+	const loadGeneration = useRef(0);
 
 	// Compose dialog state
 	const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -391,11 +324,13 @@ export function MessagesPageClient({
 
 	// Fetch messages
 	const loadMessages = useCallback(async (box: "inbox" | "outbox", nextCursor?: string) => {
+		const generation = ++loadGeneration.current;
 		setIsLoading(true);
 		setError(null);
 
 		try {
 			const result = await fetchMessages(box, nextCursor);
+			if (generation !== loadGeneration.current) return;
 
 			if (nextCursor) {
 				setMessages((prev) => [...prev, ...result.messages]);
@@ -408,13 +343,14 @@ export function MessagesPageClient({
 				setUnreadCount(result.unreadCount);
 			}
 		} catch (err) {
+			if (generation !== loadGeneration.current) return;
 			if (err instanceof ApiError) {
 				setError(err.message);
 			} else {
 				setError("加载失败，请重试");
 			}
 		} finally {
-			setIsLoading(false);
+			if (generation === loadGeneration.current) setIsLoading(false);
 		}
 	}, []);
 
@@ -427,6 +363,9 @@ export function MessagesPageClient({
 	// Initial load
 	useEffect(() => {
 		loadMessages(activeBox);
+		return () => {
+			loadGeneration.current++;
+		};
 	}, [activeBox, loadMessages]);
 
 	// Load unread count when viewing outbox
@@ -482,11 +421,14 @@ export function MessagesPageClient({
 	}, [initialRecipient, router]);
 
 	// Handle delete
-	const handleDelete = async (id: number) => {
-		if (!confirm("确定要删除这条站内信吗？")) return;
-
+	const handleDelete = async () => {
+		if (pendingDeleteId === null || deleteInFlight.current) return;
+		const id = pendingDeleteId;
+		deleteInFlight.current = true;
+		setIsDeleting(true);
 		try {
 			await deleteMessage(id);
+			setPendingDeleteId(null);
 			setMessages((prev) => prev.filter((m) => m.id !== id));
 			// Refresh unread count
 			loadUnreadCount();
@@ -494,12 +436,15 @@ export function MessagesPageClient({
 		} catch (err) {
 			const message = err instanceof ApiError ? err.message : "删除失败，请重试";
 			toast.error({ title: "删除失败", description: message });
+		} finally {
+			deleteInFlight.current = false;
+			setIsDeleting(false);
 		}
 	};
 
 	// Handle load more
 	const handleLoadMore = () => {
-		if (cursor) {
+		if (cursor && !isLoading) {
 			loadMessages(activeBox, cursor);
 		}
 	};
@@ -522,7 +467,7 @@ export function MessagesPageClient({
 	};
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-4">
 			{/* Breadcrumbs */}
 			<BreadcrumbBar items={breadcrumbs} />
 
@@ -535,39 +480,56 @@ export function MessagesPageClient({
 				isMarkingAllRead={isMarkingAllRead}
 			/>
 
-			{/* Two-column layout */}
-			<div className="flex gap-4">
-				{/* Left sidebar */}
-				<MessagesSidebar
-					items={SIDEBAR_ITEMS}
+			<div className="overflow-hidden rounded-2xl border border-border bg-card">
+				<MessagesHeader
 					activeBox={activeBox}
 					onBoxChange={handleBoxChange}
 					unreadCount={unreadCount}
 				/>
-
-				{/* Right content area */}
-				<div className="flex-1 min-w-0">
-					{/* Header with tabs */}
-					<MessagesHeader activeBox={activeBox} onBoxChange={handleBoxChange} />
-
-					{/* Error message */}
-					{error && (
-						<div className="mt-4 rounded border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-							{error}
-						</div>
-					)}
-
-					{/* Message list */}
+				{error && (
+					<div
+						role="alert"
+						className="m-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+					>
+						<span className="flex-1">{error}</span>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => loadMessages(activeBox)}
+							disabled={isLoading}
+						>
+							重试
+						</Button>
+					</div>
+				)}
+				{!error || messages.length > 0 ? (
 					<MessageList
 						messages={messages}
 						box={activeBox}
 						isLoading={isLoading}
-						onDelete={handleDelete}
+						onDelete={setPendingDeleteId}
 						onLoadMore={handleLoadMore}
 						hasMore={cursor !== null}
 					/>
-				</div>
+				) : null}
+				{!isLoading && !error && messages.length > 0 && (
+					<div className="border-t border-border px-4 py-3 text-xs text-muted-foreground tabular-nums">
+						已加载 {messages.length} 封站内信
+					</div>
+				)}
 			</div>
+			<ConfirmDialog
+				open={pendingDeleteId !== null}
+				onOpenChange={(open) => {
+					if (!open && !isDeleting) setPendingDeleteId(null);
+				}}
+				title="删除站内信"
+				description="确定要删除这条站内信吗？删除后将从你的信箱中移除。"
+				confirmText="确认删除"
+				variant="destructive"
+				loading={isDeleting}
+				onConfirm={handleDelete}
+			/>
 
 			{/* Compose message dialog */}
 			<ComposeMessageDialog
@@ -579,6 +541,3 @@ export function MessagesPageClient({
 		</div>
 	);
 }
-
-// Keep the old export name for backward compatibility during migration
-export const MessagesPage = MessagesPageClient;

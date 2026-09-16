@@ -10,6 +10,7 @@
 // file is the wire-up: render the right stack for the user's mode, drive the
 // reducer with form events, fetch the proxy routes, and forward Cap callbacks.
 
+import { CircleCheck, Mail, MailCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { CapWidget } from "@/components/cap-widget";
@@ -76,16 +77,20 @@ export function EmailVerificationCard({
 	// ── Verified branch ──────────────────────────────────────────────────────
 	if (mode.kind === "verified") {
 		return (
-			<Card>
+			<Card className="h-full rounded-2xl">
 				<CardHeader>
-					<CardTitle>邮箱验证</CardTitle>
+					<CardTitle className="flex items-center gap-2">
+						<MailCheck className="size-4 text-primary" aria-hidden="true" />
+						邮箱验证
+					</CardTitle>
 				</CardHeader>
-				<CardContent className="px-4">
-					<div className="flex items-center gap-2 text-sm">
-						<span className="inline-flex items-center justify-center rounded-full bg-success/15 px-2 py-0.5 text-success text-xs dark:bg-success/20">
-							✓ 已验证
+				<CardContent className="flex flex-1 flex-col justify-center px-4">
+					<div className="flex flex-wrap items-center gap-3 rounded-xl border border-success/20 bg-success/5 p-4 text-sm">
+						<span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-success/15 px-2 py-1 text-success text-xs dark:bg-success/20">
+							<CircleCheck className="size-3.5" aria-hidden="true" />
+							已验证
 						</span>
-						<span className="text-muted-foreground">
+						<span className="break-all text-foreground">
 							{mode.email !== "" ? mode.email : "已验证邮箱（系统未保留地址）"}
 						</span>
 					</div>
@@ -362,11 +367,14 @@ function EmailVerificationForm({
 	const codeExpired = showCodeInput && codeExpiryLeft === 0;
 
 	return (
-		<Card>
+		<Card className="h-full rounded-2xl">
 			<CardHeader>
-				<CardTitle>{isUnbound ? "绑定并验证邮箱" : "验证邮箱"}</CardTitle>
+				<CardTitle className="flex items-center gap-2">
+					<Mail className="size-4 text-primary" aria-hidden="true" />
+					{isUnbound ? "绑定并验证邮箱" : "验证邮箱"}
+				</CardTitle>
 			</CardHeader>
-			<CardContent className="flex flex-col gap-4 px-4">
+			<CardContent className="flex flex-col gap-4 px-4 [&_input]:h-10">
 				{isConfigError && (
 					<div
 						role="alert"
@@ -483,7 +491,7 @@ function EmailVerificationForm({
 							disabled={isBusy || isConfigError || codeExpired}
 							placeholder="6 位数字"
 						/>
-						<div className="flex items-center gap-3 text-xs text-muted-foreground">
+						<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
 							{codeExpired ? (
 								<span className="text-destructive">验证码已过期，请重新发送</span>
 							) : (
@@ -513,10 +521,11 @@ function EmailVerificationForm({
 
 				{isVerified ? (
 					<output className="flex items-center gap-2 rounded-md bg-success/10 p-3 text-sm text-success">
-						<span>✓ 邮箱验证成功</span>
+						<CircleCheck className="size-4" aria-hidden="true" />
+						<span>邮箱验证成功</span>
 					</output>
 				) : (
-					<div className="flex items-center gap-2">
+					<div className="flex flex-wrap items-center gap-2">
 						<Button
 							type="button"
 							onClick={handleSendCode}
