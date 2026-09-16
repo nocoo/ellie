@@ -15,6 +15,7 @@ export interface BatchAction {
 
 export interface AdminBatchBarProps {
 	selectedCount: number;
+	disabled?: boolean;
 	actions: BatchAction[];
 	onAction: (key: string) => void;
 	onClear: () => void;
@@ -24,7 +25,13 @@ export interface AdminBatchBarProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: AdminBatchBarProps) {
+export function AdminBatchBar({
+	selectedCount,
+	disabled = false,
+	actions,
+	onAction,
+	onClear,
+}: AdminBatchBarProps) {
 	if (selectedCount === 0) return null;
 
 	return (
@@ -43,6 +50,7 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 						key={action.key}
 						variant={action.variant ?? "default"}
 						size="sm"
+						disabled={disabled}
 						onClick={() => onAction(action.key)}
 					>
 						{action.label}
@@ -50,6 +58,7 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 				))}
 				<Button
 					type="button"
+					disabled={disabled}
 					onClick={onClear}
 					className="ml-1 h-7 w-7"
 					aria-label="清除选择"

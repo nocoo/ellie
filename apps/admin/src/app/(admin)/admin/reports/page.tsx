@@ -34,6 +34,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import {
@@ -101,6 +102,10 @@ export default function ReportsPage() {
 		onConfirm: () => void;
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	const [statusLoading, setStatusLoading] = useState(false);
+	const [statusError, setStatusError] = useState<string | null>(null);
+	const mutationLoading = confirmLoading || statusLoading;
 
 	// Detail dialog state
 	const [detailReport, setDetailReport] = useState<Report | null>(null);
@@ -157,48 +162,54 @@ export default function ReportsPage() {
 
 	const handleStatusChange = useCallback(
 		async (report: Report, newStatus: "resolved" | "dismissed") => {
+			if (mutationLoading) return;
+			setStatusLoading(true);
+			setStatusError(null);
 			try {
 				await updateReportStatus(report.id, newStatus);
-				fetchData(pagination.page);
-				// Close detail dialog if open
-				if (detailReport?.id === report.id) {
-					setDetailReport(null);
-				}
-			} catch {
-				// Error handling already done in updateReportStatus
+				setDetailReport((current) => (current?.id === report.id ? null : current));
+				await fetchData(pagination.page);
+			} catch (error) {
+				setStatusError(error instanceof Error ? error.message : "更新举报状态失败，请重试");
+			} finally {
+				setStatusLoading(false);
 			}
 		},
-		[fetchData, pagination.page, detailReport],
+		[fetchData, pagination.page, mutationLoading],
 	);
 
 	// ---------------------------------------------------------------------------
 	// Delete
 	// ---------------------------------------------------------------------------
 
-	const handleDelete = useCallback(
-		(report: Report) => {
+	const confirmDelete = useCallback(
+		(ids: number[], batch = false) => {
+			if (ids.length === 0 || mutationLoading) return;
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
-				title: "删除举报",
-				description: `确定要删除举报 #${report.id} 吗？此操作不可撤销。`,
+				title: batch ? "批量删除举报" : "删除举报",
+				description: batch
+					? `确定要删除选中的 ${ids.length} 条举报吗？此操作不可撤销。`
+					: `确定要删除举报 #${ids[0]} 吗？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
-						await batchDeleteReports([report.id]);
+						await batchDeleteReports(ids);
 						setConfirmDialog((d) => ({ ...d, open: false }));
-						fetchData(pagination.page);
-						// Close detail dialog if open
-						if (detailReport?.id === report.id) {
-							setDetailReport(null);
-						}
+						setDetailReport((current) => (current && ids.includes(current.id) ? null : current));
+						await fetchData(pagination.page);
+					} catch (error) {
+						setConfirmError(error instanceof Error ? error.message : "删除举报失败，请重试");
 					} finally {
 						setConfirmLoading(false);
 					}
 				},
 			});
 		},
-		[fetchData, pagination.page, detailReport],
+		[fetchData, pagination.page, mutationLoading],
 	);
 
 	// ---------------------------------------------------------------------------
@@ -206,17 +217,18 @@ export default function ReportsPage() {
 	// ---------------------------------------------------------------------------
 
 	const handleBatchAction = useCallback(
-		async (key: string) => {
-			const ids = Array.from(selectedIds).map(Number);
-			if (ids.length === 0) return;
+		(key: string) => {
 			if (key === "delete") {
-				await batchDeleteReports(ids);
+				confirmDelete(Array.from(selectedIds).map(Number), true);
 			}
-			setSelectedIds(new Set());
-			fetchData(pagination.page);
 		},
-		[selectedIds, fetchData, pagination.page],
+		[selectedIds, confirmDelete],
 	);
+
+	const openDetail = (report: Report) => {
+		setStatusError(null);
+		setDetailReport(report);
+	};
 
 	// ---------------------------------------------------------------------------
 	// Helpers
@@ -237,7 +249,8 @@ export default function ReportsPage() {
 			cell: (row) => (
 				<Button
 					type="button"
-					onClick={() => setDetailReport(row)}
+					onClick={() => openDetail(row)}
+					disabled={mutationLoading}
 					className="h-auto p-0 text-basalt-muted-foreground"
 					variant="link"
 					size="sm"
@@ -346,12 +359,13 @@ export default function ReportsPage() {
 							size="icon"
 							className="h-8 w-8"
 							aria-label={`举报 #${row.id} 操作`}
+							disabled={mutationLoading}
 						>
 							<MoreHorizontal className="h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setDetailReport(row)}>
+						<DropdownMenuItem onClick={() => openDetail(row)}>
 							<Eye className="h-4 w-4 mr-2" />
 							查看详情
 						</DropdownMenuItem>
@@ -383,7 +397,10 @@ export default function ReportsPage() {
 								<Separator className="my-1" />
 							</>
 						)}
-						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
+						<DropdownMenuItem
+							onClick={() => confirmDelete([row.id])}
+							className="text-basalt-destructive"
+						>
 							<Trash2 aria-hidden="true" className="mr-2 h-4 w-4" />
 							删除
 						</DropdownMenuItem>
@@ -413,13 +430,14 @@ export default function ReportsPage() {
 						variant="outline"
 						size="sm"
 						onClick={() => fetchData(pagination.page)}
-						disabled={loading}
+						disabled={loading || mutationLoading}
 					>
 						<RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
 						刷新
 					</Button>
 				}
 			/>
+			{statusError && !detailReport && <AdminInlineMessage variant="error" text={statusError} />}
 			<AdminMetrics
 				items={[
 					{
@@ -470,6 +488,7 @@ export default function ReportsPage() {
 
 			<AdminBatchBar
 				selectedCount={selectedIds.size}
+				disabled={mutationLoading}
 				actions={BATCH_ACTIONS}
 				onAction={handleBatchAction}
 				onClear={() => setSelectedIds(new Set())}
@@ -481,13 +500,20 @@ export default function ReportsPage() {
 				title={confirmDialog.title}
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
-				loading={confirmLoading}
+				loading={mutationLoading}
+				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
 			/>
 
 			{/* Detail dialog */}
-			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
-				<AdminDialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
+			<Dialog
+				open={detailReport !== null}
+				onOpenChange={(open) => !open && !mutationLoading && setDetailReport(null)}
+			>
+				<AdminDialogContent
+					className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}
+					closeDisabled={mutationLoading}
+				>
 					<DialogHeader className="min-w-0 pr-8">
 						<DialogTitle className="flex items-center gap-2">
 							<Flag aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
@@ -497,6 +523,7 @@ export default function ReportsPage() {
 					</DialogHeader>
 					{detailReport && (
 						<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-4 py-2`}>
+							{statusError && <AdminInlineMessage variant="error" text={statusError} dense />}
 							<div className="grid grid-cols-[72px_1fr] gap-x-4 gap-y-3 rounded-lg border border-basalt-border p-4 text-sm [&>span:nth-child(even)]:min-w-0 [&>span:nth-child(even)]:break-words">
 								<span className="text-basalt-muted-foreground">类型</span>
 								<span>
@@ -590,24 +617,33 @@ export default function ReportsPage() {
 								<Button
 									variant="outline"
 									onClick={() => handleStatusChange(detailReport, "dismissed")}
+									disabled={mutationLoading}
 								>
 									<CircleX aria-hidden="true" className="mr-2 h-4 w-4" />
 									驳回举报
 								</Button>
-								<Button onClick={() => handleStatusChange(detailReport, "resolved")}>
+								<Button
+									onClick={() => handleStatusChange(detailReport, "resolved")}
+									disabled={mutationLoading}
+								>
 									<CircleCheck aria-hidden="true" className="mr-2 h-4 w-4" />
 									标记已处理
 								</Button>
 							</>
 						)}
 						{detailReport?.status !== "pending" && (
-							<Button variant="outline" onClick={() => setDetailReport(null)}>
+							<Button
+								variant="outline"
+								onClick={() => setDetailReport(null)}
+								disabled={mutationLoading}
+							>
 								关闭
 							</Button>
 						)}
 						<Button
 							variant="destructive"
-							onClick={() => detailReport && handleDelete(detailReport)}
+							onClick={() => detailReport && confirmDelete([detailReport.id])}
+							disabled={mutationLoading}
 						>
 							<Trash2 aria-hidden="true" className="mr-2 h-4 w-4" />
 							删除
