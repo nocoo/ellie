@@ -1089,11 +1089,10 @@ async function fetchStandalonePosts(
 	ownedThreadIds: number[],
 ): Promise<PurgeStandalonePost[]> {
 	if (ownedThreadIds.length > 0) {
-		const ph = ownedThreadIds.map(() => "?").join(",");
 		const r = await env.DB.prepare(
-			`SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN (${ph})`,
+			"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT value FROM json_each(?))",
 		)
-			.bind(id, ...ownedThreadIds)
+			.bind(id, JSON.stringify(ownedThreadIds))
 			.all();
 		return r.results as unknown as PurgeStandalonePost[];
 	}
@@ -1109,6 +1108,8 @@ async function fetchStandalonePosts(
 // (where they neither own the thread nor wrote a deleted post) still get
 // removed. Always returns a clause — `author_id = ?` alone is a valid
 // shape even when no posts/threads are being deleted.
+// Bind ID snapshots as JSON arrays: 50 threads + their 50 first posts
+// already exceed D1's 100-parameter limit when expanded into placeholders.
 function buildAuthorContentWhere(
 	authorId: number,
 	allDeletedPostIds: number[],
@@ -1117,12 +1118,12 @@ function buildAuthorContentWhere(
 	const parts: string[] = ["author_id = ?"];
 	const binds: unknown[] = [authorId];
 	if (allDeletedPostIds.length > 0) {
-		parts.push(`post_id IN (${allDeletedPostIds.map(() => "?").join(",")})`);
-		binds.push(...allDeletedPostIds);
+		parts.push("post_id IN (SELECT value FROM json_each(?))");
+		binds.push(JSON.stringify(allDeletedPostIds));
 	}
 	if (ownedThreadIds.length > 0) {
-		parts.push(`thread_id IN (${ownedThreadIds.map(() => "?").join(",")})`);
-		binds.push(...ownedThreadIds);
+		parts.push("thread_id IN (SELECT value FROM json_each(?))");
+		binds.push(JSON.stringify(ownedThreadIds));
 	}
 	return { where: parts.join(" OR "), binds };
 }
@@ -1138,9 +1139,10 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 
 	let ownedThreadPosts: PurgeOwnedThreadPost[] = [];
 	if (ownedThreadIds.length > 0) {
-		const ph = ownedThreadIds.map(() => "?").join(",");
-		const r = await env.DB.prepare(`SELECT id, author_id FROM posts WHERE thread_id IN (${ph})`)
-			.bind(...ownedThreadIds)
+		const r = await env.DB.prepare(
+			"SELECT id, author_id FROM posts WHERE thread_id IN (SELECT value FROM json_each(?))",
+		)
+			.bind(JSON.stringify(ownedThreadIds))
 			.all();
 		ownedThreadPosts = r.results as unknown as PurgeOwnedThreadPost[];
 	}
@@ -1230,13 +1232,25 @@ function buildPurgeBatch(
 	);
 
 	if (allDeletedPostIds.length > 0) {
-		const ph = allDeletedPostIds.map(() => "?").join(",");
-		stmts.push(env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...allDeletedPostIds));
+		stmts.push(
+			env.DB.prepare("DELETE FROM posts WHERE id IN (SELECT value FROM json_each(?))").bind(
+				JSON.stringify(allDeletedPostIds),
+			),
+		);
 	}
 	if (ownedThreadIds.length > 0) {
-		const ph = ownedThreadIds.map(() => "?").join(",");
+		const threadIdsJson = JSON.stringify(ownedThreadIds);
+		stmts.push(
+			env.DB.prepare(
+				"DELETE FROM forum_recommended_threads WHERE thread_id IN (SELECT value FROM json_each(?))",
+			).bind(threadIdsJson),
+		);
 		// threads_fts trigger fires automatically on threads delete
-		stmts.push(env.DB.prepare(`DELETE FROM threads WHERE id IN (${ph})`).bind(...ownedThreadIds));
+		stmts.push(
+			env.DB.prepare("DELETE FROM threads WHERE id IN (SELECT value FROM json_each(?))").bind(
+				threadIdsJson,
+			),
+		);
 	}
 	stmts.push(
 		env.DB.prepare("DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?").bind(id, id),
