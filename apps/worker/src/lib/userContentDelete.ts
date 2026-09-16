@@ -3,29 +3,39 @@ import type { Env } from "./env";
 import { buildContentRecalcStatements } from "./recalcMetadata";
 import { buildUserCounterDecrementStatements } from "./userCounters";
 
+/** Related ownership reads must see the same committed threads and first posts. */
+export async function readUserContentSnapshot(env: Env, userId: number) {
+	const [threadResult, postResult] = await env.DB.batch([
+		env.DB.prepare("SELECT id, forum_id, digest FROM threads WHERE author_id = ?").bind(userId),
+		env.DB.prepare(
+			"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id = ? OR thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
+		).bind(userId, userId),
+	]);
+	return {
+		threads: threadResult.results as { id: number; forum_id: number; digest: number }[],
+		posts: postResult.results as {
+			id: number;
+			thread_id: number;
+			forum_id: number;
+			author_id: number;
+		}[],
+	};
+}
+
 /** Shared by admin ban/nuke and forum moderation. All D1 writes commit together. */
 export async function deleteUserContent(
 	env: Env,
 	userId: number,
 	options: { resetCredits?: boolean; deleteOwnAttachments?: boolean } = {},
 ) {
-	const [threadResult, postResult, attachmentCount] = await Promise.all([
-		env.DB.prepare("SELECT id, forum_id, digest FROM threads WHERE author_id = ?")
-			.bind(userId)
-			.all<{ id: number; forum_id: number; digest: number }>(),
-		env.DB.prepare(
-			"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id = ? OR thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
-		)
-			.bind(userId, userId)
-			.all<{ id: number; thread_id: number; forum_id: number; author_id: number }>(),
+	const [{ threads, posts }, attachmentCount] = await Promise.all([
+		readUserContentSnapshot(env, userId),
 		options.deleteOwnAttachments
 			? env.DB.prepare("SELECT COUNT(*) as cnt FROM attachments WHERE author_id = ?")
 					.bind(userId)
 					.first<{ cnt: number }>()
 			: Promise.resolve(null),
 	]);
-	const threads = threadResult.results;
-	const posts = postResult.results;
 	const threadIds = threads.map((t) => t.id);
 	const ownedThreads = new Set(threadIds);
 	const postIds = posts.map((p) => p.id);

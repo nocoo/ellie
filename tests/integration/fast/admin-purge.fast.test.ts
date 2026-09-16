@@ -138,6 +138,65 @@ async function requestAction(env: ReturnType<typeof createTestEnv>, action: stri
 }
 
 describe("L2-fast: safe administrative batches", () => {
+	test.each(destructiveActions)(
+		"%s keeps concurrent themes and first posts together",
+		async (action) => {
+			const env = seedContent({ threads: 1, replies: 0, collateral: 0 });
+			const db = env._sqlite;
+			const prepare = env.DB.prepare.bind(env.DB);
+			let inserted = false;
+			try {
+				// Commit a new topic while the ownership queries are being prepared.
+				// Independent SELECTs split this topic from its first post; a read
+				// batch sees both in the same snapshot and removes them together.
+				env.DB.prepare = (sql) => {
+					if (
+						!inserted &&
+						sql.startsWith("SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id")
+					) {
+						inserted = true;
+						db.transaction(() => {
+							db.exec(
+								"INSERT INTO threads (id, forum_id, author_id, subject) VALUES (200, 7, 42, 'Concurrent topic'); INSERT INTO posts (id, thread_id, forum_id, author_id, is_first) VALUES (200, 200, 7, 42, 1); UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = 42",
+							);
+						})();
+					}
+					return prepare(sql);
+				};
+				expect((await requestAction(env, action)).status).toBe(200);
+				expect(inserted).toBe(true);
+				expect(db.query("SELECT id FROM threads WHERE author_id = 42").all()).toEqual([]);
+				expect(db.query("SELECT id FROM posts WHERE author_id = 42").all()).toEqual([]);
+				expect(db.query("SELECT id FROM threads").all()).toEqual([{ id: 900 }]);
+				expect(db.query("PRAGMA foreign_key_check").all()).toEqual([]);
+			} finally {
+				db.close();
+			}
+		},
+	);
+
+	test("explicit cache deletion fails without claiming success or writing a success audit", async () => {
+		const env = createTestEnv();
+		await env.KV.put("user:mini:42", "retained");
+		const deletion = spyOn(env.KV, "delete").mockRejectedValue(new Error("local KV failure"));
+		try {
+			const response = await workerFetch(env, "/api/admin/kv/refresh", {
+				method: "POST",
+				headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
+				body: JSON.stringify({
+					family: "user:mini:v1",
+					action: { kind: "delete-user-mini", userId: 42 },
+				}),
+			});
+			expect(response.status).toBe(500);
+			expect(await env.KV.get("user:mini:42")).toBe("retained");
+			expect(env._sqlite.query("SELECT * FROM admin_logs").all()).toEqual([]);
+		} finally {
+			deletion.mockRestore();
+			env._sqlite.close();
+		}
+	});
+
 	test.each(["ban", "nuke", "moderation"])(
 		"%s deletes large content sets and repairs metadata atomically",
 		async (action) => {

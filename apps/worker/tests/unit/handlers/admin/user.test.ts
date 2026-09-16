@@ -1266,9 +1266,10 @@ describe("admin user handlers", () => {
 			// 2 threads: (3+1)+(1+1)=6 posts from threads + 2 standalone = 8
 			expect(body.data.postsDeleted).toBe(8);
 
-			// Children, content, metadata and the user reset share one transaction.
-			expect(batchCalls).toHaveLength(1);
-			expect(batchCalls[0].length).toBeLessThanOrEqual(12);
+			// One consistent read batch, then one transaction for all writes.
+			expect(batchCalls).toHaveLength(2);
+			expect(batchCalls[0]).toHaveLength(2);
+			expect(batchCalls[1].length).toBeLessThanOrEqual(12);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -1412,9 +1413,10 @@ describe("admin user handlers", () => {
 			// 1 thread: (2+1)=3 posts from thread + 3 standalone = 6
 			expect(body.data.postsDeleted).toBe(6);
 
-			// Children, content, metadata and the user reset share one transaction.
-			expect(batchCalls).toHaveLength(1);
-			expect(batchCalls[0].length).toBeLessThanOrEqual(12);
+			// One consistent read batch, then one transaction for all writes.
+			expect(batchCalls).toHaveLength(2);
+			expect(batchCalls[0]).toHaveLength(2);
+			expect(batchCalls[1].length).toBeLessThanOrEqual(12);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -1448,8 +1450,8 @@ describe("admin user handlers", () => {
 			expect(body.data.postsDeleted).toBe(0);
 
 			// An empty account still commits its status and credit reset.
-			expect(batchCalls).toHaveLength(1);
-			expect(batchCalls[0]).toHaveLength(1);
+			expect(batchCalls).toHaveLength(2);
+			expect(batchCalls[1]).toHaveLength(1);
 		});
 
 		it("should reject invalid user ID", async () => {
@@ -1615,12 +1617,10 @@ describe("admin user handlers", () => {
 				},
 				allResults: {
 					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
-					"SELECT id, author_id FROM posts WHERE thread_id IN": [
-						{ id: 150, author_id: 42 },
-						{ id: 151, author_id: 99 },
-					],
-					"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN": [
-						{ id: 201, thread_id: 300, forum_id: 8 },
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+						{ id: 150, thread_id: 100, forum_id: 7, author_id: 42 },
+						{ id: 151, thread_id: 100, forum_id: 7, author_id: 99 },
+						{ id: 201, thread_id: 300, forum_id: 8, author_id: 42 },
 					],
 					"SELECT DISTINCT file_path FROM attachments": [
 						{ file_path: "att/a.png" },
@@ -1654,8 +1654,8 @@ describe("admin user handlers", () => {
 			expect(body.data.r2.deletedCount).toBe(3); // 2 attachments + 1 avatar
 			expect(body.data.r2.failed).toEqual([]);
 
-			// Exactly one DB batch.
-			expect(batchCalls).toHaveLength(1);
+			// One ownership snapshot, followed by one atomic write batch.
+			expect(batchCalls).toHaveLength(2);
 			// audit-table negative assertion (across all SQL prepared in this test):
 			const allSqls = calls.map((c) => c.sql).join("\n");
 			expect(allSqls).not.toMatch(/\bFROM reports\b/);
@@ -1714,9 +1714,9 @@ describe("admin user handlers", () => {
 					"SELECT DISTINCT file_path FROM attachments": [],
 				},
 			});
-			(db.batch as ReturnType<typeof import("vitest").vi.fn>).mockRejectedValueOnce(
-				new Error("d1 batch boom"),
-			);
+			(db.batch as ReturnType<typeof import("vitest").vi.fn>)
+				.mockResolvedValueOnce([{ results: [] }, { results: [] }])
+				.mockRejectedValueOnce(new Error("d1 batch boom"));
 			const r2 = createMockR2();
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
@@ -1800,8 +1800,8 @@ describe("admin user handlers", () => {
 				},
 				allResults: {
 					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
-					"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN": [
-						{ id: 201, thread_id: 300, forum_id: 8 },
+					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+						{ id: 201, thread_id: 300, forum_id: 8, author_id: 42 },
 					],
 					"SELECT DISTINCT file_path FROM attachments": [],
 				},
@@ -1811,7 +1811,7 @@ describe("admin user handlers", () => {
 
 			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
 			expect(res.status).toBe(200);
-			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls).toHaveLength(2);
 			expect(
 				calls.some((c) => c.sql.includes("UPDATE threads SET") && c.sql.includes("WITH latest")),
 			).toBe(true);

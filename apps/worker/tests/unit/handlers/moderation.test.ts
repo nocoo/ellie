@@ -1193,9 +1193,10 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		expect(deletePosts).toBeDefined();
 		expect(deleteThreads).toBeDefined();
 
-		// Content, recommendations, counters and account reset share one batch.
-		expect(batchCalls).toHaveLength(1);
-		expect(batchCalls[0].length).toBeLessThanOrEqual(12);
+		// An ownership snapshot is followed by one batch for all dependent writes.
+		expect(batchCalls).toHaveLength(2);
+		expect(batchCalls[0]).toHaveLength(2);
+		expect(batchCalls[1].length).toBeLessThanOrEqual(12);
 
 		// Verify ordering within calls: FK purge before parent deletes
 		const idxFkAtt = calls.findIndex((c) =>
@@ -1293,8 +1294,9 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		expect(expandedCollateral).toBeUndefined();
 
 		expect(data.data.postsDeleted).toBe(postRows.length);
-		expect(batchCalls).toHaveLength(1);
-		expect(batchCalls[0].length).toBeLessThanOrEqual(12);
+		expect(batchCalls).toHaveLength(2);
+		expect(batchCalls[0]).toHaveLength(2);
+		expect(batchCalls[1].length).toBeLessThanOrEqual(12);
 	});
 });
 

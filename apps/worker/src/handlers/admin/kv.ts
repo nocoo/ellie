@@ -740,7 +740,7 @@ async function refreshDeleteUserMini(
 	// for the future v2 family and would silently miss the live row).
 	// `invalidateUserCache` already records `delete` against the
 	// `user:mini:v1` family; we don't double-count here.
-	await invalidateUserCache(env, userId);
+	await invalidateUserCache(env, userId, { strict: true });
 	await writeAdminLog(env, actor, {
 		action: "kv.delete_key",
 		targetType: "kv_key",

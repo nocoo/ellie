@@ -14,7 +14,7 @@ import { parsePathSegment } from "../../lib/parseId";
 import { buildContentRecalcStatements } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
-import { deleteUserContent } from "../../lib/userContentDelete";
+import { deleteUserContent, readUserContentSnapshot } from "../../lib/userContentDelete";
 import { buildUserCounterDecrementStatements } from "../../lib/userCounters";
 import { buildTombstoneStatement } from "../../lib/userTombstone";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
@@ -889,25 +889,6 @@ function checkPurgeGuards(target: PurgeTarget | null, origin: string | undefined
 	return null;
 }
 
-async function fetchStandalonePosts(
-	env: Env,
-	id: number,
-	ownedThreadIds: number[],
-): Promise<PurgeStandalonePost[]> {
-	if (ownedThreadIds.length > 0) {
-		const r = await env.DB.prepare(
-			"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT value FROM json_each(?))",
-		)
-			.bind(id, JSON.stringify(ownedThreadIds))
-			.all();
-		return r.results as unknown as PurgeStandalonePost[];
-	}
-	const r = await env.DB.prepare("SELECT id, thread_id, forum_id FROM posts WHERE author_id = ?")
-		.bind(id)
-		.all();
-	return r.results as unknown as PurgeStandalonePost[];
-}
-
 // Builds a 3-way OR clause covering rows authored by the target plus rows
 // that hang off content being deleted. Used for `attachments` and
 // `post_comments` so the target's own contributions in survivor threads
@@ -935,29 +916,13 @@ function buildAuthorContentWhere(
 }
 
 async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
-	const ownedThreadsRes = await env.DB.prepare(
-		"SELECT id, forum_id, digest FROM threads WHERE author_id = ?",
-	)
-		.bind(id)
-		.all();
-	const ownedThreads = ownedThreadsRes.results as unknown as PurgeOwnedThread[];
+	const { threads: ownedThreads, posts } = await readUserContentSnapshot(env, id);
 	const ownedThreadIds = ownedThreads.map((t) => t.id);
+	const ownedIds = new Set(ownedThreadIds);
+	const ownedThreadPosts = posts.filter((p) => ownedIds.has(p.thread_id));
+	const standalonePosts = posts.filter((p) => !ownedIds.has(p.thread_id));
+	const allDeletedPostIds = posts.map((p) => p.id);
 
-	let ownedThreadPosts: PurgeOwnedThreadPost[] = [];
-	if (ownedThreadIds.length > 0) {
-		const r = await env.DB.prepare(
-			"SELECT id, author_id FROM posts WHERE thread_id IN (SELECT value FROM json_each(?))",
-		)
-			.bind(JSON.stringify(ownedThreadIds))
-			.all();
-		ownedThreadPosts = r.results as unknown as PurgeOwnedThreadPost[];
-	}
-	const standalonePosts = await fetchStandalonePosts(env, id, ownedThreadIds);
-
-	const allDeletedPostIds = [
-		...ownedThreadPosts.map((p) => p.id),
-		...standalonePosts.map((p) => p.id),
-	];
 	const survivorThreadIds = Array.from(new Set(standalonePosts.map((p) => p.thread_id))).filter(
 		(tid) => !ownedThreadIds.includes(tid),
 	);

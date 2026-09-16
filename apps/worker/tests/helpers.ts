@@ -303,9 +303,11 @@ export function createMockDb(config?: {
 	const db = {
 		prepare: vi.fn((sql: string) => {
 			return {
+				__sql: sql,
 				bind: vi.fn((...params: unknown[]) => {
 					calls.push({ sql, params });
 					return {
+						__sql: sql,
 						first: vi.fn(async () => matchFirst(sql)),
 						all: vi.fn(async () => {
 							const r = matchAll(sql);
@@ -334,11 +336,17 @@ export function createMockDb(config?: {
 		}),
 		batch: vi.fn(async (stmts: unknown[]) => {
 			batchCalls.push(stmts);
-			return stmts.map(() => ({
-				success: true,
-				results: [],
-				meta: { changes: 1, last_row_id: 1 },
-			}));
+			return Promise.all(
+				stmts.map(async (value) => {
+					const stmt = value as D1PreparedStatement & { __sql?: string };
+					const rows = /^\s*SELECT\b/i.test(stmt.__sql ?? "") ? await stmt.all() : null;
+					return {
+						success: true,
+						results: rows?.results ?? [],
+						meta: { changes: 1, last_row_id: 1 },
+					};
+				}),
+			);
 		}),
 	} as unknown as D1Database;
 
