@@ -190,6 +190,54 @@ test.describe("Feature: System & Layout", () => {
 		await expect(dialog).not.toBeVisible();
 	});
 
+	test("Given a short viewport, When I write a new thread or quoted reply, Then the editor stays usable and its actions remain visible", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
+		for (const kind of ["new-thread", "quoted-reply"]) {
+			await page.setViewportSize(DESKTOP);
+			if (kind === "new-thread") {
+				const forumPage = new ForumPage(page);
+				await forumPage.goto(FORUM_WITH_NEW_THREAD);
+				await forumPage.newThreadButton.click();
+			} else {
+				await page.goto(`/threads/${THREAD_WITH_REPLY}`);
+				await page.locator("#post-1").getByRole("button", { name: "回复", exact: true }).click();
+			}
+			const dialog = page.locator('[data-slot="dialog-content"]');
+			await expect(dialog).toBeVisible();
+			for (const viewport of [
+				{ width: 667, height: 375 },
+				{ width: 390, height: 400 },
+				{ width: 320, height: 568 },
+			]) {
+				await page.setViewportSize(viewport);
+				const editor = dialog.getByRole("textbox", { name: "正文", exact: true });
+				await editor.scrollIntoViewIfNeeded();
+				const box = await dialog.locator(".tiptap-content-wrap").boundingBox();
+				expect(
+					box?.height,
+					`${kind} at ${viewport.width}×${viewport.height}`,
+				).toBeGreaterThanOrEqual(120);
+				await expect(editor).toBeInViewport({ ratio: 0.4 });
+				await editor.click();
+				const draft = `Usable ${kind} draft at ${viewport.width} pixels.`;
+				await editor.fill(draft);
+				await expect(editor).toContainText(draft);
+				await expect(dialog.getByRole("button", { name: "取消", exact: true })).toBeInViewport();
+				await expect(
+					dialog.getByRole("button", {
+						name: kind === "new-thread" ? "发布主题" : "发送回复",
+						exact: true,
+					}),
+				).toBeInViewport();
+			}
+			await dialog.getByRole("button", { name: "取消", exact: true }).click();
+			await expect(dialog).toBeHidden();
+		}
+	});
+
 	test("Given I am on a thread page, When I open the reply dialog at desktop and 375px, Then the dialog fits the viewport, the footer stays inside, and the smiley popover opens", async ({
 		page,
 		loginAs,

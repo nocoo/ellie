@@ -100,28 +100,30 @@ export function EditorDialogShell({
 				if (!submitting) onOpenChange(next);
 			}}
 		>
-			<div className="max-h-[45%] shrink-0 overflow-y-auto">{header}</div>
+			{/* Scroll the form when a keyboard or landscape viewport leaves little height. */}
+			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+				<div className="shrink-0">{header}</div>
 
-			{/* Editor area — flex-1 to fill remaining space, Ctrl+Enter shortcut */}
-			{/* biome-ignore lint/a11y/useSemanticElements: <fieldset> would introduce form/reset semantics we don't want; this is a keyboard-shortcut host, not a form control. */}
-			<div
-				className="flex-1 min-h-0 px-5 py-4 flex flex-col"
-				role="group"
-				aria-label="编辑器"
-				onKeyDown={(e) => {
-					if (
-						(e.ctrlKey || e.metaKey) &&
-						e.key === "Enter" &&
-						!e.nativeEvent.isComposing &&
-						canSubmit &&
-						!submitting
-					) {
-						e.preventDefault();
-						onSubmit();
-					}
-				}}
-			>
-				{children}
+				{/* biome-ignore lint/a11y/useSemanticElements: <fieldset> would introduce form/reset semantics we don't want; this is a keyboard-shortcut host, not a form control. */}
+				<div
+					className="flex min-h-72 flex-1 flex-col px-5 py-4"
+					role="group"
+					aria-label="编辑器"
+					onKeyDown={(e) => {
+						if (
+							(e.ctrlKey || e.metaKey) &&
+							e.key === "Enter" &&
+							!e.nativeEvent.isComposing &&
+							canSubmit &&
+							!submitting
+						) {
+							e.preventDefault();
+							onSubmit();
+						}
+					}}
+				>
+					{children}
+				</div>
 			</div>
 
 			{/* Footer — stacks vertically on narrow screens, row at sm+ */}
