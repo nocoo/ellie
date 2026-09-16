@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-09-16
+
+### Changed
+
+- **Forum pages share a modern, responsive design.** Refined navigation, home, forum lists, thread reading, search, digest, profiles, account settings, messages, check-in, email verification, sign-in and registration with Lucide icons, compact information layouts and consistent light/dark surfaces. Existing permissions, attachments, pagination, account fields and moderation actions remain available; statistics use existing API data.
+- **Writing and dialogs have clearer, accessible actions.** Updated standalone posting and editing, reply, message, profile and moderation dialogs. Mobile search stays available, form drafts survive unrelated refreshes, and editors scroll with persistent cancel/submit actions on short screens and when the keyboard is open.
+- **Adjacent admin cards fill the same height.** Dashboard, analytics, user details and censor testing align their content surfaces without gaps below shorter cards.
+
+### Fixed
+
+- **Confirmed user purges retain their success receipt.** Cleanup, counters, the tombstone and audit entry commit in one guarded D1 batch. Repeated purges return the completed outcome, ambiguous failures are reconciled through read-only status checks, and cache or list-refresh failures cannot turn confirmed deletion into a generic error. R2 cleanup uses bounded batches and reports failures separately.
+- **Forum actions preserve confirmed results and prevent duplicate submissions.** Message navigation ignores stale responses, deleted messages cannot be acted on again, and refresh failures no longer discard successful posting, replying or editing receipts. Dialog submission locks and IME handling protect in-progress input; local validation errors are also announced in a visible toast when the form header has scrolled out of view.
+- **Shared feature-flag requests survive subscriber unmounts.** Remaining consumers receive the authoritative settings and finish loading, including React StrictMode remounts; failed requests remain retryable.
+
+### Verified
+
+- L1: 7,329 unit tests pass, including 3,120 Worker, 2,461 web and 842 admin tests; L2: 352 integration tests pass. Commit gates include coverage, type checks, formatting and staged secret scans.
+- Full browser suites: forum 62 passed / 4 existing skips; admin 37 passed. Regressions cover confirmed purge outcomes, staff protection, real posting, mobile search and short-viewport editor interaction.
+- Visual review: 119 forum and 28 admin captures across desktop/mobile, light/dark, pages and dialogs, with no horizontal document overflow or page script errors. Mutation tests and screenshots use isolated local D1/KV/R2, with no production business-data writes.
+
 ## [1.9.0] - 2026-09-16
 
 ### Changed
