@@ -1,5 +1,5 @@
 // Admin post handlers — endpoints #31-#35
-// Uses CRUD framework for list, getById, update, remove.
+// Uses CRUD framework for reads/edits and atomic batches for deletions.
 // Custom handler for batch-delete (skipped first-post IDs in response).
 
 import { withEntityAuth } from "../../lib/adminHelpers";
@@ -9,20 +9,13 @@ import {
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
 } from "../../lib/cache/invalidate";
-import { buildDeletePostChildStatements } from "../../lib/contentDelete";
+import { buildDeletePostStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
-import {
-	createGetByIdHandler,
-	createListHandler,
-	createRemoveHandler,
-	createUpdateHandler,
-} from "../../lib/crud";
+import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { toPost } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
-import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { batchDecrementUserPosts, decrementUserPosts } from "../../lib/userCounters";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Entity Config ───────────────────────────────────────────────
@@ -55,43 +48,6 @@ const postConfig: EntityConfig = {
 					: null,
 		},
 	],
-	canDelete: true,
-	beforeDelete: async (id, existing, env, origin) => {
-		if ((existing as { is_first: number }).is_first === 1) {
-			return errorResponse(
-				"CANNOT_DELETE_FIRST_POST",
-				400,
-				{
-					message: "Cannot delete the first post — delete the thread instead",
-				},
-				origin,
-			);
-		}
-		// Purge attachments/post_comments BEFORE the framework's
-		// `DELETE FROM posts WHERE id = ?` runs in createRemoveHandler. Both
-		// child tables REFERENCE posts(id) without ON DELETE CASCADE, so
-		// skipping this prefix turns the next DELETE into a 500.
-		const childStmts = buildDeletePostChildStatements(env, [id]);
-		if (childStmts.length > 0) {
-			await env.DB.batch(childStmts);
-		}
-		return undefined;
-	},
-	afterDelete: async (_id, existing, env) => {
-		const row = existing as { thread_id: number; forum_id: number; author_id: number };
-		await env.DB.batch([
-			env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(row.thread_id),
-			env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(row.forum_id),
-		]);
-
-		// Decrement post author's post count
-		await decrementUserPosts(env, row.author_id);
-
-		// Recalc thread and forum metadata after post deletion
-		await recalcThreadMetadata(env, row.thread_id);
-		await recalcForumMetadata(env, row.forum_id);
-		await invalidateForumVolatileV2(env, row.forum_id);
-	},
 };
 
 // ─── CRUD Handlers ───────────────────────────────────────────────
@@ -171,48 +127,44 @@ export const update = withEntityAuth(
 );
 
 /** #34 DELETE /api/admin/posts/:id — Delete post (refuses first post) */
-// F3-b: wrap so we can audit post.delete only after the inner remove
-// commits successfully (skips first-post 400 path).
+export const remove = withEntityAuth(postConfig, async (request, env) => {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const id = parseIdFromPath(request);
+	if (id === null)
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid post ID" }, origin);
+	const existing = await env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(id).first<{
+		id: number;
+		thread_id: number;
+		forum_id: number;
+		author_id: number;
+		is_first: number;
+	}>();
+	if (!existing) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	if (existing.is_first === 1)
+		return errorResponse(
+			"CANNOT_DELETE_FIRST_POST",
+			400,
+			{
+				message: "Cannot delete the first post — delete the thread instead",
+			},
+			origin,
+		);
 
-const removeInner = createRemoveHandler(postConfig);
-
-export const remove = withEntityAuth(
-	postConfig,
-	async (request: Request, env: Env): Promise<Response> => {
-		const id = parseIdFromPath(request);
-
-		// Snapshot existing first so we still have the row's metadata after
-		// the inner handler deletes it.
-		let existing: Record<string, unknown> | null = null;
-		if (id !== null) {
-			try {
-				existing = (await env.DB.prepare("SELECT * FROM posts WHERE id = ?")
-					.bind(id)
-					.first()) as Record<string, unknown> | null;
-			} catch {
-				// best-effort
-			}
-		}
-
-		const res = await removeInner(request, env);
-
-		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
-			await writeAdminLog(env, resolveActor(request, env), {
-				action: "post.delete",
-				targetType: "post",
-				targetId: id,
-				details: {
-					threadId: existing.thread_id ?? null,
-					forumId: existing.forum_id ?? null,
-					authorId: existing.author_id ?? null,
-					isFirst: existing.is_first === 1,
-				},
-			});
-		}
-
-		return res;
-	},
-);
+	await env.DB.batch(buildDeletePostStatements(env, [existing]));
+	await invalidateForumVolatileV2(env, existing.forum_id);
+	await writeAdminLog(env, resolveActor(request, env), {
+		action: "post.delete",
+		targetType: "post",
+		targetId: id,
+		details: {
+			threadId: existing.thread_id,
+			forumId: existing.forum_id,
+			authorId: existing.author_id,
+			isFirst: false,
+		},
+	});
+	return jsonNoStoreResponse({ deleted: true, id }, origin);
+});
 
 // ─── Custom Batch Delete (#35) ───────────────────────────────────
 // Cannot use createBatchDeleteHandler because the response must include
@@ -278,55 +230,12 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 		return jsonNoStoreResponse({ deleted: true, count: 0, skipped }, origin);
 	}
 
-	// Aggregate count updates by thread, forum, and author
-	const threadUpdates = new Map<number, number>();
-	const forumUpdates = new Map<number, number>();
-	const authorUpdates = new Map<number, number>();
+	await env.DB.batch(buildDeletePostStatements(env, deletable));
+	const affectedForumIds = [...new Set(deletable.map((p) => p.forum_id))];
 
-	for (const p of deletable) {
-		threadUpdates.set(p.thread_id, (threadUpdates.get(p.thread_id) ?? 0) + 1);
-		forumUpdates.set(p.forum_id, (forumUpdates.get(p.forum_id) ?? 0) + 1);
-		authorUpdates.set(p.author_id, (authorUpdates.get(p.author_id) ?? 0) + 1);
-	}
-
-	// Build batch statements
-	const statements: D1PreparedStatement[] = [];
-
-	// Purge child rows (attachments + post_comments) keyed on post_id BEFORE
-	// the parent posts go away, otherwise the next DELETE trips FK 500.
-	const deletableIds = deletable.map((p) => p.id);
-	statements.push(...buildDeletePostChildStatements(env, deletableIds));
-
-	for (const p of deletable) {
-		statements.push(env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(p.id));
-	}
-	for (const [threadId, count] of threadUpdates) {
-		statements.push(
-			env.DB.prepare("UPDATE threads SET replies = replies - ? WHERE id = ?").bind(count, threadId),
-		);
-	}
-	for (const [forumId, count] of forumUpdates) {
-		statements.push(
-			env.DB.prepare("UPDATE forums SET posts = posts - ? WHERE id = ?").bind(count, forumId),
-		);
-	}
-
-	await env.DB.batch(statements);
-
-	// Recalc metadata for affected threads and forums in parallel — each call
-	// is independent of the others. Reduces total D1 wait time on a batch
-	// delete from O(N) round-trips to roughly O(1).
+	// Invalidate the affected lists and record the committed deletion.
 	await Promise.all([
-		...Array.from(threadUpdates.keys(), (threadId) => recalcThreadMetadata(env, threadId)),
-		...Array.from(forumUpdates.keys(), (forumId) => recalcForumMetadata(env, forumId)),
-	]);
-
-	// Final fan-out: per-author post-count decrements + KV cache
-	// invalidation + audit-log write are all independent. Per-forum
-	// thread-list bumps for every affected forum + a single summary bump.
-	await Promise.all([
-		batchDecrementUserPosts(env, authorUpdates),
-		invalidateThreadListForForums(env, Array.from(forumUpdates.keys())),
+		invalidateThreadListForForums(env, affectedForumIds),
 		bumpForumSummaryGen(env),
 		writeAdminLog(env, resolveActor(request, env), {
 			action: "post.batch_delete",

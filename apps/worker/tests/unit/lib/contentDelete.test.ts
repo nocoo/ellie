@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { batchChunked, buildDeleteThreadChildStatements } from "../../../src/lib/contentDelete";
+import { buildDeleteThreadChildStatements } from "../../../src/lib/contentDelete";
 import type { Env } from "../../../src/lib/env";
 
 describe("buildDeleteThreadChildStatements", () => {
@@ -52,11 +52,11 @@ describe("buildDeleteThreadChildStatements", () => {
 
 		// Every bind got the exact thread id list.
 		for (const c of captured) {
-			expect(c.params).toEqual(["[10,11,12]"]);
+			expect(c.params.every((p) => p === "[10,11,12]")).toBe(true);
 		}
 	});
 
-	it("uses one binding even for a thousand thread IDs", () => {
+	it("uses at most two bindings even for a thousand thread IDs", () => {
 		const captured: string[] = [];
 		const env = {
 			DB: {
@@ -73,46 +73,6 @@ describe("buildDeleteThreadChildStatements", () => {
 			Array.from({ length: 1000 }, (_, i) => i + 1),
 		);
 		// Binding count stays constant, below the D1 limit.
-		expect(captured.every((s) => (s.match(/\?/g) ?? []).length === 1)).toBe(true);
-	});
-});
-
-describe("batchChunked", () => {
-	it("does nothing for empty array", async () => {
-		const db = { batch: vi.fn() } as unknown as D1Database;
-		await batchChunked(db, []);
-		expect(db.batch).not.toHaveBeenCalled();
-	});
-
-	it("runs a single batch when under chunk size", async () => {
-		const db = {
-			batch: vi.fn(async () => []),
-		} as unknown as D1Database;
-		const stmts = Array.from({ length: 10 }, () => ({}) as D1PreparedStatement);
-		await batchChunked(db, stmts);
-		expect(db.batch).toHaveBeenCalledTimes(1);
-		expect((db.batch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveLength(10);
-	});
-
-	it("chunks into multiple batches of 80", async () => {
-		const db = {
-			batch: vi.fn(async () => []),
-		} as unknown as D1Database;
-		const stmts = Array.from({ length: 200 }, () => ({}) as D1PreparedStatement);
-		await batchChunked(db, stmts);
-		expect(db.batch).toHaveBeenCalledTimes(3);
-		expect((db.batch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveLength(80);
-		expect((db.batch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toHaveLength(80);
-		expect((db.batch as ReturnType<typeof vi.fn>).mock.calls[2][0]).toHaveLength(40);
-	});
-
-	it("handles exactly chunk-size boundary", async () => {
-		const db = {
-			batch: vi.fn(async () => []),
-		} as unknown as D1Database;
-		const stmts = Array.from({ length: 80 }, () => ({}) as D1PreparedStatement);
-		await batchChunked(db, stmts);
-		expect(db.batch).toHaveBeenCalledTimes(1);
-		expect((db.batch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveLength(80);
+		expect(captured.every((s) => (s.match(/\?/g) ?? []).length <= 2)).toBe(true);
 	});
 });

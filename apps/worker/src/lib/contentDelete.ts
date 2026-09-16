@@ -8,13 +8,41 @@
 //
 // Empty input is a no-op: returns `[]` so callers can spread unconditionally.
 //
-// Snapshot-id pattern: when used inside an `env.DB.batch()`, the caller MUST
-// snapshot the parent ids BEFORE the batch (no sub-queries against tables
-// that the same batch is mutating). D1 evaluates each statement against the
-// committed view of the prior statement in the batch, so a SELECT-derived
-// IN (...) embedded in a batch will see post-delete state.
+// Snapshot parent IDs before the batch. Child cleanup may look up the posts
+// belonging to those threads while the parents still exist; it must run before
+// deleting posts/threads. Later statements use the saved IDs, not a lookup of
+// rows that have already been deleted.
 
 import type { Env } from "./env";
+import { buildContentRecalcStatements } from "./recalcMetadata";
+import { buildUserCounterDecrementStatements } from "./userCounters";
+
+interface DeletedPost {
+	id: number;
+	thread_id: number;
+	forum_id: number;
+	author_id: number;
+}
+
+/** Caller checks first-post permissions; all dependent writes share this batch. */
+export function buildDeletePostStatements(env: Env, posts: DeletedPost[]): D1PreparedStatement[] {
+	if (posts.length === 0) return [];
+	const ids = posts.map((p) => p.id);
+	const authors = new Map<number, number>();
+	for (const post of posts) authors.set(post.author_id, (authors.get(post.author_id) ?? 0) + 1);
+	return [
+		...buildDeletePostChildStatements(env, ids),
+		env.DB.prepare("DELETE FROM posts WHERE id IN (SELECT value FROM json_each(?))").bind(
+			JSON.stringify(ids),
+		),
+		...buildContentRecalcStatements(
+			env,
+			[...new Set(posts.map((p) => p.thread_id))],
+			[...new Set(posts.map((p) => p.forum_id))],
+		),
+		...buildUserCounterDecrementStatements(env, authors),
+	];
+}
 
 /**
  * Build child-row purge statements keyed on `post_id`. Use immediately before
@@ -41,8 +69,7 @@ export function buildDeletePostChildStatements(env: Env, postIds: number[]): D1P
  * `attachments.thread_id` and `post_comments.thread_id`.
  *
  * Also purges `forum_recommended_threads` rows pointing at these threads.
- * That table is not FK-enforced (D1 FK is off, and we declined ON DELETE
- * CASCADE in migration 0045 to keep teardown explicit), but the public
+ * That table has no FK declaration (migration 0045 keeps teardown explicit), but the public
  * GET list query joins onto `threads` so an orphan row would be silently
  * filtered. We still clean it up here so the (forum_id, thread_id) PK
  * slot is freed and a moderator can re-recommend a future thread that
@@ -62,35 +89,13 @@ export function buildDeleteThreadChildStatements(
 	const ids = JSON.stringify(threadIds);
 	return [
 		env.DB.prepare(
-			"DELETE FROM attachments WHERE thread_id IN (SELECT value FROM json_each(?))",
-		).bind(ids),
+			"DELETE FROM attachments WHERE thread_id IN (SELECT value FROM json_each(?)) OR post_id IN (SELECT id FROM posts WHERE thread_id IN (SELECT value FROM json_each(?)))",
+		).bind(ids, ids),
 		env.DB.prepare(
-			"DELETE FROM post_comments WHERE thread_id IN (SELECT value FROM json_each(?))",
-		).bind(ids),
+			"DELETE FROM post_comments WHERE thread_id IN (SELECT value FROM json_each(?)) OR post_id IN (SELECT id FROM posts WHERE thread_id IN (SELECT value FROM json_each(?)))",
+		).bind(ids, ids),
 		env.DB.prepare(
 			"DELETE FROM forum_recommended_threads WHERE thread_id IN (SELECT value FROM json_each(?))",
 		).bind(ids),
 	];
-}
-
-// ---------------------------------------------------------------------------
-// Chunked batch execution
-// ---------------------------------------------------------------------------
-
-/** Maximum statements per D1 batch call. Keeps well under D1 limits. */
-const D1_BATCH_CHUNK_SIZE = 80;
-
-/**
- * Execute an array of D1 prepared statements in chunks, avoiding the D1
- * batch size limit. Each chunk runs as an independent batch; callers must
- * ensure cross-chunk ordering is acceptable.
- */
-export async function batchChunked(
-	db: D1Database,
-	statements: D1PreparedStatement[],
-): Promise<void> {
-	if (statements.length === 0) return;
-	for (let i = 0; i < statements.length; i += D1_BATCH_CHUNK_SIZE) {
-		await db.batch(statements.slice(i, i + D1_BATCH_CHUNK_SIZE));
-	}
 }

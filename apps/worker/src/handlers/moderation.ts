@@ -27,10 +27,7 @@ import {
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
 } from "../lib/cache/invalidate";
-import {
-	buildDeletePostChildStatements,
-	buildDeleteThreadChildStatements,
-} from "../lib/contentDelete";
+import { buildDeletePostStatements, buildDeleteThreadChildStatements } from "../lib/contentDelete";
 import type { Env } from "../lib/env";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import {
@@ -39,14 +36,10 @@ import {
 	getThreadForPermission,
 	getUserForPermission,
 } from "../lib/permissionHelpers";
-import { recalcForumMetadata, recalcThreadMetadata } from "../lib/recalcMetadata";
+import { buildContentRecalcStatements, recalcForumMetadata } from "../lib/recalcMetadata";
 import { jsonResponse } from "../lib/response";
 import { deleteUserContent } from "../lib/userContentDelete";
-import {
-	batchDecrementUserPosts,
-	decrementUserPosts,
-	decrementUserThreads,
-} from "../lib/userCounters";
+import { buildUserCounterDecrementStatements } from "../lib/userCounters";
 import { STICKY_FORUM, STICKY_GLOBAL, STICKY_NONE } from "../lib/visibility";
 import { moderationMiddleware } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
@@ -495,28 +488,8 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 		);
 	}
 
-	// Delete post (purge attachments + post_comments first — both reference
-	// posts(id) without ON DELETE CASCADE so the parent DELETE would 500),
-	// decrement thread replies and forum post count.
-	await env.DB.batch([
-		...buildDeletePostChildStatements(env, [id]),
-		env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id),
-		env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(post.thread_id),
-		env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(post.forum_id),
-	]);
-
-	// Tail fan-out: user post-counter, thread→forum recalc chain, and
-	// volatile cache invalidation are mutually independent. Recalc must
-	// stay thread-then-forum (forum derives from thread aggregate), but the
-	// other two can overlap with it.
-	await Promise.all([
-		decrementUserPosts(env, post.author_id),
-		(async () => {
-			await recalcThreadMetadata(env, post.thread_id);
-			await recalcForumMetadata(env, post.forum_id);
-		})(),
-		invalidateForumVolatileV2(env, post.forum_id),
-	]);
+	await env.DB.batch(buildDeletePostStatements(env, [post]));
+	await invalidateForumVolatileV2(env, post.forum_id);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
@@ -694,30 +667,21 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 		authorCounts.set(post.author_id, (authorCounts.get(post.author_id) ?? 0) + 1);
 	}
 
-	const totalPosts = thread.replies + 1;
-
-	// Delete thread and all posts, update forum counts. Purge child rows
-	// (attachments + post_comments) keyed on thread_id BEFORE the parent
-	// posts/threads go away — neither child column is ON DELETE CASCADE.
 	await env.DB.batch([
 		...buildDeleteThreadChildStatements(env, [id]),
 		env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 		env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
-		env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?").bind(
-			totalPosts,
-			thread.forum_id,
+		...buildContentRecalcStatements(env, [], [thread.forum_id]),
+		...buildUserCounterDecrementStatements(env, authorCounts),
+		...buildUserCounterDecrementStatements(env, new Map([[thread.author_id, 1]]), "threads"),
+		...buildUserCounterDecrementStatements(
+			env,
+			thread.digest > 0 ? new Map([[thread.author_id, 1]]) : new Map(),
+			"digest_posts",
 		),
 	]);
 
-	// Tail fan-out: user counter decrements + forum recalc + cache
-	// invalidation are all independent. Parallelise to compress latency.
-	// If the deleted thread carried a non-zero digest, also bump digest gen
-	// so digest filter caches drop the row. Also invalidate recommended
-	// cache since the thread may have been recommended.
 	const tail: Promise<unknown>[] = [
-		decrementUserThreads(env, thread.author_id),
-		batchDecrementUserPosts(env, authorCounts),
-		recalcForumMetadata(env, thread.forum_id),
 		invalidateForumVolatileV2(env, thread.forum_id),
 		invalidateRecommendedCache(env, thread.forum_id),
 	];

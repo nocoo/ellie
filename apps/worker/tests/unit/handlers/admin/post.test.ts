@@ -358,14 +358,12 @@ describe("admin post handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.id).toBe(42);
 
-			// beforeDelete: child-row purge batch (attachments + post_comments by post_id)
-			// afterDelete: thread + forum updates batch
-			expect(batchCalls.length).toBe(2);
-			expect(batchCalls[0].length).toBe(2); // DELETE attachments, DELETE post_comments
-			expect(batchCalls[1].length).toBe(2); // UPDATE thread, UPDATE forum
+			// Children, post, metadata and author counter commit together.
+			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls[0]).toHaveLength(6);
 		});
 
-		it("should purge attachments and post_comments by post_id BEFORE the framework's DELETE FROM posts (FK regression)", async () => {
+		it("should purge attachments and post_comments by post_id BEFORE DELETE FROM posts (FK regression)", async () => {
 			const postRow = makeD1PostRow({ id: 42, thread_id: 5, forum_id: 10, is_first: 0 });
 			const { db, calls } = createMockDb({
 				firstResults: { "SELECT * FROM posts WHERE id": postRow },
@@ -489,12 +487,9 @@ describe("admin post handlers", () => {
 			const selectCall = calls.find((c) => c.sql.includes("WHERE id IN"));
 			expect(selectCall).toBeDefined();
 
-			// Verify batch: 1 DELETE attachments + 1 DELETE post_comments
-			// + 3 DELETE posts + 2 UPDATE threads + 1 UPDATE forum = 8
-			expect(batchCalls[0].length).toBe(8);
-
-			// Verify user counter decrement batch was also called
-			expect(batchCalls.length).toBeGreaterThanOrEqual(1);
+			// Set-based statements keep all dependent changes in one transaction.
+			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls[0]).toHaveLength(6);
 		});
 
 		it("should purge attachments + post_comments before DELETE FROM posts in batch (FK regression)", async () => {

@@ -7,7 +7,7 @@ import type { Env } from "./env";
 export function buildUserCounterDecrementStatements(
 	env: Env,
 	counts: Map<number, number>,
-	column: "posts" | "threads" = "posts",
+	column: "posts" | "threads" | "digest_posts" = "posts",
 ): D1PreparedStatement[] {
 	if (counts.size === 0) return [];
 	return [

@@ -728,14 +728,15 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 
 		const threadRecalcIdx = calls.findIndex(
 			(c) =>
-				c.sql.includes("SELECT created_at, author_name, author_id") &&
-				c.sql.includes("FROM posts") &&
-				c.params[0] === 42,
+				c.sql.includes("WITH latest") &&
+				c.sql.includes("UPDATE threads SET") &&
+				c.params[0] === "[42]",
 		);
 		const forumRecalcIdx = calls.findIndex(
 			(c) =>
-				c.sql.includes("SELECT id, subject, last_post_at, last_poster, last_poster_id") &&
-				c.params[0] === 7,
+				c.sql.includes("WITH latest") &&
+				c.sql.includes("UPDATE forums SET") &&
+				c.params[0] === "[7]",
 		);
 		expect(threadRecalcIdx).toBeGreaterThanOrEqual(0);
 		expect(forumRecalcIdx).toBeGreaterThanOrEqual(0);

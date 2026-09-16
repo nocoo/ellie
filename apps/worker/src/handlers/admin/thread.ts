@@ -17,9 +17,9 @@ import { createGetByIdHandler, createListHandler, createUpdateHandler } from "..
 import type { Env } from "../../lib/env";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
-import { recalcForumMetadata } from "../../lib/recalcMetadata";
+import { buildContentRecalcStatements, recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
+import { buildUserCounterDecrementStatements } from "../../lib/userCounters";
 import { STICKY_FORUM, STICKY_GLOBAL } from "../../lib/visibility";
 import { errorResponse } from "../../middleware/error";
 import { invalidateRecommendedCache } from "../recommended";
@@ -269,62 +269,6 @@ const threadConfig: EntityConfig = {
 		if (digestChanged) ops.push(bumpDigestGen(env));
 		if (ops.length > 0) await Promise.all(ops);
 	},
-
-	async afterDelete(id, existing, env) {
-		const forumId = existing.forum_id as number;
-		const authorId = existing.author_id as number;
-
-		// Query post authors before deleting orphaned posts. The total post
-		// count for the thread is the sum of these per-author counts, so we
-		// avoid a separate SELECT COUNT(*) round-trip.
-		const postAuthors = await env.DB.prepare(
-			"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id = ? GROUP BY author_id",
-		)
-			.bind(id)
-			.all();
-		const authorCounts = new Map<number, number>();
-		let postsInThread = 0;
-		for (const row of postAuthors.results as { author_id: number; cnt: number }[]) {
-			authorCounts.set(row.author_id, row.cnt);
-			postsInThread += row.cnt;
-		}
-
-		// Note: this hook only fires from createRemoveHandler/createBatchDeleteHandler,
-		// which run AFTER `DELETE FROM threads WHERE id = ?`. The thread row is
-		// already gone here, so child rows on `posts.thread_id` /
-		// `attachments.thread_id` / `post_comments.thread_id` are technically
-		// orphaned at this point — but the thread teardown paths that use this
-		// CRUD framework (none for threads as of this commit) MUST purge child
-		// rows BEFORE the framework's parent DELETE. We keep the orphan cleanup
-		// here as a safety net since the columns aren't ON DELETE CASCADE and
-		// may pre-exist in the DB.
-		await env.DB.batch([
-			...buildDeleteThreadChildStatements(env, [id]),
-			env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
-			env.DB.prepare(
-				"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
-			).bind(postsInThread, forumId),
-		]);
-
-		// Decrement thread author's thread count
-		await decrementUserThreads(env, authorId);
-
-		// Decrement post authors' post counts
-		await batchDecrementUserPosts(env, authorCounts);
-
-		// Recalc forum metadata after thread deletion
-		await recalcForumMetadata(env, forumId);
-
-		// Volatile cache: forum summary + per-forum thread-list bumped together.
-		// If deleted thread was a digest, also bump digest gen.
-		// Also invalidate recommended cache in case the deleted thread was recommended.
-		const tail: Promise<unknown>[] = [
-			invalidateForumVolatileV2(env, forumId),
-			invalidateRecommendedCache(env, forumId),
-		];
-		if ((existing.digest as number) > 0) tail.push(bumpDigestGen(env));
-		await Promise.all(tail);
-	},
 };
 
 // ─── CRUD handlers ───────────────────────────────────────────────
@@ -498,28 +442,23 @@ export const remove = withEntityAuth(
 			postsDeleted += row.cnt;
 		}
 
-		// Delete attachments + post_comments first (FK ON DELETE not declared
-		// CASCADE on attachments/post_comments → must purge before posts/threads
-		// or D1 raises FOREIGN KEY constraint failed).
-		// Then delete all posts, delete thread, decrement forum counts.
 		await env.DB.batch([
 			...buildDeleteThreadChildStatements(env, [id]),
 			env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 			env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
-			env.DB.prepare(
-				"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
-			).bind(postsDeleted, threadRow.forum_id),
+			...buildContentRecalcStatements(env, [], [threadRow.forum_id]),
+			...buildUserCounterDecrementStatements(env, authorCounts),
+			...buildUserCounterDecrementStatements(env, new Map([[threadRow.author_id, 1]]), "threads"),
+			...buildUserCounterDecrementStatements(
+				env,
+				threadRow.digest > 0 ? new Map([[threadRow.author_id, 1]]) : new Map(),
+				"digest_posts",
+			),
 		]);
-
-		// Decrement thread author's thread count
-		await decrementUserThreads(env, threadRow.author_id);
-
-		// Decrement post authors' post counts
-		await batchDecrementUserPosts(env, authorCounts);
-
-		// Recalc forum metadata after thread deletion
-		await recalcForumMetadata(env, threadRow.forum_id);
-		const tail: Promise<unknown>[] = [invalidateForumVolatileV2(env, threadRow.forum_id)];
+		const tail: Promise<unknown>[] = [
+			invalidateForumVolatileV2(env, threadRow.forum_id),
+			invalidateRecommendedCache(env, threadRow.forum_id),
+		];
 		if (threadRow.digest > 0) tail.push(bumpDigestGen(env));
 		await Promise.all(tail);
 
@@ -616,70 +555,42 @@ export const batchDelete = withEntityAuth(
 		}
 
 		const existingIds = threadRows.map((t) => t.id);
-		const existingPlaceholders = existingIds.map(() => "?").join(",");
-
-		// Aggregate per-author post counts across all of these threads in one
-		// round-trip; aggregate per-forum thread counts + total post counts in
-		// the same pass. Used after the batch for counter decrements and forum
-		// recalcs.
+		const idsJson = JSON.stringify(existingIds);
 		const postAuthors = await env.DB.prepare(
-			`SELECT thread_id, author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (${existingPlaceholders}) GROUP BY thread_id, author_id`,
+			"SELECT thread_id, author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (SELECT value FROM json_each(?)) GROUP BY thread_id, author_id",
 		)
-			.bind(...existingIds)
+			.bind(idsJson)
 			.all<{ thread_id: number; author_id: number; cnt: number }>();
-
 		const authorCounts = new Map<number, number>();
-		const postsPerThread = new Map<number, number>();
-		for (const row of postAuthors.results) {
+		for (const row of postAuthors.results)
 			authorCounts.set(row.author_id, (authorCounts.get(row.author_id) ?? 0) + row.cnt);
-			postsPerThread.set(row.thread_id, (postsPerThread.get(row.thread_id) ?? 0) + row.cnt);
-		}
-
-		const forumThreadCounts = new Map<number, number>();
-		const forumPostCounts = new Map<number, number>();
 		const threadAuthorCounts = new Map<number, number>();
-		for (const t of threadRows) {
-			forumThreadCounts.set(t.forum_id, (forumThreadCounts.get(t.forum_id) ?? 0) + 1);
-			forumPostCounts.set(
-				t.forum_id,
-				(forumPostCounts.get(t.forum_id) ?? 0) + (postsPerThread.get(t.id) ?? 0),
-			);
-			threadAuthorCounts.set(t.author_id, (threadAuthorCounts.get(t.author_id) ?? 0) + 1);
+		const digestAuthorCounts = new Map<number, number>();
+		for (const thread of threadRows) {
+			threadAuthorCounts.set(thread.author_id, (threadAuthorCounts.get(thread.author_id) ?? 0) + 1);
+			if (thread.digest > 0)
+				digestAuthorCounts.set(
+					thread.author_id,
+					(digestAuthorCounts.get(thread.author_id) ?? 0) + 1,
+				);
 		}
-
-		// Build batch in strict child→posts→threads→forum order.
-		const statements: D1PreparedStatement[] = [
+		const affectedForumIds = [...new Set(threadRows.map((t) => t.forum_id))];
+		await env.DB.batch([
 			...buildDeleteThreadChildStatements(env, existingIds),
-			env.DB.prepare(`DELETE FROM posts WHERE thread_id IN (${existingPlaceholders})`).bind(
-				...existingIds,
+			env.DB.prepare("DELETE FROM posts WHERE thread_id IN (SELECT value FROM json_each(?))").bind(
+				idsJson,
 			),
-			env.DB.prepare(`DELETE FROM threads WHERE id IN (${existingPlaceholders})`).bind(
-				...existingIds,
+			env.DB.prepare("DELETE FROM threads WHERE id IN (SELECT value FROM json_each(?))").bind(
+				idsJson,
 			),
-		];
-		for (const [forumId, threadCount] of forumThreadCounts) {
-			const postCount = forumPostCounts.get(forumId) ?? 0;
-			statements.push(
-				env.DB.prepare(
-					"UPDATE forums SET threads = threads - ?, posts = posts - ? WHERE id = ?",
-				).bind(threadCount, postCount, forumId),
-			);
-		}
+			...buildContentRecalcStatements(env, [], affectedForumIds),
+			...buildUserCounterDecrementStatements(env, authorCounts),
+			...buildUserCounterDecrementStatements(env, threadAuthorCounts, "threads"),
+			...buildUserCounterDecrementStatements(env, digestAuthorCounts, "digest_posts"),
+		]);
 
-		await env.DB.batch(statements);
-
-		// Tail fan-out — independent counter decrements + per-forum recalcs +
-		// volatile cache invalidation + audit log. Per-forum thread-list bump
-		// for every affected forum; one summary bump; digest bump if any
-		// deleted thread had digest > 0.
 		const hadDigestBatch = threadRows.some((t) => t.digest > 0);
-		const affectedForumIds = Array.from(forumThreadCounts.keys());
 		const tailOps: Promise<unknown>[] = [
-			batchDecrementUserPosts(env, authorCounts),
-			...Array.from(threadAuthorCounts, ([authorId, count]) =>
-				decrementUserThreads(env, authorId, count),
-			),
-			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			invalidateThreadListForForums(env, affectedForumIds),
 			bumpForumSummaryGen(env),
 			...affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
@@ -777,70 +688,22 @@ export const batchMove = withEntityAuth(
 			return jsonNoStoreResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
 		}
 
-		// Group by old forum for count adjustments
-		const forumAdjustments = new Map<number, { threads: number; posts: number }>();
-		for (const t of movable) {
-			const existing = forumAdjustments.get(t.forum_id) ?? { threads: 0, posts: 0 };
-			existing.threads += 1;
-			existing.posts += t.replies + 1;
-			forumAdjustments.set(t.forum_id, existing);
-		}
-
-		// Total posts moving to the new forum
-		let totalPostsMoving = 0;
-		for (const t of movable) {
-			totalPostsMoving += t.replies + 1;
-		}
-
-		// Build batch statements
-		const statements: D1PreparedStatement[] = [];
-
-		// Update each thread's forum_id and remove recommendation rows
-		// (a recommendation is per-forum; threads leaving the source forum
-		// lose their recommendation status)
-		for (const t of movable) {
-			statements.push(
-				env.DB.prepare("UPDATE threads SET forum_id = ? WHERE id = ?").bind(targetForumId, t.id),
-			);
-			statements.push(
-				env.DB.prepare("UPDATE posts SET forum_id = ? WHERE thread_id = ?").bind(
-					targetForumId,
-					t.id,
-				),
-			);
-			statements.push(
-				env.DB.prepare("DELETE FROM forum_recommended_threads WHERE thread_id = ?").bind(t.id),
-			);
-		}
-
-		// Decrement old forum counts
-		for (const [forumId, adj] of forumAdjustments) {
-			statements.push(
-				env.DB.prepare(
-					"UPDATE forums SET threads = threads - ?, posts = posts - ? WHERE id = ?",
-				).bind(adj.threads, adj.posts, forumId),
-			);
-		}
-
-		// Increment new forum counts
-		statements.push(
+		const sourceForumIds = [...new Set(movable.map((t) => t.forum_id))];
+		const movedForumIds = [...sourceForumIds, targetForumId];
+		const movedIdsJson = JSON.stringify(movable.map((t) => t.id));
+		await env.DB.batch([
 			env.DB.prepare(
-				"UPDATE forums SET threads = threads + ?, posts = posts + ? WHERE id = ?",
-			).bind(movable.length, totalPostsMoving, targetForumId),
-		);
-
-		await env.DB.batch(statements);
-
-		// Recalc metadata for all affected forums (old ones + target) in parallel.
-		await Promise.all([
-			...Array.from(forumAdjustments.keys(), (forumId) => recalcForumMetadata(env, forumId)),
-			recalcForumMetadata(env, targetForumId),
+				"UPDATE threads SET forum_id = ? WHERE id IN (SELECT value FROM json_each(?))",
+			).bind(targetForumId, movedIdsJson),
+			env.DB.prepare(
+				"UPDATE posts SET forum_id = ? WHERE thread_id IN (SELECT value FROM json_each(?))",
+			).bind(targetForumId, movedIdsJson),
+			env.DB.prepare(
+				"DELETE FROM forum_recommended_threads WHERE thread_id IN (SELECT value FROM json_each(?))",
+			).bind(movedIdsJson),
+			...buildContentRecalcStatements(env, [], movedForumIds),
 		]);
-		// Per-forum thread-list bumps for every source forum + the target,
-		// plus a single summary bump. Also invalidate recommended cache for
-		// source forums (threads moved out may have been recommended there).
-		const movedForumIds = [...forumAdjustments.keys(), targetForumId];
-		const sourceForumIds = Array.from(forumAdjustments.keys());
+
 		await Promise.all([
 			invalidateThreadListForForums(env, movedForumIds),
 			bumpForumSummaryGen(env),
@@ -850,7 +713,7 @@ export const batchMove = withEntityAuth(
 		// F3-b: audit one row for the entire successful batch. fromForumIds
 		// is deduped (Map keys) so multi-source batches are searchable.
 		const movedIds = movable.map((t) => t.id);
-		const fromForumIds = Array.from(forumAdjustments.keys());
+		const fromForumIds = sourceForumIds;
 		await writeAdminLog(env, resolveActor(request, env), {
 			action: "thread.batch_move",
 			targetType: "thread",

@@ -359,3 +359,166 @@ describe("L2-fast: safe administrative batches", () => {
 		}
 	});
 });
+
+function contentAction(env: ReturnType<typeof createTestEnv>, action: string) {
+	const paths: Record<string, string> = {
+		post: "/api/admin/posts/1000",
+		thread: "/api/admin/threads/1",
+		posts: "/api/admin/posts/batch-delete",
+		threads: "/api/admin/threads/batch-delete",
+		move: "/api/admin/threads/batch-move",
+	};
+	const isSingle = action === "post" || action === "thread";
+	const ids =
+		action === "posts"
+			? [...Array.from({ length: 99 }, (_, i) => 1000 + i), 900]
+			: Array.from({ length: 100 }, (_, i) => i + 1);
+	return workerFetch(env, paths[action], {
+		method: isSingle ? "DELETE" : "POST",
+		headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
+		...(isSingle ? {} : { body: JSON.stringify({ ids, forumId: 8 }) }),
+	});
+}
+
+describe("L2-fast: atomic post and thread operations", () => {
+	test("batch post deletion skips first posts and keeps user/thread/forum counts consistent", async () => {
+		const env = seedContent({ threads: 2, replies: 100, collateral: 1 });
+		const db = env._sqlite;
+		try {
+			const response = await contentAction(env, "posts");
+			expect(response.status).toBe(200);
+			expect((await response.json()).data).toEqual({ deleted: true, count: 99, skipped: [900] });
+			expect(db.query("SELECT id FROM posts WHERE thread_id = 900 ORDER BY id").all()).toEqual([
+				{ id: 900 },
+				{ id: 1099 },
+			]);
+			expect(db.query("SELECT posts FROM users WHERE id = 42").get()).toEqual({ posts: 3 });
+			expect(db.query("SELECT replies FROM threads WHERE id = 900").get()).toEqual({ replies: 1 });
+			expect(db.query("SELECT posts, threads FROM forums WHERE id = 7").get()).toEqual({
+				posts: 5,
+				threads: 3,
+			});
+		} finally {
+			db.close();
+		}
+	});
+
+	test("batch thread deletion also cleans post-linked children whose thread reference differs", async () => {
+		const env = seedContent({ threads: 100, replies: 120, collateral: 1 });
+		const db = env._sqlite;
+		try {
+			db.exec(
+				"UPDATE attachments SET thread_id = 900 WHERE id = 1; UPDATE post_comments SET thread_id = 900 WHERE id = 1; UPDATE threads SET digest = 1 WHERE id = 1; UPDATE users SET digest_posts = 1 WHERE id = 42",
+			);
+			const response = await contentAction(env, "threads");
+			expect(response.status).toBe(200);
+			expect((await response.json()).data.count).toBe(100);
+			expect(
+				db.query("SELECT posts, threads, digest_posts FROM users WHERE id = 42").get(),
+			).toEqual({ posts: 120, threads: 0, digest_posts: 0 });
+			expect(db.query("SELECT posts FROM users WHERE id = 99").get()).toEqual({ posts: 1 });
+			expect(db.query("SELECT posts, threads FROM forums WHERE id = 7").get()).toEqual({
+				posts: 121,
+				threads: 1,
+			});
+			for (const table of ["attachments", "post_comments"])
+				expect(db.query(`SELECT id FROM ${table} ORDER BY id`).all()).toEqual([
+					{ id: 2 },
+					{ id: 3 },
+				]);
+			expect(db.query("PRAGMA foreign_key_check").all()).toEqual([]);
+		} finally {
+			db.close();
+		}
+	});
+
+	test("single thread deletion repairs more than 100 collateral authors in the same batch", async () => {
+		const env = seedContent({ threads: 1, replies: 0, collateral: 0 });
+		const db = env._sqlite;
+		try {
+			for (let id = 2000; id < 2151; id++) {
+				db.query("INSERT INTO users (id, username, posts) VALUES (?, ?, 1)").run(id, `reply-${id}`);
+				db.query("INSERT INTO posts (id, thread_id, forum_id, author_id) VALUES (?, 1, 7, ?)").run(
+					id,
+					id,
+				);
+			}
+			const response = await contentAction(env, "thread");
+			expect(response.status).toBe(200);
+			expect((await response.json()).data.postsDeleted).toBe(152);
+			expect(
+				db.query("SELECT COUNT(*) AS count FROM users WHERE id >= 2000 AND posts = 0").get(),
+			).toEqual({ count: 151 });
+			expect(db.query("SELECT posts, threads FROM forums WHERE id = 7").get()).toEqual({
+				posts: 1,
+				threads: 1,
+			});
+		} finally {
+			db.close();
+		}
+	});
+
+	test("moves 100 threads with actual post counts and clears their old recommendations", async () => {
+		const env = seedContent({ threads: 100, replies: 120, collateral: 1 });
+		const db = env._sqlite;
+		try {
+			db.exec(
+				"INSERT INTO forums (id, name) VALUES (8, 'Destination'); UPDATE threads SET replies = 999",
+			);
+			const response = await contentAction(env, "move");
+			expect(response.status).toBe(200);
+			expect(db.query("SELECT id, posts, threads FROM forums ORDER BY id").all()).toEqual([
+				{ id: 7, posts: 121, threads: 1 },
+				{ id: 8, posts: 101, threads: 100 },
+			]);
+			expect(
+				db
+					.query(
+						"SELECT COUNT(*) AS count FROM posts WHERE forum_id != (SELECT forum_id FROM threads WHERE id = posts.thread_id)",
+					)
+					.get(),
+			).toEqual({ count: 0 });
+			expect(db.query("SELECT thread_id FROM forum_recommended_threads").all()).toEqual([
+				{ thread_id: 900 },
+			]);
+		} finally {
+			db.close();
+		}
+	});
+
+	test.each(["post", "thread", "posts", "threads", "move"])(
+		"%s rolls back children, content, counters and recommendations when metadata repair fails",
+		async (action) => {
+			const env = seedContent({ threads: 100, replies: 100, collateral: 1 });
+			const db = env._sqlite;
+			try {
+				db.exec(
+					"INSERT INTO forums (id, name) VALUES (8, 'Destination'); INSERT INTO attachments (id, filename, file_path, post_id, thread_id, author_id) VALUES (4, 'reply.png', 'attachments/reply.png', 1000, 900, 99)",
+				);
+				const tables = [
+					"users",
+					"threads",
+					"posts",
+					"forums",
+					"attachments",
+					"post_comments",
+					"forum_recommended_threads",
+					"admin_logs",
+				];
+				const snapshot = () =>
+					tables.map((table) => db.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+				const before = snapshot();
+				db.exec(
+					"CREATE TRIGGER fail_forum BEFORE UPDATE ON forums BEGIN SELECT RAISE(ABORT, 'local metadata failure'); END",
+				);
+				expect((await contentAction(env, action)).status).toBe(500);
+				expect(snapshot()).toEqual(before);
+				db.exec("DROP TRIGGER fail_forum");
+				expect((await contentAction(env, action)).status).toBe(200);
+				expect(db.query("PRAGMA foreign_key_check").all()).toEqual([]);
+			} finally {
+				db.close();
+			}
+		},
+	);
+});

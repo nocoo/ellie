@@ -629,13 +629,9 @@ describe("admin thread handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.postsDeleted).toBe(11);
 
-			// Two batches now: (1) DELETE attachments + DELETE post_comments
-			// + DELETE forum_recommended_threads (FK child purge keyed on
-			// thread_id, see migration 0045) + DELETE posts + DELETE thread
-			// + UPDATE forum, and (2) batchDecrementUserPosts for the
-			// per-author post-count updates derived from the GROUP BY.
-			expect(batchCalls.length).toBe(2);
-			expect(batchCalls[0].length).toBe(6);
+			// Children, content, metadata and author counters share one transaction.
+			expect(batchCalls).toHaveLength(1);
+			expect(batchCalls[0].length).toBeLessThanOrEqual(9);
 		});
 
 		it("should return 404 for non-existent thread", async () => {
@@ -808,16 +804,12 @@ describe("admin thread handlers", () => {
 			expect(idxPosts).toBeGreaterThan(idxComments);
 			expect(idxThreads).toBeGreaterThan(idxPosts);
 
-			// Verify user thread counter decremented (single decrementUserThreads
-			// call with count 1 for author 100).
+			// The author delta is encoded in one bound JSON map.
 			const threadCounterCall = calls.find((c) =>
-				c.sql.includes("UPDATE users SET threads = MAX(0, threads - ?)"),
+				c.sql.includes("UPDATE users SET threads = MAX(0, threads - delta.value)"),
 			);
-			expect(threadCounterCall).toBeDefined();
-
-			// Verify post author counters decremented via batch
-			// batchDecrementUserPosts creates a batch of UPDATE users SET posts = MAX(0, ...)
-			expect(batchCalls.length).toBeGreaterThanOrEqual(1);
+			expect(threadCounterCall?.params).toEqual(['{"100":1}']);
+			expect(batchCalls).toHaveLength(1);
 		});
 	});
 
@@ -850,9 +842,9 @@ describe("admin thread handlers", () => {
 			expect(body.data.count).toBe(2);
 			expect(body.data.forumId).toBe(10);
 
-			// Verify batch: 2 thread updates + 2 post updates + 2 delete recommended + 1 decrement old + 1 increment new = 8
+			// Thread, post, recommendation and forum updates share one batch.
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(8);
+			expect(batchCalls[0].length).toBe(4);
 		});
 
 		it("should return count 0 when all threads already in target forum", async () => {
@@ -1033,9 +1025,9 @@ describe("admin thread handlers", () => {
 			expect(res.status).toBe(200);
 			expect(body.data.count).toBe(3);
 
-			// 3 thread updates + 3 post updates + 3 delete recommended + 2 old forum decrements + 1 new forum increment = 12
+			// Statement count stays constant across multiple source forums.
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(12);
+			expect(batchCalls[0].length).toBe(4);
 		});
 	});
 
