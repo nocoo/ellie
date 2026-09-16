@@ -220,19 +220,9 @@ export default function UsersPage() {
 		[actions],
 	);
 
-	// Refresh the current page after any mutation inside the dialog so
-	// row badges (status / role / counts) reflect reality once the
-	// dialog closes. Purge also closes the dialog — the user is
-	// tombstoned and is about to drop off the list on reload anyway.
-	const handleDialogChanged = useCallback(
-		(event: { kind: "edit" | "ban" | "unban" | "purge"; userId: number }) => {
-			void actions.reloadCurrentPage();
-			if (event.kind === "purge") {
-				actions.closeDetail();
-			}
-		},
-		[actions],
-	);
+	const handleDialogChanged = useCallback(() => {
+		void actions.reloadCurrentPage();
+	}, [actions]);
 
 	// Site-level posting settings feed the "写权限" column below. Fetched
 	// once per page mount (shared with UserDetailPanel via the same hook)

@@ -34,14 +34,7 @@ export interface UserDetailDialogProps {
 	 */
 	userId: number | null;
 
-	/**
-	 * Close the dialog. Called by the Basalt Dialog `onOpenChange(false)`
-	 * route (overlay click / ESC / explicit close button) and by the
-	 * panel's `onChanged({ kind: "purge" })` follow-up so the dialog
-	 * disappears once the user has been tombstoned (the panel itself
-	 * switches to a "已彻底清除" placeholder, but the operator usually
-	 * wants to return to the list at that point).
-	 */
+	/** Close explicitly; successful mutations leave their receipt visible. */
 	onClose: () => void;
 
 	/**
