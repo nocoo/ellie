@@ -99,12 +99,12 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 		setIsDeleting(true);
 		try {
 			await deleteMessage(messageId);
+			setDeleteOpen(false);
 			toast.success("站内信已删除");
 			router.push("/messages");
 		} catch (err) {
 			const message = err instanceof ApiError ? err.message : "删除失败，请重试";
 			toast.error({ title: "删除失败", description: message });
-		} finally {
 			deleteInFlight.current = false;
 			setIsDeleting(false);
 		}

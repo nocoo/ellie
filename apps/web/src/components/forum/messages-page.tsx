@@ -305,12 +305,14 @@ export function MessagesPageClient({
 
 	// State
 	const [activeBox, setActiveBox] = useState<"inbox" | "outbox">(initialBox);
+	const activeBoxRef = useRef(initialBox);
 	const [messages, setMessages] = useState<MessageListItem[]>([]);
 	const [cursor, setCursor] = useState<string | null>(null);
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+	const markingAllReadRef = useRef(false);
 	const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const deleteInFlight = useRef(false);
@@ -378,6 +380,7 @@ export function MessagesPageClient({
 	// Handle box change
 	const handleBoxChange = (box: "inbox" | "outbox") => {
 		if (box === activeBox) return;
+		activeBoxRef.current = box;
 		setActiveBox(box);
 		setMessages([]);
 		setCursor(null);
@@ -451,17 +454,21 @@ export function MessagesPageClient({
 
 	// Handle mark all read
 	const handleMarkAllRead = async () => {
+		if (markingAllReadRef.current) return;
+		markingAllReadRef.current = true;
 		setIsMarkingAllRead(true);
 		try {
 			await markAllMessagesRead();
-			// Update local state to mark all messages as read
-			setMessages((prev) => prev.map((m) => ({ ...m, isRead: true })));
+			setMessages((prev) =>
+				activeBoxRef.current === "inbox" ? prev.map((m) => ({ ...m, isRead: true })) : prev,
+			);
 			setUnreadCount(0);
 			toast.success("已全部标记为已读");
 		} catch (err) {
 			const message = err instanceof ApiError ? err.message : "操作失败，请重试";
 			toast.error({ title: "标记已读失败", description: message });
 		} finally {
+			markingAllReadRef.current = false;
 			setIsMarkingAllRead(false);
 		}
 	};

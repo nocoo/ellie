@@ -613,7 +613,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 			<PostingConditionsNote />
 			<div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
 				{captchaField}
-				<Button type="submit" disabled={!canSubmit || loading} className="h-11 flex-1">
+				<Button type="submit" disabled={!canSubmit || loading} className="h-11 shrink-0 sm:flex-1">
 					<UserRoundPlus className="size-4" aria-hidden="true" />
 					{loading ? "注册中..." : "创建账号"}
 				</Button>
