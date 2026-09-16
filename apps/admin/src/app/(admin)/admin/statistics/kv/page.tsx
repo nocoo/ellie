@@ -44,7 +44,6 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@nocoo/basalt";
-import { Code } from "@nocoo/basalt/components/code";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
@@ -56,15 +55,28 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
-import { ChevronDown, ChevronRight, Eye, RefreshCw, Trash2 } from "lucide-react";
+import {
+	Activity,
+	ChevronDown,
+	ChevronRight,
+	Database,
+	Eye,
+	Gauge,
+	KeyRound,
+	RefreshCw,
+	ShieldCheck,
+	Trash2,
+} from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import {
 	ADMIN_WIDE_DIALOG_BODY_CLASS,
 	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
 } from "@/components/admin/dialog-presets";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
+import { type KvMetric, KvMetricsChart } from "@/components/admin/kv-metrics-chart";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { readAdminKvJson } from "@/lib/admin-kv-fetch";
 
@@ -122,12 +134,7 @@ interface GetResponse {
 	expiration: number | null;
 }
 
-interface MetricsRow {
-	family: string;
-	tsMinute: number;
-	op: "read" | "hit" | "miss" | "write" | "bump" | "delete" | "error";
-	count: number;
-}
+type MetricsRow = KvMetric;
 
 // ---------------------------------------------------------------------------
 // Presentation helpers
@@ -152,7 +159,7 @@ const PRESENCE_VARIANT: Record<Presence, "default" | "secondary" | "destructive"
 };
 
 function formatTtl(ttl: OverviewRow["ttl"]): string {
-	if (typeof ttl === "string") return ttl;
+	if (typeof ttl === "string") return ttl === "sticky" ? "持续保留" : "按业务设置";
 	if (ttl >= 86400) return `${Math.round(ttl / 86400)}d`;
 	if (ttl >= 3600) return `${Math.round(ttl / 3600)}h`;
 	if (ttl >= 60) return `${Math.round(ttl / 60)}m`;
@@ -364,7 +371,7 @@ function ExpandedKeyList({
 	}
 	return (
 		<div className="space-y-2 px-4 py-3">
-			<Table>
+			<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
 				<TableHeader>
 					<TableRow>
 						<TableHead>Key</TableHead>
@@ -378,7 +385,11 @@ function ExpandedKeyList({
 						const deleteAction = k.rawKey ? deleteActionForKey(row, k.rawKey) : null;
 						return (
 							<TableRow key={k.key + (k.rawKey ?? "")}>
-								<TableCell className="font-mono text-xs">{k.key}</TableCell>
+								<TableCell className="font-mono text-xs">
+									<span className="block max-w-96 truncate" title={k.key}>
+										{k.key}
+									</span>
+								</TableCell>
 								<TableCell className="text-xs text-basalt-muted-foreground">
 									{formatExpiration(k.expiration, now)}
 								</TableCell>
@@ -470,7 +481,7 @@ function OverviewTable({
 		return <div className="py-12 text-center text-basalt-muted-foreground">无 KV 家族数据</div>;
 	}
 	return (
-		<Table>
+		<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-8" />
@@ -501,7 +512,9 @@ function OverviewTable({
 									<Button
 										size="sm"
 										variant="ghost"
-										className="h-6 w-6 p-0"
+										className="h-7 w-7 p-0"
+										aria-label={`${isExpanded ? "收起" : "展开"}${row.displayName}`}
+										aria-expanded={isExpanded}
 										disabled={!canExpand}
 										onClick={() => onToggle(row)}
 									>
@@ -513,9 +526,14 @@ function OverviewTable({
 									</Button>
 								</TableCell>
 								<TableCell className="font-mono text-xs">
-									<div className="font-semibold">{row.displayName}</div>
+									<div className="font-sans font-semibold">{row.displayName}</div>
 									<div className="text-basalt-muted-foreground">{row.family}</div>
-									<div className="text-basalt-muted-foreground">{row.pattern}</div>
+									<div
+										className="max-w-80 truncate text-basalt-muted-foreground"
+										title={row.pattern}
+									>
+										{row.pattern}
+									</div>
 								</TableCell>
 								<TableCell className="text-xs">{row.category}</TableCell>
 								<TableCell>
@@ -550,7 +568,7 @@ function OverviewTable({
 							</TableRow>
 							{isExpanded && (
 								<TableRow>
-									<TableCell colSpan={8} className="p-0">
+									<TableCell colSpan={8} className="!p-0">
 										<ExpandedKeyList
 											row={row}
 											state={keyLists[row.family] ?? EMPTY_KEY_LIST}
@@ -600,7 +618,7 @@ function MetricsTable({
 		);
 	}
 	return (
-		<Table>
+		<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
 			<TableHeader>
 				<TableRow>
 					<TableHead>家族</TableHead>
@@ -675,14 +693,18 @@ function KeyDetailDialog({
 				)}
 				{state.data && (
 					<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-3 text-xs`}>
-						<div>
-							<span className="text-basalt-muted-foreground">过期：</span>
-							{formatExpiration(state.data.expiration, now)}
-						</div>
-						<div>
-							<span className="text-basalt-muted-foreground">大小：</span>
-							{formatBytes(state.data.valueByteSize)}
-						</div>
+						<dl className="grid gap-3 rounded-lg border border-basalt-border p-3 sm:grid-cols-2">
+							<div>
+								<dt className="text-basalt-muted-foreground">到期时间</dt>
+								<dd className="mt-1 tabular-nums">
+									{formatExpiration(state.data.expiration, now)}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-basalt-muted-foreground">内容大小</dt>
+								<dd className="mt-1 tabular-nums">{formatBytes(state.data.valueByteSize)}</dd>
+							</div>
+						</dl>
 						{state.data.metadata !== null && (
 							<div className="min-w-0">
 								<span className="text-basalt-muted-foreground">Metadata：</span>
@@ -764,9 +786,7 @@ export default function KvMonitorPage() {
 			const data = await readAdminKvJson<{ families: OverviewRow[] }>("/api/admin/kv/overview");
 			if (data.families.length === 0) {
 				setOverviewRows([]);
-				setOverviewError(
-					"接口返回空 registry（kv-registry 应至少包含已声明的家族）。请检查 worker 是否正常启动并加载到 kv-registry。",
-				);
+				setOverviewError("未能获取缓存目录，请稍后重新加载。");
 				return;
 			}
 			setOverviewRows(data.families);
@@ -782,13 +802,14 @@ export default function KvMonitorPage() {
 		setMetricsLoading(true);
 		setMetricsError(null);
 		try {
-			const data = await readAdminKvJson<{ series: MetricsRow[] }>(
+			const data = await readAdminKvJson<{ series: MetricsRow[]; note?: string }>(
 				`/api/admin/kv/metrics?minutes=${METRICS_MINUTES}`,
 			);
 			// Empty `series` is a valid state (no metrics in the window) —
 			// don't promote it to an error. The MetricsTable's own empty
 			// state ("最近 N 分钟暂无指标") handles this correctly.
 			setMetricsRows(data.series);
+			if (data.note) setMetricsError("指标暂不可用，请稍后重新加载。");
 		} catch (err) {
 			setMetricsRows([]);
 			setMetricsError(extractErrorMessage(err, "加载 KV 命中指标失败"));
@@ -967,10 +988,15 @@ export default function KvMonitorPage() {
 	const isBusy = busyFamily !== null;
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="KV 缓存监控"
-				description="查看 Worker KV 中各业务缓存家族的存量、TTL 与命中指标；展开家族可看 key 列表 / 过期时间，敏感家族仅展示数量与 TTL，不展开 value。"
+				title={
+					<span className="flex items-center gap-2">
+						<Database aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						KV 缓存监控
+					</span>
+				}
+				description="查看缓存存量、有效期和最近一小时的操作趋势，展开各家族可检查具体记录。"
 				actions={
 					<Button
 						variant="outline"
@@ -985,6 +1011,51 @@ export default function KvMonitorPage() {
 						重新加载
 					</Button>
 				}
+			/>
+
+			<AdminMetrics
+				items={[
+					{
+						label: "在用家族",
+						value:
+							overviewLoading || overviewError
+								? "—"
+								: overviewRows.filter((r) => r.presence === "present").length,
+						icon: Database,
+						hint: `已登记 ${overviewRows.length} 个家族`,
+					},
+					{
+						label: "已统计键",
+						value:
+							overviewLoading || overviewError
+								? "—"
+								: `${overviewRows.reduce((n, r) => n + r.count, 0).toLocaleString("zh-CN")}${overviewRows.some((r) => r.truncated) ? "+" : ""}`,
+						icon: KeyRound,
+						hint: "各家族扫描结果合计",
+					},
+					{
+						label: "近一小时读取",
+						value:
+							metricsLoading || metricsError || summaries.length === 0
+								? "—"
+								: summaries.reduce((n, r) => n + r.read, 0),
+						icon: Activity,
+						hint: "已记录的读取次数",
+					},
+					{
+						label: "近一小时命中率",
+						value:
+							metricsLoading || metricsError || summaries.length === 0
+								? "—"
+								: (() => {
+										const hits = summaries.reduce((n, r) => n + r.hit, 0);
+										const misses = summaries.reduce((n, r) => n + r.miss, 0);
+										return hits + misses ? `${((100 * hits) / (hits + misses)).toFixed(1)}%` : "—";
+									})(),
+						icon: Gauge,
+						hint: "按命中与未命中总量计算",
+					},
+				]}
 			/>
 
 			{notice && (
@@ -1004,8 +1075,8 @@ export default function KvMonitorPage() {
 					title="视图"
 					hint={
 						activeView === "overview"
-							? "每个家族对应 kv-registry.ts 中一条声明。计数是按 family pattern 的 KV.list 扫描结果（最多 1000 条），超出时以「+」标注。点击左侧箭头展开查看 key 列表与到期时间。"
-							: "Op 维度来自 kv_cache_metrics_minute 表（migration 0035）。按家族聚合，仅显示家族级总计；不存在按 key 的命中计数。"
+							? "每个家族最多统计 1,000 个键，超过时以 + 标记。展开可检查记录与到期时间。"
+							: "按家族汇总已记录的操作。命中率 = 命中 ÷（命中 + 未命中），单个键没有独立指标。"
 					}
 					actions={
 						<TabsList aria-label={"切换 KV 监控视图"} className="max-w-full overflow-x-auto">
@@ -1023,8 +1094,8 @@ export default function KvMonitorPage() {
 
 				<TabsContent value="overview" aria-label="家族总览" className="space-y-3">
 					{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
-					<LayerCard>
-						<LayerCard.Well>
+					<LayerCard padding="none" className="overflow-hidden">
+						<LayerCard.Well className="p-0">
 							<OverviewTable
 								rows={overviewRows}
 								loading={overviewLoading}
@@ -1044,8 +1115,13 @@ export default function KvMonitorPage() {
 
 				<TabsContent value="metrics" aria-label="家族级命中指标" className="space-y-3">
 					{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
-					<LayerCard>
-						<LayerCard.Well>
+					{!metricsLoading && !metricsError && metricsRows.length > 0 && (
+						<LayerCard padding="sm">
+							<KvMetricsChart series={metricsRows} />
+						</LayerCard>
+					)}
+					<LayerCard padding="none" className="overflow-hidden">
+						<LayerCard.Well className="p-0">
 							<MetricsTable
 								summaries={summaries}
 								minutes={METRICS_MINUTES}
@@ -1056,28 +1132,10 @@ export default function KvMonitorPage() {
 				</TabsContent>
 			</Tabs>
 
-			<section className="space-y-3">
-				<SectionRule title="说明" />
-				<LayerCard>
-					<LayerCard.Well className="space-y-2 text-sm text-basalt-muted-foreground">
-						<p>
-							<Trash2 className="mr-1 inline h-3 w-3" />
-							删除 / 失效操作会写入操作日志（<Code>kv.bump_gen</Code> /<Code>kv.delete_key</Code>
-							）。
-						</p>
-						<p>
-							<strong>敏感家族</strong>
-							（refresh token / email_verify / IP 限流等）只展示统计与 TTL 上限，不开放 value 与 key
-							列表； server-side 由 kv-registry 的 <Code>nameSensitivity</Code> /
-							<Code>valueSensitivity</Code> 决定。
-						</p>
-						<p>
-							<strong>命中率</strong> 按 <Code>hit / (hit + miss)</Code> 推导，仅在家族级别有效；
-							不展示按 key 的命中数据。
-						</p>
-					</LayerCard.Well>
-				</LayerCard>
-			</section>
+			<p className="flex items-start gap-2 text-xs text-basalt-muted-foreground">
+				<ShieldCheck aria-hidden="true" className="h-4 w-4 shrink-0" />
+				敏感记录按权限隐藏或遮蔽。刷新与过期操作会记录审计日志；命中趋势仅反映已采集的数据，缺失记录留空。
+			</p>
 
 			<KeyDetailDialog
 				state={detail}

@@ -355,7 +355,7 @@ export default function ForumsPage() {
 			header: "最近活动",
 			cell: (node) => (
 				<div className="max-w-52">
-					<div className="text-xs tabular-nums">
+					<div className="truncate text-xs tabular-nums" title={node.lastPoster}>
 						{node.lastPostAt ? formatDate(node.lastPostAt) : "—"}
 						{node.lastPoster ? ` · ${node.lastPoster}` : ""}
 					</div>

@@ -3,7 +3,7 @@
 import { Badge, Button, LayerCard, Meter } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Database, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
+import { Clock3, Database, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
 import { useCallback, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import {
@@ -40,21 +40,21 @@ const CARDS: CardConfig[] = [
 	{
 		kind: "threads",
 		title: "主题统计",
-		description: "分批重新计算所有主题的回复数和最后回复信息（job 模式）",
+		description: "重新计算主题回复数，更新最后回复及作者信息",
 		icon: <MessageSquare className="h-5 w-5" />,
 	},
 	{
 		kind: "users",
 		title: "用户统计",
-		description: "分批重新计算所有用户的主题数、回帖数和精华帖数（job 模式）",
+		description: "重新计算用户的主题、帖子（含首帖）和精华数量",
 		icon: <Users className="h-5 w-5" />,
 	},
 	{
 		kind: "post-forums",
 		title: "帖子版块同步",
-		description: "将帖子的版块归属同步为其所属主题的当前版块（job 模式，已移除 5 万条上限）",
+		description: "同步帖子与所属主题的版块，修复移动主题后的历史归属",
 		icon: <RefreshCw className="h-5 w-5" />,
-		processedSemantics: "扫描数 ≠ 修正数：post-forums 只更新与所属主题不一致的帖子。",
+		processedSemantics: "仅修正与所属主题版块不一致的帖子，修正数即本轮发现的不一致记录数。",
 	},
 ];
 
@@ -91,11 +91,11 @@ function RecalcCard({ config }: { config: CardConfig }) {
 	const showPrimary = !isTerminal;
 
 	let primaryLabel = "开始计算";
-	if (isPosting) primaryLabel = "正在请求…";
-	else if (isRunning) primaryLabel = "运行中（自动推进）";
+	if (isPosting) primaryLabel = "处理中…";
+	else if (isRunning) primaryLabel = "自动计算中";
 
 	return (
-		<LayerCard>
+		<LayerCard padding="sm" className="flex flex-col">
 			<LayerCard.Header className="flex-col items-stretch gap-3">
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<div className="flex items-center gap-2">
@@ -110,14 +110,14 @@ function RecalcCard({ config }: { config: CardConfig }) {
 				</div>
 				<p className="text-xs text-basalt-muted-foreground">{config.description}</p>
 			</LayerCard.Header>
-			<LayerCard.Well className="space-y-3">
+			<LayerCard.Well className="flex flex-1 flex-col gap-4">
 				{loading && !snapshot ? (
 					<div className="flex items-center text-xs text-basalt-muted-foreground">
 						<Loader className="mr-2 h-4 w-4" />
 						加载状态中…
 					</div>
 				) : snapshot ? (
-					<div className="space-y-2">
+					<div className="space-y-3">
 						{/* Progress bar */}
 						<div>
 							<div className="flex items-center justify-between text-xs">
@@ -135,41 +135,43 @@ function RecalcCard({ config }: { config: CardConfig }) {
 								className="mt-1"
 							/>
 						</div>
-						{/* Updated rows */}
-						<div className="flex items-center justify-between text-xs">
-							<span className="text-basalt-muted-foreground">累计修正</span>
-							<span className="font-medium tabular-nums">
-								{snapshot.updated.toLocaleString("zh-CN")}
-							</span>
-						</div>
-						<div className="flex items-center justify-between text-xs">
-							<span className="text-basalt-muted-foreground">本批修正</span>
-							<span className="font-medium tabular-nums">
-								{snapshot.lastBatchUpdated.toLocaleString("zh-CN")}
-							</span>
-						</div>
-						<div className="flex items-center justify-between text-xs">
-							<span className="text-basalt-muted-foreground">最后一次 tick</span>
-							<span className="font-medium tabular-nums">
-								{formatTickTime(snapshot.lastTickAt)}
-							</span>
+						<dl className="grid grid-cols-3 gap-3 text-xs">
+							{[
+								["已扫描", snapshot.processed],
+								[config.kind === "post-forums" ? "累计修正" : "累计重算", snapshot.updated],
+								[
+									config.kind === "post-forums" ? "本批修正" : "本批重算",
+									snapshot.lastBatchUpdated,
+								],
+							].map(([label, value]) => (
+								<div key={label}>
+									<dt className="text-basalt-muted-foreground">{label}</dt>
+									<dd className="mt-1 text-xl font-semibold tabular-nums">
+										{value.toLocaleString("zh-CN")}
+									</dd>
+								</div>
+							))}
+						</dl>
+						<div className="flex flex-wrap items-center gap-1.5 text-xs text-basalt-muted-foreground">
+							<Clock3 aria-hidden="true" className="h-3.5 w-3.5" />
+							最近更新 · {formatTickTime(snapshot.lastTickAt)}
 						</div>
 						{config.processedSemantics && (
-							<p className="text-[10px] text-basalt-muted-foreground">
-								{config.processedSemantics}
-							</p>
+							<p className="text-xs text-basalt-muted-foreground">{config.processedSemantics}</p>
 						)}
 						{snapshot.status === "failed" && snapshot.error && (
-							<p className="text-xs text-basalt-destructive">job 错误：{snapshot.error}</p>
+							<p className="text-xs text-basalt-destructive">计算失败：{snapshot.error}</p>
 						)}
 					</div>
 				) : (
-					<p className="text-xs text-basalt-muted-foreground">尚未开始</p>
+					<p className="py-5 text-sm text-basalt-muted-foreground">
+						尚未开始，启动后将在此显示扫描进度。
+					</p>
 				)}
 
 				{error && <p className="text-xs text-basalt-destructive">请求错误：{error}</p>}
 
-				<div className="flex items-center justify-between gap-2">
+				<div className="mt-auto flex items-center justify-between gap-2">
 					{showPrimary ? (
 						<Button
 							variant="outline"
@@ -219,13 +221,18 @@ function RecalcCard({ config }: { config: CardConfig }) {
 
 export default function StatisticsPage() {
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="统计计算"
-				description="分批重新计算数据库中的统计数据。点击「开始计算」后由前端自动以 ~1.5s 间隔推进，可随时关闭窗口再回来——KV 状态会保留 24h。"
+				title={
+					<span className="flex items-center gap-2">
+						<RefreshCw aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						统计计算
+					</span>
+				}
+				description="按需重算社区数据。任务分批推进，进度保留 24 小时，重新打开页面后可继续。"
 			/>
 
-			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+			<div className="grid gap-4 lg:grid-cols-2">
 				{CARDS.map((card) => (
 					<RecalcCard key={card.kind} config={card} />
 				))}
@@ -235,21 +242,20 @@ export default function StatisticsPage() {
 				<LayerCard.Header>
 					<h2 className="text-base font-medium">说明</h2>
 				</LayerCard.Header>
-				<LayerCard.Well className="text-sm text-basalt-muted-foreground space-y-2">
+				<LayerCard.Well className="grid gap-4 text-xs text-basalt-muted-foreground md:grid-cols-3">
 					<p>
-						<strong>job 模式</strong>
-						：版块/主题/用户/帖子版块同步都以 KV 为状态机，每次 POST 推进一批，超时不会丢失进度。
+						<strong className="mb-1 block text-basalt-foreground">进度保留</strong>
+						页面打开时自动推进。关闭页面会暂停，24
+						小时内返回可继续；已完成或失败的任务可重置后重算。
 					</p>
 					<p>
-						<strong>扫描 vs 修正</strong>
-						：版块/主题/用户的「扫描数」基本等于「修正数」；帖子版块同步只更新与所属主题不一致的帖子，两者差距是历史不一致条数。
+						<strong className="mb-1 block text-basalt-foreground">重算与修正</strong>
+						版块、主题与用户统计会重新写入扫描结果；帖子版块同步仅更新存在归属差异的记录。
 					</p>
 					<p>
-						<strong>并发安全</strong>
-						：同一类型同一时刻只允许一个 tick 在执行。前端已限制单 in-flight，遇到 409
-						会自动重试，不会变红灯。
+						<strong className="mb-1 block text-basalt-foreground">执行安排</strong>
+						建议在低峰期进行全量重算。同一类型按批次处理，任务忙碌时页面会自动等待。
 					</p>
-					<p className="text-xs">建议在低峰期执行；推进期间页面会以约 1.5 秒间隔自动轮询。</p>
 				</LayerCard.Well>
 			</LayerCard>
 		</div>

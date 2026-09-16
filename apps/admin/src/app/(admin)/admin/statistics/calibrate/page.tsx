@@ -11,9 +11,18 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
-import { AlertCircle, Calculator, CheckCircle2, RefreshCw } from "lucide-react";
+import {
+	AlertCircle,
+	Calculator,
+	CheckCircle2,
+	ListChecks,
+	MessageSquare,
+	RefreshCw,
+	SlidersHorizontal,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -175,44 +184,55 @@ export default function StatsCalibratePage() {
 	});
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="统计校准"
-				description="查看和校准预计算的统计计数器。点击「运行统计」执行 COUNT(*) 查询获取真实值，然后选择「同步真实值」或手动调整偏移量。"
+				title={
+					<span className="flex items-center gap-2">
+						<Calculator aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						统计校准
+					</span>
+				}
+				description="比对展示计数与实际记录，查看差异并同步，或按需要手动调整。"
 			/>
 
-			{/* Today's posts card */}
-			<LayerCard>
-				<LayerCard.Header className="pb-3">
-					<div className="flex items-center gap-2">
-						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-basalt-primary/10 text-basalt-primary">
-							<Calculator className="h-5 w-5" />
-						</div>
-						<div>
-							<h2 className="text-base font-medium">今日发帖</h2>
-							<p className="text-xs text-basalt-muted-foreground">
-								存储在 KV 中，每日北京时间 0 点重置
-							</p>
-						</div>
-					</div>
-				</LayerCard.Header>
-				<LayerCard.Well>
-					<div className="flex items-center gap-4 text-sm">
-						<div>
-							<span className="text-basalt-muted-foreground">今日发帖：</span>
-							<span className="font-medium tabular-nums">{formatNumber(todayPosts)}</span>
-						</div>
-						<div>
-							<span className="text-basalt-muted-foreground">日期标记：</span>
-							<span className="font-medium">{todayDate || "未初始化"}</span>
-						</div>
-					</div>
-				</LayerCard.Well>
-			</LayerCard>
+			<AdminMetrics
+				items={[
+					{
+						label: "今日帖子（含首帖）",
+						value: loading || error ? "—" : todayPosts,
+						icon: MessageSquare,
+						hint: todayDate ? `${todayDate} · 北京时间` : "每日 0 点重新计数",
+					},
+					{
+						label: "已比对计数器",
+						value:
+							loading || error
+								? "—"
+								: `${counters.filter((r) => r.real !== null).length} / ${counters.length}`,
+						icon: ListChecks,
+						hint: "运行统计后显示真实值",
+					},
+					{
+						label: "存在差异",
+						value:
+							loading || error || !counters.some((r) => r.real !== null)
+								? "—"
+								: counters.filter((r) => r.real !== null && r.real !== r.stored).length,
+						icon: AlertCircle,
+						hint: "真实值与存储值不一致",
+					},
+					{
+						label: "待应用调整",
+						value: Object.values(offsets).filter((v) => v !== 0).length,
+						icon: SlidersHorizontal,
+						hint: "本次填写的非零偏移",
+					},
+				]}
+			/>
 
 			{/* Main calibration card */}
-			<LayerCard>
-				<LayerCard.Header className="flex-col items-stretch gap-2">
+			<LayerCard padding="none" className="overflow-hidden">
+				<LayerCard.Header className="flex-col items-stretch gap-2 p-4">
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<div className="flex flex-wrap items-center gap-2">
 							<h2 className="text-base font-medium">计数器校准</h2>
@@ -230,25 +250,38 @@ export default function StatsCalibratePage() {
 							)}
 						</div>
 						<div className="flex gap-2">
-							<Button variant="outline" size="sm" onClick={fetchState} disabled={loading}>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={fetchState}
+								disabled={loading || running || applying}
+							>
 								{loading && <Loader className="mr-1 h-4 w-4" />}
 								刷新
 							</Button>
-							<Button variant="outline" size="sm" onClick={runStats} disabled={running}>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={runStats}
+								disabled={loading || running || applying}
+							>
 								{running && <Loader className="mr-1 h-4 w-4" />}
 								运行统计
 							</Button>
 						</div>
 					</div>
 					<p className="text-xs text-basalt-muted-foreground">
-						「存储值」是预计算的计数器，「真实值」是 COUNT(*) 查询结果（点击运行统计后显示）
+						偏差 = 真实值 − 存储值；最终值预览本次手动偏移后的结果。
 					</p>
 				</LayerCard.Header>
-				<LayerCard.Well>
+				<LayerCard.Well className="p-0">
 					{error && <AdminInlineMessage variant="error" text={error} />}
 					{success && <AdminInlineMessage variant="success" text={success} />}
 
-					<Table className="whitespace-nowrap">
+					<Table
+						aria-label="计数器比对"
+						className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2"
+					>
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[180px]">计数器</TableHead>
@@ -260,6 +293,13 @@ export default function StatsCalibratePage() {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
+							{loading && counters.length === 0 && (
+								<TableRow>
+									<TableCell colSpan={6} className="h-24 text-center text-basalt-muted-foreground">
+										加载计数器…
+									</TableCell>
+								</TableRow>
+							)}
 							{counters.map((row) => {
 								const diff = getDiff(row);
 								const offset = offsets[row.key] ?? 0;
@@ -297,13 +337,16 @@ export default function StatsCalibratePage() {
 										<TableCell className="text-right">
 											<Input
 												type="number"
+												aria-label={`${COUNTER_LABELS[row.key] ?? row.key}调整偏移`}
 												className="h-8 w-[100px] text-right tabular-nums ml-auto"
 												value={offset}
 												onChange={(e) => {
 													const val = Number.parseInt(e.target.value, 10) || 0;
 													setOffsets((prev) => ({ ...prev, [row.key]: val }));
 												}}
-												disabled={row.key === "stats.yesterday_posts"}
+												disabled={
+													loading || running || applying || row.key === "stats.yesterday_posts"
+												}
 											/>
 										</TableCell>
 										<TableCell className="text-right tabular-nums font-medium">
@@ -319,17 +362,23 @@ export default function StatsCalibratePage() {
 						</TableBody>
 					</Table>
 
-					<div className="mt-4 flex items-center justify-end gap-2">
+					<div className="flex flex-wrap items-center justify-end gap-2 p-4">
 						<Button
 							variant="outline"
 							size="sm"
 							onClick={applyOffsets}
-							disabled={applying || Object.values(offsets).every((v) => v === 0)}
+							disabled={
+								loading || running || applying || Object.values(offsets).every((v) => v === 0)
+							}
 						>
 							{applying && <Loader className="mr-1 h-4 w-4" />}
 							应用偏移
 						</Button>
-						<Button size="sm" onClick={applyReal} disabled={applying || !hasDrift}>
+						<Button
+							size="sm"
+							onClick={applyReal}
+							disabled={loading || running || applying || !hasDrift}
+						>
 							{applying && <Loader className="mr-1 h-4 w-4" />}
 							<RefreshCw className="mr-1 h-4 w-4" />
 							同步真实值
@@ -338,34 +387,21 @@ export default function StatsCalibratePage() {
 				</LayerCard.Well>
 			</LayerCard>
 
-			{/* Info card */}
-			<LayerCard>
-				<LayerCard.Header>
-					<h2 className="text-base font-medium">说明</h2>
-				</LayerCard.Header>
-				<LayerCard.Well className="text-sm text-basalt-muted-foreground space-y-2">
+			<LayerCard padding="sm">
+				<div className="grid gap-4 text-xs text-basalt-muted-foreground md:grid-cols-3">
 					<p>
-						<strong>预计算计数器</strong>
-						：为避免 COUNT(*)
-						全表扫描，论坛统计使用预计算的计数器。每次发帖、发主题、注册会自动递增。
+						<strong className="mb-1 block text-basalt-foreground">运行统计</strong>
+						按当前记录重新计数，用于比对，建议在低峰期执行。
 					</p>
 					<p>
-						<strong>校准场景</strong>
-						：如果出现数据不一致（如删除内容后计数器未递减），可使用此页面校准。
+						<strong className="mb-1 block text-basalt-foreground">同步真实值</strong>
+						重新统计并更新展示计数，适合删除或迁移内容后出现偏差的情况。
 					</p>
 					<p>
-						<strong>运行统计</strong>
-						：执行 COUNT(*) 查询获取真实值。这是一个昂贵的操作，仅在需要时执行。
+						<strong className="mb-1 block text-basalt-foreground">应用偏移</strong>
+						在存储值上加减所填数值。昨日发帖由系统维护，不能手动设置偏移。
 					</p>
-					<p>
-						<strong>同步真实值</strong>
-						：将所有存储值更新为真实值。这会重新执行 COUNT(*) 查询。
-					</p>
-					<p>
-						<strong>应用偏移</strong>
-						：在存储值基础上加减指定的偏移量，用于精细调整。
-					</p>
-				</LayerCard.Well>
+				</div>
 			</LayerCard>
 		</div>
 	);

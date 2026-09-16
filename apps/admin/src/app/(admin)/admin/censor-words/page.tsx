@@ -12,6 +12,7 @@ import {
 import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
+	Asterisk,
 	FlaskConical,
 	ListFilter,
 	MoreHorizontal,
@@ -20,7 +21,6 @@ import {
 	Replace,
 	ShieldBan,
 	Trash2,
-	Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -330,11 +330,12 @@ export default function CensorWordsPage() {
 						icon: Replace,
 					},
 					{
-						label: "本页规则创建者",
+						label: "本页默认遮蔽",
 						value: loading
 							? "—"
-							: new Set(data.filter((r) => r.adminId > 0).map((r) => r.adminId)).size,
-						icon: Users,
+							: data.filter((r) => r.action === "replace" && !r.replacement).length,
+						icon: Asterisk,
+						hint: "未指定替换文本，使用 ***",
 					},
 				]}
 			/>
