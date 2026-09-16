@@ -134,11 +134,16 @@ describe("ReportDialog toast integration", () => {
 		const submitBtn = screen.getByText("提交举报");
 		await act(async () => {
 			fireEvent.click(submitBtn);
+			fireEvent.click(submitBtn);
 		});
 
 		await waitFor(() => {
 			expect(screen.getByText("举报已提交")).toBeTruthy();
 		});
+		expect(mockSubmitReport).toHaveBeenCalledTimes(1);
+		expect((screen.getByRole("button", { name: "已提交" }) as HTMLButtonElement).disabled).toBe(
+			true,
+		);
 	});
 
 	it("shows error toast on duplicate report (ApiError with code)", async () => {

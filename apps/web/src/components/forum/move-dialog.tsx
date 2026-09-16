@@ -4,7 +4,7 @@
 
 import type { Forum } from "@ellie/types";
 import { buildForumTree, type ForumTreeNode } from "@ellie/types";
-import { ArrowRight, Folder, FolderOpen } from "lucide-react";
+import { ArrowRight, Folder, FolderOpen, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,25 +33,28 @@ export function MoveDialog({
 	onConfirm,
 	loading,
 }: MoveDialogProps) {
-	const [_forums, setForums] = useState<Forum[]>([]);
 	const [tree, setTree] = useState<ForumTreeNode[]>([]);
 	const [selected, setSelected] = useState<number | null>(null);
 	const [loadingForums, setLoadingForums] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [attempt, setAttempt] = useState(0);
 
-	// Fetch forums when dialog opens
+	// biome-ignore lint/correctness/useExhaustiveDependencies: attempt explicitly retries the request after a load failure.
 	useEffect(() => {
 		if (!open) return;
 		let cancelled = false;
+		setSelected(null);
+		setTree([]);
+		setError(null);
 		setLoadingForums(true);
 		apiClient
 			.get<Forum[]>("/api/v1/forums")
 			.then(({ data }) => {
 				if (cancelled) return;
-				setForums(data);
 				setTree(buildForumTree(data));
 			})
 			.catch(() => {
-				// Ignore errors — UI will show "no forums available"
+				if (!cancelled) setError("版块列表加载失败，请重试");
 			})
 			.finally(() => {
 				if (!cancelled) setLoadingForums(false);
@@ -59,10 +62,10 @@ export function MoveDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [open]);
+	}, [open, attempt]);
 
 	const handleConfirm = () => {
-		if (selected !== null) {
+		if (selected !== null && !loading && !loadingForums && !error) {
 			onConfirm(selected);
 		}
 	};
@@ -78,7 +81,8 @@ export function MoveDialog({
 				<div key={node.id}>
 					<button
 						type="button"
-						disabled={!canSelect}
+						disabled={!canSelect || loading}
+						aria-pressed={selected === node.id}
 						className={cn(
 							"w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left",
 							canSelect && selected === node.id && "bg-primary/10 border border-primary",
@@ -90,12 +94,14 @@ export function MoveDialog({
 						onClick={() => canSelect && setSelected(node.id)}
 					>
 						{isGroup ? (
-							<FolderOpen className="h-4 w-4 text-muted-foreground" />
+							<FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
 						) : (
-							<Folder className="h-4 w-4 text-primary" />
+							<Folder className="h-4 w-4 shrink-0 text-primary" />
 						)}
-						<span className={cn("flex-1", isGroup && "font-medium")}>{node.name}</span>
-						{isCurrent && <span className="text-xs text-muted-foreground">(当前)</span>}
+						<span className={cn("min-w-0 flex-1 break-words", isGroup && "font-medium")}>
+							{node.name}
+						</span>
+						{isCurrent && <span className="shrink-0 text-xs text-muted-foreground">当前</span>}
 					</button>
 					{node.children && node.children.length > 0 && renderTree(node.children, depth + 1)}
 				</div>
@@ -104,8 +110,11 @@ export function MoveDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
+		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
+			<DialogContent
+				className="flex flex-col overflow-hidden sm:max-w-lg"
+				showCloseButton={!loading}
+			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<ArrowRight className="h-5 w-5 text-primary" />
@@ -114,10 +123,20 @@ export function MoveDialog({
 					<DialogDescription>选择要移动到的目标版块</DialogDescription>
 				</DialogHeader>
 
-				<div className="flex-1 overflow-y-auto py-4 space-y-1 min-h-[200px]">
+				<div className="min-h-0 max-h-96 flex-1 overflow-y-auto overscroll-contain space-y-1 py-2">
 					{loadingForums ? (
 						<div className="flex items-center justify-center py-8 text-muted-foreground">
 							加载版块列表...
+						</div>
+					) : error ? (
+						<div className="space-y-3 rounded-lg bg-muted/40 p-5 text-center">
+							<p role="alert" className="text-sm text-destructive">
+								{error}
+							</p>
+							<Button variant="outline" onClick={() => setAttempt((value) => value + 1)}>
+								<RefreshCw className="h-4 w-4" />
+								重新加载
+							</Button>
 						</div>
 					) : tree.length === 0 ? (
 						<div className="flex items-center justify-center py-8 text-muted-foreground">
@@ -132,7 +151,10 @@ export function MoveDialog({
 					<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
 						取消
 					</Button>
-					<Button onClick={handleConfirm} disabled={loading || selected === null}>
+					<Button
+						onClick={handleConfirm}
+						disabled={loading || loadingForums || !!error || selected === null}
+					>
 						{loading ? "处理中..." : "移动"}
 					</Button>
 				</DialogFooter>

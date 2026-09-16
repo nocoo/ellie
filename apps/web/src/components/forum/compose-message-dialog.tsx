@@ -10,6 +10,7 @@ import {
 	Dialog,
 	DialogClose,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -65,39 +66,40 @@ function UserAutocomplete({
 	const [showDropdown, setShowDropdown] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const dropdownRef = useRef<HTMLDivElement>(null);
-	const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [searchError, setSearchError] = useState<string | null>(null);
 
 	// Debounced search
 	useEffect(() => {
-		if (searchTimeoutRef.current) {
-			clearTimeout(searchTimeoutRef.current);
-		}
-
-		if (!value || value.length < 2 || selectedUser) {
-			setResults([]);
-			setShowDropdown(false);
+		setResults([]);
+		setShowDropdown(false);
+		setSearchError(null);
+		if (value.trim().length < 2 || selectedUser || disabled) {
+			setIsSearching(false);
 			return;
 		}
 
+		let cancelled = false;
 		setIsSearching(true);
-		searchTimeoutRef.current = setTimeout(async () => {
+		const timeout = setTimeout(async () => {
 			try {
-				const users = await searchUsers(value);
+				const users = await searchUsers(value.trim());
+				if (cancelled) return;
 				setResults(users);
-				setShowDropdown(users.length > 0);
+				setShowDropdown(true);
 			} catch {
-				setResults([]);
+				if (cancelled) return;
+				setSearchError("搜索失败，请重新输入用户名");
+				setShowDropdown(true);
 			} finally {
-				setIsSearching(false);
+				if (!cancelled) setIsSearching(false);
 			}
 		}, 300);
 
 		return () => {
-			if (searchTimeoutRef.current) {
-				clearTimeout(searchTimeoutRef.current);
-			}
+			cancelled = true;
+			clearTimeout(timeout);
 		};
-	}, [value, selectedUser]);
+	}, [value, selectedUser, disabled]);
 
 	// Close dropdown on outside click
 	useEffect(() => {
@@ -140,12 +142,13 @@ function UserAutocomplete({
 		<div className="relative">
 			<div className="relative">
 				<Input
+					id="recipient"
 					ref={inputRef}
 					value={value}
 					onChange={handleInputChange}
 					placeholder="输入用户名搜索..."
 					disabled={disabled}
-					className={cn("pr-8", selectedUser && "text-primary font-medium")}
+					className={cn("h-10 pr-10", selectedUser && "text-primary font-medium")}
 					onFocus={() => {
 						if (results.length > 0 && !selectedUser) {
 							setShowDropdown(true);
@@ -159,27 +162,34 @@ function UserAutocomplete({
 					<button
 						type="button"
 						onClick={handleClear}
-						className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+						disabled={disabled}
+						aria-label="清除收信人"
+						className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
 					>
 						<X className="h-4 w-4" />
 					</button>
 				)}
 			</div>
 
-			{showDropdown && results.length > 0 && (
+			{showDropdown && !disabled && (
 				<div
 					ref={dropdownRef}
-					className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover p-1 shadow-md"
+					className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg"
 				>
+					{results.length === 0 && (
+						<p className="px-3 py-3 text-sm text-muted-foreground">
+							{searchError ?? "没有找到匹配的用户"}
+						</p>
+					)}
 					{results.map((user) => (
 						<button
 							key={user.id}
 							type="button"
 							onClick={() => handleSelect(user)}
-							className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+							className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted"
 						>
-							<User className="h-4 w-4 text-muted-foreground" />
-							<span>{user.username}</span>
+							<User className="h-4 w-4 shrink-0 text-muted-foreground" />
+							<span className="min-w-0 break-words">{user.username}</span>
 						</button>
 					))}
 				</div>
@@ -208,6 +218,7 @@ export function ComposeMessageDialog({
 
 	// UI state
 	const [isSending, setIsSending] = useState(false);
+	const sendingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	// Initialize with pre-selected recipient
@@ -245,6 +256,7 @@ export function ComposeMessageDialog({
 	}, [open]);
 
 	const handleSubmit = useCallback(async () => {
+		if (sendingRef.current) return;
 		if (!selectedRecipient) {
 			setError("请选择收信人");
 			return;
@@ -255,6 +267,7 @@ export function ComposeMessageDialog({
 			return;
 		}
 
+		sendingRef.current = true;
 		setIsSending(true);
 		setError(null);
 
@@ -276,18 +289,26 @@ export function ComposeMessageDialog({
 			setError(message);
 			toast.error({ title: "发送失败", description: message });
 		} finally {
+			sendingRef.current = false;
 			setIsSending(false);
 		}
 	}, [selectedRecipient, subject, content, onOpenChange, onSuccess, toast]);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+		<Dialog open={open} onOpenChange={(next) => !sendingRef.current && onOpenChange(next)}>
+			<DialogContent
+				className="flex flex-col overflow-hidden sm:max-w-xl"
+				showCloseButton={!isSending}
+			>
 				<DialogHeader>
-					<DialogTitle>写站内信</DialogTitle>
+					<DialogTitle className="flex items-center gap-2">
+						<Send className="h-5 w-5 text-primary" />
+						写站内信
+					</DialogTitle>
+					<DialogDescription>与社区成员一对一交流，已发送的消息可在发件箱查看。</DialogDescription>
 				</DialogHeader>
 
-				<div className="grid gap-4 py-2">
+				<div className="min-h-0 overflow-y-auto overscroll-contain grid gap-4 py-2">
 					{/* Error message */}
 					{error && (
 						<div className="flex items-center gap-2 rounded border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
@@ -315,6 +336,7 @@ export function ComposeMessageDialog({
 						</Label>
 						<Input
 							id="subject"
+							className="h-10"
 							value={subject}
 							onChange={(e) => setSubject(e.target.value)}
 							placeholder="主题..."
@@ -331,10 +353,10 @@ export function ComposeMessageDialog({
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
 							placeholder="输入站内信内容..."
-							rows={6}
+							rows={8}
 							maxLength={10000}
 							disabled={isSending}
-							className="resize-none"
+							className="resize-none leading-7"
 						/>
 						<div className="text-xs text-muted-foreground text-right">{content.length}/10000</div>
 					</div>

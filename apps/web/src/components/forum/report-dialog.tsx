@@ -64,14 +64,8 @@ const TYPE_COPY: Record<
 interface ReportDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	/** New API: target type + id. */
-	targetType?: ReportTargetType;
-	targetId?: number;
-	/**
-	 * @deprecated Use {targetType: 'post', targetId} instead.
-	 * Kept for backwards-compat with existing post-card callers.
-	 */
-	postId?: number;
+	targetType: ReportTargetType;
+	targetId: number;
 	/** Called after successful report submission */
 	onSuccess?: () => void;
 }
@@ -109,13 +103,9 @@ export function ReportDialog({
 	onOpenChange,
 	targetType,
 	targetId,
-	postId,
 	onSuccess,
 }: ReportDialogProps) {
-	// Resolve effective target — prefer new {targetType,targetId}, fall back to legacy postId.
-	const effectiveType: ReportTargetType = targetType ?? "post";
-	const effectiveId: number | undefined = targetId ?? postId;
-	const copy = TYPE_COPY[effectiveType];
+	const copy = TYPE_COPY[targetType];
 	const toast = useForumToast();
 	const [step, setStep] = useState<StepState>({
 		permission: "pending",
@@ -123,6 +113,7 @@ export function ReportDialog({
 		reason: null,
 	});
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -155,6 +146,7 @@ export function ReportDialog({
 				reason: null,
 			});
 			setSubmitting(false);
+			submittingRef.current = false;
 			setError(null);
 			setSuccess(false);
 		}
@@ -162,13 +154,15 @@ export function ReportDialog({
 
 	// Check permission when dialog opens — uses unified write-gate
 	useEffect(() => {
-		if (!open || step.permission !== "pending") return;
+		if (!open) return;
+		let cancelled = false;
 
 		const check = async () => {
 			setStep((prev) => ({ ...prev, permission: "loading" }));
 			// Unified write-gate preflight: checks email + posting restrictions.
 			// If blocked, the global WriteGateDialogMount handles the message.
 			const blocked = await writeGatePreflight(null, "report");
+			if (cancelled) return;
 			if (blocked) {
 				// Write-gate dialog is already showing — close the report dialog
 				onOpenChange(false);
@@ -178,7 +172,10 @@ export function ReportDialog({
 		};
 
 		check();
-	}, [open, step.permission, onOpenChange]);
+		return () => {
+			cancelled = true;
+		};
+	}, [open, onOpenChange]);
 
 	const handleCapSolve = useCallback(() => {
 		setStep((prev) => ({ ...prev, captcha: "passed" }));
@@ -193,25 +190,23 @@ export function ReportDialog({
 	}, []);
 
 	const canSubmit =
+		!success &&
 		step.permission === "passed" &&
 		CAP_CONFIGURED &&
 		step.captcha === "passed" &&
 		step.reason !== null;
 
 	const handleSubmit = async () => {
-		if (!canSubmit || submitting) return;
-		if (effectiveId === undefined) {
-			setError("缺少举报对象");
-			return;
-		}
+		if (!canSubmit || submittingRef.current) return;
 
+		submittingRef.current = true;
 		setSubmitting(true);
 		setError(null);
 
 		try {
 			await submitReport({
-				targetType: effectiveType,
-				targetId: effectiveId,
+				targetType,
+				targetId,
 				reason: step.reason as ReportReason,
 			});
 			setSuccess(true);
@@ -222,6 +217,7 @@ export function ReportDialog({
 				onOpenChange(false);
 			}, 1500);
 		} catch (err) {
+			submittingRef.current = false;
 			const message = mapSubmitError(err, copy);
 			setError(message);
 			toast.error({ title: "举报提交失败", description: message });
@@ -245,8 +241,11 @@ export function ReportDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+		<Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
+			<DialogContent
+				className="flex flex-col overflow-hidden sm:max-w-lg"
+				showCloseButton={!submitting}
+			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Flag className="h-5 w-5 text-destructive" />
@@ -255,7 +254,7 @@ export function ReportDialog({
 					<DialogDescription>请完成以下步骤提交举报</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-4 py-4">
+				<div className="min-h-0 overflow-y-auto overscroll-contain space-y-5 py-2">
 					{/* Step 1: Permission check */}
 					<div className="space-y-2">
 						<div className="flex items-center gap-2 text-sm font-medium">
@@ -323,7 +322,8 @@ export function ReportDialog({
 												: "border-border hover:border-primary/50",
 										)}
 										onClick={() => handleReasonSelect(reason)}
-										disabled={submitting}
+										disabled={submitting || success}
+										aria-pressed={step.reason === reason}
 									>
 										<div
 											className={cn(
@@ -363,10 +363,10 @@ export function ReportDialog({
 
 				<DialogFooter>
 					<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-						取消
+						{success ? "完成" : "取消"}
 					</Button>
 					<Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
-						{submitting ? "提交中..." : "提交举报"}
+						{success ? "已提交" : submitting ? "提交中..." : "提交举报"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

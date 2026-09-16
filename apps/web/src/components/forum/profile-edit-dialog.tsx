@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
-import { cn } from "@/lib/utils";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
 import { AvatarUpload } from "./avatar-upload";
@@ -86,6 +85,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
+		if (state.submitting) return;
 		if (!open) {
 			actions.clearError();
 		}
@@ -95,19 +95,14 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className={cn(
-					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[640px] lg:w-[760px] sm:max-w-[760px]",
-					"max-h-[85vh] overflow-hidden flex flex-col",
-					"rounded-xl p-0",
-				)}
+				className="max-h-[90dvh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
 				showCloseButton={false}
 			>
 				{/* Header */}
 				<DialogHeroHeader
 					icon={<UserIcon className="h-5 w-5 text-primary" />}
 					title="编辑个人资料"
-					description="更新你的个人信息"
+					description="完善个人介绍，让同济社区更了解你"
 					onClose={() => handleOpenChange(false)}
 					closeDisabled={state.submitting}
 				/>
@@ -116,7 +111,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				{state.error && <DialogErrorBanner message={state.error} />}
 
 				{/* Form */}
-				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-6">
 					{/* Avatar Section */}
 					<div className="space-y-4">
 						<SectionHeading>头像</SectionHeading>
@@ -131,7 +126,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 					<div className="space-y-4">
 						<SectionHeading>基本信息</SectionHeading>
 
-						<div className="grid gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-gender">性别</Label>
 								<Select
@@ -149,6 +144,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									<Input
 										type="number"
 										placeholder="年"
+										aria-label="出生年份"
 										value={state.form.birthYear || ""}
 										onChange={(e) => actions.setField("birthYear", Number(e.target.value) || 0)}
 										min={1900}
@@ -158,6 +154,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									<Input
 										type="number"
 										placeholder="月"
+										aria-label="出生月份"
 										value={state.form.birthMonth || ""}
 										onChange={(e) => actions.setField("birthMonth", Number(e.target.value) || 0)}
 										min={1}
@@ -167,6 +164,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									<Input
 										type="number"
 										placeholder="日"
+										aria-label="出生日期"
 										value={state.form.birthDay || ""}
 										onChange={(e) => actions.setField("birthDay", Number(e.target.value) || 0)}
 										min={1}
@@ -212,7 +210,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 					<div className="space-y-4">
 						<SectionHeading>教育经历</SectionHeading>
 
-						<div className="grid gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-school">身份类型</Label>
 								<Select
@@ -240,7 +238,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 					<div className="space-y-4">
 						<SectionHeading>联系方式</SectionHeading>
 
-						<div className="grid gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-qq">QQ</Label>
 								<Input
@@ -270,7 +268,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 					<div className="space-y-4">
 						<SectionHeading>个人简介</SectionHeading>
 
-						<div className="grid gap-4">
+						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-bio">简介</Label>
 								<Textarea
@@ -297,7 +295,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									className="resize-none"
 								/>
 							</div>
-							<div className="grid gap-2">
+							<div className="grid gap-2 sm:col-span-2">
 								<Label htmlFor="edit-signature">个性签名</Label>
 								<Textarea
 									id="edit-signature"
@@ -315,7 +313,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				</div>
 
 				{/* Footer */}
-				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
+				<div className="shrink-0 px-5 py-4 border-t border-border bg-muted/20">
 					<div className="flex items-center justify-end gap-2">
 						<Button
 							variant="ghost"

@@ -5,7 +5,7 @@
 
 import type { User } from "@ellie/types";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
@@ -248,14 +248,16 @@ export function useProfileEdit({
 	// State
 	const [form, setForm] = useState<ProfileFormData>(() => createFormDataFromUser(initialData));
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
+	const wasOpen = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
-	// Sync form when dialog opens or initial data changes
 	useEffect(() => {
-		if (open) {
+		if (open && !wasOpen.current) {
 			setForm(createFormDataFromUser(initialData));
 			setError(null);
 		}
+		wasOpen.current = open;
 	}, [open, initialData]);
 
 	// Actions
@@ -276,7 +278,7 @@ export function useProfileEdit({
 	}, [initialData]);
 
 	const handleSave = useCallback(async () => {
-		if (submitting) return;
+		if (submittingRef.current) return;
 
 		// Validate birth date
 		const birthValidation = validateBirthDate(form.birthYear, form.birthMonth, form.birthDay);
@@ -285,6 +287,7 @@ export function useProfileEdit({
 			return;
 		}
 
+		submittingRef.current = true;
 		setSubmitting(true);
 		setError(null);
 
@@ -302,9 +305,10 @@ export function useProfileEdit({
 			setError(message);
 			toast.error({ title: "保存失败", description: message });
 		} finally {
+			submittingRef.current = false;
 			setSubmitting(false);
 		}
-	}, [submitting, form, onSuccess, router, toast]);
+	}, [form, onSuccess, router, toast]);
 
 	return {
 		state: {

@@ -26,7 +26,7 @@ import {
 	ratingDimensionToKey,
 } from "@ellie/types";
 import { Award, Coins } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,6 +39,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
@@ -137,6 +138,7 @@ export function PostRatingDialog({
 	const [reason, setReason] = useState<string>("");
 	const [notifyAuthor, setNotifyAuthor] = useState<boolean>(true);
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	// Reset every time the dialog opens — keeps state clean across re-entry.
@@ -207,7 +209,8 @@ export function PostRatingDialog({
 	};
 
 	const handleSubmit = async () => {
-		if (!canSubmit) return;
+		if (!canSubmit || submittingRef.current) return;
+		submittingRef.current = true;
 		setSubmitting(true);
 		setError(null);
 		try {
@@ -225,6 +228,7 @@ export function PostRatingDialog({
 			setError(message);
 			toast.error({ title: "评分提交失败", description: message });
 		} finally {
+			submittingRef.current = false;
 			setSubmitting(false);
 		}
 	};
@@ -232,11 +236,14 @@ export function PostRatingDialog({
 	const ActiveIcon = dimensionMeta[dimension].icon;
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+		<Dialog open={open} onOpenChange={(next) => !submittingRef.current && onOpenChange(next)}>
+			<DialogContent
+				className="flex flex-col overflow-hidden sm:max-w-lg"
+				showCloseButton={!submitting}
+			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<ActiveIcon className="h-5 w-5" />
+						<ActiveIcon className="h-5 w-5 text-primary" />
 						评分
 					</DialogTitle>
 					<DialogDescription>
@@ -244,7 +251,7 @@ export function PostRatingDialog({
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-4 py-2">
+				<div className="min-h-0 overflow-y-auto overscroll-contain space-y-5 py-2">
 					{/* Dimension toggle — locked when only one dimension is allowed */}
 					<div className="space-y-2">
 						<div className="text-sm font-medium">维度</div>
@@ -285,7 +292,7 @@ export function PostRatingDialog({
 								分值
 							</label>
 							<span className="text-xs text-muted-foreground">
-								|值| ∈ [{bounds.min}, {bounds.max}]
+								每次 ±{bounds.min} 至 ±{bounds.max}
 							</span>
 						</div>
 						<div className="flex flex-wrap gap-1.5">
@@ -294,6 +301,7 @@ export function PostRatingDialog({
 									key={n}
 									type="button"
 									disabled={submitting}
+									aria-pressed={parsedScore === n}
 									onClick={() => handlePresetClick(n)}
 									className={cn(
 										"px-2.5 py-1 rounded-md border text-sm transition-colors min-w-[3rem]",
@@ -328,21 +336,17 @@ export function PostRatingDialog({
 						<label htmlFor={reasonInputId} className="text-sm font-medium">
 							理由
 						</label>
-						<select
+						<Select
 							id={presetReasonId}
 							onChange={handleReasonPreset}
 							value=""
 							disabled={submitting}
-							className="h-8 w-full appearance-none rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
 							aria-label="选择预设理由"
-						>
-							<option value="">选择预设理由…</option>
-							{reasons.map((r) => (
-								<option key={r} value={r}>
-									{r}
-								</option>
-							))}
-						</select>
+							options={[
+								{ value: "", label: "选择预设理由…" },
+								...reasons.map((reason) => ({ value: reason, label: reason })),
+							]}
+						/>
 						<Textarea
 							id={reasonInputId}
 							value={reason}

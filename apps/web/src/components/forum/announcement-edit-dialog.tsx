@@ -13,9 +13,9 @@
 //     sanitizes back into 4 KiB is legal; we let the Worker decide.
 //   - DialogErrorBanner for save errors (PAYLOAD_TOO_LARGE, FORBIDDEN, …)
 
-import { Megaphone, Save } from "lucide-react";
+import { Eye, Megaphone, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +55,7 @@ export function AnnouncementEditDialog({
 	const router = useRouter();
 	const [draft, setDraft] = useState(initialAnnouncement);
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -68,6 +69,8 @@ export function AnnouncementEditDialog({
 	const overBudget = byteLength > ANNOUNCEMENT_SOFT_LIMIT;
 
 	const handleSave = async () => {
+		if (submittingRef.current) return;
+		submittingRef.current = true;
 		setSubmitting(true);
 		setError(null);
 		try {
@@ -84,24 +87,20 @@ export function AnnouncementEditDialog({
 				setError(fallback);
 			}
 		} finally {
+			submittingRef.current = false;
 			setSubmitting(false);
 		}
 	};
 
 	const handleOpenChange = (next: boolean) => {
-		if (submitting) return;
+		if (submittingRef.current) return;
 		onOpenChange(next);
 	};
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className={cn(
-					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[640px] lg:w-[760px] sm:max-w-[760px]",
-					"max-h-[85vh] overflow-hidden flex flex-col",
-					"rounded-xl p-0",
-				)}
+				className="max-h-[90dvh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
 				showCloseButton={false}
 			>
 				<DialogHeroHeader
@@ -114,8 +113,8 @@ export function AnnouncementEditDialog({
 
 				{error && <DialogErrorBanner message={error} />}
 
-				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-					<div className="space-y-2">
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain grid gap-5 px-5 py-5 sm:grid-cols-2">
+					<div className="min-w-0 flex flex-col gap-2">
 						<label htmlFor="announcement-textarea" className="text-sm font-medium text-foreground">
 							内容
 						</label>
@@ -123,19 +122,22 @@ export function AnnouncementEditDialog({
 							id="announcement-textarea"
 							value={draft}
 							onChange={(e) => setDraft(e.target.value)}
-							rows={8}
+							rows={12}
 							placeholder="留空可清除公告"
 							disabled={submitting}
-							className="font-mono text-sm"
+							className="min-h-56 flex-1 resize-none font-mono text-sm leading-6"
 						/>
 						<p className={cn("text-xs", overBudget ? "text-destructive" : "text-muted-foreground")}>
-							约 {byteLength} / {ANNOUNCEMENT_SOFT_LIMIT} 字节，最终以服务器清洗后为准
+							约 {byteLength} / {ANNOUNCEMENT_SOFT_LIMIT} 字节，过长时请精简内容
 						</p>
 					</div>
 
-					<div className="space-y-2">
-						<div className="text-sm font-medium text-foreground">预览</div>
-						<div className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 min-h-[6rem] text-sm text-foreground">
+					<div className="min-w-0 flex flex-col gap-2">
+						<div className="flex items-center gap-2 text-sm font-medium text-foreground">
+							<Eye className="h-4 w-4 text-primary" />
+							预览
+						</div>
+						<div className="min-h-56 flex-1 overflow-hidden break-words rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground">
 							{draft.trim() === "" ? (
 								<span className="text-muted-foreground italic">（无内容）</span>
 							) : (
@@ -143,12 +145,12 @@ export function AnnouncementEditDialog({
 							)}
 						</div>
 						<p className="text-xs text-muted-foreground">
-							预览仅为客户端近似渲染，最终展示以服务器清洗结果为准。
+							保存后会更新版块公告；留空保存可清除公告。
 						</p>
 					</div>
 				</div>
 
-				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
+				<div className="shrink-0 px-5 py-4 border-t border-border bg-muted/20">
 					<div className="flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={submitting}>
 							取消

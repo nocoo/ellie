@@ -11,7 +11,7 @@
  */
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -54,14 +54,20 @@ export function ModerationChoiceDialog<T>({
 	loading,
 }: ModerationChoiceDialogProps<T>) {
 	const [selected, setSelected] = useState<T>(defaultValue);
+	useEffect(() => {
+		if (open) setSelected(defaultValue);
+	}, [open, defaultValue]);
 
 	const handleConfirm = () => {
-		onConfirm(selected);
+		if (!loading) onConfirm(selected);
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
+			<DialogContent
+				className="flex flex-col overflow-hidden sm:max-w-lg"
+				showCloseButton={!loading}
+			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						{titleIcon}
@@ -70,12 +76,14 @@ export function ModerationChoiceDialog<T>({
 					<DialogDescription>{description}</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-2 py-4">
+				<div className="min-h-0 overflow-y-auto overscroll-contain space-y-2 py-2">
 					{options.map((option, idx) => (
 						<button
 							// biome-ignore lint/suspicious/noArrayIndexKey: static options array
 							key={idx}
 							type="button"
+							disabled={loading}
+							aria-pressed={selected === option.value}
 							className={cn(
 								"w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left",
 								selected === option.value
@@ -85,7 +93,7 @@ export function ModerationChoiceDialog<T>({
 							onClick={() => setSelected(option.value)}
 						>
 							{option.icon}
-							<div className="flex-1">
+							<div className="min-w-0 flex-1">
 								<div className="font-medium">{option.label}</div>
 								<div className="text-sm text-muted-foreground">{option.description}</div>
 							</div>

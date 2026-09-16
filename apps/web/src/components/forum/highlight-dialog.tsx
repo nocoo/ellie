@@ -62,6 +62,7 @@ export function HighlightDialog({
 	}, [open, currentHighlight]);
 
 	const handleConfirm = () => {
+		if (loading) return;
 		onConfirm({
 			color: selectedColor,
 			bold,
@@ -78,8 +79,11 @@ export function HighlightDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
+			<DialogContent
+				className="flex flex-col overflow-hidden sm:max-w-lg"
+				showCloseButton={!loading}
+			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Highlighter className="h-5 w-5 text-primary" />
@@ -88,7 +92,7 @@ export function HighlightDialog({
 					<DialogDescription>选择主题标题的颜色和样式</DialogDescription>
 				</DialogHeader>
 
-				<div className="space-y-4 py-4">
+				<div className="min-h-0 overflow-y-auto overscroll-contain space-y-5 py-2">
 					{/* Color selection */}
 					<div>
 						<div className="text-sm font-medium mb-2">颜色</div>
@@ -97,8 +101,11 @@ export function HighlightDialog({
 								<button
 									key={item.color ?? "none"}
 									type="button"
+									disabled={loading}
+									aria-label={item.label}
+									aria-pressed={selectedColor === item.color}
 									className={cn(
-										"w-8 h-8 rounded-full border-2 transition-all",
+										"w-9 h-9 rounded-full border-2 transition-colors disabled:opacity-50",
 										selectedColor === item.color
 											? "border-primary ring-2 ring-primary/30"
 											: "border-border hover:border-primary/50",
@@ -118,17 +125,25 @@ export function HighlightDialog({
 					{/* Style options */}
 					<div>
 						<div className="text-sm font-medium mb-2">样式</div>
-						<div className="flex gap-4">
+						<div className="flex flex-wrap gap-4">
 							<label className="flex items-center gap-2 cursor-pointer">
-								<Checkbox checked={bold} onCheckedChange={(v) => setBold(!!v)} />
+								<Checkbox checked={bold} onCheckedChange={(v) => setBold(!!v)} disabled={loading} />
 								<span className="text-sm font-bold">粗体</span>
 							</label>
 							<label className="flex items-center gap-2 cursor-pointer">
-								<Checkbox checked={italic} onCheckedChange={(v) => setItalic(!!v)} />
+								<Checkbox
+									checked={italic}
+									onCheckedChange={(v) => setItalic(!!v)}
+									disabled={loading}
+								/>
 								<span className="text-sm italic">斜体</span>
 							</label>
 							<label className="flex items-center gap-2 cursor-pointer">
-								<Checkbox checked={underline} onCheckedChange={(v) => setUnderline(!!v)} />
+								<Checkbox
+									checked={underline}
+									onCheckedChange={(v) => setUnderline(!!v)}
+									disabled={loading}
+								/>
 								<span className="text-sm underline">下划线</span>
 							</label>
 						</div>

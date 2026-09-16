@@ -75,6 +75,46 @@ describe("useProfileEdit hook", () => {
 		expect(result.current.state.form.bio).toBe("new bio");
 	});
 
+	it("keeps unsaved fields through avatar refresh and resets them when reopened", () => {
+		const { result, rerender } = renderHook(
+			({ open, initialData }) => useProfileEdit({ open, initialData }),
+			{ wrapper, initialProps: { open: true, initialData: defaultData } },
+		);
+		act(() => result.current.actions.setField("bio", "Unsaved introduction"));
+		const refreshed = { ...defaultData };
+		rerender({ open: true, initialData: refreshed });
+		expect(result.current.state.form.bio).toBe("Unsaved introduction");
+		rerender({ open: false, initialData: refreshed });
+		rerender({ open: true, initialData: refreshed });
+		expect(result.current.state.form.bio).toBe(defaultData.bio);
+	});
+
+	it("sends one save while pending and allows a later save", async () => {
+		let resolve!: (value: { data: object }) => void;
+		mockPatch.mockReturnValueOnce(
+			new Promise((done) => {
+				resolve = done;
+			}),
+		);
+		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: true }), {
+			wrapper,
+		});
+		let pending!: Promise<void>;
+		await act(async () => {
+			pending = result.current.actions.handleSave();
+			await result.current.actions.handleSave();
+		});
+		expect(mockPatch).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			resolve({ data: {} });
+			await pending;
+		});
+		await act(async () => {
+			await result.current.actions.handleSave();
+		});
+		expect(mockPatch).toHaveBeenCalledTimes(2);
+	});
+
 	it("clearError clears error state", async () => {
 		const { result } = renderHook(
 			() => useProfileEdit({ initialData: { ...defaultData, birthYear: 1800 }, open: false }),

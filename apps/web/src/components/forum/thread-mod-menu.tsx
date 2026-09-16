@@ -14,7 +14,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError } from "@/lib/api-client";
@@ -84,6 +84,7 @@ export function ThreadModMenu({
 	const router = useRouter();
 	const toast = useForumToast();
 	const [loading, setLoading] = useState(false);
+	const loadingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	// Dialog states
@@ -94,6 +95,8 @@ export function ThreadModMenu({
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 	const handleToggleClose = useCallback(async () => {
+		if (loadingRef.current) return;
+		loadingRef.current = true;
 		setLoading(true);
 		setError(null);
 		try {
@@ -105,6 +108,7 @@ export function ThreadModMenu({
 			setError(message);
 			toast.error({ title: closed ? "解锁失败" : "关闭失败", description: message });
 		} finally {
+			loadingRef.current = false;
 			setLoading(false);
 		}
 	}, [threadId, closed, router, toast]);
@@ -114,6 +118,8 @@ export function ThreadModMenu({
 	// drives label/action; the source of truth is `thread.isRecommended`
 	// which refreshes after `router.refresh()`.
 	const handleToggleRecommend = useCallback(async () => {
+		if (loadingRef.current) return;
+		loadingRef.current = true;
 		setLoading(true);
 		setError(null);
 		try {
@@ -133,12 +139,15 @@ export function ThreadModMenu({
 				description: message,
 			});
 		} finally {
+			loadingRef.current = false;
 			setLoading(false);
 		}
 	}, [threadId, isRecommended, router, toast]);
 
 	const handleStickyChange = useCallback(
 		async (level: StickyLevel) => {
+			if (loadingRef.current) return;
+			loadingRef.current = true;
 			setLoading(true);
 			setError(null);
 			try {
@@ -151,6 +160,7 @@ export function ThreadModMenu({
 				setError(message);
 				toast.error({ title: "置顶失败", description: message });
 			} finally {
+				loadingRef.current = false;
 				setLoading(false);
 			}
 		},
@@ -159,6 +169,8 @@ export function ThreadModMenu({
 
 	const handleDigestChange = useCallback(
 		async (level: number) => {
+			if (loadingRef.current) return;
+			loadingRef.current = true;
 			setLoading(true);
 			setError(null);
 			try {
@@ -171,6 +183,7 @@ export function ThreadModMenu({
 				setError(message);
 				toast.error({ title: "精华设置失败", description: message });
 			} finally {
+				loadingRef.current = false;
 				setLoading(false);
 			}
 		},
@@ -179,6 +192,8 @@ export function ThreadModMenu({
 
 	const handleHighlightChange = useCallback(
 		async (options: HighlightOptions) => {
+			if (loadingRef.current) return;
+			loadingRef.current = true;
 			setLoading(true);
 			setError(null);
 			try {
@@ -191,6 +206,7 @@ export function ThreadModMenu({
 				setError(message);
 				toast.error({ title: "高亮设置失败", description: message });
 			} finally {
+				loadingRef.current = false;
 				setLoading(false);
 			}
 		},
@@ -199,6 +215,8 @@ export function ThreadModMenu({
 
 	const handleMove = useCallback(
 		async (targetForumId: number) => {
+			if (loadingRef.current) return;
+			loadingRef.current = true;
 			setLoading(true);
 			setError(null);
 			try {
@@ -211,6 +229,7 @@ export function ThreadModMenu({
 				setError(message);
 				toast.error({ title: "移动失败", description: message });
 			} finally {
+				loadingRef.current = false;
 				setLoading(false);
 			}
 		},
@@ -223,6 +242,8 @@ export function ThreadModMenu({
 	}, []);
 
 	const handleDeleteConfirm = useCallback(async () => {
+		if (loadingRef.current) return;
+		loadingRef.current = true;
 		setLoading(true);
 		setError(null);
 		try {
@@ -235,6 +256,7 @@ export function ThreadModMenu({
 			const message = err instanceof ApiError ? err.message : "删除失败";
 			setError(message);
 			toast.error({ title: "删除失败", description: message });
+			loadingRef.current = false;
 			setLoading(false);
 		}
 	}, [threadId, forumId, router, toast]);

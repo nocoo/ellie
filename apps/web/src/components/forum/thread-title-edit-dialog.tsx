@@ -12,7 +12,7 @@
 
 import { Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -47,6 +47,7 @@ export function ThreadTitleEditDialog({
 	const toast = useForumToast();
 	const [value, setValue] = useState(currentSubject);
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 
 	// Reset local input + error when the dialog opens or the source subject
@@ -65,7 +66,8 @@ export function ThreadTitleEditDialog({
 	const canSubmit = !submitting && !empty && !tooLong && !unchanged;
 
 	const handleSubmit = useCallback(async () => {
-		if (!canSubmit) return;
+		if (!canSubmit || submittingRef.current) return;
+		submittingRef.current = true;
 		setSubmitting(true);
 		setError(null);
 		try {
@@ -78,13 +80,14 @@ export function ThreadTitleEditDialog({
 			setError(message);
 			toast.error({ title: "保存失败", description: message });
 		} finally {
+			submittingRef.current = false;
 			setSubmitting(false);
 		}
 	}, [canSubmit, threadId, trimmed, onOpenChange, router, toast]);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
+		<Dialog open={open} onOpenChange={(next) => !submittingRef.current && onOpenChange(next)}>
+			<DialogContent className="sm:max-w-2xl" showCloseButton={!submitting}>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Pencil className="h-4 w-4 text-primary" />
@@ -95,6 +98,8 @@ export function ThreadTitleEditDialog({
 
 				<div className="flex flex-col gap-2">
 					<Input
+						aria-label="主题标题"
+						className="h-11"
 						value={value}
 						onChange={(e) => setValue(e.target.value)}
 						maxLength={SUBJECT_MAX + 50 /* allow soft over-typing; UI guards canSubmit */}
@@ -102,7 +107,7 @@ export function ThreadTitleEditDialog({
 						placeholder="输入新的主题标题"
 						disabled={submitting}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" && !e.shiftKey) {
+							if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
 								e.preventDefault();
 								handleSubmit();
 							}

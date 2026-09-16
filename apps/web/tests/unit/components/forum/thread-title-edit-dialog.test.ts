@@ -91,6 +91,19 @@ afterEach(() => {
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe("ThreadTitleEditDialog", () => {
+	it("does not submit while confirming an IME composition", async () => {
+		renderDialog();
+		fireEvent.change(getInput(), { target: { value: "新主题标题" } });
+		await act(async () => {
+			fireEvent.keyDown(getInput(), { key: "Enter", isComposing: true });
+		});
+		expect(editThreadSubjectMock).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.keyDown(getInput(), { key: "Enter", isComposing: false });
+		});
+		expect(editThreadSubjectMock).toHaveBeenCalledExactlyOnceWith(5, "新主题标题");
+	});
+
 	it("submit happy path: calls editThreadSubject + closes dialog + router.refresh()", async () => {
 		const { onOpenChange } = renderDialog();
 		fireEvent.change(getInput(), { target: { value: "Brand new title" } });
