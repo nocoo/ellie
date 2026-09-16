@@ -17,8 +17,9 @@
 // checkin state from inside the user-detail page. There is no global
 // dashboard.
 
-import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
-import { Loader2 } from "lucide-react";
+import { Button, DescriptionList, Input, Label, LayerCard } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { extractErrorMessage } from "@/lib/admin-error";
@@ -164,7 +165,7 @@ export function UserCheckinPanel({ userId }: Props) {
 				</LayerCard.Header>
 				<LayerCard.Well>
 					<div className="flex items-center justify-center py-10">
-						<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+						<Loader className="h-5 w-5 text-basalt-muted-foreground" />
 					</div>
 				</LayerCard.Well>
 			</LayerCard>
@@ -205,21 +206,22 @@ export function UserCheckinPanel({ userId }: Props) {
 				<div className="grid gap-6 lg:grid-cols-4 lg:gap-4">
 					{/* Left 3/4 — aggregate + timeline */}
 					<div className="space-y-4 lg:col-span-3">
-						<dl className="grid grid-cols-2 gap-y-2 text-sm md:grid-cols-4">
-							<dt className="text-muted-foreground">累计天数</dt>
-							<dd>{aggregate?.totalDays ?? 0}</dd>
-							<dt className="text-muted-foreground">本月</dt>
-							<dd>{aggregate?.monthDays ?? 0}</dd>
-							<dt className="text-muted-foreground">连续</dt>
-							<dd>{aggregate?.streakDays ?? 0}</dd>
-							<dt className="text-muted-foreground">累计奖励</dt>
-							<dd>{aggregate?.rewardTotal ?? 0}</dd>
-							<dt className="text-muted-foreground">最后签到</dt>
-							<dd className="col-span-3">{fmtTimestamp(aggregate?.lastCheckinAt ?? 0)}</dd>
-						</dl>
+						<DescriptionList columns={2}>
+							<DescriptionList.Item term="累计天数">
+								{aggregate?.totalDays ?? 0}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="本月">{aggregate?.monthDays ?? 0}</DescriptionList.Item>
+							<DescriptionList.Item term="连续">{aggregate?.streakDays ?? 0}</DescriptionList.Item>
+							<DescriptionList.Item term="累计奖励">
+								{aggregate?.rewardTotal ?? 0}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="最后签到" className="sm:col-span-2">
+								{fmtTimestamp(aggregate?.lastCheckinAt ?? 0)}
+							</DescriptionList.Item>
+						</DescriptionList>
 
 						<div>
-							<p className="mb-2 text-sm text-muted-foreground">
+							<p className="mb-2 text-sm text-basalt-muted-foreground">
 								最近 {GRID_DAYS} 天（点击单元格可补签或取消签到）
 							</p>
 							<div className="grid grid-cols-7 gap-1">
@@ -250,7 +252,7 @@ export function UserCheckinPanel({ userId }: Props) {
 									})}
 							</div>
 							{detail?.truncated && (
-								<p className="mt-2 text-xs text-muted-foreground">
+								<p className="mt-2 text-xs text-basalt-muted-foreground">
 									历史记录较多，仅显示前 {detail.history.length} 行。
 								</p>
 							)}
@@ -281,11 +283,11 @@ export function UserCheckinPanel({ userId }: Props) {
 						</div>
 						{streakError && <AdminInlineMessage variant="error" text={streakError} />}
 						{!aggregate && (
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-basalt-muted-foreground">
 								该用户尚无签到记录，请先在左侧补签任意一天后再设置连续天数。
 							</p>
 						)}
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-basalt-muted-foreground">
 							⚠️ 手动设置的连续天数会在下一次「按日补签 / 取消签到」时被基于历史的自动重算覆盖。
 						</p>
 					</form>

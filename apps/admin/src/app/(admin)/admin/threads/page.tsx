@@ -1,8 +1,9 @@
 "use client";
 
 import { Button, LayerCard } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Loader2, Lock, Pencil, Trash2, Unlock } from "lucide-react";
+import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -133,7 +134,7 @@ export default function ThreadsPage() {
 		<Suspense
 			fallback={
 				<div className="flex items-center justify-center py-20">
-					<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+					<Loader className="h-6 w-6 text-basalt-muted-foreground" />
 				</div>
 			}
 		>
@@ -465,7 +466,7 @@ function ThreadsPageInner() {
 					<Button
 						variant="ghost"
 						size="icon"
-						className="h-8 w-8 text-destructive hover:text-destructive focus-visible:text-destructive"
+						className="h-8 w-8 text-basalt-destructive hover:text-basalt-destructive focus-visible:text-basalt-destructive"
 						aria-label={`删除主题「${row.subject}」`}
 						title={`删除主题「${row.subject}」`}
 						onClick={() => handleDelete(row)}

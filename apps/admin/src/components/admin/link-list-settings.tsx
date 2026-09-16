@@ -5,6 +5,7 @@ import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { updateSettings } from "@/viewmodels/admin/settings";
 import { NavLinksEditor } from "./nav-links-editor";
 
@@ -90,17 +91,7 @@ export function LinkListSettings({
 			</div>
 
 			{/* Feedback message */}
-			{message && (
-				<div
-					className={`rounded-lg border p-3 text-sm ${
-						message.type === "success"
-							? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
-							: "border-destructive/50 bg-destructive/10 text-destructive"
-					}`}
-				>
-					{message.text}
-				</div>
-			)}
+			{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
 			{/* Link editor card */}
 			<LayerCard padding="none" className="p-4 md:p-6">

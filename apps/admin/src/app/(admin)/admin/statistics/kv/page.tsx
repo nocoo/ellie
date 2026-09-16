@@ -44,6 +44,8 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@nocoo/basalt";
+import { Code } from "@nocoo/basalt/components/code";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import {
@@ -54,7 +56,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
-import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, RefreshCw, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -339,24 +341,26 @@ function ExpandedKeyList({
 }) {
 	if (row.nameSensitivity === "hide") {
 		return (
-			<div className="px-4 py-3 text-xs text-muted-foreground">
+			<div className="px-4 py-3 text-xs text-basalt-muted-foreground">
 				敏感家族（{row.family}）按策略隐藏 key 名称，仅展示总数 / TTL。
 			</div>
 		);
 	}
 	if (state.error) {
-		return <div className="px-4 py-3 text-xs text-destructive">加载失败：{state.error}</div>;
+		return <div className="px-4 py-3 text-xs text-basalt-destructive">加载失败：{state.error}</div>;
 	}
 	if (state.loading && state.rows.length === 0) {
 		return (
-			<div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-				<Loader2 className="mr-2 h-3 w-3 animate-spin" />
+			<div className="flex items-center justify-center py-6 text-xs text-basalt-muted-foreground">
+				<Loader className="mr-2 h-3 w-3" />
 				加载 key 列表…
 			</div>
 		);
 	}
 	if (state.rows.length === 0) {
-		return <div className="px-4 py-3 text-xs text-muted-foreground">该家族当前没有 key。</div>;
+		return (
+			<div className="px-4 py-3 text-xs text-basalt-muted-foreground">该家族当前没有 key。</div>
+		);
 	}
 	return (
 		<div className="space-y-2 px-4 py-3">
@@ -375,7 +379,7 @@ function ExpandedKeyList({
 						return (
 							<TableRow key={k.key + (k.rawKey ?? "")}>
 								<TableCell className="font-mono text-xs">{k.key}</TableCell>
-								<TableCell className="text-xs text-muted-foreground">
+								<TableCell className="text-xs text-basalt-muted-foreground">
 									{formatExpiration(k.expiration, now)}
 								</TableCell>
 								<TableCell className="text-right">
@@ -391,7 +395,7 @@ function ExpandedKeyList({
 									<Button
 										size="sm"
 										variant="ghost"
-										className="text-destructive hover:text-destructive"
+										className="text-basalt-destructive hover:text-basalt-destructive"
 										disabled={deleteAction === null}
 										onClick={() => k.rawKey && onDelete(k.rawKey)}
 									>
@@ -404,7 +408,7 @@ function ExpandedKeyList({
 					})}
 				</TableBody>
 			</Table>
-			<div className="flex items-center justify-between text-xs text-muted-foreground">
+			<div className="flex items-center justify-between text-xs text-basalt-muted-foreground">
 				<span>
 					共 {state.rows.length} 条{state.listComplete ? "（已到底）" : "（仍有更多）"}
 				</span>
@@ -412,7 +416,7 @@ function ExpandedKeyList({
 					<Button size="sm" variant="outline" disabled={state.loading} onClick={onLoadMore}>
 						{state.loading ? (
 							<>
-								<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+								<Loader className="mr-1 h-3 w-3" />
 								加载中
 							</>
 						) : (
@@ -456,14 +460,14 @@ function OverviewTable({
 }) {
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center py-12 text-muted-foreground">
-				<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+			<div className="flex items-center justify-center py-12 text-basalt-muted-foreground">
+				<Loader className="mr-2 h-4 w-4" />
 				加载中…
 			</div>
 		);
 	}
 	if (rows.length === 0) {
-		return <div className="py-12 text-center text-muted-foreground">无 KV 家族数据</div>;
+		return <div className="py-12 text-center text-basalt-muted-foreground">无 KV 家族数据</div>;
 	}
 	return (
 		<Table>
@@ -510,8 +514,8 @@ function OverviewTable({
 								</TableCell>
 								<TableCell className="font-mono text-xs">
 									<div className="font-semibold">{row.displayName}</div>
-									<div className="text-muted-foreground">{row.family}</div>
-									<div className="text-muted-foreground">{row.pattern}</div>
+									<div className="text-basalt-muted-foreground">{row.family}</div>
+									<div className="text-basalt-muted-foreground">{row.pattern}</div>
 								</TableCell>
 								<TableCell className="text-xs">{row.category}</TableCell>
 								<TableCell>
@@ -526,7 +530,7 @@ function OverviewTable({
 								<TableCell className="text-xs">{formatTtl(row.ttl)}</TableCell>
 								<TableCell className="text-xs">
 									<div>名称: {row.nameSensitivity}</div>
-									<div className="text-muted-foreground">值: {row.valueSensitivity}</div>
+									<div className="text-basalt-muted-foreground">值: {row.valueSensitivity}</div>
 								</TableCell>
 								<TableCell>
 									<Button
@@ -536,7 +540,7 @@ function OverviewTable({
 										onClick={() => onRefreshFamily(row)}
 									>
 										{busyFamily === row.family ? (
-											<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+											<Loader className="mr-1 h-3 w-3" />
 										) : (
 											<RefreshCw className="mr-1 h-3 w-3" />
 										)}
@@ -546,7 +550,7 @@ function OverviewTable({
 							</TableRow>
 							{isExpanded && (
 								<TableRow>
-									<TableCell colSpan={8} className="bg-background/30 p-0">
+									<TableCell colSpan={8} className="p-0">
 										<ExpandedKeyList
 											row={row}
 											state={keyLists[row.family] ?? EMPTY_KEY_LIST}
@@ -582,15 +586,17 @@ function MetricsTable({
 }) {
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center py-12 text-muted-foreground">
-				<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+			<div className="flex items-center justify-center py-12 text-basalt-muted-foreground">
+				<Loader className="mr-2 h-4 w-4" />
 				加载中…
 			</div>
 		);
 	}
 	if (summaries.length === 0) {
 		return (
-			<div className="py-12 text-center text-muted-foreground">最近 {minutes} 分钟暂无指标</div>
+			<div className="py-12 text-center text-basalt-muted-foreground">
+				最近 {minutes} 分钟暂无指标
+			</div>
 		);
 	}
 	return (
@@ -659,32 +665,34 @@ function KeyDetailDialog({
 					<DialogDescription className="text-xs">家族 {state.family ?? "—"}</DialogDescription>
 				</DialogHeader>
 				{state.loading && (
-					<div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-						<Loader2 className="mr-2 h-3 w-3 animate-spin" />
+					<div className="flex items-center justify-center py-6 text-xs text-basalt-muted-foreground">
+						<Loader className="mr-2 h-3 w-3" />
 						加载中…
 					</div>
 				)}
-				{state.error && <div className="text-xs text-destructive">加载失败：{state.error}</div>}
+				{state.error && (
+					<div className="text-xs text-basalt-destructive">加载失败：{state.error}</div>
+				)}
 				{state.data && (
 					<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-3 text-xs`}>
 						<div>
-							<span className="text-muted-foreground">过期：</span>
+							<span className="text-basalt-muted-foreground">过期：</span>
 							{formatExpiration(state.data.expiration, now)}
 						</div>
 						<div>
-							<span className="text-muted-foreground">大小：</span>
+							<span className="text-basalt-muted-foreground">大小：</span>
 							{formatBytes(state.data.valueByteSize)}
 						</div>
 						{state.data.metadata !== null && (
 							<div className="min-w-0">
-								<span className="text-muted-foreground">Metadata：</span>
+								<span className="text-basalt-muted-foreground">Metadata：</span>
 								<JsonCodeBlock value={state.data.metadata} maxHeightClassName="max-h-32" />
 							</div>
 						)}
 						<div className="min-w-0">
-							<span className="text-muted-foreground">Value：</span>
+							<span className="text-basalt-muted-foreground">Value：</span>
 							{state.data.valueMasked ? (
-								<span className="ml-1 text-muted-foreground italic">敏感，已遮蔽</span>
+								<span className="ml-1 text-basalt-muted-foreground italic">敏感，已遮蔽</span>
 							) : (
 								<JsonCodeBlock value={state.data.value} maxHeightClassName="max-h-[60vh]" />
 							)}
@@ -981,7 +989,9 @@ export default function KvMonitorPage() {
 
 			{notice && (
 				<LayerCard>
-					<LayerCard.Well className="py-3 text-sm text-muted-foreground">{notice}</LayerCard.Well>
+					<LayerCard.Well className="py-3 text-sm text-basalt-muted-foreground">
+						{notice}
+					</LayerCard.Well>
 				</LayerCard>
 			)}
 
@@ -1049,20 +1059,20 @@ export default function KvMonitorPage() {
 			<section className="space-y-3">
 				<SectionRule title="说明" />
 				<LayerCard>
-					<LayerCard.Well className="space-y-2 text-sm text-muted-foreground">
+					<LayerCard.Well className="space-y-2 text-sm text-basalt-muted-foreground">
 						<p>
 							<Trash2 className="mr-1 inline h-3 w-3" />
-							删除 / 失效操作会写入操作日志（<code>kv.bump_gen</code> /<code>kv.delete_key</code>
+							删除 / 失效操作会写入操作日志（<Code>kv.bump_gen</Code> /<Code>kv.delete_key</Code>
 							）。
 						</p>
 						<p>
 							<strong>敏感家族</strong>
 							（refresh token / email_verify / IP 限流等）只展示统计与 TTL 上限，不开放 value 与 key
-							列表； server-side 由 kv-registry 的 <code>nameSensitivity</code> /
-							<code>valueSensitivity</code> 决定。
+							列表； server-side 由 kv-registry 的 <Code>nameSensitivity</Code> /
+							<Code>valueSensitivity</Code> 决定。
 						</p>
 						<p>
-							<strong>命中率</strong> 按 <code>hit / (hit + miss)</code> 推导，仅在家族级别有效；
+							<strong>命中率</strong> 按 <Code>hit / (hit + miss)</Code> 推导，仅在家族级别有效；
 							不展示按 key 的命中数据。
 						</p>
 					</LayerCard.Well>

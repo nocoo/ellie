@@ -212,7 +212,7 @@ export default function CensorWordsPage() {
 			key: "replacement",
 			header: "替换内容",
 			cell: (row) => (
-				<span className="text-muted-foreground">{replacementDisplay(row.replacement)}</span>
+				<span className="text-basalt-muted-foreground">{replacementDisplay(row.replacement)}</span>
 			),
 		},
 		{
@@ -239,7 +239,7 @@ export default function CensorWordsPage() {
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => setEditWord(row)}>编辑</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
+						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -292,30 +292,32 @@ export default function CensorWordsPage() {
 
 			{/* Content Test Tool */}
 			<LayerCard padding="none" className="p-1 overflow-x-auto p-4">
-				<h2 className="mb-3 text-lg font-medium text-foreground">内容测试</h2>
-				<p className="mb-3 text-sm text-muted-foreground">测试内容将如何被当前敏感词列表过滤。</p>
+				<h2 className="mb-3 text-lg font-medium text-basalt-foreground">内容测试</h2>
+				<p className="mb-3 text-sm text-basalt-muted-foreground">
+					测试内容将如何被当前敏感词列表过滤。
+				</p>
 				<div className="space-y-3">
 					<InputArea
+						aria-label="要测试的内容"
 						value={testInput}
 						onChange={(e) => setTestInput(e.target.value)}
 						placeholder="输入要测试的内容..."
 						rows={3}
-						className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 					/>
 					<Button onClick={handleTestContent} disabled={testLoading || !testInput.trim()}>
 						{testLoading ? "测试中..." : "测试"}
 					</Button>
 					{testResult && (
-						<div className="rounded-md border bg-secondary p-3 text-sm">
+						<LayerCard padding="none" className="p-3 text-sm">
 							<p className="mb-1">
 								<span className="font-medium">过滤结果:</span> {testResult.censored}
 							</p>
 							{testResult.matches.length > 0 && (
-								<p className="text-muted-foreground">
+								<p className="text-basalt-muted-foreground">
 									<span className="font-medium">匹配词语:</span> {testResult.matches.join(", ")}
 								</p>
 							)}
-						</div>
+						</LayerCard>
 					)}
 				</div>
 			</LayerCard>

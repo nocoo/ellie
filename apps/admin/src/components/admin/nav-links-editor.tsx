@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Button, Input } from "@nocoo/basalt";
+import { Button, Input, LayerCard } from "@nocoo/basalt";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useCallback, useId, useMemo, useRef } from "react";
 import type { NavLinkItem } from "@/viewmodels/admin/settings";
@@ -81,10 +81,11 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 	};
 
 	return (
-		<div
+		<LayerCard
+			padding="none"
 			ref={setNodeRef}
 			style={style}
-			className="flex items-center gap-2 rounded-lg bg-secondary p-2"
+			className="flex items-center gap-2 p-2"
 		>
 			<Button
 				type="button"
@@ -98,12 +99,14 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 				<GripVertical className="h-4 w-4" />
 			</Button>
 			<Input
+				aria-label="显示名称"
 				value={item.label}
 				placeholder="显示名称"
 				onChange={(e) => onUpdate(item.id, "label", e.target.value)}
 				className="flex-1"
 			/>
 			<Input
+				aria-label="链接地址"
 				value={item.url}
 				placeholder="链接地址"
 				onChange={(e) => onUpdate(item.id, "url", e.target.value)}
@@ -114,11 +117,12 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 				variant="ghost"
 				size="icon"
 				onClick={() => onDelete(item.id)}
-				className="shrink-0 text-muted-foreground hover:text-destructive"
+				aria-label={`删除链接 ${item.label || "未命名"}`}
+				className="shrink-0 text-basalt-muted-foreground hover:text-basalt-destructive"
 			>
 				<Trash2 className="h-4 w-4" />
 			</Button>
-		</div>
+		</LayerCard>
 	);
 }
 

@@ -42,10 +42,10 @@ const STATUS_ICON: Record<CheckStatus, typeof Check> = {
 };
 
 const STATUS_ICON_CLASS: Record<CheckStatus, string> = {
-	pass: "text-green-600 dark:text-green-400",
-	fail: "text-destructive",
-	skip: "text-muted-foreground",
-	info: "text-blue-600 dark:text-blue-400",
+	pass: "text-basalt-badge-green-foreground",
+	fail: "text-basalt-destructive",
+	skip: "text-basalt-muted-foreground",
+	info: "text-basalt-info",
 };
 
 export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) {
@@ -73,11 +73,11 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 			</LayerCard.Header>
 			<LayerCard.Well className="space-y-3">
 				{loading ? (
-					<p className="text-sm text-muted-foreground">正在读取站点设置…</p>
+					<p className="text-sm text-basalt-muted-foreground">正在读取站点设置…</p>
 				) : (
 					<>
 						{error && (
-							<p className="flex items-start gap-2 text-xs text-muted-foreground">
+							<p className="flex items-start gap-2 text-xs text-basalt-muted-foreground">
 								<AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
 								<span>{error}（使用默认设置继续渲染）</span>
 							</p>
@@ -96,8 +96,8 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 						<p
 							className={
 								result.canWrite
-									? "text-sm text-green-700 dark:text-green-400"
-									: "text-sm text-destructive"
+									? "text-sm text-basalt-badge-green-foreground"
+									: "text-sm text-basalt-destructive"
 							}
 							data-testid="write-permission-conclusion"
 						>
@@ -125,7 +125,7 @@ function ChecklistRow({ item }: { item: CheckItem }) {
 			<span className={STATUS_ICON_CLASS[item.status]} aria-hidden="true">
 				<Icon className="h-4 w-4" />
 			</span>
-			<span className="text-muted-foreground">{item.label}</span>
+			<span className="text-basalt-muted-foreground">{item.label}</span>
 			<span className="break-all">{item.detail}</span>
 		</li>
 	);

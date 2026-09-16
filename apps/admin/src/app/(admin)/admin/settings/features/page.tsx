@@ -1,4 +1,5 @@
 import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { FeatureSettingsForm } from "@/components/admin/feature-settings-form";
 import { fetchSettingsDetailed } from "@/viewmodels/admin/settings.server";
 
@@ -20,11 +21,7 @@ export default async function FeatureSettingsPage() {
 				description="控制站点功能开关和访问限制，更改将在保存后立即生效"
 			/>
 
-			{error && (
-				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-					{error}
-				</div>
-			)}
+			{error && <AdminInlineMessage variant="error" text={error} />}
 
 			{settings && <FeatureSettingsForm initialSettings={settings} />}
 		</div>

@@ -13,9 +13,11 @@ import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
+	DescriptionList,
 	LayerCard,
 } from "@nocoo/basalt";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader } from "@nocoo/basalt/components/loader";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
@@ -59,10 +61,12 @@ export function IpLookupInline({ ip }: IpLookupInlineProps) {
 		<div className="mt-1 space-y-2">
 			<div className="flex items-center gap-2">
 				<Button type="button" size="sm" variant="outline" onClick={handleQuery} disabled={loading}>
-					{loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+					{loading ? <Loader className="mr-1 h-3 w-3" /> : null}
 					{result ? "重新查询" : "查询"}
 				</Button>
-				{result?.cached ? <span className="text-xs text-muted-foreground">已命中缓存</span> : null}
+				{result?.cached ? (
+					<span className="text-xs text-basalt-muted-foreground">已命中缓存</span>
+				) : null}
 			</div>
 
 			{error ? <AdminInlineMessage variant="error" text={error} dense /> : null}
@@ -70,26 +74,21 @@ export function IpLookupInline({ ip }: IpLookupInlineProps) {
 			{result ? (
 				<LayerCard padding="sm" outlined className="space-y-2 text-sm">
 					<div>{formatIpLookupSummary(result.normalized)}</div>
-					<dl className="grid grid-cols-[5rem_1fr] gap-y-1 text-xs text-muted-foreground">
+					<DescriptionList columns={1}>
 						{result.normalized.countryIso2 ? (
-							<>
-								<dt>国家代码</dt>
-								<dd className="font-mono">{result.normalized.countryIso2}</dd>
-							</>
+							<DescriptionList.Item term="国家代码">
+								<div className="font-mono">{result.normalized.countryIso2}</div>
+							</DescriptionList.Item>
 						) : null}
 						{result.normalized.asn ? (
-							<>
-								<dt>ASN</dt>
-								<dd className="font-mono">{result.normalized.asn}</dd>
-							</>
+							<DescriptionList.Item term="ASN">
+								<div className="font-mono">{result.normalized.asn}</div>
+							</DescriptionList.Item>
 						) : null}
 						{result.normalized.org ? (
-							<>
-								<dt>组织</dt>
-								<dd>{result.normalized.org}</dd>
-							</>
+							<DescriptionList.Item term="组织">{result.normalized.org}</DescriptionList.Item>
 						) : null}
-					</dl>
+					</DescriptionList>
 					{result.rawTruncated ? (
 						<AdminInlineMessage
 							variant="info"

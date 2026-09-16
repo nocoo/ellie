@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge, Button, Input, LayerCard } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	Table,
@@ -10,8 +11,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
-import { AlertCircle, Calculator, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, Calculator, CheckCircle2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -183,12 +185,12 @@ export default function StatsCalibratePage() {
 			<LayerCard>
 				<LayerCard.Header className="pb-3">
 					<div className="flex items-center gap-2">
-						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-basalt-primary/10 text-basalt-primary">
 							<Calculator className="h-5 w-5" />
 						</div>
 						<div>
-							<h2 className="text-sm font-medium text-base">今日发帖</h2>
-							<p className="text-xs text-basalt-muted-foreground text-xs">
+							<h2 className="text-base font-medium">今日发帖</h2>
+							<p className="text-xs text-basalt-muted-foreground">
 								存储在 KV 中，每日北京时间 0 点重置
 							</p>
 						</div>
@@ -197,11 +199,11 @@ export default function StatsCalibratePage() {
 				<LayerCard.Well>
 					<div className="flex items-center gap-4 text-sm">
 						<div>
-							<span className="text-muted-foreground">今日发帖：</span>
+							<span className="text-basalt-muted-foreground">今日发帖：</span>
 							<span className="font-medium tabular-nums">{formatNumber(todayPosts)}</span>
 						</div>
 						<div>
-							<span className="text-muted-foreground">日期标记：</span>
+							<span className="text-basalt-muted-foreground">日期标记：</span>
 							<span className="font-medium">{todayDate || "未初始化"}</span>
 						</div>
 					</div>
@@ -213,7 +215,7 @@ export default function StatsCalibratePage() {
 				<LayerCard.Header>
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
-							<h2 className="text-sm font-medium text-base">计数器校准</h2>
+							<h2 className="text-base font-medium">计数器校准</h2>
 							{hasDrift && (
 								<Badge variant="destructive" className="gap-1">
 									<AlertCircle className="h-3 w-3" />
@@ -229,11 +231,11 @@ export default function StatsCalibratePage() {
 						</div>
 						<div className="flex gap-2">
 							<Button variant="outline" size="sm" onClick={fetchState} disabled={loading}>
-								{loading && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+								{loading && <Loader className="mr-1 h-4 w-4" />}
 								刷新
 							</Button>
 							<Button variant="outline" size="sm" onClick={runStats} disabled={running}>
-								{running && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+								{running && <Loader className="mr-1 h-4 w-4" />}
 								运行统计
 							</Button>
 						</div>
@@ -243,16 +245,8 @@ export default function StatsCalibratePage() {
 					</p>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{error && (
-						<div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-							{error}
-						</div>
-					)}
-					{success && (
-						<div className="mb-4 rounded-md bg-green-500/10 p-3 text-sm text-green-600">
-							{success}
-						</div>
-					)}
+					{error && <AdminInlineMessage variant="error" text={error} />}
+					{success && <AdminInlineMessage variant="success" text={success} />}
 
 					<Table>
 						<TableHeader>
@@ -287,10 +281,10 @@ export default function StatsCalibratePage() {
 												<span
 													className={
 														diff === 0
-															? "text-muted-foreground"
+															? "text-basalt-muted-foreground"
 															: diff > 0
-																? "text-green-600"
-																: "text-red-600"
+																? "text-basalt-badge-green-foreground"
+																: "text-basalt-danger"
 													}
 												>
 													{diff > 0 ? "+" : ""}
@@ -314,7 +308,7 @@ export default function StatsCalibratePage() {
 										</TableCell>
 										<TableCell className="text-right tabular-nums font-medium">
 											{offset !== 0 ? (
-												<span className="text-primary">{formatNumber(final)}</span>
+												<span className="text-basalt-primary">{formatNumber(final)}</span>
 											) : (
 												formatNumber(final)
 											)}
@@ -332,11 +326,11 @@ export default function StatsCalibratePage() {
 							onClick={applyOffsets}
 							disabled={applying || Object.values(offsets).every((v) => v === 0)}
 						>
-							{applying && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+							{applying && <Loader className="mr-1 h-4 w-4" />}
 							应用偏移
 						</Button>
 						<Button size="sm" onClick={applyReal} disabled={applying || !hasDrift}>
-							{applying && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+							{applying && <Loader className="mr-1 h-4 w-4" />}
 							<RefreshCw className="mr-1 h-4 w-4" />
 							同步真实值
 						</Button>
@@ -347,9 +341,9 @@ export default function StatsCalibratePage() {
 			{/* Info card */}
 			<LayerCard>
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium text-base">说明</h2>
+					<h2 className="text-base font-medium">说明</h2>
 				</LayerCard.Header>
-				<LayerCard.Well className="text-sm text-muted-foreground space-y-2">
+				<LayerCard.Well className="text-sm text-basalt-muted-foreground space-y-2">
 					<p>
 						<strong>预计算计数器</strong>
 						：为避免 COUNT(*)

@@ -95,7 +95,7 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 			return (
 				<Link
 					href={`/admin/users/${row.id}`}
-					className="flex items-center gap-2 text-foreground hover:underline"
+					className="flex items-center gap-2 text-basalt-foreground hover:underline"
 				>
 					{inner}
 				</Link>

@@ -45,7 +45,7 @@ export function buildAttachmentColumns(
 			key: "preview",
 			header: "",
 			cell: (row) => {
-				if (!row.isImage) return <FileIcon className="h-6 w-6 text-muted-foreground" />;
+				if (!row.isImage) return <FileIcon className="h-6 w-6 text-basalt-muted-foreground" />;
 				const thumbUrl = row.hasThumb
 					? getAttachmentThumbUrl(row.filePath)
 					: getAttachmentUrl(row.filePath);
@@ -87,7 +87,7 @@ export function buildAttachmentColumns(
 			key: "size",
 			header: "大小",
 			cell: (row) => (
-				<span className="text-xs text-muted-foreground">{formatFileSize(row.fileSize)}</span>
+				<span className="text-xs text-basalt-muted-foreground">{formatFileSize(row.fileSize)}</span>
 			),
 		},
 		{
@@ -96,7 +96,7 @@ export function buildAttachmentColumns(
 			cell: (row) => (
 				<Link
 					href={`/admin/threads/${row.threadId}`}
-					className="text-sm text-primary hover:underline"
+					className="text-sm text-basalt-primary hover:underline"
 				>
 					#{row.threadId}
 				</Link>

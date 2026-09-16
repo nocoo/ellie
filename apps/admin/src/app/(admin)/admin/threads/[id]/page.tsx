@@ -1,7 +1,8 @@
 "use client";
 
 import { Button, LayerCard } from "@nocoo/basalt";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader } from "@nocoo/basalt/components/loader";
+import { ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
@@ -196,7 +197,7 @@ export default function ThreadDetailPage() {
 	if (loading && !data) {
 		return (
 			<div className="flex items-center justify-center py-20">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader className="h-6 w-6 text-basalt-muted-foreground" />
 			</div>
 		);
 	}
@@ -211,7 +212,7 @@ export default function ThreadDetailPage() {
 				</Button>
 				<LayerCard
 					padding="none"
-					className="p-1 overflow-x-auto p-8 text-center text-muted-foreground"
+					className="p-1 overflow-x-auto p-8 text-center text-basalt-muted-foreground"
 				>
 					{error}
 				</LayerCard>

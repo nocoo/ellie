@@ -109,10 +109,10 @@ export function LoginAttemptsPanel() {
 			{/* ── KPI row (aggregate, KV-cached on worker) ────────────────── */}
 			<LayerCard>
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium text-base font-semibold">今日登录尝试</h2>
+					<h2 className="text-base font-semibold">今日登录尝试</h2>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{kpiError && <p className="text-sm text-destructive">KPI 加载失败：{kpiError}</p>}
+					{kpiError && <p className="text-sm text-basalt-destructive">KPI 加载失败：{kpiError}</p>}
 					{kpi && (
 						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 							<StatCard label="总尝试" value={kpi.totalAttempts} />
@@ -130,7 +130,7 @@ export function LoginAttemptsPanel() {
 			{/* ── Detail list with reveal ─────────────────────────────────── */}
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 className="text-sm font-medium text-base font-semibold">登录明细</h2>
+					<h2 className="text-base font-semibold">登录明细</h2>
 					<div className="flex flex-wrap items-center gap-2 text-xs">
 						<SegmentControl
 							value={okFilter || "__empty__"}
@@ -161,15 +161,17 @@ export function LoginAttemptsPanel() {
 					</div>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{listError && <p className="text-sm text-destructive">明细加载失败：{listError}</p>}
+					{listError && (
+						<p className="text-sm text-basalt-destructive">明细加载失败：{listError}</p>
+					)}
 					{list && list.rows.length === 0 && (
-						<p className="text-sm text-muted-foreground">该筛选条件下暂无记录。</p>
+						<p className="text-sm text-basalt-muted-foreground">该筛选条件下暂无记录。</p>
 					)}
 					{list && list.rows.length > 0 && (
 						<div className="overflow-x-auto">
 							<Table className="min-w-full text-sm">
 								<TableHeader>
-									<TableRow className="border-b border-border text-left text-xs text-muted-foreground">
+									<TableRow className="border-b border-basalt-border text-left text-xs text-basalt-muted-foreground">
 										<TableHead className="py-2 pr-3">时间</TableHead>
 										<TableHead className="py-2 pr-3">用户</TableHead>
 										<TableHead className="py-2 pr-3">类型</TableHead>
@@ -182,7 +184,7 @@ export function LoginAttemptsPanel() {
 								<TableBody>
 									{list.rows.map((row) => {
 										return (
-											<TableRow key={row.id} className="border-b border-border/50">
+											<TableRow key={row.id} className="border-b border-basalt-border/50">
 												<TableCell className="whitespace-nowrap py-2 pr-3 tabular-nums">
 													{formatTs(row.createdAt)}
 												</TableCell>
@@ -190,10 +192,10 @@ export function LoginAttemptsPanel() {
 													{row.userId !== null ? (
 														<Link
 															href={`/admin/users/${row.userId}`}
-															className="text-foreground hover:text-primary hover:underline"
+															className="text-basalt-foreground hover:text-basalt-primary hover:underline"
 														>
 															{row.username || `#${row.userId}`}
-															<span className="ml-1 text-xs text-muted-foreground">
+															<span className="ml-1 text-xs text-basalt-muted-foreground">
 																#{row.userId}
 															</span>
 														</Link>
@@ -212,7 +214,7 @@ export function LoginAttemptsPanel() {
 													<IpLookupInline ip={row.ip} />
 												</TableCell>
 												<TableCell
-													className="max-w-[200px] truncate py-2 pr-3 text-xs text-muted-foreground"
+													className="max-w-[200px] truncate py-2 pr-3 text-xs text-basalt-muted-foreground"
 													title={row.userAgent}
 												>
 													{row.userAgent || "—"}

@@ -246,14 +246,17 @@ export default function IpBansPage() {
 		{
 			key: "reason",
 			header: "原因",
-			cell: (row) => row.reason || <span className="text-muted-foreground">—</span>,
+			cell: (row) => row.reason || <span className="text-basalt-muted-foreground">—</span>,
 		},
 		{
 			key: "createdBy",
 			header: "创建者",
 			cell: (row) =>
 				row.adminId > 0 ? (
-					<Link href={`/admin/users/${row.adminId}`} className="text-primary hover:underline">
+					<Link
+						href={`/admin/users/${row.adminId}`}
+						className="text-basalt-primary hover:underline"
+					>
 						{row.adminName}
 					</Link>
 				) : (
@@ -267,7 +270,7 @@ export default function IpBansPage() {
 				if (!row.expiresAt) return <Badge variant={ipBanExpiryVariant(false)}>永久</Badge>;
 				const expired = row.expiresAt * 1000 < Date.now();
 				return (
-					<span className={expired ? "text-muted-foreground line-through" : ""}>
+					<span className={expired ? "text-basalt-muted-foreground line-through" : ""}>
 						{formatExpiry(row.expiresAt)}
 					</span>
 				);
@@ -290,7 +293,7 @@ export default function IpBansPage() {
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => setEditBan(row)}>编辑</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
+						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -319,7 +322,7 @@ export default function IpBansPage() {
 
 			{/* IP Check Tool */}
 			<LayerCard padding="none" className="p-1 overflow-x-auto p-4">
-				<h2 className="mb-2 text-sm font-medium text-foreground">IP 地址检测</h2>
+				<h2 className="mb-2 text-sm font-medium text-basalt-foreground">IP 地址检测</h2>
 				<div className="flex items-center gap-2">
 					<Input
 						placeholder="输入要检测的 IP 地址..."
@@ -343,7 +346,7 @@ export default function IpBansPage() {
 							<div className="space-y-1">
 								<Badge variant={ipBanStateVariant(true)}>已封禁</Badge>
 								{checkResult.matchingBans?.map((ban) => (
-									<p key={ban.id} className="text-sm text-muted-foreground">
+									<p key={ban.id} className="text-sm text-basalt-muted-foreground">
 										匹配规则 <span className="font-mono">{ban.ip}</span>
 										{ban.reason ? ` — ${ban.reason}` : ""}
 										{ban.expiresAt ? ` (过期时间 ${formatExpiry(ban.expiresAt)})` : " (永久)"}

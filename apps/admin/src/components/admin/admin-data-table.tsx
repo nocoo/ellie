@@ -1,6 +1,8 @@
 "use client";
 
 import { Checkbox } from "@nocoo/basalt";
+import { Empty } from "@nocoo/basalt/components/empty";
+import { Loader } from "@nocoo/basalt/components/loader";
 import {
 	Table,
 	TableBody,
@@ -90,19 +92,16 @@ export function AdminDataTable<T>({
 	// Loading state
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-sm text-muted-foreground">加载中...</p>
+			<div role="status" className="flex items-center justify-center gap-2 py-12">
+				<Loader size={16} />
+				<p className="text-sm text-basalt-muted-foreground">加载中...</p>
 			</div>
 		);
 	}
 
 	// Empty state
 	if (data.length === 0) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-sm text-muted-foreground">{emptyMessage}</p>
-			</div>
-		);
+		return <Empty title={emptyMessage} className="py-12" />;
 	}
 
 	return (
@@ -130,7 +129,7 @@ export function AdminDataTable<T>({
 					const id = getRowId(row);
 					const isSelected = selectedIds.has(id);
 					return (
-						<TableRow key={id} data-state={isSelected ? "selected" : undefined}>
+						<TableRow key={id} aria-selected={selectable ? isSelected : undefined}>
 							{selectable && (
 								<TableCell>
 									<Checkbox

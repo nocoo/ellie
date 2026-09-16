@@ -42,7 +42,7 @@ export function buildPostColumns(_opts: BuildPostColumnsOpts = {}): ColumnDef<Po
 			cell: (row) => (
 				<Link
 					href={`/admin/users/${row.authorId}`}
-					className="text-sm text-primary hover:underline whitespace-nowrap"
+					className="text-sm text-basalt-primary hover:underline whitespace-nowrap"
 				>
 					{row.authorName}
 				</Link>
@@ -54,7 +54,7 @@ export function buildPostColumns(_opts: BuildPostColumnsOpts = {}): ColumnDef<Po
 			cell: (row) => (
 				<Link
 					href={`/admin/threads/${row.threadId}`}
-					className="text-sm text-primary hover:underline whitespace-nowrap"
+					className="text-sm text-basalt-primary hover:underline whitespace-nowrap"
 				>
 					#{row.threadId}
 				</Link>

@@ -5,6 +5,7 @@ import { InputArea } from "@nocoo/basalt/components/input-area";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import {
 	getChangedSettings,
 	SETTING_GROUPS,
@@ -84,23 +85,13 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 			</div>
 
 			{/* Feedback message */}
-			{message && (
-				<div
-					className={`rounded-lg border p-3 text-sm ${
-						message.type === "success"
-							? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
-							: "border-destructive/50 bg-destructive/10 text-destructive"
-					}`}
-				>
-					{message.text}
-				</div>
-			)}
+			{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
 			{/* Setting groups */}
 			{SETTING_GROUPS.map((group) => (
 				<LayerCard padding="none" key={group.prefix} className="p-4 md:p-6">
-					<h2 className="text-base font-semibold text-foreground">{group.title}</h2>
-					<p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
+					<h2 className="text-base font-semibold text-basalt-foreground">{group.title}</h2>
+					<p className="mt-1 text-sm text-basalt-muted-foreground">{group.description}</p>
 
 					<div className="mt-4 grid gap-4 sm:grid-cols-2">
 						{group.fields.map((field) => (
@@ -133,7 +124,10 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 	if (field.inputType === "switch") {
 		const checked = value === "true";
 		return (
-			<div className="flex items-start gap-3 rounded-lg border p-4 transition-colors sm:col-span-2">
+			<LayerCard
+				padding="none"
+				className="flex items-start gap-3 p-4 transition-colors sm:col-span-2"
+			>
 				<Checkbox
 					id={field.key}
 					checked={checked}
@@ -144,9 +138,9 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 					<Label htmlFor={field.key} className="cursor-pointer font-medium">
 						{field.label}
 					</Label>
-					{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+					{field.hint && <p className="text-xs text-basalt-muted-foreground">{field.hint}</p>}
 				</div>
-			</div>
+			</LayerCard>
 		);
 	}
 
@@ -161,9 +155,8 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 					placeholder={field.placeholder}
 					onChange={(e) => onChange(field.key, e.target.value)}
 					rows={3}
-					className="w-full min-w-0 rounded-lg border border-border bg-secondary px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 				/>
-				{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+				{field.hint && <p className="text-xs text-basalt-muted-foreground">{field.hint}</p>}
 			</div>
 		);
 	}
@@ -183,7 +176,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 				onChange={(e) => onChange(field.key, e.target.value)}
 				min={field.inputType === "number" ? 1 : undefined}
 			/>
-			{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+			{field.hint && <p className="text-xs text-basalt-muted-foreground">{field.hint}</p>}
 		</div>
 	);
 }

@@ -1,3 +1,4 @@
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { LinkListSettings } from "@/components/admin/link-list-settings";
 import { fetchSettingsDetailed } from "@/viewmodels/admin/settings.server";
 
@@ -13,9 +14,7 @@ export default async function NavLinksPage() {
 	}
 
 	return error ? (
-		<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-			{error}
-		</div>
+		<AdminInlineMessage variant="error" text={error} />
 	) : (
 		<LinkListSettings
 			title="顶部导航"

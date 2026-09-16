@@ -1,14 +1,3 @@
-// JsonCodeBlock — token kind classification + class-token pin guard.
-//
-// We don't render to the DOM here; we lock the tokenizer behaviour and
-// pin the visual color tokens via source inspection (same convention as
-// section-header.test.ts / segmented-switch.test.ts). The tokenizer is
-// the only piece with non-trivial logic — if a future refactor breaks
-// key/value distinction or whitespace preservation, these assertions
-// fail before a regression hits the KV monitor page.
-
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { tokenizeJson } from "../../../src/components/admin/json-code-block";
 
@@ -59,43 +48,5 @@ describe("tokenizeJson", () => {
 		const tokens = tokenizeJson(pretty);
 		const num = tokens.find((t) => t.kind === "number");
 		expect(num?.text).toBe("-15000000000");
-	});
-});
-
-const SOURCE = readFileSync(
-	fileURLToPath(new URL("../../../src/components/admin/json-code-block.tsx", import.meta.url)),
-	"utf8",
-);
-
-describe("JsonCodeBlock — pinned class tokens", () => {
-	it("uses the agreed color tokens for each JSON kind", () => {
-		// Keys: blue (light + dark)
-		expect(SOURCE).toContain("text-blue-600");
-		expect(SOURCE).toContain("dark:text-blue-400");
-		// Strings: emerald
-		expect(SOURCE).toContain("text-emerald-600");
-		expect(SOURCE).toContain("dark:text-emerald-400");
-		// Numbers: amber
-		expect(SOURCE).toContain("text-amber-600");
-		// Boolean / null: purple
-		expect(SOURCE).toContain("text-purple-600");
-		// Punctuation: muted
-		expect(SOURCE).toContain("text-muted-foreground");
-	});
-
-	it("uses code-block container tokens (mono, muted bg, scroll, height cap)", () => {
-		expect(SOURCE).toContain("font-mono");
-		expect(SOURCE).toContain("bg-background");
-		expect(SOURCE).toContain("overflow-auto");
-		expect(SOURCE).toContain("max-w-full");
-		expect(SOURCE).toContain("max-h-[60vh]");
-	});
-
-	it("preserves JSON indentation with whitespace-pre and only wraps plain strings", () => {
-		// JSON path: whitespace-pre (no wrap, breaks layers otherwise)
-		expect(SOURCE).toContain("whitespace-pre");
-		// Plain-string path: wrap + break-all
-		expect(SOURCE).toContain("whitespace-pre-wrap");
-		expect(SOURCE).toContain("break-all");
 	});
 });

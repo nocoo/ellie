@@ -6,7 +6,7 @@
  * returns an `AdminBadgeVariant` that the call site passes straight to
  * `<Badge variant={...}>`. The goal is to eliminate ad-hoc Tailwind
  * classes (e.g. raw `bg-yellow-100/text-yellow-800` and inline
- * `text-success border-success/50`) and the white "transparent" look
+ * `text-basalt-badge-green-foreground border-basalt-badge-green-foreground/50`) and the white "transparent" look
  * that comes from misusing `outline` for actual status.
  *
  * Convention:

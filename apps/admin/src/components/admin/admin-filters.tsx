@@ -244,7 +244,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 							onSubmit={(e) => handleSearchSubmit(filter.key, e)}
 							className="relative"
 						>
-							<Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+							<Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-basalt-muted-foreground" />
 							<Input
 								placeholder={filter.label}
 								value={inputVal}
@@ -312,7 +312,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 					const maxKey = rangeMaxKey(filter.key);
 					return (
 						<div key={filter.key} className="flex items-center gap-1">
-							<span className="text-sm text-muted-foreground">{filter.label}</span>
+							<span className="text-sm text-basalt-muted-foreground">{filter.label}</span>
 							<Input
 								type="number"
 								inputMode="numeric"
@@ -322,7 +322,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								aria-label={`${filter.label} 最小`}
 								className="w-[88px]"
 							/>
-							<span className="text-sm text-muted-foreground">—</span>
+							<span className="text-sm text-basalt-muted-foreground">—</span>
 							<Input
 								type="number"
 								inputMode="numeric"
@@ -341,7 +341,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 					const maxKey = rangeMaxKey(filter.key);
 					return (
 						<div key={filter.key} className="flex items-center gap-1">
-							<span className="text-sm text-muted-foreground">{filter.label}</span>
+							<span className="text-sm text-basalt-muted-foreground">{filter.label}</span>
 							<Input
 								type="date"
 								value={values[minKey] ?? ""}
@@ -350,7 +350,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								aria-label={`${filter.label} 开始日期`}
 								className="w-[150px]"
 							/>
-							<span className="text-sm text-muted-foreground">—</span>
+							<span className="text-sm text-basalt-muted-foreground">—</span>
 							<Input
 								type="date"
 								value={values[maxKey] ?? ""}

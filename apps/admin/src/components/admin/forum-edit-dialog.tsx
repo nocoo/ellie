@@ -201,7 +201,7 @@ export function ForumEditDialog({
 							id="edit-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
-							className="min-h-[80px] rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+							className="min-h-20 resize-none"
 							placeholder="版块描述"
 							maxLength={500}
 						/>

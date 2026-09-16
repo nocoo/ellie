@@ -83,8 +83,9 @@ export function AdminConfirmDialog({
 
 				{requireInput && (
 					<div className="py-2">
-						<p className="mb-2 text-sm text-muted-foreground">
-							输入 <span className="font-mono font-semibold text-foreground">{requireInput}</span>{" "}
+						<p className="mb-2 text-sm text-basalt-muted-foreground">
+							输入{" "}
+							<span className="font-mono font-semibold text-basalt-foreground">{requireInput}</span>{" "}
 							以确认：
 						</p>
 						<Input

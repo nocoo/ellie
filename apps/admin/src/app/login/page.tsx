@@ -105,7 +105,10 @@ function LoginContent() {
 					</p>
 				</div>
 				<LayerCard.Footer className="justify-center text-[10px] text-basalt-muted-foreground">
-					<span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-basalt-success" aria-hidden="true" />
+					<span
+						className="mr-1.5 h-1.5 w-1.5 rounded-full bg-basalt-badge-green-foreground"
+						aria-hidden="true"
+					/>
 					安全认证
 				</LayerCard.Footer>
 			</LayerCard>

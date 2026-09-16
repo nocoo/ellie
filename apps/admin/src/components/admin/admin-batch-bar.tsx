@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, LayerCard } from "@nocoo/basalt";
+import { Button, LayerCard, Separator } from "@nocoo/basalt";
 import { X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -28,10 +28,10 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 	if (selectedCount === 0) return null;
 
 	return (
-		<div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in">
+		<div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
 			<LayerCard padding="none" className="flex items-center gap-3 px-4 py-2.5 shadow-lg">
-				<span className="text-sm font-medium text-foreground">{selectedCount} 已选</span>
-				<div className="h-4 w-px bg-border" />
+				<span className="text-sm font-medium text-basalt-foreground">{selectedCount} 已选</span>
+				<Separator orientation="vertical" className="h-4" />
 				{actions.map((action) => (
 					<Button
 						key={action.key}

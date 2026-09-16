@@ -30,6 +30,7 @@ import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
 import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
 import { TrendTab } from "@/components/admin/analytics/tabs/trend-tab";
@@ -134,9 +135,7 @@ function AnalyticsPageInner(): React.JSX.Element {
 
 			<SectionRule title="今日 KPI">
 				{overviewError && (
-					<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
-						今日 KPI 加载失败：{overviewError}
-					</div>
+					<AdminInlineMessage variant="error" text={`今日 KPI 加载失败：${overviewError}`} />
 				)}
 				{overview && (
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -184,7 +183,7 @@ function AnalyticsPageInner(): React.JSX.Element {
 export default function AnalyticsPage(): React.JSX.Element {
 	// `useSearchParams` requires a Suspense boundary in the Next.js App Router.
 	return (
-		<Suspense fallback={<div className="text-sm text-muted-foreground">加载中...</div>}>
+		<Suspense fallback={<div className="text-sm text-basalt-muted-foreground">加载中...</div>}>
 			<AnalyticsPageInner />
 		</Suspense>
 	);

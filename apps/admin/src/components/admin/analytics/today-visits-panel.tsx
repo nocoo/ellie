@@ -75,10 +75,10 @@ function RowTarget({ row, siteHost }: { row: TodayVisitsListRow; siteHost: strin
 		return (
 			<Link
 				href={`/admin/threads/${row.targetId}`}
-				className="text-foreground hover:text-primary hover:underline"
+				className="text-basalt-foreground hover:text-basalt-primary hover:underline"
 			>
 				{label}
-				<span className="ml-1 text-xs text-muted-foreground">#{row.targetId}</span>
+				<span className="ml-1 text-xs text-basalt-muted-foreground">#{row.targetId}</span>
 			</Link>
 		);
 	}
@@ -86,10 +86,10 @@ function RowTarget({ row, siteHost }: { row: TodayVisitsListRow; siteHost: strin
 		return (
 			<Link
 				href={`/admin/users/${row.targetId}`}
-				className="text-foreground hover:text-primary hover:underline"
+				className="text-basalt-foreground hover:text-basalt-primary hover:underline"
 			>
 				{label}
-				<span className="ml-1 text-xs text-muted-foreground">#{row.targetId}</span>
+				<span className="ml-1 text-xs text-basalt-muted-foreground">#{row.targetId}</span>
 			</Link>
 		);
 	}
@@ -99,14 +99,14 @@ function RowTarget({ row, siteHost }: { row: TodayVisitsListRow; siteHost: strin
 				href={`${siteHost}/forums/${row.targetId}`}
 				target="_blank"
 				rel="noopener noreferrer"
-				className="text-foreground hover:text-primary hover:underline"
+				className="text-basalt-foreground hover:text-basalt-primary hover:underline"
 			>
 				{label}
-				<span className="ml-1 text-xs text-muted-foreground">#{row.targetId} ↗</span>
+				<span className="ml-1 text-xs text-basalt-muted-foreground">#{row.targetId} ↗</span>
 			</a>
 		);
 	}
-	return <span className="text-foreground">{PATH_KIND_LABELS[row.pathKind]}</span>;
+	return <span className="text-basalt-foreground">{PATH_KIND_LABELS[row.pathKind]}</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,10 +178,10 @@ export function TodayVisitsPanel() {
 			{/* ── KPI row (aggregate, KV-cached on worker) ────────────────── */}
 			<LayerCard>
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium text-base font-semibold">今日访问</h2>
+					<h2 className="text-base font-semibold">今日访问</h2>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{kpiError && <p className="text-sm text-destructive">KPI 加载失败：{kpiError}</p>}
+					{kpiError && <p className="text-sm text-basalt-destructive">KPI 加载失败：{kpiError}</p>}
 					{kpi && (
 						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 							<StatCard label="总浏览" value={kpi.totalViews} />
@@ -207,7 +207,7 @@ export function TodayVisitsPanel() {
 			{/* ── Detail list (realtime, no-store) ────────────────────────── */}
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-					<h2 className="text-sm font-medium text-base font-semibold">访问明细</h2>
+					<h2 className="text-base font-semibold">访问明细</h2>
 					<SegmentControl
 						legend="访问类型"
 						value={pathKindFilter || "__empty__"}
@@ -220,15 +220,17 @@ export function TodayVisitsPanel() {
 					/>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{listError && <p className="text-sm text-destructive">明细加载失败：{listError}</p>}
+					{listError && (
+						<p className="text-sm text-basalt-destructive">明细加载失败：{listError}</p>
+					)}
 					{list && list.rows.length === 0 && (
-						<p className="text-sm text-muted-foreground">该筛选条件下暂无记录。</p>
+						<p className="text-sm text-basalt-muted-foreground">该筛选条件下暂无记录。</p>
 					)}
 					{list && list.rows.length > 0 && (
 						<div className="overflow-x-auto">
 							<Table className="min-w-full text-sm">
 								<TableHeader>
-									<TableRow className="border-b border-border text-left text-xs text-muted-foreground">
+									<TableRow className="border-b border-basalt-border text-left text-xs text-basalt-muted-foreground">
 										<TableHead className="py-2 pr-3">类型</TableHead>
 										<TableHead className="py-2 pr-3">目标</TableHead>
 										<TableHead className="py-2 pr-3 tabular-nums">浏览</TableHead>
@@ -242,9 +244,9 @@ export function TodayVisitsPanel() {
 									{list.rows.map((row) => (
 										<TableRow
 											key={`${row.pathKind}#${row.targetId}`}
-											className="border-b border-border/50"
+											className="border-b border-basalt-border/50"
 										>
-											<TableCell className="py-2 pr-3 text-xs text-muted-foreground">
+											<TableCell className="py-2 pr-3 text-xs text-basalt-muted-foreground">
 												{PATH_KIND_LABELS[row.pathKind]}
 											</TableCell>
 											<TableCell className="py-2 pr-3 break-all">
@@ -258,11 +260,11 @@ export function TodayVisitsPanel() {
 											<TableCell className="py-2 pr-3 tabular-nums">{row.uniqueUsers}</TableCell>
 											<TableCell className="whitespace-nowrap py-2 pr-3 tabular-nums text-xs">
 												<div>
-													<span className="text-muted-foreground">首次：</span>
+													<span className="text-basalt-muted-foreground">首次：</span>
 													{formatTs(row.firstSeenAt)}
 												</div>
 												<div>
-													<span className="text-muted-foreground">最近：</span>
+													<span className="text-basalt-muted-foreground">最近：</span>
 													{formatTs(row.lastSeenAt)}
 												</div>
 											</TableCell>

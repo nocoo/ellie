@@ -136,7 +136,7 @@ export function CensorWordCreateDialog({
 								))}
 							</SelectContent>
 						</Select>
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-basalt-muted-foreground">
 							替换：将词语替换为指定内容。禁止发布：直接拦截帖子。
 						</p>
 					</div>
@@ -151,7 +151,7 @@ export function CensorWordCreateDialog({
 							maxLength={200}
 							disabled={action === "ban"}
 						/>
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-basalt-muted-foreground">
 							{action === "ban" ? "动作为“禁止发布”时不适用。" : "留空则使用默认替换内容（**）。"}
 						</p>
 					</div>

@@ -17,8 +17,8 @@
 //     long lines. The dialog itself is responsible for capping width via
 //     `overflow-hidden` + `max-w-*`.
 //
-// Token color tokens are pinned by `tests/unit/components/json-code-block.test.ts`.
 
+import { CodeBlock } from "@nocoo/basalt/components/code";
 import type React from "react";
 import { twMerge as cn } from "tailwind-merge";
 
@@ -77,12 +77,12 @@ export function tokenizeJson(pretty: string): Token[] {
 }
 
 const KIND_CLASS: Record<TokenKind, string> = {
-	key: "text-blue-600 dark:text-blue-400",
-	string: "text-emerald-600 dark:text-emerald-400",
-	number: "text-amber-600 dark:text-amber-400",
-	boolean: "text-purple-600 dark:text-purple-400",
-	null: "text-purple-600 dark:text-purple-400",
-	punct: "text-muted-foreground",
+	key: "text-basalt-primary",
+	string: "text-basalt-badge-green-foreground",
+	number: "text-basalt-warning",
+	boolean: "text-basalt-badge-purple-foreground",
+	null: "text-basalt-badge-purple-foreground",
+	punct: "text-basalt-muted-foreground",
 	plain: "",
 };
 
@@ -97,7 +97,7 @@ export function JsonCodeBlock({
 	// `whitespace-pre` keeps JSON indentation intact — wrapping would break
 	// nested levels visually.
 	const baseClass = cn(
-		"mt-1 max-w-full overflow-auto rounded bg-background p-3 font-mono text-xs leading-5",
+		"mt-1 max-w-full overflow-auto p-3 text-xs leading-5",
 		"whitespace-pre",
 		maxHeightClassName ?? "max-h-[60vh]",
 		className,
@@ -107,13 +107,15 @@ export function JsonCodeBlock({
 		// Plain string values: render as-is (no JSON quoting), but still
 		// allow wrapping for very long single-line strings since there's
 		// no JSON layer to preserve.
-		return <pre className={cn(baseClass, "whitespace-pre-wrap break-all")}>{value}</pre>;
+		return (
+			<CodeBlock className={cn(baseClass, "whitespace-pre-wrap break-all")}>{value}</CodeBlock>
+		);
 	}
 
 	const pretty = JSON.stringify(value, null, 2) ?? "";
 	const tokens = tokenizeJson(pretty);
 	return (
-		<pre className={baseClass}>
+		<CodeBlock className={baseClass}>
 			{tokens.map((tok, i) => {
 				const cls = KIND_CLASS[tok.kind];
 				// Token order is stable for a given pretty-printed value, so the
@@ -126,6 +128,6 @@ export function JsonCodeBlock({
 					</span>
 				);
 			})}
-		</pre>
+		</CodeBlock>
 	);
 }

@@ -5,6 +5,7 @@ import {
 	Avatar,
 	AvatarFallback,
 	AvatarImage,
+	Badge,
 	Sidebar as BasaltSidebar,
 	Button,
 	SidebarFooter,
@@ -142,9 +143,9 @@ export function Sidebar({
 				{!collapsed && (
 					<>
 						<span className="text-base font-semibold">Ellie</span>
-						<span className="rounded-md bg-basalt-secondary px-1.5 py-0.5 text-[10px] leading-none text-basalt-muted-foreground">
+						<Badge variant="secondary" className="text-[10px]">
 							{VERSION_DISPLAY}
-						</span>
+						</Badge>
 						<Button
 							variant="ghost"
 							size="icon"

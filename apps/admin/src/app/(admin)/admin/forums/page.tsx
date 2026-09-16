@@ -10,6 +10,8 @@ import {
 	LayerCard,
 	Separator,
 } from "@nocoo/basalt";
+import { Empty } from "@nocoo/basalt/components/empty";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	ChevronRight,
@@ -90,7 +92,7 @@ function TypeIcon({ type }: { type: string }) {
 		case "sub":
 			return <GitBranch className="h-4 w-4 text-emerald-500" />;
 		default:
-			return <SquareStack className="h-4 w-4 text-muted-foreground" />;
+			return <SquareStack className="h-4 w-4 text-basalt-muted-foreground" />;
 	}
 }
 
@@ -104,12 +106,14 @@ function TreeConnector({ depth, isLast }: { depth: number; isLast: boolean }) {
 					{i === depth - 1 ? (
 						// Last connector with branch line
 						<div className="absolute left-3 top-0 h-full">
-							<div className={cn("absolute left-0 w-px bg-border", isLast ? "h-1/2" : "h-full")} />
-							<div className="absolute left-0 top-1/2 h-px w-3 bg-border" />
+							<div
+								className={cn("absolute left-0 w-px bg-basalt-border", isLast ? "h-1/2" : "h-full")}
+							/>
+							<div className="absolute left-0 top-1/2 h-px w-3 bg-basalt-border" />
 						</div>
 					) : (
 						// Vertical line for ancestor levels
-						<div className="absolute left-3 top-0 h-full w-px bg-border" />
+						<div className="absolute left-3 top-0 h-full w-px bg-basalt-border" />
 					)}
 				</div>
 			))}
@@ -136,8 +140,8 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 	return (
 		<div
 			className={cn(
-				"group flex items-center gap-3 border-b border-border/50 px-4 py-3 transition-colors hover:bg-accent/50",
-				node.depth === 0 && "bg-secondary/30",
+				"group flex items-center gap-3 border-b border-basalt-border/50 px-4 py-3 transition-colors hover:bg-basalt-accent/50",
+				node.depth === 0 && "bg-basalt-secondary/30",
 				node.status === 0 && "opacity-60",
 			)}
 		>
@@ -151,33 +155,33 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 
 			{/* Expand indicator for groups */}
 			{node.depth === 0 && hasChildren && (
-				<ChevronRight className="h-4 w-4 text-muted-foreground rotate-90" />
+				<ChevronRight className="h-4 w-4 text-basalt-muted-foreground rotate-90" />
 			)}
 
 			{/* Forum info */}
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2">
-					<span className="font-medium text-foreground truncate">{node.name}</span>
+					<span className="font-medium text-basalt-foreground truncate">{node.name}</span>
 					<Badge variant={forumTypeVariant(node.type)}>{typeLabel(node.type)}</Badge>
 					<StatusBadge status={node.status} />
 				</div>
 				{node.description && (
-					<p className="mt-0.5 text-xs text-muted-foreground truncate">{node.description}</p>
+					<p className="mt-0.5 text-xs text-basalt-muted-foreground truncate">{node.description}</p>
 				)}
 			</div>
 
 			{/* Stats — fixed-width columns so numbers + labels line up vertically across rows */}
-			<div className="hidden sm:flex items-center gap-6 text-xs text-muted-foreground">
+			<div className="hidden sm:flex items-center gap-6 text-xs text-basalt-muted-foreground">
 				<div className="w-16 text-right tabular-nums">
-					<div className="font-medium text-foreground">{node.threads.toLocaleString()}</div>
+					<div className="font-medium text-basalt-foreground">{node.threads.toLocaleString()}</div>
 					<div>主题</div>
 				</div>
 				<div className="w-16 text-right tabular-nums">
-					<div className="font-medium text-foreground">{node.posts.toLocaleString()}</div>
+					<div className="font-medium text-basalt-foreground">{node.posts.toLocaleString()}</div>
 					<div>帖子</div>
 				</div>
 				<div className="w-12 text-right tabular-nums">
-					<div className="text-foreground">{node.displayOrder}</div>
+					<div className="text-basalt-foreground">{node.displayOrder}</div>
 					<div>排序</div>
 				</div>
 			</div>
@@ -204,7 +208,7 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 					{node.threads === 0 && node.children.length === 0 && (
 						<>
 							<Separator className="my-1" />
-							<DropdownMenuItem onClick={() => onDelete(node)} className="text-destructive">
+							<DropdownMenuItem onClick={() => onDelete(node)} className="text-basalt-destructive">
 								删除
 							</DropdownMenuItem>
 						</>
@@ -454,9 +458,9 @@ export default function ForumsPage() {
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
 			{/* Tree view */}
-			<LayerCard padding="none" className="p-1 overflow-x-auto overflow-hidden">
+			<LayerCard padding="none" className="overflow-hidden">
 				{/* Table header */}
-				<div className="flex items-center gap-3 border-b bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+				<LayerCard.Header className="flex items-center gap-3 text-xs font-medium text-basalt-muted-foreground">
 					<div className="flex-1">版块</div>
 					<div className="hidden sm:flex items-center gap-6">
 						<div className="w-16 text-right">主题</div>
@@ -464,49 +468,54 @@ export default function ForumsPage() {
 						<div className="w-12 text-right">排序</div>
 					</div>
 					<div className="w-8" />
-				</div>
+				</LayerCard.Header>
+				<LayerCard.Well className="overflow-x-auto p-0">
+					{/* Loading state */}
+					{loading && (
+						<div role="status" className="flex items-center justify-center gap-2 py-12">
+							<Loader size={16} />
+							<span className="text-sm text-basalt-muted-foreground">加载中...</span>
+						</div>
+					)}
 
-				{/* Loading state */}
-				{loading && (
-					<div className="flex items-center justify-center py-12">
-						<div className="text-sm text-muted-foreground">加载中...</div>
-					</div>
-				)}
-
-				{/* Empty state */}
-				{!loading && flatList.length === 0 && (
-					<div className="flex flex-col items-center justify-center py-12">
-						<SquareStack className="h-10 w-10 text-muted-foreground/50" />
-						<p className="mt-3 text-sm text-muted-foreground">暂无版块</p>
-						<Button
-							variant="outline"
-							size="sm"
-							className="mt-4"
-							onClick={() => setCreateOpen(true)}
-						>
-							<Plus className="mr-2 h-4 w-4" />
-							创建第一个分区
-						</Button>
-					</div>
-				)}
-
-				{/* Forum list */}
-				{!loading &&
-					flatList.map((node, index) => (
-						<ForumRow
-							key={node.id}
-							node={node}
-							isLast={isLastAtDepth(index, node.depth)}
-							onEdit={setEditForum}
-							onToggleStatus={handleToggleStatus}
-							onMerge={setMergeSource}
-							onDelete={handleDelete}
+					{/* Empty state */}
+					{!loading && flatList.length === 0 && (
+						<Empty
+							title="暂无版块"
+							icon={<SquareStack aria-hidden="true" />}
+							className="py-12"
+							action={
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-4"
+									onClick={() => setCreateOpen(true)}
+								>
+									<Plus className="mr-2 h-4 w-4" />
+									创建第一个分区
+								</Button>
+							}
 						/>
-					))}
+					)}
+
+					{/* Forum list */}
+					{!loading &&
+						flatList.map((node, index) => (
+							<ForumRow
+								key={node.id}
+								node={node}
+								isLast={isLastAtDepth(index, node.depth)}
+								onEdit={setEditForum}
+								onToggleStatus={handleToggleStatus}
+								onMerge={setMergeSource}
+								onDelete={handleDelete}
+							/>
+						))}
+				</LayerCard.Well>
 			</LayerCard>
 
 			{/* Legend */}
-			<div className="flex items-center gap-6 text-xs text-muted-foreground">
+			<div className="flex items-center gap-6 text-xs text-basalt-muted-foreground">
 				<div className="flex items-center gap-1.5">
 					<TypeIcon type="group" />
 					<span>分区 (Group)</span>

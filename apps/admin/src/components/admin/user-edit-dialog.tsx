@@ -1,6 +1,9 @@
 "use client";
 
 import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
 	Button,
 	Dialog,
 	DialogDescription,
@@ -8,8 +11,10 @@ import {
 	DialogTitle,
 	Input,
 	Label,
+	LayerCard,
 } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
+import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import {
 	Select,
 	SelectContent,
@@ -283,7 +288,7 @@ function NumberField(props: {
 		<div className="grid gap-2 min-w-0">
 			<Label htmlFor={props.id} className="flex items-center justify-between gap-2">
 				<span>{props.label}</span>
-				{props.hint && <span className="text-xs text-muted-foreground">{props.hint}</span>}
+				{props.hint && <span className="text-xs text-basalt-muted-foreground">{props.hint}</span>}
 			</Label>
 			<Input
 				id={props.id}
@@ -316,26 +321,7 @@ function TextareaField(props: {
 				onChange={(e) => props.onChange(e.target.value)}
 				disabled={props.disabled}
 				rows={props.rows ?? 3}
-				className={cn(
-					"flex w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm",
-					"shadow-sm placeholder:text-muted-foreground focus-visible:outline-none",
-					"focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-				)}
 			/>
-		</div>
-	);
-}
-
-function Section(props: { title: string; children: React.ReactNode; muted?: boolean }) {
-	return (
-		<div className="space-y-4">
-			<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-				<span
-					className={cn("h-1 w-1 rounded-full", props.muted ? "bg-muted-foreground" : "bg-primary")}
-				/>
-				{props.title}
-			</h3>
-			{props.children}
 		</div>
 	);
 }
@@ -416,10 +402,10 @@ export function UserEditDialog({
 	const statusColor = useMemo(
 		() =>
 			form.status === 0
-				? "text-success"
+				? "text-basalt-badge-green-foreground"
 				: form.status === -1
-					? "text-destructive"
-					: "text-muted-foreground",
+					? "text-basalt-destructive"
+					: "text-basalt-muted-foreground",
 		[form.status],
 	);
 
@@ -435,11 +421,11 @@ export function UserEditDialog({
 				closeControl={false}
 			>
 				{/* Header */}
-				<DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
+				<DialogHeader className="px-5 pt-5 pb-4 border-b border-basalt-border/50">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-								<UserIcon className="h-5 w-5 text-primary" />
+							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-basalt-primary/10">
+								<UserIcon className="h-5 w-5 text-basalt-primary" />
 							</div>
 							<div>
 								<DialogTitle className="text-lg">编辑用户</DialogTitle>
@@ -453,7 +439,7 @@ export function UserEditDialog({
 							size="icon"
 							onClick={() => onOpenChange(false)}
 							disabled={loading}
-							className="text-muted-foreground hover:text-foreground"
+							className="text-basalt-muted-foreground hover:text-basalt-foreground"
 						>
 							<span className="sr-only">关闭</span>
 							<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
@@ -473,7 +459,7 @@ export function UserEditDialog({
 
 				{/* Form */}
 				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-					<Section title="基本信息">
+					<SectionRule title="基本信息">
 						<div className="grid gap-4 lg:grid-cols-2">
 							<StringField
 								id="edit-username"
@@ -520,14 +506,12 @@ export function UserEditDialog({
 								<Label htmlFor="edit-avatar">头像链接</Label>
 								<div className="flex items-center gap-3 min-w-0">
 									{form.avatar && (
-										<img
-											src={form.avatar}
-											alt="Avatar preview"
-											className="h-10 w-10 shrink-0 rounded-lg object-cover border border-border"
-											onError={(e) => {
-												e.currentTarget.style.display = "none";
-											}}
-										/>
+										<Avatar className="h-10 w-10 shrink-0">
+											<AvatarImage src={form.avatar} alt="头像预览" />
+											<AvatarFallback>
+												<UserIcon aria-hidden="true" />
+											</AvatarFallback>
+										</Avatar>
 									)}
 									<Input
 										id="edit-avatar"
@@ -548,9 +532,9 @@ export function UserEditDialog({
 								placeholder="avatars/<uuid>.jpg"
 							/>
 						</div>
-					</Section>
+					</SectionRule>
 
-					<Section title="权限设置">
+					<SectionRule title="权限设置">
 						<div className="grid gap-4 lg:grid-cols-2">
 							<div className="grid gap-2 min-w-0">
 								<Label htmlFor="edit-status" className="flex items-center justify-between">
@@ -596,9 +580,9 @@ export function UserEditDialog({
 								</Select>
 							</div>
 						</div>
-					</Section>
+					</SectionRule>
 
-					<Section title="积分与计数">
+					<SectionRule title="积分与计数">
 						<div className="grid gap-4 lg:grid-cols-3">
 							<NumberField
 								id="edit-credits"
@@ -644,9 +628,9 @@ export function UserEditDialog({
 								hint="秒"
 							/>
 						</div>
-					</Section>
+					</SectionRule>
 
-					<Section title="用户组装饰">
+					<SectionRule title="用户组装饰">
 						<div className="grid gap-4 lg:grid-cols-2">
 							<StringField
 								id="edit-groupTitle"
@@ -686,9 +670,9 @@ export function UserEditDialog({
 							disabled={loading}
 							rows={2}
 						/>
-					</Section>
+					</SectionRule>
 
-					<Section title="个人资料">
+					<SectionRule title="个人资料">
 						<div className="grid gap-4 lg:grid-cols-3">
 							<NumberField
 								id="edit-gender"
@@ -779,9 +763,9 @@ export function UserEditDialog({
 							disabled={loading}
 							rows={2}
 						/>
-					</Section>
+					</SectionRule>
 
-					<Section title="时间戳">
+					<SectionRule title="时间戳">
 						<div className="grid gap-4 lg:grid-cols-3">
 							<NumberField
 								id="edit-regDate"
@@ -808,10 +792,10 @@ export function UserEditDialog({
 								hint="unix sec"
 							/>
 						</div>
-					</Section>
+					</SectionRule>
 
 					{/* IP — single column, break-all so IPv6 (~39 chars) wraps cleanly. */}
-					<Section title="IP 信息" muted>
+					<SectionRule title="IP 信息" className="text-basalt-muted-foreground">
 						<div className="grid gap-4 grid-cols-1" data-testid="user-edit-ip-section">
 							<div className="grid gap-2 min-w-0">
 								<Label htmlFor="edit-regIp">注册 IP</Label>
@@ -836,29 +820,31 @@ export function UserEditDialog({
 								/>
 							</div>
 						</div>
-					</Section>
+					</SectionRule>
 
 					{/* Tombstone (read-only — owned by purge endpoint) */}
 					{user && (user.purgedAt ?? 0) > 0 && (
-						<Section title="清除记录" muted>
+						<SectionRule title="清除记录" className="text-basalt-muted-foreground">
 							<div className="grid gap-4 lg:grid-cols-2 text-sm">
 								<div className="grid gap-1 min-w-0">
-									<Label className="text-muted-foreground">清除时间</Label>
-									<div className="px-3 py-2 rounded-md bg-secondary font-mono">{user.purgedAt}</div>
+									<Label className="text-basalt-muted-foreground">清除时间</Label>
+									<LayerCard padding="none" className="px-3 py-2 font-mono">
+										{user.purgedAt}
+									</LayerCard>
 								</div>
 								<div className="grid gap-1 min-w-0">
-									<Label className="text-muted-foreground">操作管理员 ID</Label>
-									<div className="px-3 py-2 rounded-md bg-secondary font-mono">
+									<Label className="text-basalt-muted-foreground">操作管理员 ID</Label>
+									<LayerCard padding="none" className="px-3 py-2 font-mono">
 										{user.purgedBy ?? 0}
-									</div>
+									</LayerCard>
 								</div>
 							</div>
-						</Section>
+						</SectionRule>
 					)}
 				</div>
 
 				{/* Footer */}
-				<div className="px-5 py-4 border-t border-border/50 bg-background/30">
+				<div className="px-5 py-4 border-t border-basalt-border/50">
 					<div className="flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
 							取消

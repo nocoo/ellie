@@ -222,7 +222,7 @@ test.describe("Admin Basalt integration", () => {
 		const distribution = page.getByRole("group", { name: "版块回复数分布", exact: true });
 		await expect(distribution.locator(".recharts-bar-rectangle")).toHaveCount(12);
 		const gradientIds = await page
-			.locator("linearGradient")
+			.locator("svg.recharts-surface linearGradient")
 			.evaluateAll((nodes) => nodes.map((node) => node.id));
 		expect(gradientIds).toHaveLength(2);
 		expect(new Set(gradientIds).size).toBe(2);

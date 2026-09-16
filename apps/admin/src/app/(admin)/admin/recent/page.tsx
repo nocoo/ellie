@@ -9,8 +9,9 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
@@ -62,7 +63,7 @@ export default function RecentPage() {
 		<Suspense
 			fallback={
 				<div className="flex items-center justify-center py-20">
-					<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+					<Loader className="h-6 w-6 text-basalt-muted-foreground" />
 				</div>
 			}
 		>
@@ -371,7 +372,7 @@ function RecentPageInner() {
 							onChange={(e) => setCustomStart(e.target.value)}
 							className="w-36"
 						/>
-						<span className="text-xs text-muted-foreground">至</span>
+						<span className="text-xs text-basalt-muted-foreground">至</span>
 						<Input
 							type="date"
 							aria-label="结束日期"
@@ -715,7 +716,7 @@ function TrashIconButton({ onClick, label }: { onClick: () => void; label: strin
 		<Button
 			variant="ghost"
 			size="icon"
-			className="h-8 w-8 text-destructive hover:text-destructive"
+			className="h-8 w-8 text-basalt-destructive hover:text-basalt-destructive"
 			aria-label={label}
 			title={label}
 			onClick={onClick}

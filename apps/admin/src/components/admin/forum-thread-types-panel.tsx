@@ -35,12 +35,20 @@ import {
 	Label,
 	LayerCard,
 } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@nocoo/basalt/components/table";
 import {
 	ArrowDown,
 	ArrowUp,
 	ChevronDown,
 	ChevronRight,
-	Loader2,
 	Pencil,
 	Plus,
 	Trash2,
@@ -291,9 +299,9 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 
 	if (forumId === null) {
 		return (
-			<div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+			<LayerCard padding="none" className="p-3 text-xs text-basalt-muted-foreground">
 				主题分类需要在版块创建后才能配置。
-			</div>
+			</LayerCard>
 		);
 	}
 
@@ -313,9 +321,9 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 					>
 						<span className="flex items-center gap-2">
 							{expanded ? (
-								<ChevronDown className="h-4 w-4 text-muted-foreground" />
+								<ChevronDown className="h-4 w-4 text-basalt-muted-foreground" />
 							) : (
-								<ChevronRight className="h-4 w-4 text-muted-foreground" />
+								<ChevronRight className="h-4 w-4 text-basalt-muted-foreground" />
 							)}
 							<span>主题分类</span>
 							{state.kind === "ready" && (
@@ -324,7 +332,7 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 								</Badge>
 							)}
 						</span>
-						{state.kind === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+						{state.kind === "loading" && <Loader className="h-3.5 w-3.5" />}
 					</Button>
 				</CollapsibleTrigger>
 
@@ -334,8 +342,8 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 							<AdminInlineMessage variant="error" text={state.message} dense />
 						)}
 						{state.kind === "loading" && (
-							<div className="flex items-center gap-2 text-xs text-muted-foreground">
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+							<div className="flex items-center gap-2 text-xs text-basalt-muted-foreground">
+								<Loader className="h-3.5 w-3.5" />
 								加载中...
 							</div>
 						)}
@@ -435,9 +443,10 @@ function ThreadTypePanelBody({
 				{CONFIG_FLAGS.map((key) => {
 					const inputId = `${flagIdPrefix}-${key}`;
 					return (
-						<div
+						<LayerCard
+							padding="none"
 							key={key}
-							className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm"
+							className="flex items-center justify-between px-3 py-2 text-sm"
 						>
 							<Label htmlFor={inputId}>{configFlagLabel(key)}</Label>
 							<Checkbox
@@ -447,7 +456,7 @@ function ThreadTypePanelBody({
 								disabled={saving}
 								className="h-4 w-4 cursor-pointer"
 							/>
-						</div>
+						</LayerCard>
 					);
 				})}
 			</div>
@@ -532,36 +541,40 @@ function ThreadTypeList(props: ThreadTypeListProps) {
 			{creating && <ThreadTypeCreateForm onSubmit={onCreate} onCancel={onCancelCreate} />}
 
 			{types.length === 0 && !creating ? (
-				<div className="rounded-md border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+				<LayerCard padding="none" className="p-3 text-xs text-basalt-muted-foreground">
 					暂无主题分类。点击"新建分类"添加第一项。
-				</div>
+				</LayerCard>
 			) : (
-				<div className="rounded-md border border-border">
-					<div className="flex items-center gap-3 border-b border-border bg-secondary/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-						<div className="w-8 text-right tabular-nums">#</div>
-						<div className="flex-1">名称</div>
-						<div className="w-20 text-right">状态</div>
-						<div className="hidden w-24 text-right sm:block">来源 typeid</div>
-						<div className="w-32 text-right">操作</div>
-					</div>
-					{types.map((t, idx) => (
-						<ThreadTypeRow
-							key={t.id}
-							row={t}
-							index={idx}
-							total={types.length}
-							editing={editingId === t.id}
-							busy={busyRowId === t.id}
-							onStartEdit={() => onStartEdit(t.id)}
-							onCancelEdit={onCancelEdit}
-							onUpdate={onUpdate}
-							onDelete={() => onDelete(t)}
-							onToggleEnabled={() => onToggleEnabled(t)}
-							onMoveUp={() => onMove(idx, -1)}
-							onMoveDown={() => onMove(idx, 1)}
-						/>
-					))}
-				</div>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-8 text-right">#</TableHead>
+							<TableHead>名称</TableHead>
+							<TableHead className="text-right">状态</TableHead>
+							<TableHead className="hidden text-right sm:table-cell">来源 typeid</TableHead>
+							<TableHead className="text-right">操作</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{types.map((t, idx) => (
+							<ThreadTypeRow
+								key={t.id}
+								row={t}
+								index={idx}
+								total={types.length}
+								editing={editingId === t.id}
+								busy={busyRowId === t.id}
+								onStartEdit={() => onStartEdit(t.id)}
+								onCancelEdit={onCancelEdit}
+								onUpdate={onUpdate}
+								onDelete={() => onDelete(t)}
+								onToggleEnabled={() => onToggleEnabled(t)}
+								onMoveUp={() => onMove(idx, -1)}
+								onMoveDown={() => onMove(idx, 1)}
+							/>
+						))}
+					</TableBody>
+				</Table>
 			)}
 		</div>
 	);
@@ -604,94 +617,104 @@ function ThreadTypeRow(props: ThreadTypeRowProps) {
 
 	if (editing) {
 		return (
-			<div className="border-b border-border/50 px-3 py-2 last:border-b-0">
-				<ThreadTypeEditForm
-					row={row}
-					busy={busy}
-					onSubmit={(patch) => onUpdate(row.id, patch)}
-					onCancel={onCancelEdit}
-				/>
-			</div>
+			<TableRow>
+				<TableCell colSpan={5}>
+					<ThreadTypeEditForm
+						row={row}
+						busy={busy}
+						onSubmit={(patch) => onUpdate(row.id, patch)}
+						onCancel={onCancelEdit}
+					/>
+				</TableCell>
+			</TableRow>
 		);
 	}
 
 	return (
-		<div className="flex items-center gap-3 border-b border-border/50 px-3 py-2 text-sm last:border-b-0">
-			<div className="w-8 text-right tabular-nums text-xs text-muted-foreground">
+		<TableRow>
+			<TableCell className="text-right tabular-nums text-xs text-basalt-muted-foreground">
 				{row.displayOrder}
-			</div>
-			<div className="flex flex-1 items-center gap-2 min-w-0">
-				<span className="truncate font-medium text-foreground">{row.name}</span>
-				{row.moderatorOnly && (
-					<Badge variant="outline" className="text-xs">
-						仅版主
-					</Badge>
-				)}
-			</div>
-			<div className="w-20 text-right">
+			</TableCell>
+			<TableCell>
+				<div className="flex items-center gap-2">
+					<span className="truncate font-medium text-basalt-foreground">{row.name}</span>
+					{row.moderatorOnly && (
+						<Badge variant="outline" className="text-xs">
+							仅版主
+						</Badge>
+					)}
+				</div>
+			</TableCell>
+			<TableCell className="text-right">
 				<Badge variant={row.enabled ? "default" : "secondary"}>
 					{row.enabled ? "启用" : "已停用"}
 				</Badge>
-			</div>
-			<div
-				className="hidden w-24 text-right text-xs text-muted-foreground tabular-nums sm:block"
+			</TableCell>
+			<TableCell
+				className="hidden text-right text-xs text-basalt-muted-foreground tabular-nums sm:table-cell"
 				title="Discuz 本地 typeid（迁移调试用，只读）"
 			>
 				#{row.sourceTypeid}
-			</div>
-			<div className="flex w-32 items-center justify-end gap-1">
-				<Button
-					size="icon"
-					variant="ghost"
-					className="h-7 w-7"
-					onClick={onMoveUp}
-					disabled={busy || index === 0}
-					aria-label="上移"
-				>
-					<ArrowUp className="h-3.5 w-3.5" />
-				</Button>
-				<Button
-					size="icon"
-					variant="ghost"
-					className="h-7 w-7"
-					onClick={onMoveDown}
-					disabled={busy || index === total - 1}
-					aria-label="下移"
-				>
-					<ArrowDown className="h-3.5 w-3.5" />
-				</Button>
-				<Button
-					size="icon"
-					variant="ghost"
-					className="h-7 w-7"
-					onClick={onStartEdit}
-					disabled={busy}
-					aria-label="编辑"
-				>
-					<Pencil className="h-3.5 w-3.5" />
-				</Button>
-				<Button
-					size="icon"
-					variant="ghost"
-					className="h-7 w-7"
-					onClick={onToggleEnabled}
-					disabled={busy}
-					aria-label={row.enabled ? "停用" : "启用"}
-				>
-					{row.enabled ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5 rotate-45" />}
-				</Button>
-				<Button
-					size="icon"
-					variant="ghost"
-					className="h-7 w-7 text-destructive"
-					onClick={onDelete}
-					disabled={busy}
-					aria-label="删除"
-				>
-					<Trash2 className="h-3.5 w-3.5" />
-				</Button>
-			</div>
-		</div>
+			</TableCell>
+			<TableCell>
+				<div className="flex items-center justify-end gap-1">
+					<Button
+						size="icon"
+						variant="ghost"
+						className="h-7 w-7"
+						onClick={onMoveUp}
+						disabled={busy || index === 0}
+						aria-label="上移"
+					>
+						<ArrowUp className="h-3.5 w-3.5" />
+					</Button>
+					<Button
+						size="icon"
+						variant="ghost"
+						className="h-7 w-7"
+						onClick={onMoveDown}
+						disabled={busy || index === total - 1}
+						aria-label="下移"
+					>
+						<ArrowDown className="h-3.5 w-3.5" />
+					</Button>
+					<Button
+						size="icon"
+						variant="ghost"
+						className="h-7 w-7"
+						onClick={onStartEdit}
+						disabled={busy}
+						aria-label="编辑"
+					>
+						<Pencil className="h-3.5 w-3.5" />
+					</Button>
+					<Button
+						size="icon"
+						variant="ghost"
+						className="h-7 w-7"
+						onClick={onToggleEnabled}
+						disabled={busy}
+						aria-label={row.enabled ? "停用" : "启用"}
+					>
+						{row.enabled ? (
+							<X className="h-3.5 w-3.5" />
+						) : (
+							<Plus className="h-3.5 w-3.5 rotate-45" />
+						)}
+					</Button>
+					<Button
+						size="icon"
+						variant="ghost"
+						className="h-7 w-7 text-basalt-destructive"
+						onClick={onDelete}
+						disabled={busy}
+						aria-label="删除"
+					>
+						<Trash2 className="h-3.5 w-3.5" />
+					</Button>
+				</div>
+			</TableCell>
+		</TableRow>
 	);
 }
 
@@ -732,7 +755,7 @@ function ThreadTypeCreateForm({ onSubmit, onCancel }: CreateFormProps) {
 	const canSubmit = form.name.trim().length > 0;
 
 	return (
-		<div className="rounded-md border border-border bg-muted/20 p-3">
+		<LayerCard padding="none" className="p-3">
 			<FormGrid form={form} />
 			<div className="mt-3 flex items-center justify-end gap-2">
 				<Button size="sm" variant="ghost" onClick={onCancel}>
@@ -753,7 +776,7 @@ function ThreadTypeCreateForm({ onSubmit, onCancel }: CreateFormProps) {
 					创建
 				</Button>
 			</div>
-		</div>
+		</LayerCard>
 	);
 }
 
@@ -812,7 +835,7 @@ function FormGrid({ form }: { form: FormState }) {
 	return (
 		<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 			<div className="grid gap-1 text-xs">
-				<Label htmlFor={nameId} className="text-muted-foreground">
+				<Label htmlFor={nameId} className="text-basalt-muted-foreground">
 					名称
 				</Label>
 				<Input
@@ -824,7 +847,7 @@ function FormGrid({ form }: { form: FormState }) {
 				/>
 			</div>
 			<div className="grid gap-1 text-xs">
-				<Label htmlFor={orderId} className="text-muted-foreground">
+				<Label htmlFor={orderId} className="text-basalt-muted-foreground">
 					排序
 				</Label>
 				<Input
@@ -836,7 +859,7 @@ function FormGrid({ form }: { form: FormState }) {
 				/>
 			</div>
 			<div className="grid gap-1 text-xs sm:col-span-2">
-				<Label htmlFor={iconId} className="text-muted-foreground">
+				<Label htmlFor={iconId} className="text-basalt-muted-foreground">
 					图标 (URL 或 emoji，可空)
 				</Label>
 				<Input

@@ -55,12 +55,12 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 			<div className="flex flex-col gap-0.5">
 				<Link
 					href={`/admin/threads/${row.id}`}
-					className="font-medium text-foreground hover:underline"
+					className="font-medium text-basalt-foreground hover:underline"
 				>
 					{row.subject}
 				</Link>
 				{row.typeName && (
-					<span className="text-xs text-muted-foreground">类型：{row.typeName}</span>
+					<span className="text-xs text-basalt-muted-foreground">类型：{row.typeName}</span>
 				)}
 			</div>
 		),
@@ -70,7 +70,7 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		key: "forum",
 		header: "版块",
 		cell: (row) => (
-			<span className="text-sm text-muted-foreground">
+			<span className="text-sm text-basalt-muted-foreground">
 				{forumNameById ? forumNameById(row.forumId) : `#${row.forumId}`}
 			</span>
 		),
@@ -81,7 +81,7 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		header: "作者",
 		cell: (row) =>
 			row.authorId > 0 ? (
-				<Link href={`/admin/users/${row.authorId}`} className="text-primary hover:underline">
+				<Link href={`/admin/users/${row.authorId}`} className="text-basalt-primary hover:underline">
 					{row.authorName}
 				</Link>
 			) : (
@@ -130,7 +130,9 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		key: "createdAt",
 		header: "创建于",
 		cell: (row) => (
-			<span className="text-sm text-muted-foreground">{formatDate(row.createdAt) || "—"}</span>
+			<span className="text-sm text-basalt-muted-foreground">
+				{formatDate(row.createdAt) || "—"}
+			</span>
 		),
 	};
 
@@ -138,13 +140,13 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		key: "lastPost",
 		header: "最后回复",
 		cell: (row) => {
-			if (!row.lastPostAt) return <span className="text-muted-foreground">—</span>;
+			if (!row.lastPostAt) return <span className="text-basalt-muted-foreground">—</span>;
 			const date = formatDate(row.lastPostAt);
 			return (
 				<div className="flex flex-col gap-0.5 text-sm">
 					<span>{date}</span>
 					{row.lastPoster && (
-						<span className="text-xs text-muted-foreground">
+						<span className="text-xs text-basalt-muted-foreground">
 							{row.lastPosterId > 0 ? (
 								<Link href={`/admin/users/${row.lastPosterId}`} className="hover:underline">
 									{row.lastPoster}

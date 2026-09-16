@@ -10,6 +10,8 @@ import {
 	LayerCard,
 	SegmentControl,
 } from "@nocoo/basalt";
+import { Empty } from "@nocoo/basalt/components/empty";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	Download,
@@ -91,10 +93,11 @@ function AttachmentGridItem({
 		: null;
 
 	return (
-		<div
+		<LayerCard
+			padding="none"
 			className={cn(
-				"group relative rounded-[var(--radius-card,14px)] bg-secondary overflow-hidden transition-all hover:shadow-md",
-				selected && "ring-2 ring-primary",
+				"group relative overflow-hidden transition-all",
+				selected && "ring-2 ring-basalt-primary",
 			)}
 		>
 			{/* Selection checkbox */}
@@ -103,7 +106,6 @@ function AttachmentGridItem({
 					checked={selected}
 					aria-label={`选择附件 ${attachment.filename}`}
 					onCheckedChange={(checked) => onSelect(attachment.id, !!checked)}
-					className="bg-background/80 backdrop-blur-sm"
 				/>
 			</div>
 
@@ -135,11 +137,11 @@ function AttachmentGridItem({
 				<p className="text-sm font-medium truncate" title={attachment.filename}>
 					{attachment.filename}
 				</p>
-				<div className="flex items-center justify-between text-xs text-muted-foreground">
+				<div className="flex items-center justify-between text-xs text-basalt-muted-foreground">
 					<span>{formatFileSize(attachment.fileSize)}</span>
 					<Link
 						href={`/admin/threads/${attachment.threadId}`}
-						className="hover:text-primary transition-colors"
+						className="hover:text-basalt-primary transition-colors"
 						target="_blank"
 					>
 						#T{attachment.threadId}
@@ -178,14 +180,14 @@ function AttachmentGridItem({
 							<Download className="h-4 w-4 mr-2" />
 							下载
 						</DropdownMenuItem>
-						<DropdownMenuItem onClick={onDelete} className="text-destructive">
+						<DropdownMenuItem onClick={onDelete} className="text-basalt-destructive">
 							<Trash2 className="h-4 w-4 mr-2" />
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
-		</div>
+		</LayerCard>
 	);
 }
 
@@ -217,8 +219,8 @@ function AttachmentListItem({
 	return (
 		<div
 			className={cn(
-				"group flex items-center gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-accent/50 transition-colors",
-				selected && "bg-primary/5",
+				"group flex items-center gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-basalt-accent/50 transition-colors",
+				selected && "bg-basalt-primary/5",
 			)}
 		>
 			{/* Checkbox */}
@@ -251,7 +253,7 @@ function AttachmentListItem({
 			{/* Info */}
 			<div className="flex-1 min-w-0">
 				<p className="font-medium truncate">{attachment.filename}</p>
-				<div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5">
+				<div className="flex items-center gap-4 text-sm text-basalt-muted-foreground mt-0.5">
 					<span className="flex items-center gap-1">
 						{attachment.isImage ? (
 							<ImageIcon className="h-3.5 w-3.5" />
@@ -268,7 +270,7 @@ function AttachmentListItem({
 			{/* Thread link */}
 			<Link
 				href={`/admin/threads/${attachment.threadId}`}
-				className="text-sm text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+				className="text-sm text-basalt-muted-foreground hover:text-basalt-primary transition-colors flex-shrink-0"
 				target="_blank"
 			>
 				主题 #{attachment.threadId}
@@ -311,7 +313,7 @@ function AttachmentListItem({
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={onDelete} className="text-destructive">
+						<DropdownMenuItem onClick={onDelete} className="text-basalt-destructive">
 							<Trash2 className="h-4 w-4 mr-2" />
 							删除
 						</DropdownMenuItem>
@@ -553,10 +555,10 @@ export default function AttachmentsPage() {
 			/>
 
 			{/* Content */}
-			<LayerCard padding="none" className="p-1 overflow-x-auto overflow-hidden">
+			<LayerCard padding="none" className="overflow-hidden">
 				{/* Select all header */}
 				{data.length > 0 && (
-					<div className="flex items-center gap-3 px-4 py-2.5 border-b bg-secondary/30">
+					<LayerCard.Header className="flex items-center gap-3">
 						<Checkbox
 							aria-label="全选附件"
 							checked={
@@ -568,61 +570,62 @@ export default function AttachmentsPage() {
 							}
 							onCheckedChange={handleSelectAll}
 						/>
-						<span className="text-sm text-muted-foreground">
+						<span className="text-sm text-basalt-muted-foreground">
 							{selectedIds.size > 0 ? `已选择 ${selectedIds.size} 项` : `共 ${data.length} 项`}
 						</span>
-					</div>
+					</LayerCard.Header>
 				)}
+				<LayerCard.Well className="overflow-x-auto p-0">
+					{/* Loading */}
+					{loading && (
+						<div role="status" className="flex items-center justify-center gap-2 py-12">
+							<Loader size={16} />
+							<span className="text-sm text-basalt-muted-foreground">加载中...</span>
+						</div>
+					)}
 
-				{/* Loading */}
-				{loading && (
-					<div className="flex items-center justify-center py-12">
-						<div className="text-sm text-muted-foreground">加载中...</div>
-					</div>
-				)}
+					{/* Empty state */}
+					{!loading && data.length === 0 && (
+						<Empty title="暂无附件" icon={<ImageIcon aria-hidden="true" />} className="py-12" />
+					)}
 
-				{/* Empty state */}
-				{!loading && data.length === 0 && (
-					<div className="flex flex-col items-center justify-center py-12">
-						<ImageIcon className="h-10 w-10 text-muted-foreground/50" />
-						<p className="mt-3 text-sm text-muted-foreground">暂无附件</p>
-					</div>
-				)}
+					{/* Grid view */}
+					{!loading && data.length > 0 && viewMode === "grid" && (
+						<div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-[repeat(auto-fill,minmax(120px,1fr))]">
+							{data.map((attachment) => (
+								<AttachmentGridItem
+									key={attachment.id}
+									attachment={attachment}
+									selected={selectedIds.has(attachment.id)}
+									onSelect={handleSelect}
+									onPreview={() => handlePreview(attachment)}
+									onDelete={() => handleDelete(attachment)}
+								/>
+							))}
+						</div>
+					)}
 
-				{/* Grid view */}
-				{!loading && data.length > 0 && viewMode === "grid" && (
-					<div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-[repeat(auto-fill,minmax(120px,1fr))]">
-						{data.map((attachment) => (
-							<AttachmentGridItem
-								key={attachment.id}
-								attachment={attachment}
-								selected={selectedIds.has(attachment.id)}
-								onSelect={handleSelect}
-								onPreview={() => handlePreview(attachment)}
-								onDelete={() => handleDelete(attachment)}
-							/>
-						))}
-					</div>
-				)}
+					{/* List view */}
+					{!loading && data.length > 0 && viewMode === "list" && (
+						<div>
+							{data.map((attachment) => (
+								<AttachmentListItem
+									key={attachment.id}
+									attachment={attachment}
+									selected={selectedIds.has(attachment.id)}
+									onSelect={handleSelect}
+									onPreview={() => handlePreview(attachment)}
+									onDelete={() => handleDelete(attachment)}
+								/>
+							))}
+						</div>
+					)}
 
-				{/* List view */}
-				{!loading && data.length > 0 && viewMode === "list" && (
-					<div>
-						{data.map((attachment) => (
-							<AttachmentListItem
-								key={attachment.id}
-								attachment={attachment}
-								selected={selectedIds.has(attachment.id)}
-								onSelect={handleSelect}
-								onPreview={() => handlePreview(attachment)}
-								onDelete={() => handleDelete(attachment)}
-							/>
-						))}
-					</div>
-				)}
-
-				{/* Pagination */}
-				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
+					{/* Pagination */}
+				</LayerCard.Well>
+				<LayerCard.Footer>
+					<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
+				</LayerCard.Footer>
 			</LayerCard>
 
 			{/* Batch action bar */}

@@ -2,12 +2,14 @@
 
 import {
 	Button,
+	DescriptionList,
 	Dialog,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@nocoo/basalt";
+import { Code, CodeBlock } from "@nocoo/basalt/components/code";
 import Link from "next/link";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
@@ -49,15 +51,16 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 
 				{log && (
 					<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} grid gap-3 py-2 text-sm`}>
-						<DetailRow label="ID" value={String(log.id)} />
-						<DetailRow label="时间" value={formatLogTime(log.createdAt)} />
-						<DetailRow
-							label="管理员"
-							value={
-								log.adminId > 0 ? (
+						<DescriptionList>
+							<DescriptionList.Item term="ID">{log.id}</DescriptionList.Item>
+							<DescriptionList.Item term="时间">
+								{formatLogTime(log.createdAt)}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="管理员">
+								{log.adminId > 0 ? (
 									<Link
 										href={`/admin/users/${log.adminId}`}
-										className="text-primary underline-offset-4 hover:underline"
+										className="text-basalt-primary underline-offset-4 hover:underline"
 									>
 										{log.adminName || "(未命名)"} #{log.adminId}
 									</Link>
@@ -65,54 +68,45 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 									<span>
 										{log.adminName || "(未命名)"} #{log.adminId}
 									</span>
-								)
-							}
-						/>
-						<DetailRow
-							label="Action"
-							value={<code className="rounded bg-secondary px-1.5 py-0.5">{log.action}</code>}
-						/>
-						<DetailRow
-							label="目标"
-							value={
-								href ? (
+								)}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="Action">
+								<Code>{log.action}</Code>
+							</DescriptionList.Item>
+							<DescriptionList.Item term="目标">
+								{href ? (
 									<Link
 										href={href}
-										className="text-primary underline-offset-4 hover:underline"
+										className="text-basalt-primary underline-offset-4 hover:underline"
 										data-testid="admin-log-target-link"
 									>
 										{targetText}
 									</Link>
 								) : (
 									<span data-testid="admin-log-target-text">{targetText || "—"}</span>
-								)
-							}
-						/>
-						<DetailRow
-							label="IP"
-							value={
+								)}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="IP">
 								<div>
 									<span className="font-mono">{log.ip || "—"}</span>
 									{log.ip && <IpLookupInline ip={log.ip} />}
 								</div>
-							}
-						/>
+							</DescriptionList.Item>
+						</DescriptionList>
 
 						<div className="grid gap-1.5">
-							<span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+							<span className="text-xs font-medium uppercase tracking-wider text-basalt-muted-foreground">
 								Details
 								{parsed && !parsed.ok && (
-									<span className="ml-2 normal-case text-amber-600 dark:text-amber-400">
-										(原始文本，非 JSON)
-									</span>
+									<span className="ml-2 normal-case text-basalt-warning">(原始文本，非 JSON)</span>
 								)}
 							</span>
-							<pre
+							<CodeBlock
 								data-testid="admin-log-details"
-								className="max-h-80 overflow-auto rounded-md bg-secondary p-3 text-xs leading-relaxed whitespace-pre-wrap break-words"
+								className="max-h-80 overflow-auto p-3 text-xs leading-relaxed whitespace-pre-wrap break-words"
 							>
 								{renderDetails(parsed)}
-							</pre>
+							</CodeBlock>
 						</div>
 					</div>
 				)}
@@ -130,17 +124,6 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
-	return (
-		<div className="grid grid-cols-[80px_1fr] items-baseline gap-3">
-			<span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-				{label}
-			</span>
-			<span className="min-w-0 break-words">{value}</span>
-		</div>
-	);
-}
 
 function renderDetails(parsed: ReturnType<typeof parseDetails> | null): string {
 	if (!parsed) return "";

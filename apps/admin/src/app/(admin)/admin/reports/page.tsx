@@ -251,14 +251,14 @@ export default function ReportsPage() {
 				return link ? (
 					<Link
 						href={link}
-						className="flex items-center gap-1 text-primary hover:underline max-w-[20rem] truncate"
+						className="flex items-center gap-1 text-basalt-primary hover:underline max-w-[20rem] truncate"
 						title={label}
 					>
 						<span className="truncate">{label}</span>
 						<ExternalLink className="h-3 w-3 shrink-0" />
 					</Link>
 				) : (
-					<span className="text-muted-foreground" title={label}>
+					<span className="text-basalt-muted-foreground" title={label}>
 						{label}
 					</span>
 				);
@@ -269,7 +269,10 @@ export default function ReportsPage() {
 			header: "举报人",
 			cell: (row) =>
 				row.reporterId > 0 ? (
-					<Link href={`/admin/users/${row.reporterId}`} className="text-primary hover:underline">
+					<Link
+						href={`/admin/users/${row.reporterId}`}
+						className="text-basalt-primary hover:underline"
+					>
 						{row.reporterName}
 					</Link>
 				) : (
@@ -297,11 +300,11 @@ export default function ReportsPage() {
 			key: "handlerName",
 			header: "处理人",
 			cell: (row) => {
-				if (!row.handlerName) return <span className="text-muted-foreground">—</span>;
+				if (!row.handlerName) return <span className="text-basalt-muted-foreground">—</span>;
 				return row.handlerId != null && row.handlerId > 0 ? (
 					<Link
 						href={`/admin/users/${row.handlerId}`}
-						className="text-sm text-primary hover:underline"
+						className="text-sm text-basalt-primary hover:underline"
 					>
 						{row.handlerName}
 					</Link>
@@ -351,7 +354,7 @@ export default function ReportsPage() {
 								<Separator className="my-1" />
 							</>
 						)}
-						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
+						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-basalt-destructive">
 							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
@@ -426,14 +429,14 @@ export default function ReportsPage() {
 					{detailReport && (
 						<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-4 py-2`}>
 							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm [&>span:nth-child(even)]:min-w-0 [&>span:nth-child(even)]:break-words">
-								<span className="text-muted-foreground">类型</span>
+								<span className="text-basalt-muted-foreground">类型</span>
 								<span>
 									<Badge variant={reportTypeVariant(detailReport.type)}>
 										{TYPE_LABELS[detailReport.type]}
 									</Badge>
 								</span>
 
-								<span className="text-muted-foreground">举报对象</span>
+								<span className="text-basalt-muted-foreground">举报对象</span>
 								<span>
 									{(() => {
 										const link = getReportTargetAdminLink(detailReport);
@@ -441,7 +444,7 @@ export default function ReportsPage() {
 										return link ? (
 											<Link
 												href={link}
-												className="text-primary hover:underline inline-flex items-center gap-1"
+												className="text-basalt-primary hover:underline inline-flex items-center gap-1"
 											>
 												{label}
 												<ExternalLink className="h-3 w-3" />
@@ -450,33 +453,35 @@ export default function ReportsPage() {
 											<span>{label}</span>
 										);
 									})()}
-									<span className="text-muted-foreground ml-1">(ID: {detailReport.targetId})</span>
+									<span className="text-basalt-muted-foreground ml-1">
+										(ID: {detailReport.targetId})
+									</span>
 								</span>
 
-								<span className="text-muted-foreground">举报人</span>
+								<span className="text-basalt-muted-foreground">举报人</span>
 								<span>
 									{detailReport.reporterId > 0 ? (
 										<Link
 											href={`/admin/users/${detailReport.reporterId}`}
-											className="text-primary hover:underline"
+											className="text-basalt-primary hover:underline"
 										>
 											{detailReport.reporterName}
 										</Link>
 									) : (
 										detailReport.reporterName
 									)}
-									<span className="text-muted-foreground ml-1">
+									<span className="text-basalt-muted-foreground ml-1">
 										(UID: {detailReport.reporterId})
 									</span>
 								</span>
 
-								<span className="text-muted-foreground">举报理由</span>
+								<span className="text-basalt-muted-foreground">举报理由</span>
 								<span>{detailReport.reason}</span>
 
-								<span className="text-muted-foreground">举报时间</span>
+								<span className="text-basalt-muted-foreground">举报时间</span>
 								<span>{formatDateTime(detailReport.createdAt)}</span>
 
-								<span className="text-muted-foreground">当前状态</span>
+								<span className="text-basalt-muted-foreground">当前状态</span>
 								<span>
 									<Badge variant={reportStatusVariant(detailReport.status)}>
 										{STATUS_LABELS[detailReport.status]}
@@ -485,12 +490,12 @@ export default function ReportsPage() {
 
 								{detailReport.handlerName && (
 									<>
-										<span className="text-muted-foreground">处理人</span>
+										<span className="text-basalt-muted-foreground">处理人</span>
 										<span>
 											{detailReport.handlerId != null && detailReport.handlerId > 0 ? (
 												<Link
 													href={`/admin/users/${detailReport.handlerId}`}
-													className="text-primary hover:underline"
+													className="text-basalt-primary hover:underline"
 												>
 													{detailReport.handlerName}
 												</Link>
@@ -503,7 +508,7 @@ export default function ReportsPage() {
 
 								{detailReport.handledAt && (
 									<>
-										<span className="text-muted-foreground">处理时间</span>
+										<span className="text-basalt-muted-foreground">处理时间</span>
 										<span>{formatDateTime(detailReport.handledAt)}</span>
 									</>
 								)}

@@ -56,9 +56,9 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 	return (
 		<LayerCard padding="none" className="overflow-hidden">
 			{/* Floor header */}
-			<div className="flex items-center justify-between border-b border-border/50 bg-background/30 px-4 py-2">
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
-					<span className="font-mono font-medium text-foreground">#{post.position}</span>
+			<div className="flex items-center justify-between border-b border-basalt-border/50 px-4 py-2">
+				<div className="flex items-center gap-2 text-sm text-basalt-muted-foreground">
+					<span className="font-mono font-medium text-basalt-foreground">#{post.position}</span>
 					{post.isFirst && <Badge variant={FIRST_POST_VARIANT}>楼主</Badge>}
 					<span>{formatDate(post.createdAt)}</span>
 				</div>
@@ -80,7 +80,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							onClick={() => onDelete(post)}
-							className="text-destructive"
+							className="text-basalt-destructive"
 							disabled={post.isFirst}
 						>
 							<Trash2 className="mr-2 h-4 w-4" />
@@ -92,7 +92,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 			<div className="flex flex-col md:flex-row">
 				{/* Author sidebar */}
-				<div className="flex md:flex-col items-center md:items-center gap-3 md:gap-2 border-b md:border-b-0 md:border-r p-4 md:w-48 md:shrink-0 bg-background/10">
+				<div className="flex md:flex-col items-center md:items-center gap-3 md:gap-2 border-b md:border-b-0 md:border-r p-4 md:w-48 md:shrink-0">
 					{/* Avatar — falls back to default tavatar.gif via UserAvatar onError. */}
 					<UserAvatar
 						uid={author?.id ?? post.authorId}
@@ -109,7 +109,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 							return linkId > 0 ? (
 								<Link
 									href={`/admin/users/${linkId}`}
-									className="font-medium text-sm truncate max-w-full text-primary hover:underline"
+									className="font-medium text-sm truncate max-w-full text-basalt-primary hover:underline"
 								>
 									{displayName}
 								</Link>
@@ -135,7 +135,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 						{/* Stats */}
 						{author && (
-							<div className="flex flex-row md:flex-col gap-2 md:gap-0.5 text-xs text-muted-foreground mt-1">
+							<div className="flex flex-row md:flex-col gap-2 md:gap-0.5 text-xs text-basalt-muted-foreground mt-1">
 								<span>帖子: {formatNumber(author.posts)}</span>
 								<span>主题: {formatNumber(author.threads)}</span>
 								<span>注册: {new Date(author.regDate * 1000).toLocaleDateString()}</span>
@@ -143,7 +143,9 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 						)}
 
 						{/* Fallback when no author data */}
-						{!author && <span className="text-xs text-muted-foreground">ID: {post.authorId}</span>}
+						{!author && (
+							<span className="text-xs text-basalt-muted-foreground">ID: {post.authorId}</span>
+						)}
 					</div>
 				</div>
 

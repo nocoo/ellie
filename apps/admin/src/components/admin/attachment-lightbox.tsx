@@ -1,7 +1,8 @@
 "use client";
 
 import { Button, Dialog, DialogClose, DialogTitle, LayerCard, Separator } from "@nocoo/basalt";
-import { ChevronLeft, ChevronRight, Download, Loader2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader } from "@nocoo/basalt/components/loader";
+import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useState } from "react";
 import { AdminDialogContent } from "./admin-dialog-content";
 import { AdminInlineMessage } from "./admin-inline-message";
@@ -168,7 +169,7 @@ function AttachmentViewer({
 						aria-label="加载图片"
 						className="pointer-events-none absolute inset-0 flex items-center justify-center"
 					>
-						<Loader2 className="h-8 w-8 animate-spin" />
+						<Loader className="h-8 w-8" />
 					</div>
 				)}
 				{images.length > 1 && (

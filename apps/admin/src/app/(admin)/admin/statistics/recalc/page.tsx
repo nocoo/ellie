@@ -1,8 +1,9 @@
 "use client";
 
-import { Badge, Button, LayerCard } from "@nocoo/basalt";
+import { Badge, Button, LayerCard, Meter } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Database, Loader2, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
+import { Database, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
 import { useCallback, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import {
@@ -98,21 +99,21 @@ function RecalcCard({ config }: { config: CardConfig }) {
 			<LayerCard.Header className="pb-3">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-basalt-primary/10 text-basalt-primary">
 							{config.icon}
 						</div>
-						<h2 className="text-sm font-medium text-base">{config.title}</h2>
+						<h2 className="text-base font-medium">{config.title}</h2>
 					</div>
 					{status && (
 						<Badge variant={snapshotStatusVariant(status)}>{snapshotStatusLabel(status)}</Badge>
 					)}
 				</div>
-				<p className="text-xs text-basalt-muted-foreground text-xs">{config.description}</p>
+				<p className="text-xs text-basalt-muted-foreground">{config.description}</p>
 			</LayerCard.Header>
 			<LayerCard.Well className="space-y-3">
 				{loading && !snapshot ? (
-					<div className="flex items-center text-xs text-muted-foreground">
-						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+					<div className="flex items-center text-xs text-basalt-muted-foreground">
+						<Loader className="mr-2 h-4 w-4" />
 						加载状态中…
 					</div>
 				) : snapshot ? (
@@ -120,51 +121,53 @@ function RecalcCard({ config }: { config: CardConfig }) {
 						{/* Progress bar */}
 						<div>
 							<div className="flex items-center justify-between text-xs">
-								<span className="text-muted-foreground">
+								<span className="text-basalt-muted-foreground">
 									扫描进度 {formatProcessedTotal(snapshot.processed, snapshot.total)}
 								</span>
 								<span className="font-medium tabular-nums">
 									{formatPercent(snapshot.processed, snapshot.total)}
 								</span>
 							</div>
-							<div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
-								<div
-									className="h-full bg-primary transition-all"
-									style={{ width: `${percentValue(snapshot.processed, snapshot.total)}%` }}
-								/>
-							</div>
+							<Meter
+								aria-label={`${config.title}扫描进度`}
+								value={percentValue(snapshot.processed, snapshot.total)}
+								hideValue
+								className="mt-1"
+							/>
 						</div>
 						{/* Updated rows */}
 						<div className="flex items-center justify-between text-xs">
-							<span className="text-muted-foreground">累计修正</span>
+							<span className="text-basalt-muted-foreground">累计修正</span>
 							<span className="font-medium tabular-nums">
 								{snapshot.updated.toLocaleString("zh-CN")}
 							</span>
 						</div>
 						<div className="flex items-center justify-between text-xs">
-							<span className="text-muted-foreground">本批修正</span>
+							<span className="text-basalt-muted-foreground">本批修正</span>
 							<span className="font-medium tabular-nums">
 								{snapshot.lastBatchUpdated.toLocaleString("zh-CN")}
 							</span>
 						</div>
 						<div className="flex items-center justify-between text-xs">
-							<span className="text-muted-foreground">最后一次 tick</span>
+							<span className="text-basalt-muted-foreground">最后一次 tick</span>
 							<span className="font-medium tabular-nums">
 								{formatTickTime(snapshot.lastTickAt)}
 							</span>
 						</div>
 						{config.processedSemantics && (
-							<p className="text-[10px] text-muted-foreground">{config.processedSemantics}</p>
+							<p className="text-[10px] text-basalt-muted-foreground">
+								{config.processedSemantics}
+							</p>
 						)}
 						{snapshot.status === "failed" && snapshot.error && (
-							<p className="text-xs text-destructive">job 错误：{snapshot.error}</p>
+							<p className="text-xs text-basalt-destructive">job 错误：{snapshot.error}</p>
 						)}
 					</div>
 				) : (
-					<p className="text-xs text-muted-foreground">尚未开始</p>
+					<p className="text-xs text-basalt-muted-foreground">尚未开始</p>
 				)}
 
-				{error && <p className="text-xs text-destructive">请求错误：{error}</p>}
+				{error && <p className="text-xs text-basalt-destructive">请求错误：{error}</p>}
 
 				<div className="flex items-center justify-between gap-2">
 					{showPrimary ? (
@@ -174,11 +177,11 @@ function RecalcCard({ config }: { config: CardConfig }) {
 							onClick={onPrimary}
 							disabled={isPosting || isRunning}
 						>
-							{isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+							{isPosting && <Loader className="mr-2 h-4 w-4" />}
 							{primaryLabel}
 						</Button>
 					) : (
-						<span className="text-xs text-muted-foreground">
+						<span className="text-xs text-basalt-muted-foreground">
 							{status === "failed" ? "任务已失败，请「重置」后重试" : "已完成，无需进一步操作"}
 						</span>
 					)}
@@ -230,9 +233,9 @@ export default function StatisticsPage() {
 
 			<LayerCard>
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium text-base">说明</h2>
+					<h2 className="text-base font-medium">说明</h2>
 				</LayerCard.Header>
-				<LayerCard.Well className="text-sm text-muted-foreground space-y-2">
+				<LayerCard.Well className="text-sm text-basalt-muted-foreground space-y-2">
 					<p>
 						<strong>job 模式</strong>
 						：版块/主题/用户/帖子版块同步都以 KV 为状态机，每次 POST 推进一批，超时不会丢失进度。

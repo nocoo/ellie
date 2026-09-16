@@ -148,7 +148,7 @@ export function ThreadBatchMoveDialog({
 				<div className="py-2">
 					<Label
 						htmlFor="thread-batch-move-target"
-						className="mb-2 block text-sm text-muted-foreground"
+						className="mb-2 block text-sm text-basalt-muted-foreground"
 					>
 						目标版块
 					</Label>
@@ -171,9 +171,11 @@ export function ThreadBatchMoveDialog({
 							))}
 						</SelectContent>
 					</Select>
-					{forumsLoading && <p className="mt-2 text-xs text-muted-foreground">正在加载版块列表…</p>}
+					{forumsLoading && (
+						<p className="mt-2 text-xs text-basalt-muted-foreground">正在加载版块列表…</p>
+					)}
 					{!forumsLoading && targets.length === 0 && !forumsError && (
-						<p className="mt-2 text-xs text-muted-foreground">未找到可用版块</p>
+						<p className="mt-2 text-xs text-basalt-muted-foreground">未找到可用版块</p>
 					)}
 				</div>
 

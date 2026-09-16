@@ -39,6 +39,7 @@ import { formatNumber } from "@ellie/shared";
 import {
 	Badge,
 	Button,
+	DescriptionList,
 	LayerCard,
 	Separator,
 	Tabs,
@@ -46,8 +47,9 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@nocoo/basalt";
+import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -286,7 +288,7 @@ export function UserDetailPanel({
 	if (state.loading) {
 		return (
 			<div className="flex items-center justify-center py-20">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader className="h-6 w-6 text-basalt-muted-foreground" />
 			</div>
 		);
 	}
@@ -355,7 +357,7 @@ export function UserDetailPanel({
 			 * "只有大的模块之间才保留分割线". Header → four-column row is
 			 * such a boundary; internals of each Card are borderless.
 			 */}
-			<Separator className="border-border" decorative={false} />
+			<Separator className="border-basalt-border" decorative={false} />
 
 			{/*
 			 * Row 1 — four modules side by side on xl (基本资料 / 元信息 /
@@ -369,20 +371,22 @@ export function UserDetailPanel({
 						<h2 className="text-sm font-medium">基本资料</h2>
 					</LayerCard.Header>
 					<LayerCard.Well>
-						<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
-							<dt className="text-muted-foreground">邮箱</dt>
-							<dd className="break-all">{user.email || "—"}</dd>
-							<dt className="text-muted-foreground">积分</dt>
-							<dd>{formatNumber(user.credits)}</dd>
-							<dt className="text-muted-foreground">主题数</dt>
-							<dd>{formatNumber(user.threads)}</dd>
-							<dt className="text-muted-foreground">帖子数</dt>
-							<dd>{formatNumber(user.posts)}</dd>
-							<dt className="text-muted-foreground">注册时间</dt>
-							<dd>{fmtTimestamp(user.regDate)}</dd>
-							<dt className="text-muted-foreground">最后登录</dt>
-							<dd>{fmtTimestamp(user.lastLogin)}</dd>
-						</dl>
+						<DescriptionList columns={1}>
+							<DescriptionList.Item term="邮箱">
+								<div className="break-all">{user.email || "—"}</div>
+							</DescriptionList.Item>
+							<DescriptionList.Item term="积分">{formatNumber(user.credits)}</DescriptionList.Item>
+							<DescriptionList.Item term="主题数">
+								{formatNumber(user.threads)}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="帖子数">{formatNumber(user.posts)}</DescriptionList.Item>
+							<DescriptionList.Item term="注册时间">
+								{fmtTimestamp(user.regDate)}
+							</DescriptionList.Item>
+							<DescriptionList.Item term="最后登录">
+								{fmtTimestamp(user.lastLogin)}
+							</DescriptionList.Item>
+						</DescriptionList>
 					</LayerCard.Well>
 				</LayerCard>
 
@@ -392,68 +396,71 @@ export function UserDetailPanel({
 					</LayerCard.Header>
 					<LayerCard.Well className="space-y-4">
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip. */}
-						<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
-							<dt className="text-muted-foreground">注册 IP</dt>
-							<dd className="flex flex-wrap items-center gap-1">
-								<span className="font-mono">{fmtIp(user.regIp)}</span>
-								<IpLookupInline ip={user.regIp} />
-								{user.regIp && user.regIp.trim().length > 0 && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										className="h-7 px-2 text-xs"
-										onClick={() => handleSearchIp("regIp", user.regIp)}
-									>
-										<Search className="mr-1 h-3 w-3" />
-										搜索同 IP 用户
-									</Button>
-								)}
-							</dd>
-							<dt className="text-muted-foreground">上次登录 IP</dt>
-							<dd className="flex flex-wrap items-center gap-1">
-								<span className="font-mono">{fmtIp(user.lastIp)}</span>
-								<IpLookupInline ip={user.lastIp} />
-								{user.lastIp && user.lastIp.trim().length > 0 && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										className="h-7 px-2 text-xs"
-										onClick={() => handleSearchIp("lastIp", user.lastIp)}
-									>
-										<Search className="mr-1 h-3 w-3" />
-										搜索同 IP 用户
-									</Button>
-								)}
-							</dd>
-						</dl>
+						<DescriptionList columns={1}>
+							<DescriptionList.Item term="注册 IP">
+								<div className="flex flex-wrap items-center gap-1">
+									<span className="font-mono">{fmtIp(user.regIp)}</span>
+									<IpLookupInline ip={user.regIp} />
+									{user.regIp && user.regIp.trim().length > 0 && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="h-7 px-2 text-xs"
+											onClick={() => handleSearchIp("regIp", user.regIp)}
+										>
+											<Search className="mr-1 h-3 w-3" />
+											搜索同 IP 用户
+										</Button>
+									)}
+								</div>
+							</DescriptionList.Item>
+							<DescriptionList.Item term="上次登录 IP">
+								<div className="flex flex-wrap items-center gap-1">
+									<span className="font-mono">{fmtIp(user.lastIp)}</span>
+									<IpLookupInline ip={user.lastIp} />
+									{user.lastIp && user.lastIp.trim().length > 0 && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="h-7 px-2 text-xs"
+											onClick={() => handleSearchIp("lastIp", user.lastIp)}
+										>
+											<Search className="mr-1 h-3 w-3" />
+											搜索同 IP 用户
+										</Button>
+									)}
+								</div>
+							</DescriptionList.Item>
+						</DescriptionList>
 
 						{/* G.5: current online soft signal — only shown when worker
 						    attached a fresh `online:<uid>` KV snapshot (TTL ≤15min).
 						    Whole block hides when the user is not currently online. */}
 						{user.onlineIp && user.onlineIp.trim().length > 0 && (
 							<div className="space-y-2">
-								<div className="text-xs text-muted-foreground">当前在线 · 软指标 · TTL 15min</div>
-								<dl className="grid grid-cols-[6.5rem_1fr] gap-y-2 text-sm">
-									<dt className="text-muted-foreground">当前 IP</dt>
-									<dd className="flex flex-wrap items-center gap-1">
-										<span className="font-mono">{fmtIp(user.onlineIp)}</span>
-										<IpLookupInline ip={user.onlineIp} />
-									</dd>
+								<div className="text-xs text-basalt-muted-foreground">
+									当前在线 · 软指标 · TTL 15min
+								</div>
+								<DescriptionList columns={1}>
+									<DescriptionList.Item term="当前 IP">
+										<div className="flex flex-wrap items-center gap-1">
+											<span className="font-mono">{fmtIp(user.onlineIp)}</span>
+											<IpLookupInline ip={user.onlineIp} />
+										</div>
+									</DescriptionList.Item>
 									{user.onlinePage && (
-										<>
-											<dt className="text-muted-foreground">当前页面</dt>
-											<dd className="break-all font-mono">{user.onlinePage}</dd>
-										</>
+										<DescriptionList.Item term="当前页面">
+											<div className="break-all font-mono">{user.onlinePage}</div>
+										</DescriptionList.Item>
 									)}
 									{user.onlineTs && user.onlineTs > 0 && (
-										<>
-											<dt className="text-muted-foreground">心跳时间</dt>
-											<dd>{fmtTimestamp(user.onlineTs)}</dd>
-										</>
+										<DescriptionList.Item term="心跳时间">
+											{fmtTimestamp(user.onlineTs)}
+										</DescriptionList.Item>
 									)}
-								</dl>
+								</DescriptionList>
 							</div>
 						)}
 					</LayerCard.Well>
@@ -536,7 +543,7 @@ export function UserDetailPanel({
 			 */}
 			{!tombstoned && (
 				<>
-					<Separator className="border-border" decorative={false} />
+					<Separator className="border-basalt-border" decorative={false} />
 					<UserCheckinPanel userId={user.id} />
 				</>
 			)}
@@ -630,7 +637,9 @@ function UserActionButtons({
 	onOpenPurge,
 }: UserActionButtonsProps) {
 	if (user.status === -99) {
-		return <p className="text-sm text-muted-foreground">此用户已被彻底清除，无法再编辑或封禁。</p>;
+		return (
+			<p className="text-sm text-basalt-muted-foreground">此用户已被彻底清除，无法再编辑或封禁。</p>
+		);
 	}
 	return (
 		<div className="flex flex-wrap items-center justify-end gap-2">

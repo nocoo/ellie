@@ -93,13 +93,13 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 								const isLast = idx === breadcrumb.length - 1;
 								return (
 									<span key={node.id} className="flex items-center gap-1">
-										{idx > 0 && <span className="text-muted-foreground">/</span>}
+										{idx > 0 && <span className="text-basalt-muted-foreground">/</span>}
 										{isLast ? (
-											<span className="text-muted-foreground">{node.name}</span>
+											<span className="text-basalt-muted-foreground">{node.name}</span>
 										) : (
 											<Link
 												href={`/admin/threads?forumId=${node.id}`}
-												className="text-primary hover:underline"
+												className="text-basalt-primary hover:underline"
 											>
 												{node.name}
 											</Link>
@@ -109,13 +109,13 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 							})}
 						</nav>
 
-						<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+						<div className="flex flex-wrap items-center gap-2 text-sm text-basalt-muted-foreground">
 							<span>
 								作者:{" "}
 								{thread.authorId > 0 ? (
 									<Link
 										href={`/admin/users/${thread.authorId}`}
-										className="text-primary hover:underline"
+										className="text-basalt-primary hover:underline"
 									>
 										{thread.authorName}
 									</Link>
@@ -136,12 +136,12 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 					    couldn't join the user row); in that case render the
 					    name as plain text rather than a dead link. */}
 						{thread.lastPostAt > 0 && thread.lastPoster && (
-							<div className="text-sm text-muted-foreground">
+							<div className="text-sm text-basalt-muted-foreground">
 								最后回复:{" "}
 								{thread.lastPosterId > 0 ? (
 									<Link
 										href={`/admin/users/${thread.lastPosterId}`}
-										className="text-primary hover:underline"
+										className="text-basalt-primary hover:underline"
 									>
 										{thread.lastPoster}
 									</Link>

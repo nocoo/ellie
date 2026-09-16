@@ -51,11 +51,11 @@ export function StatCard({ label, value, icon: Icon, subItems, hint, tone }: Sta
 				}
 			>
 				{subItems && subItems.length > 0 && (
-					<ul className="mt-3 space-y-1 border-t border-border/50 pt-3">
+					<ul className="mt-3 space-y-1 border-t border-basalt-border/50 pt-3">
 						{subItems.map((item) => (
 							<li key={item.label} className="flex items-center justify-between text-sm">
-								<span className="text-muted-foreground">{item.label}</span>
-								<span className="font-medium text-foreground tabular-nums">
+								<span className="text-basalt-muted-foreground">{item.label}</span>
+								<span className="font-medium text-basalt-foreground tabular-nums">
 									{typeof item.value === "number" ? formatNumber(item.value) : item.value}
 								</span>
 							</li>

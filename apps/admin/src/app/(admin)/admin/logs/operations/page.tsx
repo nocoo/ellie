@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
+import { Code } from "@nocoo/basalt/components/code";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -182,14 +183,14 @@ export default function AdminLogsPage() {
 				return row.adminId > 0 ? (
 					<Link
 						href={`/admin/users/${row.adminId}`}
-						className="text-sm text-primary hover:underline"
+						className="text-sm text-basalt-primary hover:underline"
 						onClick={(e) => e.stopPropagation()}
 					>
-						{name} <span className="text-muted-foreground">#{row.adminId}</span>
+						{name} <span className="text-basalt-muted-foreground">#{row.adminId}</span>
 					</Link>
 				) : (
 					<span className="text-sm">
-						{name} <span className="text-muted-foreground">#{row.adminId}</span>
+						{name} <span className="text-basalt-muted-foreground">#{row.adminId}</span>
 					</span>
 				);
 			},
@@ -197,9 +198,7 @@ export default function AdminLogsPage() {
 		{
 			key: "action",
 			header: "Action",
-			cell: (row) => (
-				<code className="rounded bg-secondary px-1.5 py-0.5 text-xs">{row.action}</code>
-			),
+			cell: (row) => <Code className="px-1.5 py-0.5 text-xs">{row.action}</Code>,
 		},
 		{
 			key: "target",
@@ -211,14 +210,14 @@ export default function AdminLogsPage() {
 					return (
 						<Link
 							href={href}
-							className="text-primary underline-offset-4 hover:underline"
+							className="text-basalt-primary underline-offset-4 hover:underline"
 							onClick={(e) => e.stopPropagation()}
 						>
 							{text}
 						</Link>
 					);
 				}
-				return <span className="text-sm text-muted-foreground">{text || "—"}</span>;
+				return <span className="text-sm text-basalt-muted-foreground">{text || "—"}</span>;
 			},
 		},
 		{
@@ -270,7 +269,7 @@ export default function AdminLogsPage() {
 
 			<LayerCard padding="none" className="flex flex-wrap items-end gap-3 p-3">
 				<div className="grid gap-1">
-					<Label htmlFor="filter-action" className="text-xs text-muted-foreground">
+					<Label htmlFor="filter-action" className="text-xs text-basalt-muted-foreground">
 						Action（精确匹配）
 					</Label>
 					<form onSubmit={handleActionSubmit} className="relative">
@@ -296,7 +295,7 @@ export default function AdminLogsPage() {
 					</form>
 				</div>
 				<div className="grid gap-1">
-					<Label htmlFor="filter-admin-id" className="text-xs text-muted-foreground">
+					<Label htmlFor="filter-admin-id" className="text-xs text-basalt-muted-foreground">
 						管理员 ID
 					</Label>
 					<Input
@@ -310,7 +309,7 @@ export default function AdminLogsPage() {
 					/>
 				</div>
 				<div className="grid gap-1">
-					<Label htmlFor="filter-target-id" className="text-xs text-muted-foreground">
+					<Label htmlFor="filter-target-id" className="text-xs text-basalt-muted-foreground">
 						目标 ID
 					</Label>
 					<Input
@@ -324,7 +323,7 @@ export default function AdminLogsPage() {
 					/>
 				</div>
 				<div className="grid gap-1">
-					<Label htmlFor="filter-start-date" className="text-xs text-muted-foreground">
+					<Label htmlFor="filter-start-date" className="text-xs text-basalt-muted-foreground">
 						起始日期
 					</Label>
 					<Input
@@ -336,7 +335,7 @@ export default function AdminLogsPage() {
 					/>
 				</div>
 				<div className="grid gap-1">
-					<Label htmlFor="filter-end-date" className="text-xs text-muted-foreground">
+					<Label htmlFor="filter-end-date" className="text-xs text-basalt-muted-foreground">
 						结束日期
 					</Label>
 					<Input

@@ -5,6 +5,7 @@ import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { twMerge as cn } from "tailwind-merge";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import {
 	FEATURE_GROUPS,
 	type FeatureFieldDef,
@@ -84,23 +85,13 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 			</div>
 
 			{/* Feedback message */}
-			{message && (
-				<div
-					className={`rounded-lg border p-3 text-sm ${
-						message.type === "success"
-							? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
-							: "border-destructive/50 bg-destructive/10 text-destructive"
-					}`}
-				>
-					{message.text}
-				</div>
-			)}
+			{message && <AdminInlineMessage variant={message.type} text={message.text} />}
 
 			{/* Feature groups */}
 			{FEATURE_GROUPS.map((group) => (
 				<LayerCard padding="none" key={group.id} className="p-4 md:p-6">
-					<h2 className="text-base font-semibold text-foreground">{group.title}</h2>
-					<p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
+					<h2 className="text-base font-semibold text-basalt-foreground">{group.title}</h2>
+					<p className="mt-1 text-sm text-basalt-muted-foreground">{group.description}</p>
 
 					<div className="mt-4 space-y-4">
 						{group.fields.map((field) => (
@@ -139,11 +130,9 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 	if (field.inputType === "switch") {
 		const checked = value === "true";
 		return (
-			<div
-				className={cn(
-					"flex items-start gap-3 rounded-lg border p-4 transition-colors",
-					disabled && "opacity-50",
-				)}
+			<LayerCard
+				padding="none"
+				className={cn("flex items-start gap-3 p-4 transition-colors", disabled && "opacity-50")}
 			>
 				<Checkbox
 					id={field.key}
@@ -159,25 +148,23 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 					>
 						{field.label}
 					</Label>
-					{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+					{field.hint && <p className="text-xs text-basalt-muted-foreground">{field.hint}</p>}
 				</div>
-			</div>
+			</LayerCard>
 		);
 	}
 
 	if (field.inputType === "number") {
 		return (
-			<div
-				className={cn(
-					"flex items-center gap-4 rounded-lg border p-4 transition-colors",
-					disabled && "opacity-50",
-				)}
+			<LayerCard
+				padding="none"
+				className={cn("flex items-center gap-4 p-4 transition-colors", disabled && "opacity-50")}
 			>
 				<div className="flex-1 space-y-1">
 					<Label htmlFor={field.key} className="font-medium">
 						{field.label}
 					</Label>
-					{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+					{field.hint && <p className="text-xs text-basalt-muted-foreground">{field.hint}</p>}
 				</div>
 				<div className="flex items-center gap-2">
 					<Input
@@ -190,15 +177,17 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 						disabled={disabled}
 						className="w-20 text-center"
 					/>
-					{field.suffix && <span className="text-sm text-muted-foreground">{field.suffix}</span>}
+					{field.suffix && (
+						<span className="text-sm text-basalt-muted-foreground">{field.suffix}</span>
+					)}
 				</div>
-			</div>
+			</LayerCard>
 		);
 	}
 
 	if (field.inputType === "text") {
 		return (
-			<div className={cn("rounded-lg border p-4", disabled && "opacity-50")}>
+			<LayerCard padding="none" className={cn("p-4", disabled && "opacity-50")}>
 				<div className="space-y-2">
 					<Label htmlFor={field.key} className="font-medium">
 						{field.label}
@@ -211,9 +200,9 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 						onChange={(e) => onChange(field.key, e.target.value)}
 						disabled={disabled}
 					/>
-					{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+					{field.hint && <p className="text-xs text-basalt-muted-foreground">{field.hint}</p>}
 				</div>
-			</div>
+			</LayerCard>
 		);
 	}
 

@@ -111,7 +111,7 @@ export function TrendTab(): React.JSX.Element {
 
 			<LayerCard>
 				<LayerCard.Header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 className="text-sm font-medium text-base font-semibold">趋势曲线</h2>
+					<h2 className="text-base font-semibold">趋势曲线</h2>
 					<SegmentControl
 						legend="指标"
 						value={metric}
@@ -123,36 +123,36 @@ export function TrendTab(): React.JSX.Element {
 					/>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{trendError && <p className="text-sm text-destructive">趋势加载失败：{trendError}</p>}
+					{trendError && (
+						<p className="text-sm text-basalt-destructive">趋势加载失败：{trendError}</p>
+					)}
 					{trend && <TrendChart series={trend.series} valueLabel={METRIC_LABELS[trend.metric]} />}
 				</LayerCard.Well>
 			</LayerCard>
 
 			<LayerCard>
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium text-base font-semibold">
-						{RANGE_LABELS[range]} 各版块发帖分布
-					</h2>
+					<h2 className="text-base font-semibold">{RANGE_LABELS[range]} 各版块发帖分布</h2>
 				</LayerCard.Header>
 				<LayerCard.Well>
 					{forumDistError && (
-						<p className="text-sm text-destructive">分布加载失败：{forumDistError}</p>
+						<p className="text-sm text-basalt-destructive">分布加载失败：{forumDistError}</p>
 					)}
 					{forumDist && forumDist.rows.length > 0 && <ForumDistChart rows={forumDist.rows} />}
 					{forumDist && forumDist.rows.length === 0 && (
-						<p className="text-sm text-muted-foreground">该时段暂无发帖数据。</p>
+						<p className="text-sm text-basalt-muted-foreground">该时段暂无发帖数据。</p>
 					)}
 				</LayerCard.Well>
 			</LayerCard>
 
 			<LayerCard>
 				<LayerCard.Header>
-					<h2 className="text-sm font-medium text-base font-semibold">
-						{RANGE_LABELS[range]} 签到趋势
-					</h2>
+					<h2 className="text-base font-semibold">{RANGE_LABELS[range]} 签到趋势</h2>
 				</LayerCard.Header>
 				<LayerCard.Well>
-					{checkinError && <p className="text-sm text-destructive">签到加载失败：{checkinError}</p>}
+					{checkinError && (
+						<p className="text-sm text-basalt-destructive">签到加载失败：{checkinError}</p>
+					)}
 					{checkin && (
 						<TrendChart
 							series={checkin.series}
