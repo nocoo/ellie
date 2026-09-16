@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Checkbox, Input, Label, LayerCard } from "@nocoo/basalt";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -71,18 +72,23 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 	}, [formValues, savedValues, router]);
 
 	return (
-		<div className="space-y-6">
-			{/* Action bar */}
-			<div className="flex items-center justify-end gap-2">
-				<Button variant="outline" size="sm" onClick={handleReset} disabled={!dirty || saving}>
-					<RotateCcw className="mr-1 h-3.5 w-3.5" />
-					重置
-				</Button>
-				<Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
-					<Save className="mr-1 h-3.5 w-3.5" />
-					{saving ? "保存中..." : "保存"}
-				</Button>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="功能设置"
+				description="控制站点功能开关和访问限制，更改将在保存后立即生效"
+				actions={
+					<>
+						<Button variant="outline" onClick={handleReset} disabled={!dirty || saving}>
+							<RotateCcw className="mr-1 h-3.5 w-3.5" />
+							重置
+						</Button>
+						<Button onClick={handleSave} disabled={!dirty || saving}>
+							<Save className="mr-1 h-3.5 w-3.5" />
+							{saving ? "保存中..." : "保存"}
+						</Button>
+					</>
+				}
+			/>
 
 			{/* Feedback message */}
 			{message && <AdminInlineMessage variant={message.type} text={message.text} />}

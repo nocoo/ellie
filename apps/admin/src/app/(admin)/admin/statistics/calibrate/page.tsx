@@ -212,9 +212,9 @@ export default function StatsCalibratePage() {
 
 			{/* Main calibration card */}
 			<LayerCard>
-				<LayerCard.Header>
-					<div className="flex items-center justify-between">
-						<div className="flex items-center gap-2">
+				<LayerCard.Header className="flex-col items-stretch gap-2">
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<div className="flex flex-wrap items-center gap-2">
 							<h2 className="text-base font-medium">计数器校准</h2>
 							{hasDrift && (
 								<Badge variant="destructive" className="gap-1">
@@ -248,7 +248,7 @@ export default function StatsCalibratePage() {
 					{error && <AdminInlineMessage variant="error" text={error} />}
 					{success && <AdminInlineMessage variant="success" text={success} />}
 
-					<Table>
+					<Table className="whitespace-nowrap">
 						<TableHeader>
 							<TableRow>
 								<TableHead className="w-[180px]">计数器</TableHead>

@@ -184,6 +184,105 @@ test.describe("Admin Basalt integration", () => {
 		await expect(menuTrigger).toBeFocused();
 	});
 
+	test("keeps filters, table rows, batch actions and breadcrumb links usable on narrow screens", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		await loginAsAdmin();
+		await page.setViewportSize({ width: 1440, height: 1000 });
+		await page.goto("/admin/threads");
+		const filters = page.getByRole("group", { name: "筛选", exact: true });
+		const selects = filters.getByRole("combobox");
+		await expect(selects).toHaveCount(5);
+		for (const select of await selects.all()) {
+			expect((await select.boundingBox())?.width).toBeLessThan(300);
+		}
+
+		for (const width of [320, 375]) {
+			await page.setViewportSize({ width, height: 812 });
+			await page.goto("/admin/users");
+			const table = page.getByRole("table");
+			await expect(table).toBeVisible();
+			expect((await table.locator("tbody tr").first().boundingBox())?.height).toBeLessThan(100);
+			expect(
+				await table.evaluate(
+					(element) => element.scrollWidth > (element.parentElement?.clientWidth ?? 0),
+				),
+			).toBe(true);
+			await page
+				.getByRole("checkbox", { name: /^选择行 / })
+				.first()
+				.click();
+			const batch = page.getByRole("region", { name: "批量操作" });
+			await expect(batch).toBeVisible();
+			for (const button of await batch.getByRole("button").all()) {
+				const box = await button.boundingBox();
+				if (!box) throw new Error("Expected a visible batch action");
+				expect(box.x).toBeGreaterThanOrEqual(0);
+				expect(box.x + box.width).toBeLessThanOrEqual(width);
+			}
+			await batch.getByRole("button", { name: "清除选择" }).click();
+			await expect(batch).toBeHidden();
+			await page.goto("/admin/statistics/kv");
+			const trail = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
+			await expect(trail.getByRole("link", { name: "数据统计" })).toHaveCount(0);
+			await expect(trail.getByText("数据统计", { exact: true })).toBeVisible();
+			const dashboard = trail.getByRole("link", { name: "仪表盘", exact: true });
+			expect((await dashboard.boundingBox())?.height).toBeLessThan(25);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+				width,
+			);
+			await dashboard.click();
+			await expect(page).toHaveURL(/\/admin$/);
+		}
+		await page.goto("/admin/users/3");
+		const trail = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
+		await trail.getByRole("link", { name: "用户", exact: true }).click();
+		await expect(page).toHaveURL(/\/admin\/users$/);
+	});
+
+	test("raises nested surfaces in both themes and restores focus through nested dialogs", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		await loginAsAdmin();
+		await page.goto("/admin/users/3");
+		for (const mode of ["light", "dark"]) {
+			await page.evaluate((theme) => localStorage.setItem("theme", theme), mode);
+			await page.reload();
+			await expect(page.getByRole("button", { name: "编辑资料" })).toBeVisible();
+			const colors = await page.locator("main [data-basalt-surface-root]").evaluate((root) => {
+				const card = root.querySelector("[data-basalt-surface]");
+				const well = card?.querySelector("[data-basalt-surface]");
+				if (!card || !well) throw new Error("Expected a structured detail card");
+				return [root, card, well].map((node) => {
+					const color = getComputedStyle(node).backgroundColor;
+					return { color, channel: Number(color.match(/[\d.]+/)?.[0]) };
+				});
+			});
+			expect(colors.map(({ color }) => color)).not.toContain("rgba(0, 0, 0, 0)");
+			expect(colors[0].channel).toBeLessThan(colors[1].channel);
+			expect(colors[1].channel).toBeLessThan(colors[2].channel);
+		}
+		await page.goto("/admin/users?search=testuser");
+		const trigger = page.getByRole("button", { name: "查看用户「testuser」详情" });
+		await trigger.click();
+		const detail = page.getByRole("dialog", { name: "用户详情", exact: true });
+		const edit = detail.getByRole("button", { name: "编辑资料" });
+		await edit.click();
+		const editor = page.getByRole("dialog", { name: "编辑用户", exact: true });
+		await expect(editor).toBeVisible();
+		await expect(editor).toHaveCSS("opacity", "1");
+		await expect(editor).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+		await page.keyboard.press("Escape");
+		await expect(editor).toBeHidden();
+		await expect(detail).toBeVisible();
+		await expect(edit).toBeFocused();
+		await page.keyboard.press("Escape");
+		await expect(detail).toBeHidden();
+		await expect(trigger).toBeFocused();
+	});
+
 	test("renders responsive charts with named keyboard tooltips and independent gradients", async ({
 		page,
 		loginAsAdmin,

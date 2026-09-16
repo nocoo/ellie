@@ -105,7 +105,7 @@ export function AdminDataTable<T>({
 	}
 
 	return (
-		<Table>
+		<Table className="whitespace-nowrap">
 			<TableHeader>
 				<TableRow className="hover:bg-transparent">
 					{selectable && (

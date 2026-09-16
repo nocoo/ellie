@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input } from "@nocoo/basalt";
+import { Button, Input, LayerCard } from "@nocoo/basalt";
 import { FilterBar } from "@nocoo/basalt/components/filter-bar";
 import {
 	Select,
@@ -233,7 +233,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 		[onFilterChange],
 	);
 
-	return (
+	const controls = (
 		<FilterBar label="筛选" active={hasActiveFilters} onClear={onClearAll} clearLabel="清除筛选">
 			{filters.map((filter) => {
 				if (filter.type === "search") {
@@ -278,7 +278,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								onFilterChange(filter.key, value);
 							}}
 						>
-							<SelectTrigger aria-label={filter.label}>
+							<SelectTrigger aria-label={filter.label} className="w-auto max-w-full">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -367,4 +367,5 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 			})}
 		</FilterBar>
 	);
+	return filters.length > 3 ? <LayerCard padding="sm">{controls}</LayerCard> : controls;
 }

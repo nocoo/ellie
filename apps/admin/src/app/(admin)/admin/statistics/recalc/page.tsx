@@ -96,10 +96,10 @@ function RecalcCard({ config }: { config: CardConfig }) {
 
 	return (
 		<LayerCard>
-			<LayerCard.Header className="pb-3">
-				<div className="flex items-center justify-between">
+			<LayerCard.Header className="flex-col items-stretch gap-3">
+				<div className="flex flex-wrap items-center justify-between gap-2">
 					<div className="flex items-center gap-2">
-						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-basalt-primary/10 text-basalt-primary">
+						<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-basalt-primary/10 text-basalt-primary">
 							{config.icon}
 						</div>
 						<h2 className="text-base font-medium">{config.title}</h2>

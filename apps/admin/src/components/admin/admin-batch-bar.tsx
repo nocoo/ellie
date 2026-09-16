@@ -28,8 +28,14 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 	if (selectedCount === 0) return null;
 
 	return (
-		<div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
-			<LayerCard padding="none" className="flex items-center gap-3 px-4 py-2.5 shadow-lg">
+		<section
+			className="fixed bottom-6 left-1/2 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2"
+			aria-label="批量操作"
+		>
+			<LayerCard
+				padding="none"
+				className="flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 shadow-lg [&>*]:shrink-0"
+			>
 				<span className="text-sm font-medium text-basalt-foreground">{selectedCount} 已选</span>
 				<Separator orientation="vertical" className="h-4" />
 				{actions.map((action) => (
@@ -53,6 +59,6 @@ export function AdminBatchBar({ selectedCount, actions, onAction, onClear }: Adm
 					<X className="h-4 w-4" />
 				</Button>
 			</LayerCard>
-		</div>
+		</section>
 	);
 }

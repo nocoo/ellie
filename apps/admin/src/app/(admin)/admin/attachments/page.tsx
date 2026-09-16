@@ -558,7 +558,7 @@ export default function AttachmentsPage() {
 			<LayerCard padding="none" className="overflow-hidden">
 				{/* Select all header */}
 				{data.length > 0 && (
-					<LayerCard.Header className="flex items-center gap-3">
+					<LayerCard.Header className="items-center justify-start gap-3">
 						<Checkbox
 							aria-label="全选附件"
 							checked={

@@ -124,7 +124,7 @@ export const ROUTE_LABELS: Record<string, string> = {
  * The redirect from `/admin/statistics` is a compatibility shim, not a
  * place we want to surface as a breadcrumb link.
  */
-const NON_NAVIGABLE_SEGMENTS = new Set(["admin", "statistics", "settings", "logs"]);
+const NON_NAVIGABLE_SEGMENTS = new Set(["statistics", "settings", "logs"]);
 
 /**
  * Decides whether a sidebar nav item should render in its active state for
@@ -149,7 +149,7 @@ export function isNavItemActive(pathname: string, href: string): boolean {
 
 export function breadcrumbsFromPathname(pathname: string) {
 	const segments = pathname.split("/").filter(Boolean);
-	const items: { label: string; href?: string }[] = [{ label: "首页", href: "/admin" }];
+	const items: { label: string; href?: string }[] = [];
 
 	let href = "";
 	for (let i = 0; i < segments.length; i++) {

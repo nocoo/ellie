@@ -51,6 +51,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
 				)}
 				<AppMain tabIndex={-1}>
 					<AppHeader
+						className="whitespace-nowrap [&_nav]:shrink-0"
 						leading={
 							isMobile ? (
 								<SheetTrigger asChild>

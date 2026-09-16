@@ -36,35 +36,30 @@ describe("navigation", () => {
 	});
 
 	describe("breadcrumbsFromPathname", () => {
-		it("returns 首页 for /admin", () => {
+		it("renders the current dashboard once without a link", () => {
 			const items = breadcrumbsFromPathname("/admin");
-			expect(items[0]).toEqual({ label: "首页", href: "/admin" });
-			// "admin" segment is non-navigable, no href
-			expect(items[1]).toEqual({ label: "仪表盘" });
+			expect(items).toEqual([{ label: "仪表盘" }]);
 		});
 
 		it("handles /admin/users", () => {
 			const items = breadcrumbsFromPathname("/admin/users");
-			expect(items).toHaveLength(3);
-			expect(items[0]).toEqual({ label: "首页", href: "/admin" });
-			expect(items[1]).toEqual({ label: "仪表盘" }); // admin is non-navigable
-			expect(items[2]).toEqual({ label: "用户" }); // last segment, no href
+			expect(items).toEqual([{ label: "仪表盘", href: "/admin" }, { label: "用户" }]);
 		});
 
 		it("handles nested /admin/settings/general", () => {
 			const items = breadcrumbsFromPathname("/admin/settings/general");
-			expect(items).toHaveLength(4);
-			expect(items[2]).toEqual({ label: "设置" });
-			expect(items[3]).toEqual({ label: "通用设置" });
+			expect(items).toHaveLength(3);
+			expect(items[1]).toEqual({ label: "设置" });
+			expect(items[2]).toEqual({ label: "通用设置" });
 		});
 
 		it("does not link to the logs grouping segment", () => {
-			expect(breadcrumbsFromPathname("/admin/logs/operations")[2]).toEqual({ label: "日志" });
+			expect(breadcrumbsFromPathname("/admin/logs/operations")[1]).toEqual({ label: "日志" });
 		});
 
 		it("truncates unknown segments to 8 chars", () => {
 			const items = breadcrumbsFromPathname("/admin/verylongsegmentname");
-			expect(items[2].label).toBe("verylong");
+			expect(items[1].label).toBe("verylong");
 		});
 
 		it("renders statistics segment as non-navigable group label", () => {
@@ -72,9 +67,9 @@ describe("navigation", () => {
 			// `/admin/statistics/recalc`). Breadcrumb should show 数据统计 as
 			// plain text with no href, not as a clickable link to a redirect.
 			const items = breadcrumbsFromPathname("/admin/statistics/kv");
-			expect(items).toHaveLength(4);
-			expect(items[2]).toEqual({ label: "数据统计" });
-			expect(items[3]).toEqual({ label: "KV 缓存监控" });
+			expect(items).toHaveLength(3);
+			expect(items[1]).toEqual({ label: "数据统计" });
+			expect(items[2]).toEqual({ label: "KV 缓存监控" });
 		});
 	});
 

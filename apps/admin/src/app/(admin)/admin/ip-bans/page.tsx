@@ -321,18 +321,20 @@ export default function IpBansPage() {
 			/>
 
 			{/* IP Check Tool */}
-			<LayerCard padding="none" className="p-1 overflow-x-auto p-4">
+			<LayerCard padding="sm">
 				<h2 className="mb-2 text-sm font-medium text-basalt-foreground">IP 地址检测</h2>
 				<div className="flex items-center gap-2">
 					<Input
+						aria-label="要检测的 IP 地址"
 						placeholder="输入要检测的 IP 地址..."
 						value={checkIpValue}
 						onChange={(e) => setCheckIpValue(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && handleCheckIp()}
-						className="max-w-xs"
+						className="min-w-0 max-w-xs"
 					/>
 					<Button
 						variant="outline"
+						className="shrink-0"
 						onClick={handleCheckIp}
 						disabled={checkLoading || !checkIpValue.trim()}
 					>

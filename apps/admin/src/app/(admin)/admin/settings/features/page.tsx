@@ -14,6 +14,8 @@ export default async function FeatureSettingsPage() {
 		error = e instanceof Error ? e.message : "设置数据加载失败";
 	}
 
+	if (settings) return <FeatureSettingsForm initialSettings={settings} />;
+
 	return (
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
@@ -22,8 +24,6 @@ export default async function FeatureSettingsPage() {
 			/>
 
 			{error && <AdminInlineMessage variant="error" text={error} />}
-
-			{settings && <FeatureSettingsForm initialSettings={settings} />}
 		</div>
 	);
 }
