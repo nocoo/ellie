@@ -20,7 +20,8 @@ describe("shipped site artwork migration", () => {
 		expect(siteArtworkBackground("https://t.no.mt/ellie/Bg-shanghai-dark.png")).toBe(
 			SITE_ART.footer.dark.imageSet,
 		);
-		expect(siteArtworkBackground(SITE_ART.header.light.src)).toContain("header-light-1536.webp");
+		expect(siteArtworkBackground(SITE_ART.header.light.src)).toContain("footer-light-1536.webp");
+		expect(siteArtworkBackground(SITE_ART.footer.light.src)).toContain("header-light-1536.webp");
 		expect(siteArtworkBackground(SITE_ART.admin.dark.src)).toContain("admin-dark-768.webp");
 		expect(siteArtworkBackground('https://example.com/art (1).png?name="test"')).toBe(
 			'url("https://example.com/art (1).png?name=\\"test\\"")',

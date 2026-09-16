@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.3] - 2026-09-16
+
+### Changed
+
+- **Campus above, Shanghai below.** The forum header now uses the library, Guoli pillar and dawn-redwood panorama; the footer uses the Shanghai skyline. Both retain the content-relative placement, full-width support, theme variants and optimized CDN assets from 1.10.2.
+
 ## [1.10.2] - 2026-09-16
 
 ### Changed

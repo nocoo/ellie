@@ -23,13 +23,14 @@ function artwork(name: string, width: number, base = SITE_ASSET_BASE) {
 }
 
 export const SITE_ART = {
+	// Keep the immutable R2 filenames while placing campus above the Shanghai panorama.
 	header: {
-		light: artwork("header-light", 768, FORUM_ART_BASE),
-		dark: artwork("header-dark", 768, FORUM_ART_BASE),
-	},
-	footer: {
 		light: artwork("footer-light", 768, FORUM_ART_BASE),
 		dark: artwork("footer-dark", 768, FORUM_ART_BASE),
+	},
+	footer: {
+		light: artwork("header-light", 768, FORUM_ART_BASE),
+		dark: artwork("header-dark", 768, FORUM_ART_BASE),
 	},
 	admin: { light: artwork("admin-light", 384), dark: artwork("admin-dark", 384) },
 };
