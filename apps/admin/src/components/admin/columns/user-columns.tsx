@@ -57,7 +57,7 @@ export interface BuildUserColumnsOpts {
  *
  * Full variant column keys:
  *   user, email, role, status, writeGate?, threads, posts,
- *   messages, attachments, registered
+ *   messages, attachments, credits, registered
  * Compact variant column keys:
  *   user, email, role, registered, regIp
  *
@@ -75,8 +75,13 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 		cell: (row) => {
 			const inner = (
 				<>
-					<UserAvatar uid={row.id} username={row.username} avatarPath={row.avatarPath} size={32} />
-					<span className="font-medium">{row.username}</span>
+					<UserAvatar uid={row.id} username={row.username} avatarPath={row.avatarPath} size={24} />
+					<span className="min-w-0">
+						<span className="block max-w-36 truncate font-medium" title={row.username}>
+							{row.username}
+						</span>
+						<span className="block text-[11px] text-basalt-muted-foreground">UID {row.id}</span>
+					</span>
 				</>
 			);
 			if (onOpenDetail) {
@@ -108,7 +113,9 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 		header: "邮箱",
 		cell: (row) => (
 			<div className="flex flex-wrap items-center gap-1.5">
-				<span className="break-all">{row.email || "—"}</span>
+				<span className="max-w-48 truncate" title={row.email}>
+					{row.email || "—"}
+				</span>
 				{row.status === 0 && !row.emailVerifiedAt && <Badge variant="destructive">未验证</Badge>}
 			</div>
 		),
@@ -173,8 +180,17 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 
 	const registeredCell: ColumnDef<User> = {
 		key: "registered",
-		header: "注册时间",
-		cell: (row) => new Date(row.regDate * 1000).toLocaleDateString(),
+		header: variant === "full" ? "注册 / 最后登录" : "注册时间",
+		cell: (row) => (
+			<div className="text-xs tabular-nums">
+				<div>{new Date(row.regDate * 1000).toLocaleDateString()}</div>
+				{variant === "full" && (
+					<div className="mt-0.5 text-basalt-muted-foreground">
+						{row.lastLogin ? new Date(row.lastLogin * 1000).toLocaleDateString() : "尚未登录"}
+					</div>
+				)}
+			</div>
+		),
 	};
 
 	const regIpCell: ColumnDef<User> = {
@@ -199,6 +215,19 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 			postsCell,
 			messagesCell,
 			attachmentsCell,
+			{
+				key: "credits",
+				header: "积分 / 金币",
+				className: "text-right tabular-nums",
+				cell: (row) => (
+					<div>
+						<div>{formatNumber(row.credits ?? 0)}</div>
+						<div className="text-xs text-basalt-muted-foreground">
+							{formatNumber(row.coins ?? 0)} 金币
+						</div>
+					</div>
+				),
+			},
 			registeredCell,
 		];
 	}

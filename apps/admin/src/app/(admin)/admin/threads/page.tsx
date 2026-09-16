@@ -3,7 +3,16 @@
 import { Button, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
+import {
+	Eye,
+	Lock,
+	MessageSquare,
+	MessagesSquare,
+	Pencil,
+	Star,
+	Trash2,
+	Unlock,
+} from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -11,6 +20,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
 import { ThreadBatchMoveDialog } from "@/components/admin/thread-batch-move-dialog";
@@ -480,20 +490,58 @@ function ThreadsPageInner() {
 	];
 
 	return (
-		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="主题" description="管理论坛主题" />
-
-			<AdminFilters
-				filters={filterDefs}
-				values={filters}
-				onFilterChange={handleFilterChange}
-				onClearAll={handleClearFilters}
+		<div className="space-y-4">
+			<PageHeader
+				title={
+					<span className="flex items-center gap-2">
+						<MessagesSquare aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						主题
+					</span>
+				}
+				description="浏览内容表现，管理版块归属与发布状态"
 			/>
+			<AdminMetrics
+				items={[
+					{
+						label: "筛选结果",
+						value: loading ? "—" : pagination.total,
+						icon: MessagesSquare,
+						hint: "当前条件下的全部主题",
+					},
+					{
+						label: "本页累计浏览",
+						value: loading ? "—" : data.reduce((n, t) => n + (t.views ?? 0), 0),
+						icon: Eye,
+						hint: `本页 ${data.length} 个主题`,
+					},
+					{
+						label: "本页累计回复",
+						value: loading ? "—" : data.reduce((n, t) => n + (t.replies ?? 0), 0),
+						icon: MessageSquare,
+						hint: `${data.filter((t) => t.replies > 0).length} 个主题收到回复`,
+					},
+					{
+						label: "本页精选主题",
+						value: loading ? "—" : data.filter((t) => t.digest > 0).length,
+						icon: Star,
+						hint: `${data.filter((t) => t.sticky > 0).length} 个置顶 · ${data.filter((t) => t.closed > 0).length} 个锁定`,
+					},
+				]}
+			/>
+			<LayerCard padding="sm">
+				<AdminFilters
+					filters={filterDefs}
+					values={filters}
+					onFilterChange={handleFilterChange}
+					onClearAll={handleClearFilters}
+				/>
+			</LayerCard>
 
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
-			<LayerCard padding="none" className="p-1 overflow-x-auto">
+			<LayerCard padding="none" className="overflow-hidden">
 				<AdminDataTable
+					label="主题列表"
 					columns={columns}
 					data={data}
 					getRowId={(r) => r.id}

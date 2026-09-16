@@ -11,7 +11,16 @@ import {
 	LayerCard,
 } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Eye, Pencil } from "lucide-react";
+import {
+	ChevronDown,
+	Eye,
+	MailCheck,
+	MessageSquare,
+	Pencil,
+	ShieldCheck,
+	SlidersHorizontal,
+	Users,
+} from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
@@ -19,6 +28,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { buildUserColumns } from "@/components/admin/columns/user-columns";
 import { UserDetailDialog } from "@/components/admin/user-detail-dialog";
@@ -288,43 +298,91 @@ export default function UsersPage() {
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6 md:space-y-8">
-			<PageHeader title="用户" description="管理论坛用户及权限" />
-
-			<AdminFilters
-				filters={FILTERS}
-				values={state.filters}
-				onFilterChange={actions.handleFilterChange}
-				onClearAll={actions.handleClearFilters}
+		<div className="space-y-4">
+			<PageHeader
+				title={
+					<span className="flex items-center gap-2">
+						<Users aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						用户
+					</span>
+				}
+				description="账号状态、内容贡献与访问权限"
 			/>
+			<AdminMetrics
+				items={[
+					{
+						label: "筛选结果",
+						value: state.loading ? "—" : state.pagination.total,
+						icon: Users,
+						hint: "当前条件下的全部用户",
+					},
+					{
+						label: "本页邮箱已验证",
+						value: state.loading ? "—" : state.data.filter((u) => !!u.emailVerifiedAt).length,
+						icon: MailCheck,
+						hint: `本页 ${state.data.length} 位用户`,
+					},
+					{
+						label: "本页管理团队",
+						value: state.loading ? "—" : state.data.filter((u) => u.role > 0).length,
+						icon: ShieldCheck,
+						hint: "管理员、超级版主与版主",
+					},
+					{
+						label: "本页用户内容贡献",
+						value: state.loading
+							? "—"
+							: state.data.reduce((n, u) => n + (u.threads ?? 0) + (u.posts ?? 0), 0),
+						icon: MessageSquare,
+						hint: "主题与帖子累计",
+					},
+				]}
+			/>
+			<LayerCard padding="sm" className="space-y-2">
+				<AdminFilters
+					filters={FILTERS}
+					values={state.filters}
+					onFilterChange={actions.handleFilterChange}
+					onClearAll={actions.handleClearFilters}
+				/>
 
-			{/*
-			 * 高级过滤器 — Batch F. Separated from FILTERS so the basic
-			 * row stays compact. `onClearAll` is omitted here to avoid two
-			 * clear buttons; `handleClearFilters` resets all filter keys
-			 * (basic + advanced range) including the 10 range keys
-			 * pre-declared in DEFAULT_FILTERS.
-			 */}
-			<Collapsible
-				defaultOpen={ADVANCED_FILTERS.some((filter) =>
-					Boolean(state.filters[`${filter.key}Min`] || state.filters[`${filter.key}Max`]),
-				)}
-			>
-				<LayerCard padding="sm">
-					<CollapsibleTrigger asChild>
-						<Button variant="ghost" size="sm">
-							高级过滤器
-						</Button>
-					</CollapsibleTrigger>
-					<CollapsibleContent unstyled className="pt-3">
-						<AdminFilters
-							filters={ADVANCED_FILTERS}
-							values={state.filters}
-							onFilterChange={actions.handleFilterChange}
-						/>
-					</CollapsibleContent>
-				</LayerCard>
-			</Collapsible>
+				{/*
+				 * 高级过滤器 — Batch F. Separated from FILTERS so the basic
+				 * row stays compact. `onClearAll` is omitted here to avoid two
+				 * clear buttons; `handleClearFilters` resets all filter keys
+				 * (basic + advanced range) including the 10 range keys
+				 * pre-declared in DEFAULT_FILTERS.
+				 */}
+				<Collapsible
+					defaultOpen={ADVANCED_FILTERS.some((filter) =>
+						Boolean(
+							state.filters[filter.key] ||
+								state.filters[`${filter.key}Min`] ||
+								state.filters[`${filter.key}Max`],
+						),
+					)}
+				>
+					<div className="border-t border-basalt-border pt-2">
+						<CollapsibleTrigger asChild>
+							<Button variant="ghost" size="sm" className="group h-8 text-basalt-muted-foreground">
+								<SlidersHorizontal aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />
+								高级过滤器
+								<ChevronDown
+									aria-hidden="true"
+									className="ml-2 h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180"
+								/>
+							</Button>
+						</CollapsibleTrigger>
+						<CollapsibleContent unstyled className="pt-3">
+							<AdminFilters
+								filters={ADVANCED_FILTERS}
+								values={state.filters}
+								onFilterChange={actions.handleFilterChange}
+							/>
+						</CollapsibleContent>
+					</div>
+				</Collapsible>
+			</LayerCard>
 
 			{ipBanner && <AdminInlineMessage variant="info" text={ipBanner} />}
 
@@ -352,8 +410,9 @@ export default function UsersPage() {
 					);
 				})()}
 
-			<LayerCard padding="none" className="p-1 overflow-x-auto">
+			<LayerCard padding="none" className="overflow-hidden">
 				<AdminDataTable
+					label="用户列表"
 					columns={columns}
 					data={state.data}
 					getRowId={(r) => r.id}

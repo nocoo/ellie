@@ -52,16 +52,19 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		key: "subject",
 		header: "标题",
 		cell: (row) => (
-			<div className="flex flex-col gap-0.5">
+			<div className="flex max-w-[min(28vw,26rem)] min-w-48 flex-col gap-0.5">
 				<Link
 					href={`/admin/threads/${row.id}`}
-					className="font-medium text-basalt-foreground hover:underline"
+					className="truncate font-medium text-basalt-foreground hover:underline"
+					title={row.subject}
 				>
 					{row.subject}
 				</Link>
-				{row.typeName && (
-					<span className="text-xs text-basalt-muted-foreground">类型：{row.typeName}</span>
-				)}
+				<span className="truncate text-[11px] text-basalt-muted-foreground">
+					#{row.id}
+					{row.typeName ? ` · ${row.typeName}` : ""}
+					{row.isAuthorFirstThread ? " · 首次发帖" : ""}
+				</span>
 			</div>
 		),
 	};
@@ -99,21 +102,21 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		// recent already had this fallback. Kept defensive here so any
 		// caller (main threads page or recent) survives sparse rows.
 		cell: (row) => formatNumber(row.replies ?? 0),
-		className: "text-right",
+		className: "text-right tabular-nums",
 	};
 
 	const viewsCell: ColumnDef<Thread> = {
 		key: "views",
 		header: "浏览",
 		cell: (row) => formatNumber(row.views ?? 0),
-		className: "text-right",
+		className: "text-right tabular-nums",
 	};
 
 	const statusCell: ColumnDef<Thread> = {
 		key: "status",
 		header: "状态",
 		cell: (row) => (
-			<div className="flex flex-wrap gap-1">
+			<div className="flex max-w-40 flex-wrap gap-1">
 				{row.sticky > 0 && (
 					<Badge variant={threadStickyVariant(row.sticky)}>{stickyLabel(row.sticky)}</Badge>
 				)}
@@ -122,6 +125,9 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 					<Badge variant={threadDigestVariant(row.digest)}>{digestLabel(row.digest)}</Badge>
 				)}
 				{row.highlight > 0 && <Badge variant={threadHighlightVariant(row.highlight)}>高亮</Badge>}
+				{!row.sticky && !row.closed && !row.digest && !row.highlight && (
+					<span className="text-xs text-basalt-muted-foreground">开放</span>
+				)}
 			</div>
 		),
 	};

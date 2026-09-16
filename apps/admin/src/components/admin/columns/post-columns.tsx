@@ -31,9 +31,14 @@ export function buildPostColumns(_opts: BuildPostColumnsOpts = {}): ColumnDef<Po
 			key: "content",
 			header: "内容",
 			cell: (row) => (
-				<span className="line-clamp-2 text-sm">
-					{(row.content ?? "").replace(/\[.*?\]/g, "").slice(0, 120)}
-				</span>
+				<div className="min-w-56 max-w-xl whitespace-normal">
+					<span className="line-clamp-2 text-sm">
+						{(row.content ?? "").replace(/\[.*?\]/g, "").slice(0, 120)}
+					</span>
+					<span className="text-[11px] text-basalt-muted-foreground">
+						#{row.id} · {row.isFirst ? "主题首帖" : `第 ${row.position} 楼`}
+					</span>
+				</div>
 			),
 		},
 		{

@@ -2,12 +2,7 @@
 
 // attachment-columns — shared admin table column preset for `Attachment` rows.
 //
-// The main /admin/attachments page renders attachments as grid-mode cards
-// (AttachmentGridItem / AttachmentListItem) rather than through
-// AdminDataTable, so it does NOT consume this preset. Today's only
-// consumer is /admin/recent/page.tsx AttachmentsTab. The preset exists to
-// give the future "attachments list view" a shared definition when it
-// arrives.
+// Shared by the attachment library list view and recent attachments.
 
 import { formatDate } from "@ellie/shared";
 import { Button } from "@nocoo/basalt";
@@ -33,7 +28,7 @@ export interface BuildAttachmentColumnsOpts {
 /**
  * Build the shared `ColumnDef<Attachment>[]` for admin attachment tables.
  *
- * Default variant column keys: preview, filename, size, thread, createdAt.
+ * Default variant column keys: preview, filename, size, downloads, author, thread, createdAt.
  */
 export function buildAttachmentColumns(
 	opts: BuildAttachmentColumnsOpts = {},
@@ -53,7 +48,7 @@ export function buildAttachmentColumns(
 					<img
 						src={thumbUrl}
 						alt={row.filename}
-						className="h-10 w-10 rounded object-cover"
+						className="h-8 w-8 rounded object-cover"
 						loading="lazy"
 					/>
 				);
@@ -63,6 +58,7 @@ export function buildAttachmentColumns(
 							type="button"
 							className="block h-auto w-auto p-0"
 							onClick={() => onPreview(row)}
+							aria-label={`预览 ${row.filename}`}
 							variant="ghost"
 							size="sm"
 						>
@@ -78,17 +74,44 @@ export function buildAttachmentColumns(
 			key: "filename",
 			header: "文件名",
 			cell: (row) => (
-				<span className="text-sm truncate max-w-[200px] inline-block" title={row.filename}>
-					{row.filename}
-				</span>
+				<div>
+					<span className="block max-w-64 truncate text-sm font-medium" title={row.filename}>
+						{row.filename}
+					</span>
+					<span className="text-[11px] text-basalt-muted-foreground">
+						#{row.id} · {row.isImage ? "图片" : "文件"}
+					</span>
+				</div>
 			),
 		},
 		{
 			key: "size",
 			header: "大小",
+			className: "text-right tabular-nums",
 			cell: (row) => (
 				<span className="text-xs text-basalt-muted-foreground">{formatFileSize(row.fileSize)}</span>
 			),
+		},
+		{
+			key: "downloads",
+			header: "下载",
+			className: "text-right tabular-nums",
+			cell: (row) => row.downloads ?? 0,
+		},
+		{
+			key: "author",
+			header: "上传者",
+			cell: (row) =>
+				row.authorId > 0 ? (
+					<Link
+						href={`/admin/users/${row.authorId}`}
+						className="text-basalt-primary hover:underline"
+					>
+						UID {row.authorId}
+					</Link>
+				) : (
+					"—"
+				),
 		},
 		{
 			key: "thread",

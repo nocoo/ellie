@@ -18,9 +18,11 @@ import {
 	ExternalLink,
 	FileIcon,
 	Grid3X3,
+	HardDrive,
 	ImageIcon,
 	List,
 	MoreHorizontal,
+	Paperclip,
 	Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,12 +30,17 @@ import { useCallback, useEffect, useState } from "react";
 import { twMerge as cn } from "tailwind-merge";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import {
 	AttachmentLightbox,
 	type AttachmentPreviewImage,
 } from "@/components/admin/attachment-lightbox";
+import { buildAttachmentColumns } from "@/components/admin/columns/attachment-columns";
+import { extractErrorMessage } from "@/lib/admin-error";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
 	type Attachment,
@@ -53,7 +60,7 @@ type ViewMode = "grid" | "list";
 // ---------------------------------------------------------------------------
 
 const FILTERS: FilterDef[] = [
-	{ key: "search", label: "搜索文件名...", type: "search" },
+	{ key: "search", label: "搜索本页文件名...", type: "search" },
 	{
 		key: "isImage",
 		label: "类型",
@@ -112,7 +119,7 @@ function AttachmentGridItem({
 			{imageUrl ? (
 				<Button
 					variant="ghost"
-					className="relative aspect-square h-auto w-full overflow-hidden rounded-none p-0"
+					className="relative aspect-[4/3] h-auto w-full overflow-hidden rounded-none p-0"
 					aria-label={`预览 ${attachment.filename}`}
 					onClick={onPreview}
 				>
@@ -127,13 +134,13 @@ function AttachmentGridItem({
 					</span>
 				</Button>
 			) : (
-				<div className="flex aspect-square items-center justify-center">
+				<div className="flex aspect-[4/3] items-center justify-center">
 					<FileIcon className="h-12 w-12 text-basalt-muted-foreground" />
 				</div>
 			)}
 
 			{/* Info */}
-			<div className="p-3 space-y-1">
+			<div className="p-2.5 space-y-1.5">
 				<p className="text-sm font-medium truncate" title={attachment.filename}>
 					{attachment.filename}
 				</p>
@@ -147,10 +154,17 @@ function AttachmentGridItem({
 						#T{attachment.threadId}
 					</Link>
 				</div>
+				<div className="flex items-center justify-between gap-2 text-[11px] text-basalt-muted-foreground">
+					<span className="flex items-center gap-1">
+						<Download aria-hidden="true" className="h-3 w-3" />
+						{attachment.downloads ?? 0}
+					</span>
+					<span>{new Date(attachment.createdAt * 1000).toLocaleDateString()}</span>
+				</div>
 			</div>
 
 			{/* Actions */}
-			<div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+			<div className="absolute top-2 right-2 z-10 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
@@ -192,139 +206,6 @@ function AttachmentGridItem({
 }
 
 // ---------------------------------------------------------------------------
-// List item component
-// ---------------------------------------------------------------------------
-
-interface AttachmentListItemProps {
-	attachment: Attachment;
-	selected: boolean;
-	onSelect: (id: number, selected: boolean) => void;
-	onPreview: () => void;
-	onDelete: () => void;
-}
-
-function AttachmentListItem({
-	attachment,
-	selected,
-	onSelect,
-	onPreview,
-	onDelete,
-}: AttachmentListItemProps) {
-	const imageUrl = attachment.isImage
-		? attachment.hasThumb
-			? getAttachmentThumbUrl(attachment.filePath)
-			: getAttachmentUrl(attachment.filePath)
-		: null;
-
-	return (
-		<div
-			className={cn(
-				"group flex items-center gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-basalt-accent/50 transition-colors",
-				selected && "bg-basalt-primary/5",
-			)}
-		>
-			{/* Checkbox */}
-			<Checkbox
-				checked={selected}
-				aria-label={`选择附件 ${attachment.filename}`}
-				onCheckedChange={(checked) => onSelect(attachment.id, !!checked)}
-			/>
-
-			{imageUrl ? (
-				<Button
-					variant="ghost"
-					className="h-14 w-14 shrink-0 overflow-hidden p-0"
-					aria-label={`预览 ${attachment.filename}`}
-					onClick={onPreview}
-				>
-					<img
-						src={imageUrl}
-						alt={attachment.filename}
-						className="h-full w-full object-cover"
-						loading="lazy"
-					/>
-				</Button>
-			) : (
-				<div className="flex h-14 w-14 shrink-0 items-center justify-center">
-					<FileIcon className="h-6 w-6 text-basalt-muted-foreground" />
-				</div>
-			)}
-
-			{/* Info */}
-			<div className="flex-1 min-w-0">
-				<p className="font-medium truncate">{attachment.filename}</p>
-				<div className="flex items-center gap-4 text-sm text-basalt-muted-foreground mt-0.5">
-					<span className="flex items-center gap-1">
-						{attachment.isImage ? (
-							<ImageIcon className="h-3.5 w-3.5" />
-						) : (
-							<FileIcon className="h-3.5 w-3.5" />
-						)}
-						{formatFileSize(attachment.fileSize)}
-					</span>
-					<span>{attachment.downloads} 次下载</span>
-					<span>{new Date(attachment.createdAt * 1000).toLocaleDateString()}</span>
-				</div>
-			</div>
-
-			{/* Thread link */}
-			<Link
-				href={`/admin/threads/${attachment.threadId}`}
-				className="text-sm text-basalt-muted-foreground hover:text-basalt-primary transition-colors flex-shrink-0"
-				target="_blank"
-			>
-				主题 #{attachment.threadId}
-			</Link>
-
-			{/* Actions */}
-			<div className="flex items-center gap-1 flex-shrink-0">
-				<Button
-					variant="ghost"
-					size="icon"
-					className="h-8 w-8"
-					aria-label={`打开 ${attachment.filename}`}
-					onClick={() => window.open(getAttachmentUrl(attachment.filePath), "_blank")}
-				>
-					<ExternalLink className="h-4 w-4" />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					className="h-8 w-8"
-					aria-label={`下载 ${attachment.filename}`}
-					onClick={() => {
-						const link = document.createElement("a");
-						link.href = getAttachmentUrl(attachment.filePath);
-						link.download = attachment.filename;
-						link.click();
-					}}
-				>
-					<Download className="h-4 w-4" />
-				</Button>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="h-8 w-8"
-							aria-label={`打开「${attachment.filename}」操作菜单`}
-						>
-							<MoreHorizontal className="h-4 w-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={onDelete} className="text-basalt-destructive">
-							<Trash2 className="h-4 w-4 mr-2" />
-							删除
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
@@ -354,9 +235,12 @@ export default function AttachmentsPage() {
 		title: string;
 		description: string;
 		variant: "default" | "destructive";
+		requireInput?: string;
 		onConfirm: () => void;
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	// -----------------------------------------------------------------------
 	// Data fetching
@@ -365,6 +249,8 @@ export default function AttachmentsPage() {
 	const fetchData = useCallback(
 		async (page = 1) => {
 			setLoading(true);
+			setLoadError(null);
+			setSelectedIds(new Set());
 			try {
 				const params = new URLSearchParams();
 				params.set("page", String(page));
@@ -374,6 +260,7 @@ export default function AttachmentsPage() {
 				}
 
 				const res = await fetch(`/api/admin/attachments?${params.toString()}`);
+				if (!res.ok) throw new Error("附件加载失败，请稍后重试");
 				const json = await res.json();
 				let items: Attachment[] = json.data ?? [];
 
@@ -390,7 +277,8 @@ export default function AttachmentsPage() {
 					total: json.meta?.total ?? 0,
 					limit: json.meta?.limit ?? 24,
 				});
-			} catch {
+			} catch (err) {
+				setLoadError(extractErrorMessage(err, "附件加载失败"));
 				setData([]);
 			} finally {
 				setLoading(false);
@@ -430,15 +318,16 @@ export default function AttachmentsPage() {
 	}, []);
 
 	const handleSelectAll = useCallback(() => {
-		if (selectedIds.size === data.length) {
+		if (data.length > 0 && data.every((a) => selectedIds.has(a.id))) {
 			setSelectedIds(new Set());
 		} else {
 			setSelectedIds(new Set(data.map((a) => a.id)));
 		}
-	}, [data, selectedIds.size]);
+	}, [data, selectedIds]);
 
 	const handleDelete = useCallback(
 		(attachment: Attachment) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "删除附件",
@@ -450,6 +339,8 @@ export default function AttachmentsPage() {
 						await deleteAttachment(attachment.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "删除附件失败"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -460,14 +351,31 @@ export default function AttachmentsPage() {
 	);
 
 	const handleBatchAction = useCallback(
-		async (key: string) => {
+		(key: string) => {
 			const ids = Array.from(selectedIds);
-			if (ids.length === 0) return;
-			if (key === "delete") {
-				await batchDeleteAttachments(ids);
-			}
-			setSelectedIds(new Set());
-			fetchData(pagination.page);
+			if (key !== "delete" || ids.length === 0) return;
+			setConfirmError(null);
+			setConfirmDialog({
+				open: true,
+				title: "批量删除附件",
+				description: `将永久删除选中的 ${ids.length} 个附件。请输入 ok 以确认。`,
+				variant: "destructive",
+				requireInput: "ok",
+				onConfirm: async () => {
+					setConfirmLoading(true);
+					setConfirmError(null);
+					try {
+						await batchDeleteAttachments(ids);
+						setConfirmDialog((d) => ({ ...d, open: false }));
+						setSelectedIds(new Set());
+						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "批量删除附件失败"));
+					} finally {
+						setConfirmLoading(false);
+					}
+				},
+			});
 		},
 		[selectedIds, fetchData, pagination.page],
 	);
@@ -503,19 +411,73 @@ export default function AttachmentsPage() {
 
 	const stats = {
 		total: pagination.total,
+		bytes: data.reduce((n, a) => n + a.fileSize, 0),
+		downloads: data.reduce((n, a) => n + (a.downloads ?? 0), 0),
 		images: data.filter((a) => a.isImage).length,
 		files: data.filter((a) => !a.isImage).length,
 	};
+
+	const columns: ColumnDef<Attachment>[] = [
+		...buildAttachmentColumns({ onPreview: handlePreview }),
+		{
+			key: "actions",
+			header: "操作",
+			className: "w-auto text-right",
+			cell: (row) => (
+				<div className="flex items-center justify-end gap-1">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						aria-label={`打开 ${row.filename}`}
+						onClick={() =>
+							window.open(getAttachmentUrl(row.filePath), "_blank", "noopener,noreferrer")
+						}
+					>
+						<ExternalLink className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						aria-label={`下载 ${row.filename}`}
+						onClick={() => {
+							const link = document.createElement("a");
+							link.href = getAttachmentUrl(row.filePath);
+							link.download = row.filename;
+							link.click();
+						}}
+					>
+						<Download className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 text-basalt-destructive"
+						aria-label={`删除 ${row.filename}`}
+						onClick={() => handleDelete(row)}
+					>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</div>
+			),
+		},
+	];
 
 	// -----------------------------------------------------------------------
 	// Render
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-6 md:space-y-8">
+		<div className="space-y-4">
 			<PageHeader
-				title="附件管理"
-				description={`共 ${stats.total} 个附件 · ${stats.images} 张图片 · ${stats.files} 个文件`}
+				title={
+					<span className="flex items-center gap-2">
+						<Paperclip aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						附件管理
+					</span>
+				}
+				description="图片与文件资源、存储体积和下载使用情况"
 				actions={
 					<SegmentControl
 						legend="视图"
@@ -546,6 +508,35 @@ export default function AttachmentsPage() {
 				}
 			/>
 
+			<AdminMetrics
+				items={[
+					{
+						label: "类型筛选结果",
+						value: loading || loadError ? "—" : stats.total,
+						icon: Paperclip,
+						hint: "全部页 · 文件名仅筛选本页",
+					},
+					{
+						label: "本页图片 / 文件",
+						value: loading || loadError ? "—" : `${stats.images} / ${stats.files}`,
+						icon: ImageIcon,
+						hint: `本页显示 ${data.length} 个附件`,
+					},
+					{
+						label: "本页存储体积",
+						value: loading || loadError ? "—" : formatFileSize(stats.bytes),
+						icon: HardDrive,
+						hint: "显示的附件原文件大小之和",
+					},
+					{
+						label: "本页累计下载",
+						value: loading || loadError ? "—" : stats.downloads,
+						icon: Download,
+						hint: "显示的附件下载次数之和",
+					},
+				]}
+			/>
+			{loadError && <AdminInlineMessage variant="error" text={loadError} />}
 			{/* Filters */}
 			<AdminFilters
 				filters={FILTERS}
@@ -557,12 +548,12 @@ export default function AttachmentsPage() {
 			{/* Content */}
 			<LayerCard padding="none" className="overflow-hidden">
 				{/* Select all header */}
-				{data.length > 0 && (
+				{!loading && viewMode === "grid" && data.length > 0 && (
 					<LayerCard.Header className="items-center justify-start gap-3">
 						<Checkbox
 							aria-label="全选附件"
 							checked={
-								selectedIds.size === data.length
+								data.every((a) => selectedIds.has(a.id))
 									? true
 									: selectedIds.size > 0
 										? "indeterminate"
@@ -591,7 +582,7 @@ export default function AttachmentsPage() {
 
 					{/* Grid view */}
 					{!loading && data.length > 0 && viewMode === "grid" && (
-						<div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-[repeat(auto-fill,minmax(120px,1fr))]">
+						<div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
 							{data.map((attachment) => (
 								<AttachmentGridItem
 									key={attachment.id}
@@ -607,18 +598,15 @@ export default function AttachmentsPage() {
 
 					{/* List view */}
 					{!loading && data.length > 0 && viewMode === "list" && (
-						<div>
-							{data.map((attachment) => (
-								<AttachmentListItem
-									key={attachment.id}
-									attachment={attachment}
-									selected={selectedIds.has(attachment.id)}
-									onSelect={handleSelect}
-									onPreview={() => handlePreview(attachment)}
-									onDelete={() => handleDelete(attachment)}
-								/>
-							))}
-						</div>
+						<AdminDataTable
+							label="附件列表"
+							columns={columns}
+							data={data}
+							getRowId={(a) => a.id}
+							selectable
+							selectedIds={selectedIds}
+							onSelectionChange={(ids) => setSelectedIds(new Set(Array.from(ids, Number)))}
+						/>
 					)}
 
 					{/* Pagination */}
@@ -651,6 +639,8 @@ export default function AttachmentsPage() {
 				title={confirmDialog.title}
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
+				requireInput={confirmDialog.requireInput}
+				error={confirmError}
 				loading={confirmLoading}
 				onConfirm={confirmDialog.onConfirm}
 			/>

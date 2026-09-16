@@ -3,6 +3,7 @@
 import {
 	Button,
 	Input,
+	LayerCard,
 	SegmentControl,
 	Tabs,
 	TabsContent,
@@ -11,11 +12,13 @@ import {
 } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Trash2 } from "lucide-react";
+import { Activity, MessageSquare, MessagesSquare, Paperclip, Trash2, Users } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import {
 	AttachmentLightbox,
@@ -48,6 +51,12 @@ import type { User } from "@/viewmodels/admin/users";
 // ---------------------------------------------------------------------------
 
 const ALL_TABS: TabKey[] = ["users", "threads", "posts", "attachments"];
+const TAB_ICONS = {
+	users: Users,
+	threads: MessagesSquare,
+	posts: MessageSquare,
+	attachments: Paperclip,
+};
 const DEFAULT_TAB: TabKey = "users";
 const DEFAULT_RANGE: TimeRange = "today";
 const PAGE_LIMIT = 20;
@@ -83,11 +92,11 @@ function RecentPageInner() {
 	const [activeTab, setActiveTab] = useState<TabKey>(DEFAULT_TAB);
 
 	// Tab counts (fetched cheaply with limit=1)
-	const [counts, setCounts] = useState<Record<TabKey, number>>({
-		users: 0,
-		threads: 0,
-		posts: 0,
-		attachments: 0,
+	const [counts, setCounts] = useState<Record<TabKey, number | null>>({
+		users: null,
+		threads: null,
+		posts: null,
+		attachments: null,
 	});
 
 	// Tab data + pagination (per-tab state)
@@ -99,6 +108,7 @@ function RecentPageInner() {
 		limit: PAGE_LIMIT,
 	});
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
 	// Confirm dialog
@@ -125,24 +135,30 @@ function RecentPageInner() {
 	// Track latest fetch to avoid stale state
 	const fetchIdRef = useRef(0);
 
-	// Fetch counts for all tabs on range change
+	// Each count belongs to this exact range; missing responses stay unavailable.
 	useEffect(() => {
+		let cancelled = false;
 		const { min, max } = bounds;
-		Promise.all([
+		setCounts({ users: null, threads: null, posts: null, attachments: null });
+		Promise.allSettled([
 			fetchRecentUsers(min, max, 1, 1),
 			fetchRecentThreads(min, max, 1, 1),
 			fetchRecentPosts(min, max, 1, 1),
 			fetchRecentAttachments(min, max, 1, 1),
-		])
-			.then(([u, t, p, a]) => {
-				setCounts({
-					users: u.meta.total,
-					threads: t.meta.total,
-					posts: p.meta.total,
-					attachments: a.meta.total,
-				});
-			})
-			.catch(() => {});
+		]).then((results) => {
+			if (cancelled) return;
+			setCounts(
+				Object.fromEntries(
+					ALL_TABS.map((key, i) => {
+						const result = results[i];
+						return [key, result.status === "fulfilled" ? result.value.meta.total : null];
+					}),
+				) as Record<TabKey, number | null>,
+			);
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, [bounds]);
 
 	// Fetch tab data
@@ -150,6 +166,7 @@ function RecentPageInner() {
 		async (tab: TabKey, page: number) => {
 			const id = ++fetchIdRef.current;
 			setLoading(true);
+			setLoadError(null);
 			setSelectedIds(new Set());
 			try {
 				const { min, max } = bounds;
@@ -173,14 +190,16 @@ function RecentPageInner() {
 				}
 				if (id !== fetchIdRef.current) return;
 				setData(res.data);
+				setCounts((prev) => ({ ...prev, [tab]: res.meta.total }));
 				setPagination({
 					page: res.meta.page,
 					pages: res.meta.pages,
 					total: res.meta.total,
 					limit: res.meta.limit,
 				});
-			} catch {
+			} catch (err) {
 				if (id !== fetchIdRef.current) return;
+				setLoadError(extractErrorMessage(err, "无法加载增量内容"));
 				setData([]);
 				setPagination({ page: 1, pages: 0, total: 0, limit: PAGE_LIMIT });
 			} finally {
@@ -334,7 +353,7 @@ function RecentPageInner() {
 		() =>
 			ALL_TABS.map((tab) => ({
 				value: tab,
-				label: `${TAB_LABELS[tab]} (${counts[tab]})`,
+				label: `${TAB_LABELS[tab]} (${counts[tab] ?? "—"})`,
 			})),
 		[counts],
 	);
@@ -352,11 +371,19 @@ function RecentPageInner() {
 	const isSelectable = activeTab !== "users";
 
 	return (
-		<div className="space-y-6">
-			<PageHeader title="增量管理" description={`${TIME_RANGE_LABELS[timeRange]}新增内容概览`} />
+		<div className="space-y-4">
+			<PageHeader
+				title={
+					<span className="flex items-center gap-2">
+						<Activity aria-hidden="true" className="h-5 w-5 text-basalt-primary" />
+						增量管理
+					</span>
+				}
+				description={`${TIME_RANGE_LABELS[timeRange]}新增内容概览 · 快速查看用户、主题、回复与附件`}
+			/>
 
 			{/* Time range selector */}
-			<div className="flex flex-wrap items-center gap-4">
+			<LayerCard padding="sm" className="flex flex-wrap items-center gap-4">
 				<SegmentControl
 					value={timeRange}
 					onValueChange={(value) => setTimeRange(value as TimeRange)}
@@ -364,7 +391,7 @@ function RecentPageInner() {
 					legend="时间范围"
 				/>
 				{timeRange === "custom" && (
-					<div className="flex items-center gap-2">
+					<div className="flex flex-wrap items-center gap-2">
 						<Input
 							type="date"
 							aria-label="开始日期"
@@ -382,7 +409,17 @@ function RecentPageInner() {
 						/>
 					</div>
 				)}
-			</div>
+			</LayerCard>
+			<AdminMetrics
+				label="所选时间范围概览"
+				items={ALL_TABS.map((tab) => ({
+					label: `新增${TAB_LABELS[tab]}`,
+					value: counts[tab] ?? "—",
+					icon: TAB_ICONS[tab],
+					hint: TIME_RANGE_LABELS[timeRange],
+				}))}
+			/>
+			{loadError && <AdminInlineMessage variant="error" text={loadError} />}
 
 			<Tabs
 				value={activeTab}
@@ -392,6 +429,10 @@ function RecentPageInner() {
 				<TabsList aria-label="选择内容类型" className="max-w-full overflow-x-auto">
 					{tabOptions.map((option) => (
 						<TabsTrigger key={option.value} value={option.value}>
+							{(() => {
+								const Icon = TAB_ICONS[option.value];
+								return <Icon aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />;
+							})()}
 							{option.label}
 						</TabsTrigger>
 					))}
@@ -504,7 +545,7 @@ function UsersTab({
 	const columns = useMemo<ColumnDef<User>[]>(() => buildUserColumns({ variant: "compact" }), []);
 
 	return (
-		<div className="space-y-4">
+		<LayerCard padding="none" className="overflow-hidden">
 			<AdminDataTable
 				columns={columns}
 				data={data}
@@ -512,10 +553,8 @@ function UsersTab({
 				loading={loading}
 				emptyMessage="该时间段内无新注册用户"
 			/>
-			{pagination.pages > 1 && (
-				<AdminPagination pagination={pagination} onPageChange={onPageChange} />
-			)}
-		</div>
+			<AdminPagination pagination={pagination} onPageChange={onPageChange} />
+		</LayerCard>
 	);
 }
 
@@ -560,7 +599,7 @@ function ThreadsTab({
 	);
 
 	return (
-		<div className="space-y-4">
+		<LayerCard padding="none" className="overflow-hidden">
 			<AdminDataTable
 				columns={columns}
 				data={data}
@@ -571,10 +610,8 @@ function ThreadsTab({
 				loading={loading}
 				emptyMessage="该时间段内无新主题"
 			/>
-			{pagination.pages > 1 && (
-				<AdminPagination pagination={pagination} onPageChange={onPageChange} />
-			)}
-		</div>
+			<AdminPagination pagination={pagination} onPageChange={onPageChange} />
+		</LayerCard>
 	);
 }
 
@@ -613,7 +650,7 @@ function PostsTab({
 	);
 
 	return (
-		<div className="space-y-4">
+		<LayerCard padding="none" className="overflow-hidden">
 			<AdminDataTable
 				columns={columns}
 				data={data}
@@ -624,10 +661,8 @@ function PostsTab({
 				loading={loading}
 				emptyMessage="该时间段内无新回复"
 			/>
-			{pagination.pages > 1 && (
-				<AdminPagination pagination={pagination} onPageChange={onPageChange} />
-			)}
-		</div>
+			<AdminPagination pagination={pagination} onPageChange={onPageChange} />
+		</LayerCard>
 	);
 }
 
@@ -662,7 +697,7 @@ function AttachmentsTab({
 					src: getAttachmentUrl(a.filePath),
 					alt: a.filename,
 				}));
-			const idx = images.findIndex((img) => img.alt === attachment.filename);
+			const idx = data.filter((a) => a.isImage).findIndex((a) => a.id === attachment.id);
 			if (idx >= 0) onPreview(images, idx);
 		},
 		[data, onPreview],
@@ -684,7 +719,7 @@ function AttachmentsTab({
 	);
 
 	return (
-		<div className="space-y-4">
+		<LayerCard padding="none" className="overflow-hidden">
 			<AdminDataTable
 				columns={columns}
 				data={data}
@@ -695,10 +730,8 @@ function AttachmentsTab({
 				loading={loading}
 				emptyMessage="该时间段内无新附件"
 			/>
-			{pagination.pages > 1 && (
-				<AdminPagination pagination={pagination} onPageChange={onPageChange} />
-			)}
-		</div>
+			<AdminPagination pagination={pagination} onPageChange={onPageChange} />
+		</LayerCard>
 	);
 }
 
