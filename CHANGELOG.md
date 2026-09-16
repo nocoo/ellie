@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-09-16
+
+### Changed
+
+- **Admin now uses Basalt 2.1.7 throughout.** Migrated the Google login card, application shell, navigation, page surfaces, controls, dialogs and charts. Preserved the server-side allowlist, proxy authentication and existing management functions.
+- **Denser admin dashboards and tables.** Refined every management page with Lucide icons, compact tables, responsive layouts and additional metrics from existing APIs. Analytics distinguish posts from replies, audit records display the actual Google administrator, and KV trends preserve missing samples.
+- **Editors and maintenance tools work on narrow screens.** User editing has seven navigable sections and persistent actions; wide tables scroll independently. Status text, check-in dates and JSON values use readable colors in both themes.
+
+### Fixed
+
+- **Large user purges no longer exceed D1's SQL parameter limit.** JSON ID collections replace expanded placeholder lists. Content cleanup, related records, user counters and forum metadata use atomic D1 batches across user, thread, post and moderation operations; cleanup reads use a consistent batch snapshot.
+- **Bulk moderation and failed requests remain recoverable.** User status changes and report deletions require confirmation, disable duplicate submissions and preserve failed selections for retry. KV expiry and refresh surface network/API errors; failed expiry keeps its confirmation open. Rule editors retain failed forms and preserve intentionally empty censor replacements.
+- **Cache failures report the correct outcome.** Content changes tolerate ordinary cache invalidation failures, while an explicit cache refresh fails visibly instead of recording a false success.
+
+### Verified
+
+- Admin: 829 unit tests and 37 browser scenarios pass; all commit gates pass, including coverage, type checks, builds, integration tests and secret scans.
+- Worker: 3,120 unit tests and 42 independently reviewed isolated cleanup checks, including foreign keys, rollback, parameter limits and stale counters.
+- Visual review: desktop/mobile and light/dark screenshots; 24 targeted text contrast measurements range from 4.97:1 to 9.00:1. Production D1 was not used for mutation tests.
+
 ## [1.8.0] - 2026-07-13
 
 ### Changed
