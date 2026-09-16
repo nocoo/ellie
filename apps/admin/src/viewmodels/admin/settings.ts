@@ -3,6 +3,7 @@
  * Client-safe — no server-only imports.
  */
 
+import { FORUM_LOGOS, SITE_ART } from "@ellie/shared";
 import { apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
@@ -76,25 +77,25 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 				key: "general.site.logo_light",
 				label: "Logo (浅色)",
 				inputType: "url",
-				placeholder: "https://t.no.mt/ellie/Logo-light-2.png",
+				placeholder: FORUM_LOGOS.light,
 			},
 			{
 				key: "general.site.logo_dark",
 				label: "Logo (深色)",
 				inputType: "url",
-				placeholder: "https://t.no.mt/ellie/Logo-dark-2.png",
+				placeholder: FORUM_LOGOS.dark,
 			},
 			{
 				key: "general.site.footer_bg_light",
 				label: "页脚背景 (浅色)",
 				inputType: "url",
-				placeholder: "https://t.no.mt/ellie/Bg-shanghai-light.png",
+				placeholder: SITE_ART.footer.light.src,
 			},
 			{
 				key: "general.site.footer_bg_dark",
 				label: "页脚背景 (深色)",
 				inputType: "url",
-				placeholder: "https://t.no.mt/ellie/Bg-shanghai-dark.png",
+				placeholder: SITE_ART.footer.dark.src,
 			},
 			{ key: "general.site.copyright", label: "版权持有者", placeholder: "同济网" },
 			{

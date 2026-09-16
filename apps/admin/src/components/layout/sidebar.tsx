@@ -1,5 +1,6 @@
 "use client";
 
+import { ADMIN_LOGO } from "@ellie/shared";
 import { VERSION_DISPLAY } from "@ellie/types";
 import {
 	Avatar,
@@ -139,7 +140,15 @@ export function Sidebar({
 	return (
 		<BasaltSidebar collapsed={collapsed} className={mobile ? "h-full" : undefined}>
 			<SidebarHeader className="gap-3 pl-[22px] pr-3">
-				<img src="/logo-24.png" alt="Ellie" width={24} height={24} className="shrink-0" />
+				<img
+					src={ADMIN_LOGO.src}
+					srcSet={ADMIN_LOGO.srcSet}
+					sizes="24px"
+					alt="Ellie"
+					width={24}
+					height={24}
+					className="shrink-0"
+				/>
 				{!collapsed && (
 					<>
 						<span className="text-base font-semibold">Ellie</span>

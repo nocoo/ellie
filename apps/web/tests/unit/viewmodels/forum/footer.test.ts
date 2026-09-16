@@ -1,3 +1,4 @@
+import { FORUM_LOGOS, SITE_ART } from "@ellie/shared";
 import { describe, expect, it } from "vitest";
 import {
 	buildGlobalFooterViewModel,
@@ -111,10 +112,10 @@ describe("buildGlobalFooterViewModel", () => {
 
 	it("uses fallback brand URLs when settings are empty", () => {
 		const vm = buildGlobalFooterViewModel(emptySettings);
-		expect(vm.logoLight).toContain("Logo-light");
-		expect(vm.logoDark).toContain("Logo-dark");
-		expect(vm.bgLight).toContain("Bg-shanghai-light");
-		expect(vm.bgDark).toContain("Bg-shanghai-dark");
+		expect(vm.logoLight).toBe(FORUM_LOGOS.light);
+		expect(vm.logoDark).toBe(FORUM_LOGOS.dark);
+		expect(vm.bgLight).toBe(SITE_ART.footer.light.src);
+		expect(vm.bgDark).toBe(SITE_ART.footer.dark.src);
 	});
 
 	it("reads homeLabel from settings", () => {

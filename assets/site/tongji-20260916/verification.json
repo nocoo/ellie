@@ -1,0 +1,148 @@
+{
+	"checkedAt": "2026-09-16T10:51:41.720180+00:00",
+	"release": "1.10.1",
+	"cdn": "https://t.no.mt/ellie/site/1.10.1/",
+	"deliveryImages": 73,
+	"verifiedObjects": 91,
+	"cdnChecks": [
+		"SHA-256 against frozen source bytes",
+		"Content-Type",
+		"public, max-age=31536000, immutable"
+	],
+	"browserConfigurations": [
+		{
+			"app": "web",
+			"theme": "light",
+			"viewportWidth": 1440,
+			"deviceScaleFactor": 1
+		},
+		{
+			"app": "web",
+			"theme": "light",
+			"viewportWidth": 768,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "web",
+			"theme": "light",
+			"viewportWidth": 390,
+			"deviceScaleFactor": 3
+		},
+		{
+			"app": "web",
+			"theme": "light",
+			"viewportWidth": 320,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "web",
+			"theme": "dark",
+			"viewportWidth": 1440,
+			"deviceScaleFactor": 1
+		},
+		{
+			"app": "web",
+			"theme": "dark",
+			"viewportWidth": 768,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "web",
+			"theme": "dark",
+			"viewportWidth": 390,
+			"deviceScaleFactor": 3
+		},
+		{
+			"app": "web",
+			"theme": "dark",
+			"viewportWidth": 320,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "admin",
+			"theme": "light",
+			"viewportWidth": 1440,
+			"deviceScaleFactor": 1
+		},
+		{
+			"app": "admin-login",
+			"theme": "light",
+			"viewportWidth": 1440,
+			"deviceScaleFactor": 1
+		},
+		{
+			"app": "admin",
+			"theme": "light",
+			"viewportWidth": 768,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "admin",
+			"theme": "light",
+			"viewportWidth": 390,
+			"deviceScaleFactor": 3
+		},
+		{
+			"app": "admin-login",
+			"theme": "light",
+			"viewportWidth": 390,
+			"deviceScaleFactor": 3
+		},
+		{
+			"app": "admin",
+			"theme": "light",
+			"viewportWidth": 320,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "admin",
+			"theme": "dark",
+			"viewportWidth": 1440,
+			"deviceScaleFactor": 1
+		},
+		{
+			"app": "admin-login",
+			"theme": "dark",
+			"viewportWidth": 1440,
+			"deviceScaleFactor": 1
+		},
+		{
+			"app": "admin",
+			"theme": "dark",
+			"viewportWidth": 768,
+			"deviceScaleFactor": 2
+		},
+		{
+			"app": "admin",
+			"theme": "dark",
+			"viewportWidth": 390,
+			"deviceScaleFactor": 3
+		},
+		{
+			"app": "admin-login",
+			"theme": "dark",
+			"viewportWidth": 390,
+			"deviceScaleFactor": 3
+		},
+		{
+			"app": "admin",
+			"theme": "dark",
+			"viewportWidth": 320,
+			"deviceScaleFactor": 2
+		}
+	],
+	"browserChecks": [
+		"no horizontal document overflow",
+		"decorative layers do not capture clicks",
+		"all selected logo images decode",
+		"light and dark artwork URLs switch",
+		"forum search navigation",
+		"mobile admin navigation opens and closes",
+		"forced colors suppress decoration",
+		"admin login logo at 1x and 3x"
+	],
+	"targetedTestsPassed": 33,
+	"build": "web and admin production builds passed",
+	"productionD1": "no business-data or settings writes; mutation tests use local D1/KV/R2",
+	"manifestSha256": "12f589abaccfd14553a8a38a0c2d80841c0e4eb60c6db8c25488cafcb3fe993d"
+}

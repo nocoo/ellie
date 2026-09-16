@@ -7,6 +7,7 @@
  * - Global: powered-by, copyright, site links (below the divider)
  */
 
+import { FORUM_LOGOS, SITE_ART } from "@ellie/shared";
 import { VERSION_DISPLAY } from "@ellie/types";
 import type { SettingsMap } from "./settings.server";
 import { getArr, getStr } from "./settings.server";
@@ -107,23 +108,11 @@ export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterV
 		version: VERSION_DISPLAY,
 		copyrightYears: getStr(settings, "general.site.copyright_years", "2001-2013"),
 		copyrightHolder: getStr(settings, "general.site.copyright", "Comsenz Inc."),
-		logoLight: getStr(
-			settings,
-			"general.site.logo_light",
-			"https://t.no.mt/ellie/Logo-light-2.png",
-		),
-		logoDark: getStr(settings, "general.site.logo_dark", "https://t.no.mt/ellie/Logo-dark-2.png"),
+		logoLight: getStr(settings, "general.site.logo_light", FORUM_LOGOS.light),
+		logoDark: getStr(settings, "general.site.logo_dark", FORUM_LOGOS.dark),
 		logoAlt: getStr(settings, "general.site.name", "Ellie"),
-		bgLight: getStr(
-			settings,
-			"general.site.footer_bg_light",
-			"https://t.no.mt/ellie/Bg-shanghai-light.png",
-		),
-		bgDark: getStr(
-			settings,
-			"general.site.footer_bg_dark",
-			"https://t.no.mt/ellie/Bg-shanghai-dark.png",
-		),
+		bgLight: getStr(settings, "general.site.footer_bg_light", SITE_ART.footer.light.src),
+		bgDark: getStr(settings, "general.site.footer_bg_dark", SITE_ART.footer.dark.src),
 		homeLabel: getStr(settings, "general.site.home_label", "同济网论坛"),
 	};
 }

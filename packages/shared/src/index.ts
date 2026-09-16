@@ -4,6 +4,15 @@ export type { ApiErrorData } from "./api-error";
 // API Error
 export { ApiError } from "./api-error";
 
+export {
+	ADMIN_LOGO,
+	FORUM_LOGOS,
+	resolveSiteAsset,
+	SITE_ART,
+	SITE_ASSET_BASE,
+	siteArtworkBackground,
+} from "./site-assets";
+
 // Viewmodels
 export type { BreadcrumbItem } from "./viewmodels/breadcrumbs";
 export {

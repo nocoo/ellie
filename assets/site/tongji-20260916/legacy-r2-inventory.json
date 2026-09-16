@@ -1,0 +1,106 @@
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": [
+		{
+			"key": "ellie/",
+			"etag": "d41d8cd98f00b204e9800998ecf8427e",
+			"last_modified": "2026-03-31T22:24:05.818Z",
+			"size": 0,
+			"http_metadata": { "contentType": "application/octet-stream" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/Bg-shanghai-dark.png",
+			"etag": "c6b243c1b44f843786f50bbd1f5c2a97",
+			"last_modified": "2026-04-05T12:29:42.261Z",
+			"size": 1145077,
+			"http_metadata": { "contentType": "image/png" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/Bg-shanghai-light.png",
+			"etag": "bf2bb818e199727422dbb0e78c16da34",
+			"last_modified": "2026-04-05T12:29:42.340Z",
+			"size": 1152666,
+			"http_metadata": { "contentType": "image/png" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/Logo-dark-2.png",
+			"etag": "341c5a7e909a6c07818cbe07fff101d9",
+			"last_modified": "2026-04-05T12:29:37.267Z",
+			"size": 131716,
+			"http_metadata": { "contentType": "image/png" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/Logo-dark.jpg",
+			"etag": "c3e48f074515aed161c5985951c5ff92",
+			"last_modified": "2026-04-01T05:13:25.816Z",
+			"size": 36621,
+			"http_metadata": { "contentType": "image/jpeg" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/Logo-light-2.png",
+			"etag": "b7e1a9ec6a766fcacd4adbdc70df73db",
+			"last_modified": "2026-04-05T12:29:37.923Z",
+			"size": 122235,
+			"http_metadata": { "contentType": "image/png" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/Logo-light.jpg",
+			"etag": "9abbc63cdc2048f5bcafe79c4d5162ba",
+			"last_modified": "2026-04-01T05:13:25.873Z",
+			"size": 33167,
+			"http_metadata": { "contentType": "image/jpeg" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/bg-menu-light.jpg",
+			"etag": "6082c506187ffb0f48f76492864824a0",
+			"last_modified": "2026-04-02T02:20:01.689Z",
+			"size": 63551,
+			"http_metadata": { "contentType": "image/jpeg" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/bg-menu-light2.jpg",
+			"etag": "02665058e5fc5bc65f362e85c8239aec",
+			"last_modified": "2026-04-02T02:40:56.353Z",
+			"size": 56983,
+			"http_metadata": { "contentType": "image/jpeg" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/bg_footer_dark_01.jpg",
+			"etag": "5fce9303cb8a821d28830a0c1a78e52d",
+			"last_modified": "2026-03-31T22:24:17.266Z",
+			"size": 1003513,
+			"http_metadata": { "contentType": "image/jpeg" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		},
+		{
+			"key": "ellie/bg_footer_light_01.jpg",
+			"etag": "36828a3d0f1fbd233c8d3bc8b694bd12",
+			"last_modified": "2026-03-31T22:24:17.474Z",
+			"size": 1062705,
+			"http_metadata": { "contentType": "image/jpeg" },
+			"custom_metadata": {},
+			"storage_class": "Standard"
+		}
+	]
+}

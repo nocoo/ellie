@@ -1,5 +1,6 @@
 "use client";
 
+import { SITE_ART } from "@ellie/shared";
 import {
 	Button,
 	ContentIsland,
@@ -18,7 +19,7 @@ import {
 } from "@nocoo/basalt/components/app-shell";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { BreadcrumbOverrideProvider, useBreadcrumbOverrideValue } from "./breadcrumb-context";
@@ -66,7 +67,17 @@ function AppShellInner({ children }: { children: ReactNode }) {
 						actions={<ThemeToggle aria-label="切换主题" />}
 					/>
 					<div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
-						<ContentIsland className="relative">{children}</ContentIsland>
+						<ContentIsland
+							className="admin-campus relative isolate"
+							style={
+								{
+									"--sketch-light": SITE_ART.admin.light.imageSet,
+									"--sketch-dark": SITE_ART.admin.dark.imageSet,
+								} as CSSProperties
+							}
+						>
+							{children}
+						</ContentIsland>
 					</div>
 				</AppMain>
 			</Sheet>

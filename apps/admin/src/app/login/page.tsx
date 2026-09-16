@@ -1,11 +1,11 @@
 "use client";
 
+import { ADMIN_LOGO, SITE_ART } from "@ellie/shared";
 import { VERSION_DISPLAY } from "@ellie/types";
 import { Button, LayerCard, Separator, ThemeToggle } from "@nocoo/basalt";
 import { LoadingScreen } from "@nocoo/basalt/components/loading-screen";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { type CSSProperties, Suspense } from "react";
 import { useFormStatus } from "react-dom";
 import { signInWithGoogle } from "./actions";
 
@@ -65,7 +65,15 @@ function LoginContent() {
 	const error = useSearchParams().get("error");
 	const today = new Date().toISOString().slice(0, 10);
 	return (
-		<div className="relative flex min-h-screen items-center justify-center bg-basalt-background p-4">
+		<div
+			className="admin-campus relative isolate flex min-h-screen items-center justify-center bg-basalt-background p-4"
+			style={
+				{
+					"--sketch-light": SITE_ART.admin.light.imageSet,
+					"--sketch-dark": SITE_ART.admin.dark.imageSet,
+				} as CSSProperties
+			}
+		>
 			<div className="absolute right-4 top-4">
 				<ThemeToggle aria-label="切换主题" />
 			</div>
@@ -88,7 +96,15 @@ function LoginContent() {
 					</div>
 				</div>
 				<div className="flex flex-1 flex-col items-center px-6 py-6">
-					<Image src="/logo-192.png" alt="Ellie" width={96} height={96} priority />
+					<img
+						src={ADMIN_LOGO.src}
+						srcSet={ADMIN_LOGO.srcSet}
+						sizes="96px"
+						alt="Ellie"
+						width={96}
+						height={96}
+						fetchPriority="high"
+					/>
 					<h1 className="mt-5 text-lg font-semibold">管理控制台</h1>
 					<p className="mt-1 text-xs text-basalt-muted-foreground">登录以管理论坛</p>
 					{error && (
@@ -122,7 +138,16 @@ export default function LoginPage() {
 			fallback={
 				<LoadingScreen
 					label="加载中"
-					mark={<Image src="/logo-24.png" alt="Ellie" width={24} height={24} />}
+					mark={
+						<img
+							src={ADMIN_LOGO.src}
+							srcSet={ADMIN_LOGO.srcSet}
+							sizes="24px"
+							alt="Ellie"
+							width={24}
+							height={24}
+						/>
+					}
 				/>
 			}
 		>

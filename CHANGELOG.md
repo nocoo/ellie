@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.1] - 2026-09-16
+
+### Changed
+
+- **Tongji architectural pencil backgrounds.** The forum header features the modern Shanghai skyline; the footer combines the Siping Road library, Guoli pillar and dawn redwoods; the admin corner uses a Guoli pillar study. Reference-guided GPT Image 2.5 Flare originals, research sources and public credits are archived. Transparent gray-blue strokes, gradients and theme-specific colors preserve readable content on phones and desktop screens.
+- **Responsive branding from one CDN.** Existing forum wordmarks and the admin elephant retain their identities, with multiple WebP/JPG sizes and PNG masters on versioned R2 paths under `t.no.mt`. Known legacy image settings migrate in the display layer; custom URLs, empty settings, navigation and administrative actions remain supported. Production D1 settings are unchanged.
+
 ## [1.10.0] - 2026-09-16
 
 ### Changed

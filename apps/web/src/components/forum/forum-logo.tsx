@@ -1,13 +1,11 @@
-// components/forum/forum-logo.tsx — Shared forum logo with light/dark mode support
-// Uses two external images that swap via CSS dark: variant.
-
-const DEFAULT_LOGO_LIGHT = "https://t.no.mt/ellie/Logo-light-2.png";
-const DEFAULT_LOGO_DARK = "https://t.no.mt/ellie/Logo-dark-2.png";
+import { FORUM_LOGOS, resolveSiteAsset, SITE_ASSET_BASE } from "@ellie/shared";
 
 interface ForumLogoProps {
 	/** Height in pixels. Width scales proportionally via w-auto. */
 	height: number;
 	className?: string;
+	/** Rendered width for responsive source selection. */
+	sizes?: string;
 	/** Force a specific variant instead of auto-detecting from theme */
 	variant?: "auto" | "light" | "dark";
 	/** Override light-theme logo URL */
@@ -21,36 +19,38 @@ interface ForumLogoProps {
 export function ForumLogo({
 	height,
 	className = "",
+	sizes = `${height * 3}px`,
 	variant = "auto",
-	lightSrc = DEFAULT_LOGO_LIGHT,
-	darkSrc = DEFAULT_LOGO_DARK,
+	lightSrc = FORUM_LOGOS.light,
+	darkSrc = FORUM_LOGOS.dark,
 	alt = "Ellie",
 }: ForumLogoProps) {
-	// Force light variant (dark logo for light backgrounds)
-	if (variant === "light") {
-		return <img src={lightSrc} alt={alt} style={{ height }} className={`w-auto ${className}`} />;
-	}
-
-	// Force dark variant (light logo for dark backgrounds)
-	if (variant === "dark") {
-		return <img src={darkSrc} alt={alt} style={{ height }} className={`w-auto ${className}`} />;
-	}
-
-	// Auto: swap based on theme
-	return (
-		<>
+	return (variant === "auto" ? ["light", "dark"] : [variant]).map((theme) => {
+		const src = resolveSiteAsset(theme === "light" ? lightSrc : darkSrc);
+		if (!src) return null;
+		const optimized = src === FORUM_LOGOS.light || src === FORUM_LOGOS.dark;
+		const sourceTheme = src === FORUM_LOGOS.light ? "light" : "dark";
+		return (
 			<img
-				src={lightSrc}
+				key={theme}
+				src={src}
+				srcSet={
+					optimized
+						? [120, 240, 360, 600]
+								.map(
+									(width) => `${SITE_ASSET_BASE}/forum-logo-${sourceTheme}-${width}.webp ${width}w`,
+								)
+								.join(", ")
+						: undefined
+				}
+				sizes={optimized ? sizes : undefined}
+				width={optimized ? 600 : undefined}
+				height={optimized ? 200 : height}
 				alt={alt}
+				decoding="async"
 				style={{ height }}
-				className={`w-auto dark:hidden ${className}`}
+				className={`w-auto ${variant === "auto" ? (theme === "light" ? "dark:hidden" : "hidden dark:block") : ""} ${className}`}
 			/>
-			<img
-				src={darkSrc}
-				alt={alt}
-				style={{ height }}
-				className={`hidden w-auto dark:block ${className}`}
-			/>
-		</>
-	);
+		);
+	});
 }

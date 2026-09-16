@@ -372,11 +372,57 @@ cap-widget {
 }
 
 /* ==========================================================================
-   Footer Background Image (theme-aware)
+   Tongji architectural pencil backgrounds
    ========================================================================== */
-/* Switch background-image based on .dark class */
-.dark [style*="--bg-dark"] {
-	background-image: var(--bg-dark) !important;
+.forum-header-art,
+.site-footer-art {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	user-select: none;
+	background-image: var(--sketch-light);
+	background-repeat: no-repeat;
+	background-position: right bottom;
+	background-size: contain;
+	mask-image: linear-gradient(90deg, transparent, #000 42%);
+}
+.forum-header-art {
+	z-index: -1;
+	width: min(70%, 44rem);
+	height: 100%;
+	opacity: 0.4;
+}
+.site-footer-art {
+	width: min(76%, 45rem);
+	height: calc(100% + 3rem);
+	opacity: 0.5;
+}
+.dark .forum-header-art,
+.dark .site-footer-art {
+	background-image: var(--sketch-dark);
+}
+.dark .forum-header-art {
+	opacity: 0.28;
+}
+.dark .site-footer-art {
+	opacity: 0.36;
+}
+@media (max-width: 639px) {
+	.forum-header-art {
+		width: 88%;
+		opacity: 0.24;
+	}
+	.site-footer-art {
+		width: 90%;
+		opacity: 0.3;
+	}
+}
+@media (forced-colors: active) {
+	.forum-header-art,
+	.site-footer-art {
+		display: none;
+	}
 }
 
 /* ==========================================================================

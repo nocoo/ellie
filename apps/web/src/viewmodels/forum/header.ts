@@ -4,6 +4,7 @@
  * Defines the data contract for the classic Discuz-style forum header.
  */
 
+import { FORUM_LOGOS } from "@ellie/shared";
 import type { SettingsMap } from "./settings.server";
 import { getArr, getStr } from "./settings.server";
 
@@ -138,12 +139,8 @@ export function buildHeaderViewModel(
 		navTabs,
 		hotKeywords: HOT_KEYWORDS,
 		stats,
-		logoLight: getStr(
-			settings,
-			"general.site.logo_light",
-			"https://t.no.mt/ellie/Logo-light-2.png",
-		),
-		logoDark: getStr(settings, "general.site.logo_dark", "https://t.no.mt/ellie/Logo-dark-2.png"),
+		logoLight: getStr(settings, "general.site.logo_light", FORUM_LOGOS.light),
+		logoDark: getStr(settings, "general.site.logo_dark", FORUM_LOGOS.dark),
 		logoAlt: getStr(settings, "general.site.name", "Ellie"),
 		homeLabel,
 	};

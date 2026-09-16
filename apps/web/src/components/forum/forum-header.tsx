@@ -1,10 +1,11 @@
 "use client";
 
+import { SITE_ART } from "@ellie/shared";
 import { Award, CalendarCheck, House, LogOut, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useEffect, useRef } from "react";
+import { type CSSProperties, useEffect, useRef } from "react";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { MessageBadgeIcon } from "@/components/forum/message-badge-icon";
 import { TrackedUserAvatar } from "@/components/forum/user-avatar";
@@ -31,6 +32,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 					darkSrc={vm.logoDark}
 					alt={vm.logoAlt}
 					className="max-h-8 sm:max-h-none"
+					sizes="(max-width: 639px) 96px, 156px"
 				/>
 			</Link>
 			<div className="flex min-w-0 items-center gap-1 sm:gap-3" data-testid="forum-top-bar-user">
@@ -227,7 +229,17 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 
 export function ForumHeader({ vm }: { vm: HeaderViewModel }) {
 	return (
-		<header className="border-b border-border bg-card">
+		<header className="forum-header relative isolate border-b border-border bg-card">
+			<div
+				className="forum-header-art"
+				aria-hidden="true"
+				style={
+					{
+						"--sketch-light": SITE_ART.header.light.imageSet,
+						"--sketch-dark": SITE_ART.header.dark.imageSet,
+					} as CSSProperties
+				}
+			/>
 			<TopBar vm={vm} />
 			<NavBar vm={vm} />
 			<SearchStatsBar vm={vm} />
