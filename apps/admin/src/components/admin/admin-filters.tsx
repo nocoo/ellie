@@ -242,7 +242,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 						<form
 							key={filter.key}
 							onSubmit={(e) => handleSearchSubmit(filter.key, e)}
-							className="relative"
+							className="relative w-full min-w-0 sm:w-auto"
 						>
 							<Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-basalt-muted-foreground" />
 							<Input
@@ -250,7 +250,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								value={inputVal}
 								onChange={(e) => handleSearchInputChange(filter.key, e.target.value)}
 								aria-label={filter.label}
-								className="w-[200px] pl-8 pr-8"
+								className="h-8 w-full pl-8 pr-8 text-sm sm:w-[220px]"
 							/>
 							{inputVal && (
 								<Button
@@ -278,7 +278,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								onFilterChange(filter.key, value);
 							}}
 						>
-							<SelectTrigger aria-label={filter.label} className="w-auto max-w-full">
+							<SelectTrigger aria-label={filter.label} className="h-8 w-auto max-w-full text-sm">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -298,6 +298,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 							key={filter.key}
 							aria-pressed={values[filter.key] === "true"}
 							variant={values[filter.key] === "true" ? "default" : "outline"}
+							size="sm"
 							onClick={() =>
 								onFilterChange(filter.key, values[filter.key] === "true" ? "" : "true")
 							}
@@ -311,7 +312,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 					const minKey = rangeMinKey(filter.key);
 					const maxKey = rangeMaxKey(filter.key);
 					return (
-						<div key={filter.key} className="flex items-center gap-1">
+						<div key={filter.key} className="flex max-w-full flex-wrap items-center gap-1.5">
 							<span className="text-sm text-basalt-muted-foreground">{filter.label}</span>
 							<Input
 								type="number"
@@ -320,7 +321,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								onChange={(e) => onFilterChange(minKey, e.target.value)}
 								placeholder={filter.minPlaceholder ?? "最小"}
 								aria-label={`${filter.label} 最小`}
-								className="w-[88px]"
+								className="h-8 w-[76px] text-sm"
 							/>
 							<span className="text-sm text-basalt-muted-foreground">—</span>
 							<Input
@@ -330,7 +331,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								onChange={(e) => onFilterChange(maxKey, e.target.value)}
 								placeholder={filter.maxPlaceholder ?? "最大"}
 								aria-label={`${filter.label} 最大`}
-								className="w-[88px]"
+								className="h-8 w-[76px] text-sm"
 							/>
 						</div>
 					);
@@ -340,15 +341,17 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 					const minKey = rangeMinKey(filter.key);
 					const maxKey = rangeMaxKey(filter.key);
 					return (
-						<div key={filter.key} className="flex items-center gap-1">
-							<span className="text-sm text-basalt-muted-foreground">{filter.label}</span>
+						<div key={filter.key} className="flex max-w-full flex-wrap items-center gap-1.5">
+							<span className="w-full text-xs text-basalt-muted-foreground sm:w-auto">
+								{filter.label}
+							</span>
 							<Input
 								type="date"
 								value={values[minKey] ?? ""}
 								onChange={(e) => onFilterChange(minKey, e.target.value)}
 								placeholder={filter.minPlaceholder ?? "开始日期"}
 								aria-label={`${filter.label} 开始日期`}
-								className="w-[150px]"
+								className="h-8 min-w-0 w-[132px] text-xs"
 							/>
 							<span className="text-sm text-basalt-muted-foreground">—</span>
 							<Input
@@ -357,7 +360,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								onChange={(e) => onFilterChange(maxKey, e.target.value)}
 								placeholder={filter.maxPlaceholder ?? "结束日期"}
 								aria-label={`${filter.label} 结束日期`}
-								className="w-[150px]"
+								className="h-8 min-w-0 w-[132px] text-xs"
 							/>
 						</div>
 					);

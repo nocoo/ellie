@@ -50,6 +50,7 @@ export function computePageRange(current: number, total: number, maxVisible = 5)
  * Returns "start–end" string.
  */
 export function computeItemRange(page: number, limit: number, total: number): string {
+	if (total === 0) return "0";
 	const start = (page - 1) * limit + 1;
 	const end = Math.min(page * limit, total);
 	return `${start}–${end}`;
@@ -62,8 +63,6 @@ export function computeItemRange(page: number, limit: number, total: number): st
 export function AdminPagination({ pagination, onPageChange }: AdminPaginationProps) {
 	const { page, pages, total, limit } = pagination;
 
-	if (pages <= 1) return null;
-
 	const [rangeStart, rangeEnd] = computePageRange(page, pages);
 	const pageNumbers: number[] = [];
 	for (let i = rangeStart; i <= rangeEnd; i++) {
@@ -71,61 +70,73 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 	}
 
 	return (
-		<div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 px-2 py-3">
-			<p className="whitespace-nowrap text-sm text-basalt-muted-foreground">
-				{computeItemRange(page, limit, total)} / {formatNumber(total)}
+		<nav
+			aria-label="分页"
+			className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 border-t border-basalt-border/60 px-3 py-2.5"
+		>
+			<p className="whitespace-nowrap text-xs text-basalt-muted-foreground tabular-nums">
+				{computeItemRange(page, limit, total)} <span className="mx-1">/</span> 共{" "}
+				{formatNumber(total)} 条
 			</p>
-			<div className="flex max-w-full flex-wrap items-center gap-1">
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={page <= 1}
-					onClick={() => onPageChange(1)}
-					aria-label="首页"
-				>
-					<ChevronsLeft className="h-4 w-4" />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={page <= 1}
-					onClick={() => onPageChange(page - 1)}
-					aria-label="上一页"
-				>
-					<ChevronLeft className="h-4 w-4" />
-				</Button>
-				{pageNumbers.map((p) => (
+			{pages > 1 ? (
+				<div className="flex max-w-full flex-wrap items-center gap-1">
 					<Button
-						key={p}
-						variant={p === page ? "default" : "ghost"}
+						variant="ghost"
 						size="icon"
+						disabled={page <= 1}
+						onClick={() => onPageChange(1)}
+						aria-label="首页"
 						className="h-8 w-8"
-						onClick={() => onPageChange(p)}
-						aria-label={`第 ${p} 页`}
-						aria-current={p === page ? "page" : undefined}
 					>
-						{p}
+						<ChevronsLeft className="h-4 w-4" />
 					</Button>
-				))}
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={page >= pages}
-					onClick={() => onPageChange(page + 1)}
-					aria-label="下一页"
-				>
-					<ChevronRight className="h-4 w-4" />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={page >= pages}
-					onClick={() => onPageChange(pages)}
-					aria-label="末页"
-				>
-					<ChevronsRight className="h-4 w-4" />
-				</Button>
-			</div>
-		</div>
+					<Button
+						variant="ghost"
+						size="icon"
+						disabled={page <= 1}
+						onClick={() => onPageChange(page - 1)}
+						aria-label="上一页"
+						className="h-8 w-8"
+					>
+						<ChevronLeft className="h-4 w-4" />
+					</Button>
+					{pageNumbers.map((p) => (
+						<Button
+							key={p}
+							variant={p === page ? "default" : "ghost"}
+							size="icon"
+							className="h-8 w-8"
+							onClick={() => onPageChange(p)}
+							aria-label={`第 ${p} 页`}
+							aria-current={p === page ? "page" : undefined}
+						>
+							{p}
+						</Button>
+					))}
+					<Button
+						variant="ghost"
+						size="icon"
+						disabled={page >= pages}
+						onClick={() => onPageChange(page + 1)}
+						aria-label="下一页"
+						className="h-8 w-8"
+					>
+						<ChevronRight className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						disabled={page >= pages}
+						onClick={() => onPageChange(pages)}
+						aria-label="末页"
+						className="h-8 w-8"
+					>
+						<ChevronsRight className="h-4 w-4" />
+					</Button>
+				</div>
+			) : (
+				<span className="text-xs text-basalt-muted-foreground">每页 {limit} 条</span>
+			)}
+		</nav>
 	);
 }

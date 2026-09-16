@@ -12,6 +12,7 @@ import {
 	TableRow,
 } from "@nocoo/basalt/components/table";
 import { useCallback, useMemo } from "react";
+import { twMerge } from "tailwind-merge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +46,7 @@ export interface AdminDataTableProps<T> {
 	loading?: boolean;
 	/** Empty state message */
 	emptyMessage?: string;
+	label?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +62,7 @@ export function AdminDataTable<T>({
 	selectable = false,
 	loading = false,
 	emptyMessage = "暂无数据",
+	label = "数据列表",
 }: AdminDataTableProps<T>) {
 	const allIds = useMemo(() => data.map(getRowId), [data, getRowId]);
 
@@ -105,49 +108,59 @@ export function AdminDataTable<T>({
 	}
 
 	return (
-		<Table className="whitespace-nowrap">
-			<TableHeader>
-				<TableRow className="hover:bg-transparent">
-					{selectable && (
-						<TableHead className="w-10">
-							<Checkbox
-								checked={someSelected ? "indeterminate" : allSelected}
-								onCheckedChange={toggleAll}
-								aria-label="全选"
-							/>
-						</TableHead>
-					)}
-					{columns.map((col) => (
-						<TableHead key={col.key} className={col.className}>
-							{col.header}
-						</TableHead>
-					))}
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{data.map((row) => {
-					const id = getRowId(row);
-					const isSelected = selectedIds.has(id);
-					return (
-						<TableRow key={id} aria-selected={selectable ? isSelected : undefined}>
-							{selectable && (
-								<TableCell>
-									<Checkbox
-										checked={isSelected}
-										onCheckedChange={() => toggleRow(id)}
-										aria-label={`选择行 ${id}`}
-									/>
-								</TableCell>
-							)}
-							{columns.map((col) => (
-								<TableCell key={col.key} className={col.className}>
-									{col.cell(row)}
-								</TableCell>
-							))}
-						</TableRow>
-					);
-				})}
-			</TableBody>
-		</Table>
+		<section
+			className="max-h-[72vh] min-w-0 overflow-auto overscroll-contain rounded-[inherit] focus-visible:outline-2 focus-visible:outline-basalt-ring"
+			aria-label={`${label}滚动区域`}
+			// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
+			tabIndex={0}
+		>
+			<Table aria-label={label} className="whitespace-nowrap">
+				<TableHeader className="sticky top-0 z-10 bg-basalt-secondary">
+					<TableRow className="hover:bg-transparent">
+						{selectable && (
+							<TableHead className="w-10 px-3 py-2">
+								<Checkbox
+									checked={someSelected ? "indeterminate" : allSelected}
+									onCheckedChange={toggleAll}
+									aria-label="全选"
+								/>
+							</TableHead>
+						)}
+						{columns.map((col) => (
+							<TableHead key={col.key} scope="col" className={twMerge("px-3 py-2", col.className)}>
+								{col.header}
+							</TableHead>
+						))}
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{data.map((row) => {
+						const id = getRowId(row);
+						const isSelected = selectedIds.has(id);
+						return (
+							<TableRow key={id} aria-selected={selectable ? isSelected : undefined}>
+								{selectable && (
+									<TableCell className="px-3 py-2 align-middle">
+										<Checkbox
+											checked={isSelected}
+											onCheckedChange={() => toggleRow(id)}
+											aria-label={`选择行 ${id}`}
+										/>
+									</TableCell>
+								)}
+								{columns.map((col) => (
+									<TableCell
+										key={col.key}
+										className={twMerge("px-3 py-2 align-middle", col.className)}
+									>
+										{col.cell(row)}
+									</TableCell>
+								))}
+							</TableRow>
+						);
+					})}
+				</TableBody>
+			</Table>
+		</section>
 	);
 }
