@@ -258,7 +258,9 @@ test.describe("Feature: Admin Users CRUD", () => {
 		await expect(detailDialog).toBeVisible();
 		await expect(detailDialog.getByRole("heading", { name: initialUsername })).toBeVisible();
 		await expect(detailDialog.getByText("基本资料", { exact: true })).toBeVisible();
-		await expect(detailDialog.getByText("元信息", { exact: true })).toBeVisible();
+		await expect(detailDialog.getByRole("heading", { name: "登录与网络" })).toBeVisible();
+		await expect(detailDialog.getByText("注册时间", { exact: true })).toBeVisible();
+		await expect(detailDialog.getByText("最后登录", { exact: true })).toBeVisible();
 		await expect(page).toHaveURL(/\/admin\/users(\?|$)/);
 
 		// When/Then: SegmentedSwitch toggles content tabs without crashing
@@ -843,13 +845,15 @@ test.describe("Feature: Admin Operation Logs", () => {
 			expect(panelBox.y).toBeGreaterThanOrEqual(0);
 			expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport.height);
 			expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
-			const body = dialog.getByTestId("admin-log-details").locator("..").locator("..");
-			expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+			const details = dialog.getByTestId("admin-log-details");
+			expect(await details.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
 				true,
 			);
-			await body.evaluate((element) => {
+			await details.evaluate((element) => {
 				element.scrollTop = element.scrollHeight;
 			});
+			expect(await details.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+			await expect(close).toBeInViewport();
 			await close.click();
 			await expect(dialog).toBeHidden();
 		}

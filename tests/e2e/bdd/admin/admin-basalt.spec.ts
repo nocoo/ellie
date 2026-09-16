@@ -352,7 +352,9 @@ test.describe("Admin Basalt integration", () => {
 			await page.reload();
 			await expect(page.getByRole("button", { name: "编辑资料" })).toBeVisible();
 			const colors = await page.locator("main [data-basalt-surface-root]").evaluate((root) => {
-				const card = root.querySelector("[data-basalt-surface]");
+				const card = Array.from(root.querySelectorAll("[data-basalt-surface]")).find((node) =>
+					node.querySelector("[data-basalt-surface]"),
+				);
 				const well = card?.querySelector("[data-basalt-surface]");
 				if (!card || !well) throw new Error("Expected a structured detail card");
 				return [root, card, well].map((node) => {
