@@ -1,15 +1,9 @@
 // @vitest-environment happy-dom
-// Tests for ForumNewPostButton mobile-hidden contract (reviewer freeze
-// msg=5a91dfd3). Pinned via class tokens because happy-dom does not
-// evaluate media queries. The PC behaviour (visible at ≥640px) is
-// guaranteed by the `sm:inline-block` half of the same string.
+// The secondary new-thread action stays desktop-only; the page header
+// provides the mobile entry point.
 import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/cdn", () => ({
-	getStaticImageUrl: (name: string) => `/static/${name}`,
-}));
 
 vi.mock("@/viewmodels/forum/write-gate", () => ({
 	writeGatePreflight: vi.fn(async () => false),
@@ -28,7 +22,7 @@ afterEach(() => {
 });
 
 describe("ForumNewPostButton — iPhone mobile-trim contract", () => {
-	it("button carries `hidden sm:inline-block` so it is hidden on phones", () => {
+	it("keeps the secondary button hidden on phones", () => {
 		render(
 			createElement(ForumNewPostButton, {
 				forumId: 1,
@@ -40,10 +34,10 @@ describe("ForumNewPostButton — iPhone mobile-trim contract", () => {
 		const button = screen.getByTestId("forum-new-post-button");
 		expect(button.tagName).toBe("BUTTON");
 		expect(button.className).toContain("hidden");
-		expect(button.className).toContain("sm:inline-block");
+		expect(button.className).toContain("sm:inline-flex");
 	});
 
-	it("still renders the 发表新帖 image (desktop unchanged)", () => {
+	it("provides an accessible text label for the new-thread action", () => {
 		render(
 			createElement(ForumNewPostButton, {
 				forumId: 1,
@@ -52,8 +46,6 @@ describe("ForumNewPostButton — iPhone mobile-trim contract", () => {
 				threadTypes: null,
 			}),
 		);
-		const img = screen.getByAltText("发表新帖") as HTMLImageElement;
-		expect(img).toBeDefined();
-		expect(img.getAttribute("src")).toBe("/static/pn_post.png");
+		expect(screen.getByRole("button", { name: "发表新帖" })).toBeDefined();
 	});
 });

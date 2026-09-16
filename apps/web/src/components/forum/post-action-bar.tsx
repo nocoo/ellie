@@ -49,9 +49,9 @@ export function PostActionBar({
 	const hasModActions = canEdit || canDelete || canReport;
 
 	return (
-		<div className="flex items-center justify-between border-t border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+		<div className="flex flex-wrap items-center justify-between gap-1 border-t border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
 			{/* Left: User actions */}
-			<div className="flex items-center gap-4">
+			<div className="flex flex-wrap items-center gap-1">
 				{canComment && <ForumActionButton icon={MessageCircle} label="点评" onClick={onComment} />}
 				<ForumActionButton icon={Reply} label="回复" onClick={onReply} />
 				{canRateCoins && <ForumActionButton icon={Coins} label="同钱" onClick={onRateCoins} />}
@@ -60,7 +60,7 @@ export function PostActionBar({
 
 			{/* Right: Mod/Author actions + Report */}
 			{hasModActions && (
-				<div className="flex items-center gap-4">
+				<div className="flex flex-wrap items-center gap-1">
 					{canEdit && <ForumActionButton icon={Pencil} label="编辑" onClick={onEdit} />}
 					{canDelete && (
 						<ForumActionButton

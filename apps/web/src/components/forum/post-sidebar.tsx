@@ -37,15 +37,15 @@ export function PostSidebar({
 	// missing-user fallback so the anonymous social contract holds.
 	if (isAnonymous) {
 		return (
-			<div className="w-[160px] lg:w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-3 lg:p-4 flex flex-col items-center gap-1.5">
+			<div className="w-[168px] shrink-0 bg-forum-sidebar-bg/70 border-r border-border p-3 flex flex-col items-center gap-1.5">
 				<span className="text-xs font-bold text-muted-foreground" data-testid="post-sidebar-author">
 					匿名
 				</span>
-				<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] dark:shadow-[0_0_3px_rgba(255,255,255,0.12)]">
+				<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1">
 					<img
 						src={getStaticImageUrl("tavatar.gif")}
 						alt="匿名"
-						className="block w-[120px] lg:w-[160px] h-auto"
+						className="block size-20 rounded-lg object-cover"
 					/>
 				</div>
 			</div>
@@ -55,7 +55,7 @@ export function PostSidebar({
 	const checkinLevel = author ? formatCheckinLevel(author.checkin) : null;
 	const checkinDays = author ? formatCheckinDays(author.checkin?.totalDays) : null;
 	return (
-		<div className="w-[160px] lg:w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-3 lg:p-4 flex flex-col items-center gap-1.5">
+		<div className="w-[168px] shrink-0 bg-forum-sidebar-bg/70 border-r border-border p-3 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
 			{author ? (
 				<UserPopover
@@ -63,9 +63,10 @@ export function PostSidebar({
 					viewerRole={viewerRole}
 					viewerUserId={viewerUserId}
 					align="start"
+					triggerClassName="min-w-0 max-w-full"
 				>
 					<span
-						className="text-xs font-bold text-forum-link hover:underline cursor-pointer"
+						className="block max-w-full truncate text-xs font-bold text-forum-link hover:underline cursor-pointer"
 						data-testid="post-sidebar-author"
 					>
 						{author.username}
@@ -84,21 +85,22 @@ export function PostSidebar({
 					viewerRole={viewerRole}
 					viewerUserId={viewerUserId}
 					align="start"
+					triggerClassName="min-w-0 max-w-full"
 				>
-					<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] dark:shadow-[0_0_3px_rgba(255,255,255,0.12)] cursor-pointer">
+					<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1 cursor-pointer">
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big", author.avatarPath)}
 							alt={author.username}
-							className="block w-[120px] lg:w-[160px] h-auto"
+							className="block size-20 rounded-lg object-cover"
 						/>
 					</div>
 				</UserPopover>
 			) : (
-				<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] dark:shadow-[0_0_3px_rgba(255,255,255,0.12)]">
+				<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1">
 					<img
 						src={getStaticImageUrl("tavatar.gif")}
 						alt="默认头像"
-						className="block w-[120px] lg:w-[160px] h-auto"
+						className="block size-20 rounded-lg object-cover"
 					/>
 				</div>
 			)}

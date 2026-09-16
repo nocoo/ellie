@@ -30,12 +30,11 @@ function FilterTab({
 	return (
 		<Link
 			href={href}
+			aria-current={active ? "page" : undefined}
 			className={cn(
-				"relative px-2 py-1.5 text-sm font-medium transition-colors",
+				"relative shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
 				"hover:text-foreground",
-				active
-					? "text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:bg-foreground"
-					: "text-muted-foreground",
+				active ? "bg-primary/10 text-primary" : "text-muted-foreground",
 			)}
 		>
 			{children}
@@ -148,7 +147,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 
 				<CardContent className="pt-3">
 					{/* Filter tabs (server-rendered links) */}
-					<div className="flex items-center gap-1 mb-4 border-b border-border pb-px">
+					<div className="flex items-center gap-1 mb-4 overflow-x-auto rounded-xl bg-muted/50 p-1">
 						<FilterTab href={buildLevelUrl()} active={!validLevel}>
 							全部 ({data.stats.total})
 						</FilterTab>

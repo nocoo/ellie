@@ -6,7 +6,7 @@
 // reliably tell us the user is unverified — see `selfEmailVerifiedAt`.
 
 import type { Forum } from "@ellie/types";
-import { Award, Megaphone, PenLine } from "lucide-react";
+import { Award, Hash, Megaphone, PenLine } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AnnouncementCard } from "@/components/forum/announcement-card";
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatNumber } from "@/viewmodels/shared/formatting";
+import { ForumPageHeader } from "./forum-page-header";
 
 interface ForumHeaderClientProps {
 	forum: Forum;
@@ -62,77 +63,69 @@ export function ForumHeaderClient({
 
 	return (
 		<>
-			<div className="rounded-sm border border-border bg-gradient-to-br from-primary/5 via-background to-primary/[0.02]">
-				<div className="p-4">
-					{/* Top: Forum name + action buttons */}
-					<div className="flex items-center justify-between gap-4">
-						<h1 className="text-lg font-semibold text-foreground">{forum.name}</h1>
-						<div className="flex items-center gap-2 shrink-0">
-							{/* Empty-state announcement creation entry — only when
-							    moderator AND there is no announcement yet. Non-empty
-							    state owns its own edit button inside the card. */}
-							{canEditAnnouncement && !forum.announcement && (
-								<Button
-									variant="outline"
-									onClick={() => setAnnouncementDialogOpen(true)}
-									className="gap-2"
-								>
-									<Megaphone className="h-4 w-4" />
-									添加公告
-								</Button>
-							)}
-							{!isGroup && (
-								<Button
-									onClick={handleNewThreadClick}
-									className="gap-2 bg-primary hover:bg-primary/90"
-								>
-									<PenLine className="h-4 w-4" />
-									发表新帖
-								</Button>
-							)}
-						</div>
-					</div>
-
-					{/* Description */}
-					{forum.description && (
-						<SafeHtml
-							html={forum.description}
-							className="mt-2 text-sm text-muted-foreground leading-relaxed"
-						/>
-					)}
-
-					{/* Announcement card (populated state) */}
-					<AnnouncementCard
-						forumId={forum.id}
-						forumName={forum.name}
-						announcement={forum.announcement}
-						canEdit={canEditAnnouncement}
-					/>
-
-					{/* Stats row */}
-					{!isGroup && (
-						<div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-6 text-sm">
-							<span className="text-muted-foreground">
-								主题{" "}
-								<span className="font-medium text-foreground">{formatNumber(forum.threads)}</span>
-							</span>
-							<span className="text-muted-foreground">
-								回帖{" "}
-								<span className="font-medium text-foreground">{formatNumber(forum.posts)}</span>
-							</span>
-							<Button
-								size="sm"
-								className="bg-success hover:bg-success/90 text-white gap-1.5"
-								nativeButton={false}
-								render={<Link href="/digest" />}
-							>
-								<Award className="h-4 w-4" />
-								精华帖
+			<ForumPageHeader
+				icon={<Hash />}
+				title={forum.name}
+				description={
+					forum.description ? (
+						<SafeHtml html={forum.description} />
+					) : (
+						"浏览最新讨论，分享你的想法与见闻。"
+					)
+				}
+				actions={
+					<>
+						{canEditAnnouncement && !forum.announcement && (
+							<Button variant="outline" onClick={() => setAnnouncementDialogOpen(true)}>
+								<Megaphone className="size-4" aria-hidden="true" />
+								添加公告
 							</Button>
-						</div>
-					)}
-				</div>
-			</div>
+						)}
+						{!isGroup && (
+							<Button onClick={handleNewThreadClick}>
+								<PenLine className="size-4" aria-hidden="true" />
+								发表新帖
+							</Button>
+						)}
+					</>
+				}
+			>
+				{!isGroup && (
+					<div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground tabular-nums">
+						<span>
+							主题{" "}
+							<strong className="ml-1 text-base font-semibold text-foreground">
+								{formatNumber(forum.threads)}
+							</strong>
+						</span>
+						<span>
+							帖子{" "}
+							<strong className="ml-1 text-base font-semibold text-foreground">
+								{formatNumber(forum.posts)}
+							</strong>
+						</span>
+						<span>
+							今日主题{" "}
+							<strong className="ml-1 text-base font-semibold text-primary">
+								{formatNumber(forum.todayThreads)}
+							</strong>
+						</span>
+						<Link
+							href="/digest"
+							className="ml-auto inline-flex items-center gap-1.5 text-primary hover:underline"
+						>
+							<Award className="size-4" aria-hidden="true" />
+							精华帖
+						</Link>
+					</div>
+				)}
+				<AnnouncementCard
+					forumId={forum.id}
+					forumName={forum.name}
+					announcement={forum.announcement}
+					canEdit={canEditAnnouncement}
+				/>
+			</ForumPageHeader>
 
 			{/* New Thread Dialog */}
 			<NewThreadDialog

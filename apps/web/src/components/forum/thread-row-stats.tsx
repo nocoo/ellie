@@ -1,7 +1,7 @@
 // components/forum/thread-row-stats.tsx — Shared stats display for thread rows
 // Used by thread-item.tsx and digest-card.tsx
 
-import { Heart } from "lucide-react";
+import { Eye, Heart, MessageSquare } from "lucide-react";
 import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 
 interface ThreadRowStatsProps {
@@ -29,7 +29,8 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 				</span>
 				{recommends > 0 ? (
 					<span className="inline-flex items-center gap-0.5 text-xs text-destructive">
-						<Heart className="h-3 w-3 fill-current" />
+						<Heart className="h-3 w-3 fill-current" aria-hidden="true" />
+						<span className="sr-only">推荐 </span>
 						{formatCompactNumber(recommends)}
 					</span>
 				) : (
@@ -39,16 +40,25 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 		);
 	}
 
-	// mobile — fragment content for inside an existing wrapper span. Wrapped
-	// in a `<span data-testid="thread-row-stats-mobile">` so callers that
-	// removed this variant on mobile (per reviewer freeze msg=8b90cb85) can
-	// pin the absence via testid rather than text-content regex.
 	return (
-		<span data-testid="thread-row-stats-mobile">
-			{formatCompactNumber(replies)} 回 / {formatCompactNumber(views)} 览
+		<span
+			data-testid="thread-row-stats-mobile"
+			className="inline-flex items-center gap-2 whitespace-nowrap"
+		>
+			<span className="inline-flex items-center gap-1" title={`${replies} 条回复`}>
+				<MessageSquare className="size-3" aria-hidden="true" />
+				<span className="sr-only">回复 </span>
+				{formatCompactNumber(replies)}
+			</span>
+			<span className="inline-flex items-center gap-1" title={`${views} 次查看`}>
+				<Eye className="size-3" aria-hidden="true" />
+				<span className="sr-only">浏览 </span>
+				{formatCompactNumber(views)}
+			</span>
 			{recommends > 0 && (
 				<span className="inline-flex items-center gap-0.5 ml-1.5 text-destructive">
-					<Heart className="h-3 w-3 fill-current" />
+					<Heart className="h-3 w-3 fill-current" aria-hidden="true" />
+					<span className="sr-only">推荐 </span>
 					{formatCompactNumber(recommends)}
 				</span>
 			)}

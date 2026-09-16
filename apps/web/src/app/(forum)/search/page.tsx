@@ -1,18 +1,20 @@
 // Ref: 04f §9 — Single Card: search form + results + pagination
 
-import { getThreadBadges } from "@ellie/types";
+import { Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { SearchHero } from "@/components/forum/search-hero";
-import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { ThreadItem } from "@/components/forum/thread-item";
+import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { loadSearchResults, type SearchData } from "@/viewmodels/forum/search.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { enrichThreads } from "@/viewmodels/forum/thread-list";
 
 interface SearchPageProps {
 	searchParams: Promise<{ q?: string; cursor?: string }>;
@@ -76,6 +78,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 		);
 	}
 
+	const postsPerPage = await getCachedPostsPerPage();
+	const items = enrichThreads(data.results.items);
 	const breadcrumbs = [
 		{ label: homeLabel, href: "/" },
 		{ label: "搜索", href: "/search" },
@@ -99,13 +103,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 					{/* Search form */}
 					<form className="flex gap-2" action="/search" method="get">
 						<Input
-							type="text"
+							type="search"
+							aria-label="关键词"
 							name="q"
 							defaultValue={data.query}
 							placeholder="输入关键词搜索..."
-							className="h-8 flex-1"
+							className="h-10 flex-1"
 						/>
-						<Button type="submit" size="sm">
+						<Button type="submit" className="h-10 px-4">
+							<Search className="size-4" aria-hidden="true" />
 							搜索
 						</Button>
 					</form>
@@ -120,34 +126,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 							) : data.results.items.length === 0 ? (
 								<div className="py-8 text-center text-sm text-muted-foreground">未找到相关结果</div>
 							) : (
-								<div className="divide-y divide-border/50">
-									{data.results.items.map((thread) => {
-										const badges = getThreadBadges(thread);
-										return (
-											<div
-												key={thread.id}
-												className="flex items-center gap-2 py-1.5 transition-colors hover:bg-accent/50"
-											>
-												{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-												<Link
-													href={`/threads/${thread.id}`}
-													prefetch={false}
-													className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
-												>
-													{thread.subject}
-												</Link>
-												<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-													<span>{thread.authorName}</span>
-													<span>·</span>
-													<span>{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}</span>
-												</div>
-												<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
-													<span>{formatCompactNumber(thread.views)} 览</span>
-													<span>{formatCompactNumber(thread.replies)} 回</span>
-												</div>
-											</div>
-										);
-									})}
+								<div className="overflow-hidden rounded-xl border border-border">
+									<div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+										找到{" "}
+										<strong className="font-semibold text-foreground">{data.results.total}</strong>{" "}
+										条相关主题
+									</div>
+									<ThreadListHeader />
+									{items.map((item) => (
+										<ThreadItem key={item.thread.id} item={item} postsPerPage={postsPerPage} />
+									))}
 								</div>
 							)}
 

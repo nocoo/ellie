@@ -23,7 +23,7 @@ export function ThreadTypeFilter({ forumId, types, activeTypeId }: ThreadTypeFil
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: not a form control; <fieldset>/<legend> carries form/reset semantics we don't want here. This is a navigational group of links.
 		<div
-			className="flex flex-wrap items-center gap-2 py-1"
+			className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3"
 			data-testid="thread-type-filter"
 			role="group"
 			aria-label="主题分类筛选"

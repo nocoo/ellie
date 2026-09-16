@@ -27,8 +27,8 @@ export function ThreadLastPostCell({
 			)}
 		>
 			{lastPosterId > 0 ? (
-				<UserPopover userId={lastPosterId}>
-					<span className="text-xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors cursor-pointer">
+				<UserPopover userId={lastPosterId} triggerClassName="min-w-0 max-w-full">
+					<span className="block text-xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors cursor-pointer">
 						{lastPoster || "-"}
 					</span>
 				</UserPopover>

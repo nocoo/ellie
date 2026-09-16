@@ -4,7 +4,19 @@
 // Desktop: 4-column table layout (Icon | Subject | Author | Stats | Last Post)
 // Mobile: 2-row compact layout (Icon + badges + subject on row 1, stats inline on row 2)
 
-import { Megaphone } from "lucide-react";
+import {
+	Award,
+	CalendarDays,
+	CircleDollarSign,
+	Gift,
+	LockKeyhole,
+	Megaphone,
+	MessageSquare,
+	MessagesSquare,
+	Pin,
+	Sprout,
+	Vote,
+} from "lucide-react";
 import Link from "next/link";
 import { highlightStyle, type ThreadDisplayItem } from "@/viewmodels/forum/thread-list";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
@@ -22,16 +34,21 @@ interface ThreadItemProps {
 	returnTo?: string;
 }
 
-/**
- * Left-column row icon: red Megaphone for site-wide announcements
- * (sticky=2), classic Discuz folder/pin gif otherwise.
- *
- * The Megaphone is rendered at `h-4 w-4` (16px) to match the visual
- * footprint of the Discuz gifs (~14–15px square) so the desktop
- * 36px-wide icon column and the mobile row height don't jump when
- * a global announcement appears in the list. `role="img"` +
- * `aria-label` covers screen readers; no extra explanatory text.
- */
+const THREAD_ICONS = {
+	"folder_lock.gif": [LockKeyhole, "已关闭"],
+	"pollsmall.gif": [Vote, "投票"],
+	"tradesmall.gif": [CircleDollarSign, "交易"],
+	"rewardsmall.gif": [Gift, "悬赏"],
+	"activitysmall.gif": [CalendarDays, "活动"],
+	"debatesmall.gif": [MessagesSquare, "辩论"],
+	"pin_1.gif": [Pin, "版块置顶"],
+	"pin_2.gif": [Pin, "全站置顶"],
+	"pin_3.gif": [Pin, "分区置顶"],
+	"pin_4.gif": [Pin, "置顶"],
+	"folder_new.gif": [MessageSquare, "最近有回复"],
+	"folder_common.gif": [MessageSquare, "主题"],
+} as const;
+
 function ThreadRowIcon({
 	iconSrc,
 	isGlobalAnnouncement,
@@ -41,17 +58,17 @@ function ThreadRowIcon({
 	isGlobalAnnouncement: boolean;
 	extraClass?: string;
 }) {
-	if (isGlobalAnnouncement) {
-		return (
-			<Megaphone
-				role="img"
-				aria-label="全站公告"
-				className={`text-destructive h-4 w-4 shrink-0 ${extraClass}`.trim()}
-			/>
-		);
-	}
-	// eslint-disable-next-line @next/next/no-img-element
-	return <img src={iconSrc} alt="" className={`opacity-70 ${extraClass}`.trim()} />;
+	const filename = iconSrc.split("/").pop() as keyof typeof THREAD_ICONS;
+	const [Icon, label] = isGlobalAnnouncement
+		? ([Megaphone, "全站公告"] as const)
+		: (THREAD_ICONS[filename] ?? THREAD_ICONS["folder_common.gif"]);
+	return (
+		<Icon
+			role="img"
+			aria-label={label}
+			className={`size-4 shrink-0 ${isGlobalAnnouncement ? "text-destructive" : "text-primary/70"} ${extraClass}`}
+		/>
+	);
 }
 
 export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
@@ -112,7 +129,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				)}
 
 				{/* Column 1: Subject — flex row so title truncates but accessories stay visible */}
-				<div className="min-w-0 flex-1 py-2 px-3 flex items-center gap-1.5">
+				<div className="min-w-0 flex-1 py-3 px-3 flex flex-wrap items-center gap-1.5">
 					{badges.length > 0 && (
 						<span className="inline-flex items-center gap-1 shrink-0">
 							<ThreadBadgeList badges={badges} />
@@ -121,13 +138,21 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					<Link
 						href={threadHref}
 						prefetch={false}
-						className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
+						className="min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 						style={highlightStyle(hl)}
 					>
 						{thread.subject}
 					</Link>
-					{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
-					{newbieStampSrc && <img src={newbieStampSrc} alt="new" className="shrink-0" />}
+					{digestSrc && (
+						<Award
+							role="img"
+							aria-label={`精华 ${thread.digest}`}
+							className="size-4 shrink-0 text-success"
+						/>
+					)}
+					{newbieStampSrc && (
+						<Sprout role="img" aria-label="首次发帖" className="size-4 shrink-0 text-success" />
+					)}
 					<span className="shrink-0">
 						<ThreadInlinePages
 							threadId={thread.id}
@@ -149,7 +174,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							未知用户
 						</span>
 					) : (
-						<UserPopover userId={thread.authorId}>
+						<UserPopover userId={thread.authorId} triggerClassName="max-w-full min-w-0">
 							<span className="block text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
 								{thread.authorName}
 							</span>
@@ -177,7 +202,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 			</div>
 
 			{/* Mobile layout: two-row compact display */}
-			<div className="sm:hidden px-3 py-2">
+			<div className="sm:hidden px-3 py-3">
 				{/* Row 1: Icon + badges + subject (avatar moved to Row 2 per
 				    reviewer freeze msg=5a91dfd3 — keeps the title area free
 				    of the avatar visual on phones). */}
@@ -197,14 +222,22 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							<Link
 								href={threadHref}
 								prefetch={false}
-								className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
+								className="min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 								style={highlightStyle(hl)}
 								data-testid="thread-item-mobile-title-link"
 							>
 								{thread.subject}
 							</Link>
-							{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
-							{newbieStampSrc && <img src={newbieStampSrc} alt="new" className="shrink-0" />}
+							{digestSrc && (
+								<Award
+									role="img"
+									aria-label={`精华 ${thread.digest}`}
+									className="size-4 shrink-0 text-success"
+								/>
+							)}
+							{newbieStampSrc && (
+								<Sprout role="img" aria-label="首次发帖" className="size-4 shrink-0 text-success" />
+							)}
 							<span className="shrink-0">
 								<ThreadInlinePages
 									threadId={thread.id}
@@ -216,11 +249,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 						</div>
 					</div>
 				</div>
-				{/* Row 2: avatar + author · time — stats (回/览/recommends) are
-				    secondary info hidden on mobile per reviewer freeze
-				    (msg 8b90cb85). Avatar lives here (left of the username)
-				    per reviewer freeze msg=5a91dfd3. */}
-				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 					{isAnonAuthor || isOrphanAuthor ? (
 						<div className="shrink-0" data-testid="thread-item-mobile-avatar-link">
 							<ForumAvatar
@@ -245,13 +274,13 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							/>
 						</Link>
 					)}
-					<span className="min-w-0 truncate">
+					<span className="min-w-0 max-w-32 truncate">
 						{isAnonAuthor ? (
 							<span className="block truncate text-muted-foreground">匿名</span>
 						) : isOrphanAuthor ? (
 							<span className="block truncate text-muted-foreground">未知用户</span>
 						) : (
-							<UserPopover userId={thread.authorId}>
+							<UserPopover userId={thread.authorId} triggerClassName="max-w-full min-w-0">
 								<span className="block truncate text-foreground hover:text-primary cursor-pointer">
 									{thread.authorName}
 								</span>
@@ -260,6 +289,14 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					</span>
 					<span className="shrink-0">·</span>
 					<span className="shrink-0">{formatRelativeTime(thread.createdAt)}</span>
+					<span className="ml-auto shrink-0 tabular-nums">
+						<ThreadRowStats
+							replies={thread.replies}
+							views={thread.views}
+							recommends={thread.recommends}
+							variant="mobile"
+						/>
+					</span>
 				</div>
 			</div>
 		</div>

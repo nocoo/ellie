@@ -1,11 +1,12 @@
 "use client";
 import type { Thread, UserRole } from "@ellie/types";
+import { MessageSquarePlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { Button } from "@/components/ui/button";
 import { buildQuoteSnippet } from "@/lib/text";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
@@ -206,12 +207,13 @@ function ThreadToolbar({
 	if (!showReply && !showMod) return null;
 
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 -mt-px first:mt-0">
+		<div className="flex flex-wrap items-center justify-between gap-2 py-1">
 			{/* Reply button — traditional Discuz image */}
 			{showReply ? (
-				<button type="button" onClick={onReply} className="shrink-0">
-					<img src={getStaticImageUrl("pn_reply.png")} alt="回复" className="block" />
-				</button>
+				<Button onClick={onReply} className="shrink-0">
+					<MessageSquarePlus className="size-4" aria-hidden="true" />
+					回复
+				</Button>
 			) : (
 				<div />
 			)}

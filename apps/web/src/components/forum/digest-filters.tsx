@@ -96,10 +96,11 @@ export function DigestFiltersClient({
 	const hasActiveFilters = currentYear || currentForumId;
 
 	return (
-		<div className="flex flex-wrap items-center gap-2 mb-4">
+		<div className="flex flex-wrap items-center gap-2 mb-4 rounded-xl border border-border bg-muted/20 p-3">
 			{/* Year filter */}
 			<div className="w-[120px]">
 				<Select
+					aria-label="精华年份"
 					options={yearOptions}
 					value={currentYear ? String(currentYear) : "all"}
 					onChange={handleYearChange}
@@ -128,6 +129,7 @@ export function DigestFiltersClient({
 						<Input
 							type="text"
 							placeholder="搜索版块..."
+							aria-label="搜索版块"
 							value={forumSearch}
 							onChange={(e) => setForumSearch(e.target.value)}
 							className="h-8 pl-8 text-xs"
@@ -187,6 +189,7 @@ export function DigestFiltersClient({
 					{currentYear} 年
 					<button
 						type="button"
+						aria-label="清除年份筛选"
 						onClick={() => router.push(buildFilterUrl({ year: null }))}
 						className="hover:bg-primary/20 rounded-full p-0.5"
 					>
@@ -199,6 +202,7 @@ export function DigestFiltersClient({
 					{currentForumName}
 					<button
 						type="button"
+						aria-label="清除版块筛选"
 						onClick={handleClearForum}
 						className="hover:bg-primary/20 rounded-full p-0.5"
 					>

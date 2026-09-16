@@ -1,9 +1,11 @@
 // Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
 import { getThreadBadges } from "@ellie/types";
+import { Clock3, Eye, MessageCircle, MessageSquare } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
+import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { ModProvider } from "@/components/forum/mod-context";
 import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
@@ -25,7 +27,7 @@ import {
 	validateReturnTo,
 } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { formatNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
 
 interface ThreadDetailPageProps {
@@ -179,37 +181,57 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			    per reviewer freeze msg=5a91dfd3. Desktop unchanged. */}
 			<BreadcrumbBar items={data.breadcrumbs} mobileCompact="hide-intermediate" />
 
-			{/* Thread header (simplified — views/replies now in first post sidebar) */}
-			<Card size="sm" className="bg-gradient-to-br from-muted/40 via-background to-muted/20">
-				<CardContent>
-					<div className="flex items-start gap-2 flex-wrap">
-						<div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-							<ThreadBadgeList badges={badges} />
-							<h1 className="text-base font-semibold text-foreground">{thread.subject}</h1>
-							{data.canEditSubject && (
-								<ThreadTitleEditButton threadId={thread.id} currentSubject={thread.subject} />
-							)}
-						</div>
-						<ThreadReportButton
-							threadId={thread.id}
-							authorId={thread.authorId}
-							currentUserId={data.currentUser?.id ?? null}
-						/>
-					</div>
-					<div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+			<ForumPageHeader
+				icon={<MessageSquare />}
+				title={
+					<span className="flex flex-wrap items-center gap-2">
+						<ThreadBadgeList badges={badges} />
+						<span>{thread.subject}</span>
+						{data.canEditSubject && (
+							<ThreadTitleEditButton threadId={thread.id} currentSubject={thread.subject} />
+						)}
+					</span>
+				}
+				actions={
+					<ThreadReportButton
+						threadId={thread.id}
+						authorId={thread.authorId}
+						currentUserId={data.currentUser?.id ?? null}
+					/>
+				}
+				description={
+					<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 						<Link
 							href={`/forums/${thread.forumId}`}
-							className="hover:text-primary transition-colors"
+							className="font-medium text-primary hover:underline"
 						>
-							版块
+							{data.forum?.name ?? "版块"}
 						</Link>
-						<span>·</span>
 						<ThreadHeaderAuthor thread={thread} />
-						<span>·</span>
 						<span>{formatRelativeTime(thread.createdAt)}</span>
 					</div>
-				</CardContent>
-			</Card>
+				}
+			>
+				<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground tabular-nums">
+					<span className="inline-flex items-center gap-1.5">
+						<Eye className="size-4" aria-hidden="true" />
+						{formatNumber(thread.views)} 次查看
+					</span>
+					<span className="inline-flex items-center gap-1.5">
+						<MessageCircle className="size-4" aria-hidden="true" />
+						{formatNumber(thread.replies)} 条回复
+					</span>
+					{thread.lastPostAt > 0 && (
+						<Link
+							href={getThreadPageUrl(thread.id, threadPages, validReturnTo ?? undefined)}
+							className="inline-flex items-center gap-1.5 hover:text-primary"
+						>
+							<Clock3 className="size-4" aria-hidden="true" />
+							最后回复 {formatRelativeTime(thread.lastPostAt)}
+						</Link>
+					)}
+				</div>
+			</ForumPageHeader>
 
 			{/* Top pagination */}
 			<PagePagination

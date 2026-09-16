@@ -159,7 +159,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		);
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-4">
 			{/* Breadcrumbs */}
 			<BreadcrumbBar items={data.breadcrumbs} />
 			{/* Forum header with new thread button */}
@@ -181,7 +181,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 
 			{isGroup && data.forum ? (
 				/* Group forum — render children as forum cards instead of thread list */
-				<div className="overflow-hidden rounded-sm border border-border bg-card">
+				<div className="overflow-hidden rounded-xl border border-border bg-card">
 					<ForumPanel forums={data.forum.children} layout="auto" />
 				</div>
 			) : (
@@ -189,7 +189,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 				<>
 					{/* Sub-forums above recommended threads */}
 					{data.forum && data.forum.children.length > 0 && (
-						<div className="overflow-hidden rounded-sm border border-border bg-card">
+						<div className="overflow-hidden rounded-xl border border-border bg-card">
 							<ForumPanel forums={data.forum.children} layout="auto" />
 						</div>
 					)}
@@ -207,7 +207,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					)}
 
 					{/* Toolbar: new post button (left) + pagination (right) */}
-					<div className="flex items-center gap-2 py-2">
+					<div className="flex flex-wrap items-center gap-2 py-1">
 						{data.forum && !isGroup && (
 							<ForumNewPostButton
 								forumId={data.forum.id}
@@ -249,7 +249,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					</Card>
 
 					{/* Toolbar: same layout below the list */}
-					<div className="flex items-center gap-2 py-2">
+					<div className="flex flex-wrap items-center gap-2 py-1">
 						{data.forum && !isGroup && (
 							<ForumNewPostButton
 								forumId={data.forum.id}

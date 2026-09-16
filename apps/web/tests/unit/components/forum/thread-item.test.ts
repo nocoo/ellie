@@ -16,6 +16,7 @@ vi.mock("@/viewmodels/forum/thread-list", () => ({
 
 vi.mock("@/viewmodels/shared/formatting", () => ({
 	formatRelativeTime: () => "1 day ago",
+	formatCompactNumber: (value: number) => String(value),
 }));
 
 // Track ThreadInlinePages props
@@ -33,11 +34,6 @@ vi.mock("@/components/forum/thread-badge", () => ({
 
 vi.mock("@/components/forum/thread-last-post-cell", () => ({
 	ThreadLastPostCell: () => createElement("div"),
-}));
-
-vi.mock("@/components/forum/thread-row-stats", () => ({
-	ThreadRowStats: (props: { variant: "desktop" | "mobile" }) =>
-		createElement("div", { "data-testid": `thread-row-stats-${props.variant}` }),
 }));
 
 vi.mock("@/components/forum/user-avatar", () => ({
@@ -187,21 +183,15 @@ describe("ThreadItem — global announcement icon", () => {
 		}
 	});
 
-	it("renders classic <img> icon (no megaphone) when isGlobalAnnouncement=false", () => {
+	it("labels ordinary threads without announcing them as global notices", () => {
 		const item = makeDisplayItem({ isGlobalAnnouncement: false });
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
 
 		expect(screen.queryByLabelText("全站公告")).toBeNull();
-		// The classic folder/pin gif is rendered via <img alt=""> — assert at
-		// least one such image is present.
-		const imgs = document.querySelectorAll("img[src='/static/folder_common.gif']");
-		expect(imgs.length).toBeGreaterThan(0);
+		expect(screen.getAllByRole("img", { name: "主题" })).toHaveLength(2);
 	});
 
-	it("forum-pin (sticky=1) and category-pin (sticky=3) keep their pin gif via iconSrc", () => {
-		// The VM is responsible for producing iconSrc=pin_N.gif and
-		// isGlobalAnnouncement=false for sticky=1/3. Simulate that here so
-		// ThreadItem cannot accidentally swap the gif for a megaphone.
+	it("labels category pins separately from global announcements", () => {
 		const item = makeDisplayItem({
 			isGlobalAnnouncement: false,
 			iconSrc: "/static/pin_3.gif",
@@ -209,8 +199,7 @@ describe("ThreadItem — global announcement icon", () => {
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
 
 		expect(screen.queryByLabelText("全站公告")).toBeNull();
-		const imgs = document.querySelectorAll("img[src='/static/pin_3.gif']");
-		expect(imgs.length).toBeGreaterThan(0);
+		expect(screen.getAllByRole("img", { name: "分区置顶" })).toHaveLength(2);
 	});
 
 	it("preserves desktop 36px icon column wrapper for global announcements", () => {
@@ -263,23 +252,20 @@ describe("ThreadItem — iPhone avatar moved to Row 2", () => {
 	});
 });
 
-// ─── Mobile trim contract (reviewer freeze msg=8b90cb85) ─────────────────────
-// On iPhone the thread list row drops 阅读 / 回复 / 推荐数 — those numbers are
-// secondary. Desktop branch is untouched and continues to render
-// ThreadRowStats inside its own column. Asserting via stable data-testid
-// (not class strings) per reviewer's "不要只靠 class 字符串测试" rule.
-describe("ThreadItem — iPhone mobile-trim contract", () => {
-	it("only the desktop ThreadRowStats slot is rendered; mobile variant is absent", () => {
+describe("ThreadItem — mobile activity counts", () => {
+	it("preserves replies and views on both desktop and mobile", () => {
 		const item = makeDisplayItem();
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
 		expect(screen.getAllByTestId("thread-row-stats-desktop").length).toBe(1);
-		expect(screen.queryByTestId("thread-row-stats-mobile")).toBeNull();
+		const mobile = screen.getByTestId("thread-row-stats-mobile");
+		expect(mobile.textContent).toContain("回复 30");
+		expect(mobile.textContent).toContain("浏览 100");
 	});
 
-	it("global-announcement row also has no mobile-stats slot", () => {
-		const item = makeDisplayItem({ isGlobalAnnouncement: true });
+	it("includes recommendations for global announcements on mobile", () => {
+		const item = makeDisplayItem({ isGlobalAnnouncement: true, recommends: 7 });
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
-		expect(screen.queryByTestId("thread-row-stats-mobile")).toBeNull();
+		expect(screen.getByTestId("thread-row-stats-mobile").textContent).toContain("推荐 7");
 	});
 });
 

@@ -262,24 +262,14 @@ img.smiley {
 	margin: 0 1px;
 }
 
-/* Quote blocks - matches Discuz style */
+/* Migrated quote content */
 div.quote {
 	overflow: hidden;
 	margin: 0.75rem 0;
-	padding: 0.75rem 1rem 0.75rem 2rem;
-	background: #f0f8ff url("https://t.no.mt/static/image/common/qa.gif") no-repeat 8px 8px;
-	border: 1px solid #d4e3f0;
-	border-radius: var(--radius);
-	position: relative;
-}
-div.quote::after {
-	content: "";
-	position: absolute;
-	right: 8px;
-	bottom: 8px;
-	width: 24px;
-	height: 20px;
-	background: url("https://t.no.mt/static/image/common/qz.gif") no-repeat 100% 100%;
+	padding: 0.75rem 1rem;
+	background: hsl(var(--muted));
+	border-left: 3px solid hsl(var(--primary) / 0.5);
+	border-radius: 0 var(--radius) var(--radius) 0;
 }
 div.quote blockquote {
 	margin: 0;

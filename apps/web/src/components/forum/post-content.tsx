@@ -8,10 +8,11 @@
 // suppressHydrationWarning prevents that.
 
 import type { User } from "@ellie/types";
+import { Download, Paperclip } from "lucide-react";
 import type { ReactNode } from "react";
 import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon";
 import { Badge } from "@/components/ui/badge";
-import { getAttachmentThumbUrl, getAttachmentUrl, getStaticImageUrl } from "@/lib/cdn";
+import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
 	type EnrichedPost,
 	floorLabel,
@@ -58,7 +59,7 @@ export function PostContent({
 				    keeps it. `md:flex` matches PostCard's `md:hidden` / `md:flex`
 				    breakpoint so the two layouts toggle as a single switch. */}
 				<div
-					className="hidden md:flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground"
+					className="hidden md:flex items-center gap-2 pb-2 border-b border-border/70 text-xs text-muted-foreground"
 					data-testid="post-content-meta-bar"
 				>
 					<PostAuthorStatusIcon
@@ -97,11 +98,11 @@ export function PostContent({
 
 				{/* Post HTML content — isolated in <article> so unclosed tags
 				   cannot escape into sibling React nodes.
-				   `min-h-[120px]` keeps very short posts from collapsing
+				   The minimum height keeps very short posts from collapsing
 				   onto the signature line; long posts still auto-expand
 				   because min-height never caps content. */}
 				<article
-					className="mt-3 prose prose-sm max-w-none text-foreground whitespace-pre-line min-h-[120px] [&>*:first-child]:mt-0"
+					className="mt-4 prose prose-sm max-w-none text-[15px] leading-7 text-foreground whitespace-pre-line min-h-[80px] break-words [overflow-wrap:anywhere] [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&>*:first-child]:mt-0"
 					suppressHydrationWarning
 				>
 					<div dangerouslySetInnerHTML={{ __html: post.content }} suppressHydrationWarning />
@@ -123,13 +124,19 @@ export function PostContent({
 											<img src={thumbUrl} alt={att.filename} className="max-h-20 rounded" />
 										</a>
 									) : (
-										<>
-											<span className="text-muted-foreground">📎</span>
+										<a
+											href={attachmentUrl}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="flex min-w-0 flex-1 items-center gap-2 text-primary hover:underline"
+										>
+											<Paperclip className="size-4 shrink-0" aria-hidden="true" />
 											<span className="truncate">{att.filename}</span>
 											<span className="text-muted-foreground shrink-0">
 												{formatFileSize(att.fileSize)}
 											</span>
-										</>
+											<Download className="ml-auto size-4 shrink-0" aria-hidden="true" />
+										</a>
 									)}
 								</div>
 							);
@@ -140,17 +147,10 @@ export function PostContent({
 				{/* Spacer pushes signature to bottom when sidebar is taller */}
 				<div className="flex-1" />
 
-				{/* Author signature — sigline.gif separator, left-aligned */}
+				{/* Author signature */}
 				{author?.signature && (
 					<div className="mt-4">
-						<div className="flex justify-start">
-							<img
-								src={getStaticImageUrl("sigline.gif")}
-								alt=""
-								className="h-auto w-auto max-w-full"
-								aria-hidden="true"
-							/>
-						</div>
+						<div className="mb-3 h-px w-24 bg-border" />
 						<article
 							className="text-xs text-muted-foreground prose prose-sm max-w-none [&>*]:text-muted-foreground [&>*]:text-xs"
 							suppressHydrationWarning

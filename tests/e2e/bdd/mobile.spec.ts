@@ -187,15 +187,10 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		}
 	});
 
-	test("Given I am on a populated forum at 375px, Then the mobile thread row hides 阅读/回复/推荐数 and the forum-new-post button is hidden", async ({
+	test("Given I am on a populated forum at 375px, Then activity counts are visible and the secondary new-post button is hidden", async ({
 		page,
 		loginAs,
 	}) => {
-		// Given: authenticated user on the populated forum at 375px. Merges
-		// MOB-04 (thread-row-stats-mobile absent) with MOB-08 (new-post-button
-		// hidden) because both load the same forum 114 page at 375px and
-		// assert hide-on-mobile invariants — splitting would re-pay the
-		// loginAs + goto + thread-item-render wait.
 		await page.setViewportSize({ width: 375, height: 667 });
 		await loginAs("e2etest");
 		const forumPage = new ForumPage(page);
@@ -203,11 +198,11 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
 		await expect(page.getByTestId("thread-item").first()).toBeVisible({ timeout: 15_000 });
 
-		// Then: ThreadRowStats mobile variant must not be rendered at all
-		// (count===0 is stricter than text-content regex against drift).
-		await expect(page.getByTestId("thread-row-stats-mobile")).toHaveCount(0);
+		await expect(page.getByTestId("thread-row-stats-mobile").first()).toBeVisible();
+		await expect(page.getByTestId("thread-row-stats-mobile").first()).toContainText("回复");
+		await expect(page.getByTestId("thread-row-stats-mobile").first()).toContainText("浏览");
 
-		// Then: ForumNewPostButton (hidden sm:inline-block) is mounted twice
+		// Then: ForumNewPostButton is mounted twice
 		// (top + bottom toolbars); both copies must be CSS-hidden. Existence-
 		// conditional because group/read-only forums skip the button.
 		const button = page.getByTestId("forum-new-post-button");

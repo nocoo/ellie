@@ -1,10 +1,11 @@
 "use client";
 
-// components/forum/forum-new-post-button.tsx — Discuz pn_post.png button
+// components/forum/forum-new-post-button.tsx — Secondary new-thread action
 // Opens the NewThreadDialog when clicked, with write-gate preflight.
 
+import { PenLine } from "lucide-react";
 import { useCallback, useState } from "react";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { Button } from "@/components/ui/button";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { NewThreadDialog } from "./new-thread-dialog";
@@ -16,8 +17,6 @@ interface ForumNewPostButtonProps {
 	/** Server-injected 主题分类 payload (null when feature off / load failed). */
 	threadTypes?: ForumThreadTypesPublic | null;
 }
-
-const postIconSrc = getStaticImageUrl("pn_post.png");
 
 export function ForumNewPostButton({
 	forumId,
@@ -34,20 +33,16 @@ export function ForumNewPostButton({
 
 	return (
 		<>
-			{/* Hidden on mobile per reviewer freeze msg=5a91dfd3 — the floating
-			    toolbar already exposes 发表新帖 on phones, and the toolbar
-			    image button is visually large on a 375px viewport. Desktop
-			    unchanged: `sm:inline-block` matches the implicit default for
-			    a <button> without flex. */}
-			<button
-				type="button"
+			<Button
+				variant="outline"
+				size="sm"
 				onClick={handleClick}
 				data-testid="forum-new-post-button"
-				className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer hidden sm:inline-block"
+				className="hidden shrink-0 sm:inline-flex"
 			>
-				{/* eslint-disable-next-line @next/next/no-img-element */}
-				<img src={postIconSrc} alt="发表新帖" />
-			</button>
+				<PenLine className="size-4" aria-hidden="true" />
+				发表新帖
+			</Button>
 			<NewThreadDialog
 				open={dialogOpen}
 				onOpenChange={setDialogOpen}

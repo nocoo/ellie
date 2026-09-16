@@ -266,7 +266,10 @@ export function PostCard({
 		) : null;
 
 	return (
-		<div id={`post-${post.id}`} className="border border-border bg-card -mt-px first:mt-0">
+		<div
+			id={`post-${post.id}`}
+			className="scroll-mt-4 overflow-hidden rounded-xl border border-border bg-card"
+		>
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
 				{/*
@@ -303,7 +306,7 @@ export function PostCard({
 			{/* Mobile: compact single-column layout */}
 			<div className="md:hidden">
 				{/* Compact header row */}
-				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
+				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border">
 					<MobileHeaderAvatar post={post} />
 					<div className="flex flex-col min-w-0">
 						<MobileHeaderAuthorLabel post={post} />
