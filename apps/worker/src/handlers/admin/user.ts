@@ -1,5 +1,10 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
-import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import {
+	type AdminLogActor,
+	resolveActor,
+	sanitizeAdminLogDetails,
+	writeAdminLog,
+} from "../../lib/adminLog";
 import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
@@ -770,7 +775,7 @@ export const nuke = withEntityAuth(
 // "彻底清除" — delete user content + tombstone the user row + best-effort R2.
 //
 // D4-b SCOPE (replaces D4-a 501 skeleton; merges original D4-c R2 step):
-//   - DB cleanup + counter repair + tombstone in a single env.DB.batch().
+//   - DB cleanup + counter repair + audit + tombstone in one env.DB.batch().
 //   - Counter and latest-content metadata repair are inside that same batch.
 //   - After DB commit + cache invalidation: best-effort R2 deletes (avatar +
 //     attachments). R2 failures DO NOT fail the request — reported in response.
@@ -800,10 +805,11 @@ export const nuke = withEntityAuth(
 //   USER_NOT_FOUND      target id missing
 //   CONFIRM_MISMATCH    confirm !== "ok"
 //   CANNOT_PURGE_STAFF  target.role > 0
-//   ALREADY_PURGED      target.status === -99
+//   Already-purged targets return success without repeating the mutation.
 //
 // Failure semantics:
-//   - DB batch failure → 500. Nothing else runs. SQLite rolls back the batch.
+//   - DB batch failure → check the tombstone before reporting an unconfirmed result.
+//     A transport failure can lose the response after the transaction commits.
 //   - R2 failures → 200 with response.r2.failed[] populated. DB is the source
 //     of truth; orphan R2 objects can be cleaned by a future GC pass.
 
@@ -885,7 +891,6 @@ async function parsePurgeBody(
 function checkPurgeGuards(target: PurgeTarget | null, origin: string | undefined): Response | null {
 	if (!target) return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	if (target.role > 0) return errorResponse("CANNOT_PURGE_STAFF", 403, undefined, origin);
-	if (target.status === -99) return errorResponse("ALREADY_PURGED", 409, undefined, origin);
 	return null;
 }
 
@@ -985,6 +990,7 @@ function buildPurgeBatch(
 	id: number,
 	pre: PurgePreflight,
 	nowSec: number,
+	actor: AdminLogActor,
 ): D1PreparedStatement[] {
 	const stmts: D1PreparedStatement[] = [];
 	const { allDeletedPostIds, ownedThreadIds } = pre;
@@ -1029,7 +1035,27 @@ function buildPurgeBatch(
 
 	stmts.push(
 		...buildContentRecalcStatements(env, pre.survivorThreadIds, pre.affectedForumIds),
-		...buildUserCounterDecrementStatements(env, pre.collateralAuthorDelta),
+		...buildUserCounterDecrementStatements(env, pre.collateralAuthorDelta, "posts", id),
+		env.DB.prepare(
+			`INSERT INTO admin_logs (admin_id, admin_name, action, target_type, target_id, details, ip, created_at)
+			 SELECT ?, ?, 'user.purge', 'user', ?, ?, ?, ?
+			 WHERE EXISTS (SELECT 1 FROM users WHERE id = ? AND status != -99)`,
+		).bind(
+			actor.adminId,
+			actor.adminName,
+			id,
+			sanitizeAdminLogDetails({
+				deletedThreads: pre.ownedThreads.length,
+				deletedPosts: pre.allDeletedPostIds.length,
+				deletedComments: pre.commentCount,
+				deletedAttachments: pre.attachmentCount,
+				deletedMessages: pre.messageCount,
+				actorEmail: actor.adminEmail,
+			}),
+			actor.ip,
+			nowSec,
+			id,
+		),
 	);
 
 	stmts.push(buildTombstoneStatement(env, id, 0, nowSec));
@@ -1042,15 +1068,14 @@ async function purgeR2Cleanup(
 ): Promise<{ deletedCount: number; failed: { key: string; error: string }[] }> {
 	const failed: { key: string; error: string }[] = [];
 	let deletedCount = 0;
-	for (const key of keys) {
+	for (let offset = 0; offset < keys.length; offset += 1000) {
+		const batch = keys.slice(offset, offset + 1000);
 		try {
-			await env.R2.delete(key);
-			deletedCount++;
+			await env.R2.delete(batch);
+			deletedCount += batch.length;
 		} catch (err) {
-			failed.push({
-				key,
-				error: err instanceof Error ? err.message : String(err),
-			});
+			const error = err instanceof Error ? err.message : String(err);
+			for (const key of batch) failed.push({ key, error });
 		}
 	}
 	return { deletedCount, failed };
@@ -1080,21 +1105,28 @@ export const purge = withEntityAuth(
 		if (guard) return guard;
 		// existing is non-null past the guard
 		const target = existing as PurgeTarget;
+		if (target.status === -99) {
+			return jsonNoStoreResponse({ purged: true, id, alreadyPurged: true }, origin);
+		}
 
 		const pre = await purgePreflight(env, id);
 		const nowSec = Math.floor(Date.now() / 1000);
-		const stmts = buildPurgeBatch(env, id, pre, nowSec);
+		const stmts = buildPurgeBatch(env, id, pre, nowSec, resolveActor(request, env));
 
 		try {
 			await env.DB.batch(stmts);
 		} catch (err) {
 			console.error("[purge] DB batch failed", { userId: id, err });
-			return errorResponse(
-				"PURGE_DB_FAILED",
-				500,
-				{ message: "DB cleanup batch failed; nothing was committed" },
-				origin,
-			);
+			let committed = false;
+			try {
+				const row = await env.DB.prepare("SELECT status FROM users WHERE id = ?")
+					.bind(id)
+					.first<{ status: number }>();
+				committed = row?.status === -99;
+			} catch (readError) {
+				console.error("[purge] Cannot confirm commit", { userId: id, err: readError });
+			}
+			if (!committed) return errorResponse("PURGE_DB_FAILED", 500, undefined, origin);
 		}
 
 		// Cache invalidations are all independent (different keys) — fan out.
@@ -1109,27 +1141,17 @@ export const purge = withEntityAuth(
 			invalidateUserCachesForIds(env, [id, ...pre.collateralAuthorDelta.keys()]),
 		];
 		if (purgeHadDigest) purgeOps.push(bumpDigestGen(env));
-		await Promise.all(purgeOps);
+		const invalidations = await Promise.allSettled(purgeOps);
+		for (const result of invalidations) {
+			if (result.status === "rejected") {
+				console.warn("[purge] Cache invalidation failed", { userId: id, err: result.reason });
+			}
+		}
 
 		const r2Keys = Array.from(
 			new Set([...pre.attachmentKeys, ...(target.avatar_path ? [target.avatar_path] : [])]),
 		);
 		const r2 = await purgeR2Cleanup(env, r2Keys);
-
-		await writeAdminLog(env, resolveActor(request, env), {
-			action: "user.purge",
-			targetType: "user",
-			targetId: id,
-			details: {
-				deletedThreads: pre.ownedThreads.length,
-				deletedPosts: pre.allDeletedPostIds.length,
-				deletedComments: pre.commentCount,
-				deletedAttachments: pre.attachmentCount,
-				deletedMessages: pre.messageCount,
-				r2DeletedCount: r2.deletedCount,
-				r2FailedCount: r2.failed.length,
-			},
-		});
 
 		return jsonNoStoreResponse(
 			{

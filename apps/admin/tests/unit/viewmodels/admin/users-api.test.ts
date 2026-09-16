@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/api-client", () => ({
+vi.mock("@/lib/api-client", async () => ({
+	ApiError: (await import("@ellie/shared")).ApiError,
 	apiClient: {
 		get: vi.fn(),
 		getList: vi.fn(),
@@ -11,7 +12,7 @@ vi.mock("@/lib/api-client", () => ({
 	},
 }));
 
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import {
 	banUser,
 	batchSetRole,
@@ -20,6 +21,7 @@ import {
 	fetchUsers,
 	fetchUsersByIds,
 	nukeUser,
+	purgeUser,
 	unbanUser,
 	updateUser,
 } from "@/viewmodels/admin/users";
@@ -79,6 +81,47 @@ describe("users API functions", () => {
 		const result = await nukeUser(42);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/users/42/nuke");
 		expect(result.nuked).toBe(true);
+	});
+
+	it("keeps a successful purge receipt without a follow-up read", async () => {
+		const receipt = { purged: true, id: 42, alreadyPurged: true };
+		mockPost.mockResolvedValue({ data: receipt });
+		expect(await purgeUser(42)).toEqual(receipt);
+		expect(mockPost).toHaveBeenCalledWith("/api/admin/users/42/purge", { confirm: "ok" });
+		expect(mockGet).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		new Error("connection reset after commit"),
+		new ApiError(500, "PURGE_DB_FAILED", "unconfirmed"),
+		new ApiError(409, "ALREADY_PURGED", "already purged"),
+	])("reconciles a lost purge receipt with a read instead of another POST: %s", async (error) => {
+		mockPost.mockRejectedValue(error);
+		mockGet.mockResolvedValue({ data: { id: 42, status: -99 } });
+		expect(await purgeUser(42)).toEqual({ purged: true, id: 42, alreadyPurged: true });
+		expect(mockPost).toHaveBeenCalledTimes(1);
+		expect(mockGet).toHaveBeenCalledWith("/api/admin/users/42");
+	});
+
+	it("preserves real cleanup failures when the account is still active", async () => {
+		const error = new ApiError(500, "PURGE_DB_FAILED", "unconfirmed");
+		mockPost.mockRejectedValue(error);
+		mockGet.mockResolvedValue({ data: { id: 42, status: 0 } });
+		await expect(purgeUser(42)).rejects.toBe(error);
+	});
+
+	it("does not claim success when the reconciliation read fails", async () => {
+		const error = new Error("connection reset");
+		mockPost.mockRejectedValue(error);
+		mockGet.mockRejectedValue(new Error("read unavailable"));
+		await expect(purgeUser(42)).rejects.toBe(error);
+	});
+
+	it("does not mask validation or authorization errors", async () => {
+		const error = new ApiError(403, "CANNOT_PURGE_STAFF", "staff account");
+		mockPost.mockRejectedValue(error);
+		await expect(purgeUser(42)).rejects.toBe(error);
+		expect(mockGet).not.toHaveBeenCalled();
 	});
 
 	it("batchSetStatus calls post", async () => {

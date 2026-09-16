@@ -8,13 +8,21 @@ export function buildUserCounterDecrementStatements(
 	env: Env,
 	counts: Map<number, number>,
 	column: "posts" | "threads" | "digest_posts" = "posts",
+	onlyIfNotPurged?: number,
 ): D1PreparedStatement[] {
 	if (counts.size === 0) return [];
+	const guard =
+		onlyIfNotPurged === undefined
+			? ""
+			: " AND EXISTS (SELECT 1 FROM users AS target WHERE target.id = ? AND target.status != -99)";
 	return [
 		env.DB.prepare(
 			`UPDATE users SET ${column} = MAX(0, ${column} - delta.value)
-			 FROM json_each(?) AS delta WHERE users.id = CAST(delta.key AS INTEGER)`,
-		).bind(JSON.stringify(Object.fromEntries(counts))),
+			 FROM json_each(?) AS delta WHERE users.id = CAST(delta.key AS INTEGER)${guard}`,
+		).bind(
+			JSON.stringify(Object.fromEntries(counts)),
+			...(onlyIfNotPurged === undefined ? [] : [onlyIfNotPurged]),
+		),
 	];
 }
 

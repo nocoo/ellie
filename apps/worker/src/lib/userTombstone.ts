@@ -128,5 +128,8 @@ export function buildTombstoneStatement(
 	const cols = Object.keys(fields);
 	const setClause = cols.map((c) => `${c} = ?`).join(", ");
 	const values = cols.map((c) => fields[c]);
-	return env.DB.prepare(`UPDATE users SET ${setClause} WHERE id = ?`).bind(...values, userId);
+	return env.DB.prepare(`UPDATE users SET ${setClause} WHERE id = ? AND status != -99`).bind(
+		...values,
+		userId,
+	);
 }

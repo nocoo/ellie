@@ -1570,7 +1570,7 @@ describe("admin user handlers", () => {
 			}
 		});
 
-		it("returns 409 ALREADY_PURGED when target.status === -99", async () => {
+		it("confirms success without repeating cleanup when target.status === -99", async () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, username, status, role, avatar_path FROM users": {
@@ -1582,8 +1582,9 @@ describe("admin user handlers", () => {
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
 			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: createMockR2() }));
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+			expect(res.status).toBe(200);
+			expect((await res.json()).data).toEqual({ purged: true, id: 42, alreadyPurged: true });
+			expect(db.batch).not.toHaveBeenCalled();
 		});
 
 		it("returns 400 for invalid path id", async () => {
@@ -1696,7 +1697,7 @@ describe("admin user handlers", () => {
 			// R2 was hit for both attachment keys + avatar.
 			expect(
 				(r2.delete as ReturnType<typeof import("vitest").vi.fn>).mock.calls
-					.map((c: unknown[]) => c[0])
+					.flatMap((c: unknown[]) => c[0])
 					.sort(),
 			).toEqual(["att/a.png", "att/b.png", "avatars/42.png"]);
 		});

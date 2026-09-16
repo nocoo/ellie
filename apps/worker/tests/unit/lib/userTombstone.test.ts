@@ -123,7 +123,7 @@ describe("userTombstone", () => {
 			const stmt = buildTombstoneStatement(env, 7, 99, 1_700_000_000);
 
 			expect(calls).toHaveLength(1);
-			expect(calls[0].sql).toMatch(/^UPDATE users SET .* WHERE id = \?$/);
+			expect(calls[0].sql).toMatch(/^UPDATE users SET .* WHERE id = \? AND status != -99$/);
 			expect(calls[0].sql).toContain("status = ?");
 			expect(calls[0].sql).toContain("purged_at = ?");
 			expect(calls[0].sql).toContain("purged_by = ?");

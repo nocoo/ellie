@@ -1,3 +1,4 @@
+import { ApiError } from "@ellie/shared";
 import { apiClient, type PaginatedResponse } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
@@ -170,13 +171,16 @@ export interface PurgeR2Failure {
 	error: string;
 }
 
-export interface PurgeResult {
-	purged: true;
-	id: number;
-	deleted: PurgeDeletedCounts;
-	audit: { actorEmail: string; actorName: string };
-	r2: { deletedCount: number; failed: PurgeR2Failure[] };
-}
+export type PurgeResult =
+	| { purged: true; id: number; alreadyPurged: true }
+	| {
+			purged: true;
+			id: number;
+			alreadyPurged?: false;
+			deleted: PurgeDeletedCounts;
+			audit: { actorEmail: string; actorName: string };
+			r2: { deletedCount: number; failed: PurgeR2Failure[] };
+	  };
 
 export interface BatchResult {
 	affected: number;
@@ -271,15 +275,32 @@ export async function nukeUser(id: number): Promise<NukeResult> {
  * Sends `{ confirm: "ok" }` — a fixed token, not the username. The dialog
  * gates the operator on typing `ok`; the Worker re-validates server-side
  * (`CONFIRM_MISMATCH` if the token is anything else). Staff users
- * (role > 0) are rejected with `CANNOT_PURGE_STAFF`. Already-purged users
- * are rejected with `ALREADY_PURGED`. UI surfaces these via the dialog
- * inline error.
+ * (role > 0) are rejected with `CANNOT_PURGE_STAFF`. Lost responses are
+ * reconciled with an authoritative read, without repeating a destructive POST.
  */
 export async function purgeUser(id: number): Promise<PurgeResult> {
-	const res = await apiClient.post<PurgeResult>(`/api/admin/users/${id}/purge`, {
-		confirm: "ok",
-	});
-	return res.data;
+	try {
+		const res = await apiClient.post<PurgeResult>(`/api/admin/users/${id}/purge`, {
+			confirm: "ok",
+		});
+		return res.data;
+	} catch (err) {
+		if (
+			err instanceof ApiError &&
+			err.status >= 400 &&
+			err.status < 500 &&
+			err.code !== "ALREADY_PURGED"
+		) {
+			throw err;
+		}
+		try {
+			const user = await fetchUser(id);
+			if (user.status === -99) return { purged: true, id, alreadyPurged: true };
+		} catch {
+			// Keep the original failure when the outcome cannot be confirmed.
+		}
+		throw err;
+	}
 }
 
 export async function batchSetStatus(ids: number[], status: number): Promise<BatchResult> {

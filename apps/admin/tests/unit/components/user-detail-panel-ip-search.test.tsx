@@ -16,6 +16,17 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const { mockPurge, mockReload, readState } = vi.hoisted(() => ({
+	mockPurge: vi.fn(),
+	mockReload: vi.fn(),
+	readState: { error: null as string | null },
+}));
+
+vi.mock("@/viewmodels/admin/users", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/viewmodels/admin/users")>()),
+	purgeUser: mockPurge,
+}));
+
 // Mock `next/navigation` at the module boundary so the panel's
 // `useRouter()` hook returns our spy. `useParams` is unused by the panel
 // directly but is exported for completeness so other panel consumers
@@ -34,7 +45,7 @@ vi.mock("@/viewmodels/admin/use-user-detail", () => ({
 		state: {
 			user: MOCK_USER,
 			loading: false,
-			error: null,
+			error: readState.error,
 			threads: [],
 			threadsPagination: { page: 1, pages: 0, total: 0, limit: 20 },
 			threadsLoading: false,
@@ -45,7 +56,7 @@ vi.mock("@/viewmodels/admin/use-user-detail", () => ({
 			postsError: null,
 		},
 		actions: {
-			reloadUser: vi.fn().mockResolvedValue(undefined),
+			reloadUser: mockReload,
 			setThreadsPage: vi.fn(),
 			setPostsPage: vi.fn(),
 		},
@@ -65,7 +76,11 @@ vi.mock("@/components/admin/user-checkin-panel", () => ({
 	UserCheckinPanel: () => null,
 }));
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+vi.mock("@/components/admin/user-write-permission-card", () => ({
+	UserWritePermissionCard: () => null,
+}));
+
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { UserDetailPanel } from "@/components/admin/user-detail-panel";
 import type { User } from "@/viewmodels/admin/users";
 
@@ -88,10 +103,63 @@ const MOCK_USER: User = {
 
 beforeEach(() => {
 	mockPush.mockClear();
+	mockPurge.mockReset();
+	mockReload.mockReset();
+	readState.error = null;
 });
 
 afterEach(() => {
 	cleanup();
+});
+
+describe("UserDetailPanel — confirmed purge", () => {
+	it.each([false, true])(
+		"keeps the receipt visible when a later user read fails (reconciled=%s)",
+		async (reconciled) => {
+			mockPurge.mockResolvedValue(
+				reconciled
+					? { purged: true, id: 42, alreadyPurged: true }
+					: {
+							purged: true,
+							id: 42,
+							deleted: { threads: 50, posts: 50, comments: 0, attachments: 49, messages: 0 },
+							audit: { actorEmail: "", actorName: "" },
+							r2: { deletedCount: 50, failed: [] },
+						},
+			);
+			mockReload.mockRejectedValue(new Error("refresh failed"));
+			const changed = vi.fn();
+			const view = render(<UserDetailPanel userId={42} onChanged={changed} />);
+			fireEvent.click(screen.getByTestId("purge-user-button"));
+			const dialog = within(screen.getByRole("dialog"));
+			fireEvent.change(dialog.getByRole("textbox", { name: "确认文本" }), {
+				target: { value: "ok" },
+			});
+			fireEvent.click(dialog.getByRole("button", { name: "彻底清除", exact: true }));
+			await screen.findByText("用户已清除");
+			expect(changed).toHaveBeenCalledWith({ kind: "purge", userId: 42 });
+			expect(mockReload).not.toHaveBeenCalled();
+			readState.error = "refresh failed";
+			view.rerender(<UserDetailPanel userId={42} onChanged={changed} />);
+			expect(screen.getByText("用户已清除")).toBeDefined();
+			expect(screen.queryByText("refresh failed")).toBeNull();
+			expect(screen.queryByTestId("purge-user-button")).toBeNull();
+			expect(screen.queryByText(MOCK_USER.email)).toBeNull();
+		},
+	);
+
+	it("keeps an unconfirmed failure in the confirmation dialog", async () => {
+		mockPurge.mockRejectedValue(new Error("清除尚未确认"));
+		render(<UserDetailPanel userId={42} />);
+		fireEvent.click(screen.getByTestId("purge-user-button"));
+		const dialog = within(screen.getByRole("dialog"));
+		fireEvent.change(dialog.getByRole("textbox", { name: "确认文本" }), {
+			target: { value: "ok" },
+		});
+		fireEvent.click(dialog.getByRole("button", { name: "彻底清除", exact: true }));
+		await screen.findByText("清除尚未确认");
+		expect(screen.queryByText("用户已清除")).toBeNull();
+	});
 });
 
 describe("UserDetailPanel — 搜索同 IP 用户", () => {

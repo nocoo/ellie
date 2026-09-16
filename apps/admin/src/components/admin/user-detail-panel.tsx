@@ -30,7 +30,7 @@
 //      without forcing a full re-mount.
 //
 // Mutation flow (locked with reviewer msg=401c721d):
-//   success → reloadUser()           // panel itself is always fresh
+//   success → reloadUser() for reversible changes; a confirmed receipt for purge
 //           → onChanged?({ kind })   // outer list (if mounted) refreshes too
 // `onChanged` is purely additive — route mode never sets it, so behaviour
 // matches the original single-page version.
@@ -51,6 +51,7 @@ import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
 	ArrowLeft,
+	CircleCheck,
 	Coins,
 	Files,
 	Globe,
@@ -105,6 +106,35 @@ function fmtIp(ip: string | undefined): string {
 	return ip && ip.trim().length > 0 ? ip : "—";
 }
 
+function PurgeCompletion({ result, onBack }: { result: PurgeResult; onBack?: () => void }) {
+	return (
+		<div className="space-y-4">
+			{onBack && <BackLinkButton onClick={onBack} />}
+			<PageHeader title="用户已清除" description={`ID: ${result.id} · 已停用账号并清除用户内容`} />
+			<AdminInlineMessage
+				variant="success"
+				text={
+					result.alreadyPurged
+						? "已确认该用户已清除，无需再次操作。"
+						: `已彻底清除该用户（主题 ${result.deleted.threads} · 帖子 ${result.deleted.posts} · 点评 ${result.deleted.comments} · 附件 ${result.deleted.attachments} · 私信 ${result.deleted.messages}）`
+				}
+			/>
+			{!result.alreadyPurged && result.r2.failed.length > 0 && (
+				<AdminInlineMessage
+					variant="info"
+					text={`账号和内容已清除，${result.r2.failed.length} 个存储文件的清理尚未确认。`}
+				/>
+			)}
+			<LayerCard padding="sm">
+				<div className="flex items-center gap-3 text-sm text-basalt-muted-foreground">
+					<CircleCheck aria-hidden="true" className="h-5 w-5 shrink-0 text-basalt-primary" />
+					清除结果已确认，账号无法继续登录、发帖或发送私信。
+				</div>
+			</LayerCard>
+		</div>
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -139,8 +169,8 @@ export interface UserDetailPanelProps {
 
 	/**
 	 * Notify the outer surface after a successful edit/ban/unban/purge.
-	 * The panel ALWAYS calls `reloadUser()` itself first (so the panel's
-	 * own data is fresh regardless of caller), then invokes `onChanged`
+	 * Reversible changes reload the user; purge renders its confirmed receipt.
+	 * The panel then invokes `onChanged`
 	 * for callers that need to refresh sibling state — e.g. the list
 	 * page's row data so the status badge isn't stale after the dialog
 	 * closes.
@@ -190,12 +220,13 @@ export function UserDetailPanel({
 	const [banError, setBanError] = useState<string | null>(null);
 
 	// D4-d: typed-confirm purge dialog. Worker enforces all guards
-	// (CONFIRM_MISMATCH / CANNOT_PURGE_STAFF / ALREADY_PURGED); UI just
+	// (CONFIRM_MISMATCH / CANNOT_PURGE_STAFF); UI just
 	// surfaces the error in the dialog. Allow opening for staff so the
 	// 403 path is reachable from this single source of truth.
 	const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
 	const [purgeLoading, setPurgeLoading] = useState(false);
 	const [purgeError, setPurgeError] = useState<string | null>(null);
+	const [purgeReceipt, setPurgeReceipt] = useState<PurgeResult | null>(null);
 
 	const [pageMessage, setPageMessage] = useState<{
 		type: "success" | "error";
@@ -259,31 +290,18 @@ export function UserDetailPanel({
 	const handlePurgeConfirm = async (user: User) => {
 		setPurgeLoading(true);
 		setPurgeError(null);
+		let result: PurgeResult;
 		try {
-			const result: PurgeResult = await purgeUser(user.id);
-			setPurgeDialogOpen(false);
-			// Reload moves the page to its tombstone view (status === -99 short
-			// circuit). If the reload itself fails, keep the success banner
-			// visible so the operator knows the purge succeeded.
-			try {
-				await actions.reloadUser();
-			} catch {
-				// swallow — the success message stays; operator can navigate back
-			}
-			onChanged?.({ kind: "purge", userId: user.id });
-			const { deleted, r2 } = result;
-			const detail = `主题 ${deleted.threads} · 帖子 ${deleted.posts} · 点评 ${deleted.comments} · 附件 ${deleted.attachments} · 私信 ${deleted.messages}${
-				r2.failed.length > 0 ? ` · R2 失败 ${r2.failed.length}` : ""
-			}`;
-			setPageMessage({
-				type: "success",
-				text: `已彻底清除该用户（${detail}）`,
-			});
+			result = await purgeUser(user.id);
 		} catch (err) {
 			setPurgeError(extractErrorMessage(err, "彻底清除失败"));
+			return;
 		} finally {
 			setPurgeLoading(false);
 		}
+		setPurgeDialogOpen(false);
+		setPurgeReceipt(result);
+		onChanged?.({ kind: "purge", userId: user.id });
 	};
 
 	// -----------------------------------------------------------------------
@@ -296,6 +314,15 @@ export function UserDetailPanel({
 				{showBack && <BackLinkButton onClick={() => router.push("/admin/users")} />}
 				<AdminInlineMessage variant="error" text="无效的用户 ID" />
 			</div>
+		);
+	}
+
+	if (purgeReceipt?.id === userId) {
+		return (
+			<PurgeCompletion
+				result={purgeReceipt}
+				onBack={showBack ? () => router.push("/admin/users") : undefined}
+			/>
 		);
 	}
 

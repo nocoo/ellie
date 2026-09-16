@@ -117,6 +117,165 @@ describe("L2-fast: user purge with large content sets", () => {
 
 // Real SQLite constraints and triggers exercise the same batch SQL as the
 // deployed Worker. Nothing in this suite can reach production bindings.
+describe("L2-fast: confirmed purge receipts", () => {
+	test("recovers a response lost after commit and retains the atomic audit", async () => {
+		const env = seedContent();
+		const original = env.DB.batch.bind(env.DB);
+		const batch = spyOn(env.DB, "batch").mockImplementation(async (statements) => {
+			const result = await original(statements);
+			if (statements.length > 2) throw new Error("connection reset after commit");
+			return result;
+		});
+		try {
+			const response = await requestAction(env, "purge");
+			expect(response.status).toBe(200);
+			expect((await response.json()).data.purged).toBe(true);
+			expect(env._sqlite.query("SELECT status FROM users WHERE id = 42").get()).toEqual({
+				status: -99,
+			});
+			expect(env._sqlite.query("SELECT action FROM admin_logs").all()).toEqual([
+				{ action: "user.purge" },
+			]);
+			expect(env._sqlite.query("SELECT posts FROM users WHERE id = 99").get()).toEqual({
+				posts: 1,
+			});
+		} finally {
+			batch.mockRestore();
+			env._sqlite.close();
+		}
+	});
+
+	test("a repeated purge is successful without changing counters, timestamps, audit or storage", async () => {
+		const env = seedContent();
+		const storage = spyOn(env.R2, "delete");
+		try {
+			expect((await requestAction(env, "purge")).status).toBe(200);
+			const tombstone = env._sqlite
+				.query("SELECT purged_at, purged_by FROM users WHERE id = 42")
+				.get();
+			storage.mockClear();
+			const response = await requestAction(env, "purge");
+			expect(response.status).toBe(200);
+			expect((await response.json()).data).toEqual({ purged: true, id: 42, alreadyPurged: true });
+			expect(
+				env._sqlite.query("SELECT purged_at, purged_by FROM users WHERE id = 42").get(),
+			).toEqual(tombstone);
+			expect(env._sqlite.query("SELECT posts FROM users WHERE id = 99").get()).toEqual({
+				posts: 1,
+			});
+			expect(env._sqlite.query("SELECT COUNT(*) AS count FROM admin_logs").get()).toEqual({
+				count: 1,
+			});
+			expect(storage).not.toHaveBeenCalled();
+		} finally {
+			storage.mockRestore();
+			env._sqlite.close();
+		}
+	});
+
+	test("overlapping purges decrement collateral counters and audit only once", async () => {
+		const env = seedContent();
+		env._sqlite.query("UPDATE users SET posts = 50 WHERE id = 99").run();
+		const original = env.DB.batch.bind(env.DB);
+		let release = () => {};
+		const ready = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let writers = 0;
+		const batch = spyOn(env.DB, "batch").mockImplementation(async (statements) => {
+			if (statements.length > 2) {
+				if (++writers === 2) release();
+				await ready;
+			}
+			return original(statements);
+		});
+		try {
+			const responses = await Promise.all([
+				requestAction(env, "purge"),
+				requestAction(env, "purge"),
+			]);
+			expect(responses.map((r) => r.status)).toEqual([200, 200]);
+			expect(writers).toBe(2);
+			expect(env._sqlite.query("SELECT posts FROM users WHERE id = 99").get()).toEqual({
+				posts: 49,
+			});
+			expect(env._sqlite.query("SELECT COUNT(*) AS count FROM admin_logs").get()).toEqual({
+				count: 1,
+			});
+		} finally {
+			batch.mockRestore();
+			env._sqlite.close();
+		}
+	});
+
+	test("an audit insert failure rolls back the content deletion and tombstone", async () => {
+		const env = seedContent();
+		env._sqlite.exec(
+			"CREATE TRIGGER audit_failure BEFORE INSERT ON admin_logs BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END",
+		);
+		const storage = spyOn(env.R2, "delete");
+		try {
+			const response = await requestAction(env, "purge");
+			expect(response.status).toBe(500);
+			expect((await response.json()).error.message).not.toBe("An error occurred");
+			expect(env._sqlite.query("SELECT status, threads FROM users WHERE id = 42").get()).toEqual({
+				status: 0,
+				threads: 151,
+			});
+			expect(
+				env._sqlite.query("SELECT COUNT(*) AS count FROM threads WHERE author_id = 42").get(),
+			).toEqual({ count: 151 });
+			expect(storage).not.toHaveBeenCalled();
+		} finally {
+			storage.mockRestore();
+			env._sqlite.close();
+		}
+	});
+
+	test.each([false, true])(
+		"storage batches stay within R2 limits and preserve unrelated files (failure=%s)",
+		async (failFirst) => {
+			const env = seedContent();
+			const keys = ["attachments/1.png", "attachments/2.png"];
+			for (let i = 0; i < 1100; i++) {
+				const key = `attachments/bulk-${i}.png`;
+				keys.push(key);
+				env._sqlite
+					.query(
+						"INSERT INTO attachments (id, thread_id, post_id, author_id, filename, file_path) VALUES (?, 1, 1, 42, 'bulk.png', ?)",
+					)
+					.run(2000 + i, key);
+			}
+			for (const key of [...keys, "attachments/3.png"]) await env.R2.put(key, "local fixture");
+			const original = env.R2.delete.bind(env.R2);
+			let calls = 0;
+			const storage = spyOn(env.R2, "delete").mockImplementation(async (batch) => {
+				expect(Array.isArray(batch)).toBe(true);
+				expect(batch.length).toBeLessThanOrEqual(1000);
+				if (++calls === 1 && failFirst) throw new Error("storage temporarily unavailable");
+				return original(batch);
+			});
+			try {
+				const response = await requestAction(env, "purge");
+				expect(response.status).toBe(200);
+				const { data } = await response.json();
+				expect(calls).toBe(2);
+				expect(data.r2.deletedCount).toBe(failFirst ? 102 : 1102);
+				expect(data.r2.failed).toHaveLength(failFirst ? 1000 : 0);
+				const remaining = await Promise.all(keys.map((key) => env.R2.get(key)));
+				expect(remaining.filter(Boolean)).toHaveLength(failFirst ? 1000 : 0);
+				expect(await env.R2.get("attachments/3.png")).not.toBeNull();
+				expect(env._sqlite.query("SELECT COUNT(*) AS count FROM admin_logs").get()).toEqual({
+					count: 1,
+				});
+			} finally {
+				storage.mockRestore();
+				env._sqlite.close();
+			}
+		},
+	);
+});
+
 const destructiveActions = ["purge", "ban", "nuke", "moderation"] as const;
 
 async function requestAction(env: ReturnType<typeof createTestEnv>, action: string) {

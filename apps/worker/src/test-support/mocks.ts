@@ -120,8 +120,11 @@ export function createMockR2(config?: {
 		};
 	};
 
-	const del = async (key: string): Promise<void> => {
-		store.delete(key);
+	const del = async (keys: string | string[]): Promise<void> => {
+		for (const key of typeof keys === "string" ? [keys] : keys) {
+			store.delete(key);
+			metaStore.delete(key);
+		}
 	};
 
 	return {
