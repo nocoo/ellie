@@ -20,6 +20,7 @@
 //     behaviour consistent with the KV / log / report detail dialogs.
 
 import { Dialog, DialogHeader, DialogTitle } from "@nocoo/basalt";
+import { UserRound } from "lucide-react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { type UserDetailChangeKind, UserDetailPanel } from "@/components/admin/user-detail-panel";
 import { ADMIN_WIDE_DIALOG_BODY_CLASS, ADMIN_WIDE_DIALOG_CONTENT_CLASS } from "./dialog-presets";
@@ -75,8 +76,11 @@ export function UserDetailDialog({
 				className={`${ADMIN_WIDE_DIALOG_CONTENT_CLASS} max-w-[min(1440px,calc(100vw-2rem))] sm:max-w-[min(1440px,calc(100vw-2rem))]`}
 				aria-describedby={undefined}
 			>
-				<DialogHeader className="min-w-0 pr-8">
-					<DialogTitle>用户详情</DialogTitle>
+				<DialogHeader className="min-w-0 shrink-0 pr-8">
+					<DialogTitle className="flex items-center gap-2 text-base">
+						<UserRound aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+						用户详情
+					</DialogTitle>
 				</DialogHeader>
 				{userId !== null && (
 					<div className={ADMIN_WIDE_DIALOG_BODY_CLASS}>

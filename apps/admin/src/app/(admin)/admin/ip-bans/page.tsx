@@ -33,9 +33,16 @@ import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
+import { extractErrorMessage } from "@/lib/admin-error";
 import { ipBanExpiryVariant, ipBanStateVariant } from "@/viewmodels/admin/badges";
 import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
-import { formatExpiry } from "@/viewmodels/admin/ip-bans";
+import {
+	batchDeleteIpBans,
+	createIpBan,
+	deleteIpBan,
+	formatExpiry,
+	updateIpBan,
+} from "@/viewmodels/admin/ip-bans";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
@@ -67,6 +74,11 @@ export default function IpBansPage() {
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [editBan, setEditBan] = useState<IpBan | null>(null);
 	const [dialogLoading, setDialogLoading] = useState(false);
+	const [dialogError, setDialogError] = useState<string | null>(null);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	useEffect(() => {
+		if (createDialogOpen || editBan) setDialogError(null);
+	}, [createDialogOpen, editBan]);
 
 	// Confirm dialog state
 	const [confirmDialog, setConfirmDialog] = useState<{
@@ -135,14 +147,13 @@ export default function IpBansPage() {
 	const handleCreate = useCallback(
 		async (data: IpBanCreate) => {
 			setDialogLoading(true);
+			setDialogError(null);
 			try {
-				await fetch("/api/admin/ip-bans", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(data),
-				});
+				await createIpBan(data);
 				setCreateDialogOpen(false);
-				fetchData(pagination.page);
+				void fetchData(pagination.page);
+			} catch (err) {
+				setDialogError(extractErrorMessage(err, "创建 IP 封禁失败"));
 			} finally {
 				setDialogLoading(false);
 			}
@@ -157,14 +168,13 @@ export default function IpBansPage() {
 	const handleUpdate = useCallback(
 		async (id: number, data: IpBanUpdate) => {
 			setDialogLoading(true);
+			setDialogError(null);
 			try {
-				await fetch(`/api/admin/ip-bans/${id}`, {
-					method: "PATCH",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(data),
-				});
+				await updateIpBan(id, data);
 				setEditBan(null);
-				fetchData(pagination.page);
+				void fetchData(pagination.page);
+			} catch (err) {
+				setDialogError(extractErrorMessage(err, "保存 IP 封禁失败"));
 			} finally {
 				setDialogLoading(false);
 			}
@@ -178,6 +188,7 @@ export default function IpBansPage() {
 
 	const handleDelete = useCallback(
 		(ban: IpBan) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "删除 IP 封禁",
@@ -185,10 +196,13 @@ export default function IpBansPage() {
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
-						await fetch(`/api/admin/ip-bans/${ban.id}`, { method: "DELETE" });
+						await deleteIpBan(ban.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "删除失败，请重试"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -203,18 +217,30 @@ export default function IpBansPage() {
 	// ---------------------------------------------------------------------------
 
 	const handleBatchAction = useCallback(
-		async (key: string) => {
+		(key: string) => {
 			const ids = Array.from(selectedIds).map(Number);
-			if (ids.length === 0) return;
-			if (key === "delete") {
-				await fetch("/api/admin/ip-bans/batch-delete", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ ids }),
-				});
-			}
-			setSelectedIds(new Set());
-			fetchData(pagination.page);
+			if (key !== "delete" || ids.length === 0) return;
+			setConfirmError(null);
+			setConfirmDialog({
+				open: true,
+				title: "批量删除 IP 封禁",
+				description: `将删除选中的 ${ids.length} 条IP 封禁规则，此操作不可撤销。`,
+				variant: "destructive",
+				onConfirm: async () => {
+					setConfirmLoading(true);
+					setConfirmError(null);
+					try {
+						await batchDeleteIpBans(ids);
+						setSelectedIds(new Set());
+						setConfirmDialog((dialog) => ({ ...dialog, open: false }));
+						void fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "批量删除失败，请重试"));
+					} finally {
+						setConfirmLoading(false);
+					}
+				},
+			});
 		},
 		[selectedIds, fetchData, pagination.page],
 	);
@@ -468,6 +494,7 @@ export default function IpBansPage() {
 				open={createDialogOpen}
 				onOpenChange={setCreateDialogOpen}
 				loading={dialogLoading}
+				error={dialogError}
 				onCreate={handleCreate}
 			/>
 
@@ -477,6 +504,7 @@ export default function IpBansPage() {
 				onOpenChange={(open) => !open && setEditBan(null)}
 				ipBan={editBan}
 				loading={dialogLoading}
+				error={dialogError}
 				onUpdate={handleUpdate}
 			/>
 
@@ -487,6 +515,7 @@ export default function IpBansPage() {
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
 				loading={confirmLoading}
+				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
 			/>
 		</div>

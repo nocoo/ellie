@@ -18,6 +18,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { Merge } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -58,10 +59,10 @@ export function ForumMergeDialog({
 	// Reset selection when source changes
 	const sourceId = source?.id ?? null;
 	useEffect(() => {
-		if (sourceId !== null) {
+		if (open && sourceId !== null) {
 			setTargetId(null);
 		}
-	}, [sourceId]);
+	}, [open, sourceId]);
 
 	// Only allow merging forums of the same type or into parent types
 	const targetOptions = forums.filter((f) => {
@@ -80,64 +81,74 @@ export function ForumMergeDialog({
 	}, [source, targetId, loading, onMerge]);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<AdminDialogContent size="lg">
-				<DialogHeader className="pr-8">
-					<DialogTitle>合并版块</DialogTitle>
-					<DialogDescription>
+		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
+			<AdminDialogContent
+				size="lg"
+				closeDisabled={loading}
+				className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0"
+			>
+				<DialogHeader className="shrink-0 border-b border-basalt-border/50 px-5 py-4 pr-12">
+					<DialogTitle className="flex items-center gap-2 text-base">
+						<Merge aria-hidden="true" className="h-4 w-4 shrink-0 text-basalt-primary" />
+						合并版块
+					</DialogTitle>
+					<DialogDescription className="text-xs leading-relaxed">
 						将来源版块的所有主题移至目标版块，合并后来源版块将被删除。
 					</DialogDescription>
 				</DialogHeader>
 
-				{error && <AdminInlineMessage variant="error" text={error} dense />}
+				{error && <AdminInlineMessage variant="error" text={error} dense className="mx-5 mt-3" />}
 
-				<div className="grid gap-4 py-4">
-					<div className="grid gap-2">
-						<Label htmlFor="merge-source">来源版块</Label>
-						<Input
-							id="merge-source"
-							value={source ? `${source.name} (${typeLabel(source.type)})` : ""}
-							disabled
-						/>
-					</div>
+				<div className="min-h-0 overflow-y-auto px-5 py-4">
+					<fieldset disabled={loading} className="grid min-w-0 gap-4">
+						<div className="grid gap-2">
+							<Label htmlFor="merge-source">来源版块</Label>
+							<Input
+								id="merge-source"
+								value={source ? `${source.name} (${typeLabel(source.type)})` : ""}
+								disabled
+							/>
+						</div>
 
-					<div className="grid gap-2">
-						<Label htmlFor="merge-target">目标版块</Label>
-						<Select
-							value={String(targetId ?? "") || "__empty__"}
-							onValueChange={(selected) => {
-								const value = selected === "__empty__" ? "" : selected;
-								setTargetId(value ? Number(value) : null);
-							}}
-						>
-							<SelectTrigger id="merge-target">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{[
-									{ value: "", label: "选择目标版块..." },
-									...targetOptions.map((f) => ({
-										value: f.id,
-										label: `[${typeLabel(f.type)}] ${f.name} (${f.threads} 个主题)`,
-									})),
-								].map((option) => (
-									<SelectItem key={option.value} value={String(option.value) || "__empty__"}>
-										{option.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
+						<div className="grid gap-2">
+							<Label htmlFor="merge-target">目标版块</Label>
+							<Select
+								disabled={loading}
+								value={String(targetId ?? "") || "__empty__"}
+								onValueChange={(selected) => {
+									const value = selected === "__empty__" ? "" : selected;
+									setTargetId(value ? Number(value) : null);
+								}}
+							>
+								<SelectTrigger id="merge-target">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[
+										{ value: "", label: "选择目标版块..." },
+										...targetOptions.map((f) => ({
+											value: f.id,
+											label: `[${typeLabel(f.type)}] ${f.name} (${f.threads} 个主题)`,
+										})),
+									].map((option) => (
+										<SelectItem key={option.value} value={String(option.value) || "__empty__"}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 
-					{source && source.threads > 0 && (
-						<Banner variant="alert" size="sm">
-							此版块包含 <strong>{source.threads}</strong> 个主题和 <strong>{source.posts}</strong>{" "}
-							个帖子，合并后将全部转移到目标版块。
-						</Banner>
-					)}
+						{source && source.threads > 0 && (
+							<Banner variant="alert" size="sm">
+								此版块包含 <strong>{source.threads}</strong> 个主题和{" "}
+								<strong>{source.posts}</strong> 个帖子，合并后将全部转移到目标版块。
+							</Banner>
+						)}
+					</fieldset>
 				</div>
 
-				<DialogFooter>
+				<DialogFooter className="m-0 shrink-0 border-t border-basalt-border/50 px-5 py-3">
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
 						取消
 					</Button>

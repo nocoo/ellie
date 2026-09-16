@@ -26,6 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { ArrowRightLeft, FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
@@ -98,29 +99,38 @@ export function ThreadBatchMoveDialog({
 	// open so a previous failed run doesn't show stale errors.
 	useEffect(() => {
 		if (!open) return;
+		let active = true;
+		setForums([]);
 		setForumsLoading(true);
 		setForumsError(null);
 		setSelectedForumId("");
 		fetchForums()
 			.then((res) => {
-				setForums(res.data);
+				if (active) setForums(res.data);
 			})
 			.catch((err: unknown) => {
+				if (!active) return;
 				const msg = err instanceof Error ? err.message : "加载版块列表失败";
 				setForumsError(msg);
 				setForums([]);
 			})
-			.finally(() => setForumsLoading(false));
+			.finally(() => {
+				if (active) setForumsLoading(false);
+			});
+		return () => {
+			active = false;
+		};
 	}, [open]);
 
 	const targets = useMemo(() => filterMoveTargetForums(forums), [forums]);
 	const options = useMemo(() => buildForumSelectOptions(targets), [targets]);
 
-	const canConfirm = selectedForumId !== "" && !loading && !forumsLoading;
+	const target = targets.find((forum) => String(forum.id) === selectedForumId);
+	const canConfirm = !!target && selectedCount > 0 && !loading && !forumsLoading;
 
 	const handleConfirm = () => {
 		const id = Number(selectedForumId);
-		if (!Number.isInteger(id) || id <= 0) return;
+		if (!canConfirm || !Number.isInteger(id) || id <= 0) return;
 		onConfirm(id);
 	};
 
@@ -131,11 +141,14 @@ export function ThreadBatchMoveDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<AdminDialogContent>
+			<AdminDialogContent size="lg" closeDisabled={loading}>
 				<DialogHeader className="pr-8">
-					<DialogTitle>批量移动主题</DialogTitle>
-					<DialogDescription>
-						{`将选中的 ${selectedCount} 个主题移动到目标版块。已位于目标版块的主题会被服务端跳过。`}
+					<DialogTitle className="flex items-center gap-2 text-base">
+						<ArrowRightLeft aria-hidden="true" className="h-4 w-4 text-basalt-primary" />
+						批量移动主题
+					</DialogTitle>
+					<DialogDescription className="text-sm">
+						{`将选中的 ${selectedCount} 个主题移动到目标版块。已位于目标版块的主题会自动跳过。`}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -179,7 +192,19 @@ export function ThreadBatchMoveDialog({
 					)}
 				</div>
 
-				<DialogFooter>
+				{target && (
+					<div className="rounded-lg border border-basalt-border p-3 text-xs">
+						<p className="flex items-center gap-2 font-medium">
+							<FolderOpen aria-hidden="true" className="h-4 w-4 shrink-0 text-basalt-primary" />
+							<span className="break-all">{target.name}</span>
+						</p>
+						<p className="mt-2 text-basalt-muted-foreground">
+							当前 {target.threads.toLocaleString("zh-CN")} 个主题 ·{" "}
+							{target.posts.toLocaleString("zh-CN")} 条帖子（含首帖）
+						</p>
+					</div>
+				)}
+				<DialogFooter className="mt-2">
 					<Button variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>
 						取消
 					</Button>

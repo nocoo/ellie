@@ -99,13 +99,6 @@ async function expandAndWait(getRowName: string | RegExp = "公告") {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	// happy-dom doesn't implement window.confirm — default it to true so
-	// the delete path can run through end-to-end. Individual tests
-	// override as needed.
-	vi.stubGlobal(
-		"confirm",
-		vi.fn(() => true),
-	);
 });
 
 afterEach(() => {
@@ -282,6 +275,11 @@ describe("ForumThreadTypesPanel — row CRUD", () => {
 			fireEvent.click(screen.getByRole("button", { name: "删除" }));
 		});
 
+		expect(mockDelete).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认", exact: true }));
+		});
+
 		await waitFor(() => {
 			expect(mockDelete).toHaveBeenCalledWith(1);
 		});
@@ -309,6 +307,11 @@ describe("ForumThreadTypesPanel — row CRUD", () => {
 
 		await act(async () => {
 			fireEvent.click(screen.getByRole("button", { name: "删除" }));
+		});
+
+		expect(mockDelete).not.toHaveBeenCalled();
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "确认", exact: true }));
 		});
 
 		await waitFor(() => {

@@ -22,7 +22,17 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { Save, User as UserIcon } from "lucide-react";
+import {
+	BookUser,
+	ChartNoAxesCombined,
+	Clock3,
+	Globe,
+	Palette,
+	Save,
+	ShieldCheck,
+	User as UserIcon,
+	X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import { twMerge as cn } from "tailwind-merge";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
@@ -342,8 +352,8 @@ export function UserEditDialog({
 
 	// Sync form when user changes
 	useEffect(() => {
-		if (user) dispatch({ type: "reset", user });
-	}, [user]);
+		if (open && user) dispatch({ type: "reset", user });
+	}, [open, user]);
 
 	const set = useCallback(
 		(field: keyof FormState) => (value: string | number) => {
@@ -410,18 +420,18 @@ export function UserEditDialog({
 	);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
 			<AdminDialogContent
 				className={cn(
 					// Wide enough for IPv6 single-column + two-column form grid on lg.
 					"w-[calc(100vw-2rem)] sm:w-[640px] lg:w-[860px] sm:max-w-[860px]",
-					"max-h-[85vh] overflow-hidden flex flex-col",
+					"max-h-[85vh] overflow-hidden flex flex-col gap-0",
 					"rounded-xl p-0",
 				)}
 				closeControl={false}
 			>
 				{/* Header */}
-				<DialogHeader className="px-5 pt-5 pb-4 border-b border-basalt-border/50">
+				<DialogHeader className="shrink-0 px-5 pt-5 pb-4 border-b border-basalt-border/50">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-3">
 							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-basalt-primary/10">
@@ -442,24 +452,47 @@ export function UserEditDialog({
 							className="text-basalt-muted-foreground hover:text-basalt-foreground"
 						>
 							<span className="sr-only">关闭</span>
-							<svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-								<path
-									d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z"
-									fill="currentColor"
-									fillRule="evenodd"
-									clipRule="evenodd"
-								/>
-							</svg>
+							<X aria-hidden="true" className="h-4 w-4" />
 						</Button>
 					</div>
 				</DialogHeader>
+
+				<nav
+					aria-label="用户资料分区"
+					className="flex shrink-0 flex-wrap gap-1 border-b border-basalt-border/50 px-4 py-2"
+				>
+					{[
+						{ id: "identity", label: "基本信息", icon: UserIcon },
+						{ id: "permissions", label: "权限", icon: ShieldCheck },
+						{ id: "counters", label: "积分计数", icon: ChartNoAxesCombined },
+						{ id: "decoration", label: "用户组", icon: Palette },
+						{ id: "profile", label: "个人资料", icon: BookUser },
+						{ id: "timestamps", label: "时间", icon: Clock3 },
+						{ id: "network", label: "IP 信息", icon: Globe },
+					].map(({ id, label, icon: Icon }) => (
+						<Button
+							key={id}
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-7 gap-1.5 px-2 text-xs"
+							aria-controls={`user-edit-${id}`}
+							onClick={() =>
+								document.getElementById(`user-edit-${id}`)?.scrollIntoView({ block: "start" })
+							}
+						>
+							<Icon aria-hidden="true" className="h-3.5 w-3.5" />
+							{label}
+						</Button>
+					))}
+				</nav>
 
 				{/* Error display */}
 				{error && <AdminInlineMessage variant="error" text={error} className="mx-5 mt-4" />}
 
 				{/* Form */}
-				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-					<SectionRule title="基本信息">
+				<div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-6">
+					<SectionRule id="user-edit-identity" title="基本信息" className="scroll-mt-4">
 						<div className="grid gap-4 lg:grid-cols-2">
 							<StringField
 								id="edit-username"
@@ -480,11 +513,11 @@ export function UserEditDialog({
 							/>
 							<StringField
 								id="edit-emailNormalized"
-								label="邮箱（normalized）"
+								label="标准化邮箱"
 								value={form.emailNormalized}
 								onChange={set("emailNormalized")}
 								disabled={loading}
-								placeholder="lowercase trimmed (UNIQUE if non-empty)"
+								placeholder="去除首尾空格并转为小写，非空时须唯一"
 							/>
 							<NumberField
 								id="edit-emailVerifiedAt"
@@ -492,7 +525,7 @@ export function UserEditDialog({
 								value={form.emailVerifiedAt}
 								onChange={set("emailVerifiedAt")}
 								disabled={loading}
-								hint="unix sec, 0=未验证"
+								hint="Unix 秒, 0=未验证"
 							/>
 							<NumberField
 								id="edit-emailChangedAt"
@@ -500,7 +533,7 @@ export function UserEditDialog({
 								value={form.emailChangedAt}
 								onChange={set("emailChangedAt")}
 								disabled={loading}
-								hint="unix sec"
+								hint="Unix 秒"
 							/>
 							<div className="grid gap-2 min-w-0">
 								<Label htmlFor="edit-avatar">头像链接</Label>
@@ -534,7 +567,7 @@ export function UserEditDialog({
 						</div>
 					</SectionRule>
 
-					<SectionRule title="权限设置">
+					<SectionRule id="user-edit-permissions" title="权限设置" className="scroll-mt-4">
 						<div className="grid gap-4 lg:grid-cols-2">
 							<div className="grid gap-2 min-w-0">
 								<Label htmlFor="edit-status" className="flex items-center justify-between">
@@ -582,7 +615,7 @@ export function UserEditDialog({
 						</div>
 					</SectionRule>
 
-					<SectionRule title="积分与计数">
+					<SectionRule id="user-edit-counters" title="积分与计数" className="scroll-mt-4">
 						<div className="grid gap-4 lg:grid-cols-3">
 							<NumberField
 								id="edit-credits"
@@ -630,7 +663,7 @@ export function UserEditDialog({
 						</div>
 					</SectionRule>
 
-					<SectionRule title="用户组装饰">
+					<SectionRule id="user-edit-decoration" title="用户组装饰" className="scroll-mt-4">
 						<div className="grid gap-4 lg:grid-cols-2">
 							<StringField
 								id="edit-groupTitle"
@@ -672,7 +705,7 @@ export function UserEditDialog({
 						/>
 					</SectionRule>
 
-					<SectionRule title="个人资料">
+					<SectionRule id="user-edit-profile" title="个人资料" className="scroll-mt-4">
 						<div className="grid gap-4 lg:grid-cols-3">
 							<NumberField
 								id="edit-gender"
@@ -765,7 +798,7 @@ export function UserEditDialog({
 						/>
 					</SectionRule>
 
-					<SectionRule title="时间戳">
+					<SectionRule id="user-edit-timestamps" title="时间戳" className="scroll-mt-4">
 						<div className="grid gap-4 lg:grid-cols-3">
 							<NumberField
 								id="edit-regDate"
@@ -773,7 +806,7 @@ export function UserEditDialog({
 								value={form.regDate}
 								onChange={set("regDate")}
 								disabled={loading}
-								hint="unix sec"
+								hint="Unix 秒"
 							/>
 							<NumberField
 								id="edit-lastLogin"
@@ -781,7 +814,7 @@ export function UserEditDialog({
 								value={form.lastLogin}
 								onChange={set("lastLogin")}
 								disabled={loading}
-								hint="unix sec"
+								hint="Unix 秒"
 							/>
 							<NumberField
 								id="edit-lastActivity"
@@ -789,13 +822,17 @@ export function UserEditDialog({
 								value={form.lastActivity}
 								onChange={set("lastActivity")}
 								disabled={loading}
-								hint="unix sec"
+								hint="Unix 秒"
 							/>
 						</div>
 					</SectionRule>
 
 					{/* IP — single column, break-all so IPv6 (~39 chars) wraps cleanly. */}
-					<SectionRule title="IP 信息" className="text-basalt-muted-foreground">
+					<SectionRule
+						id="user-edit-network"
+						title="IP 信息"
+						className="scroll-mt-4 text-basalt-muted-foreground"
+					>
 						<div className="grid gap-4 grid-cols-1" data-testid="user-edit-ip-section">
 							<div className="grid gap-2 min-w-0">
 								<Label htmlFor="edit-regIp">注册 IP</Label>
@@ -844,7 +881,7 @@ export function UserEditDialog({
 				</div>
 
 				{/* Footer */}
-				<div className="px-5 py-4 border-t border-basalt-border/50">
+				<div className="shrink-0 px-5 py-3 border-t border-basalt-border/50">
 					<div className="flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
 							取消

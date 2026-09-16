@@ -31,6 +31,7 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
+import { extractErrorMessage } from "@/lib/admin-error";
 import { censorActionVariant } from "@/viewmodels/admin/badges";
 import {
 	actionLabel,
@@ -38,6 +39,7 @@ import {
 	type CensorWord,
 	type CensorWordCreate,
 	type CensorWordUpdate,
+	createCensorWord,
 	deleteCensorWord,
 	replacementDisplay,
 	type TestContentResult,
@@ -71,6 +73,11 @@ export default function CensorWordsPage() {
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [editWord, setEditWord] = useState<CensorWord | null>(null);
 	const [dialogLoading, setDialogLoading] = useState(false);
+	const [dialogError, setDialogError] = useState<string | null>(null);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	useEffect(() => {
+		if (createDialogOpen || editWord) setDialogError(null);
+	}, [createDialogOpen, editWord]);
 	const [confirmDialog, setConfirmDialog] = useState<{
 		open: boolean;
 		title: string;
@@ -129,16 +136,13 @@ export default function CensorWordsPage() {
 	const handleCreate = useCallback(
 		async (data: CensorWordCreate) => {
 			setDialogLoading(true);
+			setDialogError(null);
 			try {
-				const res = await fetch("/api/admin/censor-words", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(data),
-				});
-				if (res.ok) {
-					setCreateDialogOpen(false);
-					fetchData(pagination.page);
-				}
+				await createCensorWord(data);
+				setCreateDialogOpen(false);
+				void fetchData(pagination.page);
+			} catch (err) {
+				setDialogError(extractErrorMessage(err, "创建敏感词失败"));
 			} finally {
 				setDialogLoading(false);
 			}
@@ -147,12 +151,15 @@ export default function CensorWordsPage() {
 	);
 
 	const handleEditSave = useCallback(
-		async (id: number, update: CensorWordUpdate) => {
+		async (id: number, data: CensorWordUpdate) => {
 			setDialogLoading(true);
+			setDialogError(null);
 			try {
-				await updateCensorWord(id, update);
+				await updateCensorWord(id, data);
 				setEditWord(null);
-				fetchData(pagination.page);
+				void fetchData(pagination.page);
+			} catch (err) {
+				setDialogError(extractErrorMessage(err, "保存敏感词失败"));
 			} finally {
 				setDialogLoading(false);
 			}
@@ -162,6 +169,7 @@ export default function CensorWordsPage() {
 
 	const handleDelete = useCallback(
 		(cw: CensorWord) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "删除敏感词",
@@ -169,10 +177,13 @@ export default function CensorWordsPage() {
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
 						await deleteCensorWord(cw.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "删除失败，请重试"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -183,14 +194,30 @@ export default function CensorWordsPage() {
 	);
 
 	const handleBatchAction = useCallback(
-		async (key: string) => {
+		(key: string) => {
 			const ids = Array.from(selectedIds).map(Number);
-			if (ids.length === 0) return;
-			if (key === "delete") {
-				await batchDeleteCensorWords(ids);
-			}
-			setSelectedIds(new Set());
-			fetchData(pagination.page);
+			if (key !== "delete" || ids.length === 0) return;
+			setConfirmError(null);
+			setConfirmDialog({
+				open: true,
+				title: "批量删除敏感词",
+				description: `将删除选中的 ${ids.length} 条敏感词规则，此操作不可撤销。`,
+				variant: "destructive",
+				onConfirm: async () => {
+					setConfirmLoading(true);
+					setConfirmError(null);
+					try {
+						await batchDeleteCensorWords(ids);
+						setSelectedIds(new Set());
+						setConfirmDialog((dialog) => ({ ...dialog, open: false }));
+						void fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "批量删除失败，请重试"));
+					} finally {
+						setConfirmLoading(false);
+					}
+				},
+			});
 		},
 		[selectedIds, fetchData, pagination.page],
 	);
@@ -422,6 +449,7 @@ export default function CensorWordsPage() {
 				}}
 				censorWord={editWord}
 				loading={dialogLoading}
+				error={dialogError}
 				onSave={handleCreate}
 				onUpdate={handleEditSave}
 			/>
@@ -433,6 +461,7 @@ export default function CensorWordsPage() {
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
 				loading={confirmLoading}
+				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
 			/>
 		</div>

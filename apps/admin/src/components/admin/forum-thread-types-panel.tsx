@@ -72,6 +72,7 @@ import {
 	updateForumThreadTypesConfig,
 	validateConfig,
 } from "@/viewmodels/admin/forum-thread-types";
+import { AdminConfirmDialog } from "./admin-confirm-dialog";
 import { AdminInlineMessage } from "./admin-inline-message";
 
 export interface ForumThreadTypesPanelProps {
@@ -115,6 +116,7 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 	const [editingId, setEditingId] = useState<number | null>(null);
 	// Whether the inline create form is open.
 	const [creating, setCreating] = useState(false);
+	const [deleteTarget, setDeleteTarget] = useState<ForumThreadType | null>(null);
 
 	// Reset everything when the parent dialog navigates to a different forum.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: resetKey IS the trigger; body only invokes stable setters
@@ -127,6 +129,7 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 		setBusyRowId(null);
 		setEditingId(null);
 		setCreating(false);
+		setDeleteTarget(null);
 	}, [resetKey]);
 
 	const load = useCallback(async () => {
@@ -229,12 +232,6 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 
 	const handleDelete = useCallback(
 		async (row: ForumThreadType) => {
-			// One confirm dialog hop. Soft-disable case still lands on the
-			// success branch — Worker returns `softDisabled:true` with a
-			// `threadCount` so the user understands why the row stayed.
-			const phrase = "确认删除主题分类？如有主题仍在引用，将自动停用而不是删除。\n\n继续？";
-			if (!window.confirm(phrase)) return;
-
 			setRowMessage(null);
 			setBusyRowId(row.id);
 			try {
@@ -250,6 +247,7 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 						text: `已停用「${row.name}」（仍被 ${result.threadCount ?? 0} 个主题引用，未删除）`,
 					});
 				}
+				setDeleteTarget(null);
 			} catch (err) {
 				setRowMessage({ variant: "error", text: extractErrorMessage(err, "删除分类失败") });
 			} finally {
@@ -369,7 +367,10 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 								onCancelCreate={() => setCreating(false)}
 								onCreate={handleCreate}
 								onUpdate={handleUpdate}
-								onDelete={handleDelete}
+								onDelete={(row) => {
+									setRowMessage(null);
+									setDeleteTarget(row);
+								}}
 								onToggleEnabled={handleToggleEnabled}
 								onMove={handleMove}
 							/>
@@ -377,6 +378,20 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 					</LayerCard.Well>
 				</CollapsibleContent>
 			</LayerCard>
+			<AdminConfirmDialog
+				open={deleteTarget !== null}
+				onOpenChange={(next) => {
+					if (!next) setDeleteTarget(null);
+				}}
+				title="删除主题分类"
+				description={`删除「${deleteTarget?.name ?? ""}」？如果仍有主题引用，会自动停用该分类并保留历史关联。`}
+				variant="destructive"
+				loading={busyRowId !== null}
+				error={rowMessage?.variant === "error" ? rowMessage.text : null}
+				onConfirm={() => {
+					if (deleteTarget) void handleDelete(deleteTarget);
+				}}
+			/>
 		</Collapsible>
 	);
 }
@@ -545,7 +560,7 @@ function ThreadTypeList(props: ThreadTypeListProps) {
 					暂无主题分类。点击"新建分类"添加第一项。
 				</LayerCard>
 			) : (
-				<Table>
+				<Table aria-label="主题分类列表">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-8 text-right">#</TableHead>
@@ -637,7 +652,9 @@ function ThreadTypeRow(props: ThreadTypeRowProps) {
 			</TableCell>
 			<TableCell>
 				<div className="flex items-center gap-2">
-					<span className="truncate font-medium text-basalt-foreground">{row.name}</span>
+					<span className="max-w-48 truncate font-medium text-basalt-foreground" title={row.name}>
+						{row.name}
+					</span>
 					{row.moderatorOnly && (
 						<Badge variant="outline" className="text-xs">
 							仅版主

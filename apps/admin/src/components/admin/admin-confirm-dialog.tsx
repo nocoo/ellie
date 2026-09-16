@@ -9,6 +9,7 @@ import {
 	DialogTitle,
 	Input,
 } from "@nocoo/basalt";
+import { CircleCheck, TriangleAlert } from "lucide-react";
 import { useCallback, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "./admin-inline-message";
@@ -75,8 +76,23 @@ export function AdminConfirmDialog({
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<AdminDialogContent closeDisabled={loading}>
 				<DialogHeader className="pr-8">
-					<DialogTitle>{title}</DialogTitle>
-					<DialogDescription>{description}</DialogDescription>
+					<DialogTitle className="flex items-start gap-2 text-base">
+						{variant === "destructive" ? (
+							<TriangleAlert
+								aria-hidden="true"
+								className="mt-0.5 h-4 w-4 shrink-0 text-basalt-destructive"
+							/>
+						) : (
+							<CircleCheck
+								aria-hidden="true"
+								className="mt-0.5 h-4 w-4 shrink-0 text-basalt-primary"
+							/>
+						)}
+						<span className="break-words">{title}</span>
+					</DialogTitle>
+					<DialogDescription className="break-words text-sm leading-relaxed">
+						{description}
+					</DialogDescription>
 				</DialogHeader>
 
 				{error && <AdminInlineMessage variant="error" text={error} dense />}
@@ -85,7 +101,9 @@ export function AdminConfirmDialog({
 					<div className="py-2">
 						<p className="mb-2 text-sm text-basalt-muted-foreground">
 							输入{" "}
-							<span className="font-mono font-semibold text-basalt-foreground">{requireInput}</span>{" "}
+							<span className="break-all font-mono font-semibold text-basalt-foreground">
+								{requireInput}
+							</span>{" "}
 							以确认：
 						</p>
 						<Input
@@ -99,7 +117,7 @@ export function AdminConfirmDialog({
 					</div>
 				)}
 
-				<DialogFooter>
+				<DialogFooter className="mt-2">
 					<Button variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>
 						{cancelLabel}
 					</Button>
