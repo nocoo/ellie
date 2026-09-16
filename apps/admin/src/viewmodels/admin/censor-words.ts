@@ -61,7 +61,7 @@ export function buildCensorWordSearchParams(
 
 /** Return a display-friendly replacement string. */
 export function replacementDisplay(replacement: string): string {
-	return replacement || "***";
+	return replacement === "" ? "删除匹配内容" : replacement;
 }
 
 /** Return a display label for censor word action. */

@@ -35,8 +35,8 @@ describe("censor-words", () => {
 	});
 
 	describe("replacementDisplay", () => {
-		it("returns *** for empty replacement", () => {
-			expect(replacementDisplay("")).toBe("***");
+		it("identifies an empty replacement as removing matched content", () => {
+			expect(replacementDisplay("")).toBe("删除匹配内容");
 		});
 
 		it("returns replacement as-is when non-empty", () => {

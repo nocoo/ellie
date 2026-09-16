@@ -12,7 +12,7 @@ import {
 import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import {
-	Asterisk,
+	Eraser,
 	FlaskConical,
 	ListFilter,
 	MoreHorizontal,
@@ -230,9 +230,9 @@ export default function CensorWordsPage() {
 			cell: (row) => (
 				<span
 					className="block max-w-56 truncate text-basalt-muted-foreground"
-					title={replacementDisplay(row.replacement)}
+					title={row.action === "ban" ? "不适用" : replacementDisplay(row.replacement)}
 				>
-					{replacementDisplay(row.replacement)}
+					{row.action === "ban" ? "—" : replacementDisplay(row.replacement)}
 				</span>
 			),
 		},
@@ -330,12 +330,12 @@ export default function CensorWordsPage() {
 						icon: Replace,
 					},
 					{
-						label: "本页默认遮蔽",
+						label: "本页删除匹配内容",
 						value: loading
 							? "—"
-							: data.filter((r) => r.action === "replace" && !r.replacement).length,
-						icon: Asterisk,
-						hint: "未指定替换文本，使用 ***",
+							: data.filter((r) => r.action === "replace" && r.replacement === "").length,
+						icon: Eraser,
+						hint: "替换为空文本的规则",
 					},
 				]}
 			/>
