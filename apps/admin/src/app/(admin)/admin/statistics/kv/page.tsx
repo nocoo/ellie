@@ -33,7 +33,6 @@
 import {
 	Badge,
 	Button,
-	ConfirmDialog,
 	Dialog,
 	DialogDescription,
 	DialogHeader,
@@ -68,6 +67,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminMetrics } from "@/components/admin/admin-metrics";
@@ -79,6 +79,7 @@ import { JsonCodeBlock } from "@/components/admin/json-code-block";
 import { type KvMetric, KvMetricsChart } from "@/components/admin/kv-metrics-chart";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { readAdminKvJson } from "@/lib/admin-kv-fetch";
+import { apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirrored from `apps/worker/src/handlers/admin/kv.ts`.
@@ -247,20 +248,8 @@ interface RefreshAction {
 	key?: string;
 }
 
-interface RefreshResult {
-	ok: boolean;
-	status: number;
-	body: unknown;
-}
-
-async function callRefresh(family: string, action: RefreshAction): Promise<RefreshResult> {
-	const res = await fetch("/api/admin/kv/refresh", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ family, action }),
-	});
-	const body = await res.json().catch(() => null);
-	return { ok: res.ok, status: res.status, body };
+async function callRefresh(family: string, action: RefreshAction): Promise<void> {
+	await apiClient.post("/api/admin/kv/refresh", { family, action });
 }
 
 // Map a family + presence row to the refresh action it accepts WITHOUT
@@ -335,6 +324,7 @@ function ExpandedKeyList({
 	row,
 	state,
 	now,
+	busy,
 	onLoadMore,
 	onView,
 	onDelete,
@@ -342,6 +332,7 @@ function ExpandedKeyList({
 	row: OverviewRow;
 	state: KeyListState;
 	now: number;
+	busy: boolean;
 	onLoadMore: () => void;
 	onView: (rawKey: string) => void;
 	onDelete: (rawKey: string) => void;
@@ -407,7 +398,7 @@ function ExpandedKeyList({
 										size="sm"
 										variant="ghost"
 										className="text-basalt-destructive hover:text-basalt-destructive"
-										disabled={deleteAction === null}
+										disabled={busy || deleteAction === null}
 										onClick={() => k.rawKey && onDelete(k.rawKey)}
 									>
 										<Trash2 className="mr-1 h-3 w-3" />
@@ -554,7 +545,7 @@ function OverviewTable({
 									<Button
 										size="sm"
 										variant="outline"
-										disabled={!refreshable || busyFamily === row.family}
+										disabled={!refreshable || busyFamily !== null}
 										onClick={() => onRefreshFamily(row)}
 									>
 										{busyFamily === row.family ? (
@@ -573,6 +564,7 @@ function OverviewTable({
 											row={row}
 											state={keyLists[row.family] ?? EMPTY_KEY_LIST}
 											now={now}
+											busy={busyFamily !== null}
 											onLoadMore={() => onLoadMore(row)}
 											onView={(rawKey) => onView(row, rawKey)}
 											onDelete={(rawKey) => onDelete(row, rawKey)}
@@ -750,7 +742,7 @@ export default function KvMonitorPage() {
 	const [metricsLoading, setMetricsLoading] = useState(true);
 	const [metricsError, setMetricsError] = useState<string | null>(null);
 	const [busyFamily, setBusyFamily] = useState<string | null>(null);
-	const [notice, setNotice] = useState<string | null>(null);
+	const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [keyLists, setKeyLists] = useState<Record<string, KeyListState | undefined>>({});
@@ -764,6 +756,7 @@ export default function KvMonitorPage() {
 		error: null,
 	});
 	const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
 
 	// Tick once a minute so "还剩 Xm" doesn't go stale while the user
 	// stares at the page.
@@ -940,48 +933,51 @@ export default function KvMonitorPage() {
 		}
 	}, []);
 
-	const handleAskDelete = useCallback((row: OverviewRow, rawKey: string) => {
-		const action = deleteActionForKey(row, rawKey);
-		if (!action) return;
-		setConfirm({ open: true, row, rawKey, action });
-	}, []);
+	const handleAskDelete = useCallback(
+		(row: OverviewRow, rawKey: string) => {
+			const action = deleteActionForKey(row, rawKey);
+			if (!action || busyFamily !== null) return;
+			setConfirmError(null);
+			setConfirm({ open: true, row, rawKey, action });
+		},
+		[busyFamily],
+	);
 
 	const handleConfirmDelete = useCallback(async () => {
-		if (!confirm.row || !confirm.action) return;
+		if (!confirm.row || !confirm.action || busyFamily !== null) return;
 		const row = confirm.row;
 		setBusyFamily(row.family);
 		setNotice(null);
+		setConfirmError(null);
 		try {
-			const result = await callRefresh(row.family, confirm.action);
-			setNotice(
-				result.ok ? `已过期 ${row.family}: ${confirm.rawKey}` : `操作失败 (${result.status})`,
-			);
-			if (result.ok) {
-				await Promise.all([loadOverview(), loadMetrics(), fetchKeyPage(row.family, null, false)]);
-			}
+			await callRefresh(row.family, confirm.action);
+			setNotice({ type: "success", text: `已过期 ${row.family}: ${confirm.rawKey}` });
+			setConfirm(CLOSED_CONFIRM);
+			await Promise.all([loadOverview(), loadMetrics(), fetchKeyPage(row.family, null, false)]);
+		} catch (error) {
+			setConfirmError(extractErrorMessage(error, "过期操作失败，请重试"));
 		} finally {
 			setBusyFamily(null);
-			setConfirm(CLOSED_CONFIRM);
 		}
-	}, [confirm, loadOverview, loadMetrics, fetchKeyPage]);
+	}, [confirm, busyFamily, loadOverview, loadMetrics, fetchKeyPage]);
 
 	const handleRefreshFamily = useCallback(
 		async (row: OverviewRow) => {
 			const action = defaultActionFor(row);
-			if (!action) return;
+			if (!action || busyFamily !== null) return;
 			setBusyFamily(row.family);
 			setNotice(null);
 			try {
-				const result = await callRefresh(row.family, action);
-				setNotice(result.ok ? `已刷新 ${row.family}` : `刷新 ${row.family} 失败`);
-				if (result.ok) {
-					await Promise.all([loadOverview(), loadMetrics()]);
-				}
+				await callRefresh(row.family, action);
+				setNotice({ type: "success", text: `已刷新 ${row.family}` });
+				await Promise.all([loadOverview(), loadMetrics()]);
+			} catch (error) {
+				setNotice({ type: "error", text: extractErrorMessage(error, `刷新 ${row.family} 失败`) });
 			} finally {
 				setBusyFamily(null);
 			}
 		},
-		[loadOverview, loadMetrics],
+		[busyFamily, loadOverview, loadMetrics],
 	);
 
 	const summaries = useMemo(() => summarize(metricsRows), [metricsRows]);
@@ -1058,13 +1054,7 @@ export default function KvMonitorPage() {
 				]}
 			/>
 
-			{notice && (
-				<LayerCard>
-					<LayerCard.Well className="py-3 text-sm text-basalt-muted-foreground">
-						{notice}
-					</LayerCard.Well>
-				</LayerCard>
-			)}
+			{notice && <AdminInlineMessage variant={notice.type} text={notice.text} />}
 
 			<Tabs
 				className="space-y-3"
@@ -1096,19 +1086,26 @@ export default function KvMonitorPage() {
 					{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
 					<LayerCard padding="none" className="overflow-hidden">
 						<LayerCard.Well className="p-0">
-							<OverviewTable
-								rows={overviewRows}
-								loading={overviewLoading}
-								now={now}
-								expanded={expanded}
-								keyLists={keyLists}
-								busyFamily={busyFamily}
-								onToggle={handleToggle}
-								onLoadMore={handleLoadMore}
-								onView={handleView}
-								onDelete={handleAskDelete}
-								onRefreshFamily={handleRefreshFamily}
-							/>
+							<section
+								className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-basalt-ring"
+								aria-label="KV 家族总览表格"
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
+								tabIndex={0}
+							>
+								<OverviewTable
+									rows={overviewRows}
+									loading={overviewLoading}
+									now={now}
+									expanded={expanded}
+									keyLists={keyLists}
+									busyFamily={busyFamily}
+									onToggle={handleToggle}
+									onLoadMore={handleLoadMore}
+									onView={handleView}
+									onDelete={handleAskDelete}
+									onRefreshFamily={handleRefreshFamily}
+								/>
+							</section>
 						</LayerCard.Well>
 					</LayerCard>
 				</TabsContent>
@@ -1122,11 +1119,18 @@ export default function KvMonitorPage() {
 					)}
 					<LayerCard padding="none" className="overflow-hidden">
 						<LayerCard.Well className="p-0">
-							<MetricsTable
-								summaries={summaries}
-								minutes={METRICS_MINUTES}
-								loading={metricsLoading}
-							/>
+							<section
+								className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-basalt-ring"
+								aria-label="KV 命中指标表格"
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
+								tabIndex={0}
+							>
+								<MetricsTable
+									summaries={summaries}
+									minutes={METRICS_MINUTES}
+									loading={metricsLoading}
+								/>
+							</section>
 						</LayerCard.Well>
 					</LayerCard>
 				</TabsContent>
@@ -1143,7 +1147,7 @@ export default function KvMonitorPage() {
 				onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}
 			/>
 
-			<ConfirmDialog
+			<AdminConfirmDialog
 				open={confirm.open}
 				onOpenChange={(open) => setConfirm((c) => ({ ...c, open }))}
 				title="过期此 key"
@@ -1155,6 +1159,7 @@ export default function KvMonitorPage() {
 				confirmLabel="过期"
 				cancelLabel="取消"
 				loading={isBusy}
+				error={confirmError}
 				variant="destructive"
 				onConfirm={handleConfirmDelete}
 			/>
