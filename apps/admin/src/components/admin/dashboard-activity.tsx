@@ -26,7 +26,7 @@ import { AdminMetrics } from "./admin-metrics";
 
 const CONTENT_SERIES = [
 	{ key: "threads" as const, label: "新主题", color: "hsl(var(--basalt-chart-1))" },
-	{ key: "posts" as const, label: "新回复", color: "hsl(var(--basalt-chart-3))" },
+	{ key: "posts" as const, label: "新帖子（含首帖）", color: "hsl(var(--basalt-chart-3))" },
 ];
 
 export function DashboardActivity({ activity }: { activity: ActivityData }) {
@@ -107,13 +107,13 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 								</strong>
 							</span>
 							<span>
-								新回复{" "}
+								新帖子（含首帖）{" "}
 								<strong className="ml-1.5 text-base font-semibold text-basalt-foreground tabular-nums">
 									{postSummary ? formatNumber(postSummary.total) : "—"}
 								</strong>
 							</span>
 							<span>
-								日均回复{" "}
+								日均帖子{" "}
 								<strong className="ml-1.5 text-basalt-foreground tabular-nums">
 									{postSummary?.average == null
 										? "—"
@@ -133,7 +133,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 								showAxes
 								showLegend
 								className="h-64 w-full"
-								ariaLabel="近七天主题与回复趋势"
+								ariaLabel="近七天主题与帖子趋势"
 								xValueFormatter={(date) => String(date).slice(5)}
 								valueFormatter={formatNumber}
 								summary="按上海时区统计最近七天，包含尚未结束的今天。"
@@ -216,7 +216,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 							<MessagesSquare className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
 							版块活跃度
 						</h2>
-						<Badge variant="secondary">近 7 天 · 回复数</Badge>
+						<Badge variant="secondary">近 7 天 · 帖子数</Badge>
 					</LayerCard.Header>
 					<LayerCard.Well className="space-y-3">
 						{forums?.rows.length ? (
@@ -257,9 +257,12 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 								))
 						) : (
 							<p className="py-6 text-center text-sm text-basalt-muted-foreground">
-								{forums ? "该时段暂无版块回复" : "版块分布暂不可用"}
+								{forums ? "该时段暂无版块帖子" : "版块分布暂不可用"}
 							</p>
 						)}
+						<p className="border-t border-basalt-border/50 pt-3 text-xs text-basalt-muted-foreground">
+							帖子含主题首帖。占比仅基于已统计版块，最多统计发帖前 50 个版块。
+						</p>
 					</LayerCard.Well>
 				</LayerCard>
 				<LayerCard>

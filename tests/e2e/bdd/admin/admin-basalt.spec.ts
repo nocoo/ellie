@@ -418,7 +418,7 @@ test.describe("Admin Basalt integration", () => {
 		await expect(trend.getByTestId("chart-tooltip")).toBeVisible();
 		await expect(trend.getByTestId("chart-tooltip")).toContainText("新注册");
 		await expect(trend.getByTestId("chart-tooltip")).toContainText("2026-09-");
-		const distribution = page.getByRole("group", { name: "版块回复数分布", exact: true });
+		const distribution = page.getByRole("group", { name: "版块帖子数分布", exact: true });
 		await expect(distribution.locator(".recharts-bar-rectangle")).toHaveCount(12);
 		const gradientIds = await page
 			.locator("svg.recharts-surface linearGradient")

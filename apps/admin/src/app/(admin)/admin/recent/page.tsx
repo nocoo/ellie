@@ -148,12 +148,18 @@ function RecentPageInner() {
 		]).then((results) => {
 			if (cancelled) return;
 			setCounts(
-				Object.fromEntries(
-					ALL_TABS.map((key, i) => {
-						const result = results[i];
-						return [key, result.status === "fulfilled" ? result.value.meta.total : null];
-					}),
-				) as Record<TabKey, number | null>,
+				(prev) =>
+					Object.fromEntries(
+						ALL_TABS.map((key, i) => {
+							const result = results[i];
+							// A loaded list has the authoritative total. A delayed
+							// background count must not replace it, even after a deletion.
+							return [
+								key,
+								prev[key] ?? (result.status === "fulfilled" ? result.value.meta.total : null),
+							];
+						}),
+					) as Record<TabKey, number | null>,
 			);
 		});
 		return () => {

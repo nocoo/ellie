@@ -79,6 +79,16 @@ export function parseDetails(details: string | null | undefined): ParsedDetails 
 	}
 }
 
+/** Email-backed admin sessions use id 0; only historical actors have a user id. */
+export function adminLogActorKey(log: Pick<AdminLog, "adminId" | "details">): string | null {
+	const parsed = parseDetails(log.details);
+	const value = parsed.ok ? parsed.value : null;
+	const email =
+		value && typeof value === "object" && "actorEmail" in value ? value.actorEmail : null;
+	if (typeof email === "string" && email.trim()) return `email:${email.trim().toLowerCase()}`;
+	return log.adminId > 0 ? `user:${log.adminId}` : null;
+}
+
 /**
  * Whitelist of target types that get a clickable detail / list link.
  * Unknown types render as plain text.

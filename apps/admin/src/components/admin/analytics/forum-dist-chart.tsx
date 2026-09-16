@@ -22,7 +22,7 @@ interface ForumDistChartProps {
 export function ForumDistChart({ rows, limit = 12 }: ForumDistChartProps) {
 	const data = [...rows].sort((a, b) => b.posts - a.posts).slice(0, limit);
 	return (
-		<ChartFrame ariaLabel="版块回复数分布" size="h-80 w-full">
+		<ChartFrame ariaLabel="版块帖子数分布" size="h-80 w-full">
 			<BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
 				<CartesianGrid {...GRID_PROPS} horizontal={false} vertical />
 				<XAxis {...AXIS_CONFIG} type="number" allowDecimals={false} />
@@ -39,7 +39,7 @@ export function ForumDistChart({ rows, limit = 12 }: ForumDistChartProps) {
 				/>
 				<Bar
 					dataKey="posts"
-					name="回复数"
+					name="帖子数（含首帖）"
 					fill="hsl(var(--basalt-chart-3))"
 					radius={[0, 4, 4, 0]}
 					maxBarSize={16}

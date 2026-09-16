@@ -227,7 +227,7 @@ export function TrendTab(): React.JSX.Element {
 						</h2>
 						<span className="text-xs text-basalt-muted-foreground">
 							{forumDist
-								? `${forumDist.rows.length} 个版块 · ${formatNumber(forumTotal)} 条回复`
+								? `${forumDist.rows.length} 个版块 · ${formatNumber(forumTotal)} 条帖子（含首帖）`
 								: "加载中"}
 						</span>
 					</LayerCard.Header>
@@ -245,12 +245,15 @@ export function TrendTab(): React.JSX.Element {
 						{forumDist && forumDist.rows.length > 0 && (
 							<>
 								<ForumDistChart rows={forumDist.rows} />
+								<p className="text-xs text-basalt-muted-foreground">
+									统计发帖最多的前 50 个版块，占比以这些版块的帖子总数为分母。
+								</p>
 								<Collapsible>
 									<CollapsibleTrigger asChild>
 										<Button size="sm" variant="ghost" className="w-full justify-between">
 											<span className="flex items-center gap-2">
 												<ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
-												全部版块明细与占比
+												已统计版块明细与占比
 											</span>
 											<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
 										</Button>
@@ -260,8 +263,8 @@ export function TrendTab(): React.JSX.Element {
 											<TableHeader>
 												<TableRow>
 													<TableHead className="px-3 py-2">版块</TableHead>
-													<TableHead className="px-3 py-2 text-right">回复</TableHead>
-													<TableHead className="px-3 py-2 text-right">占全部</TableHead>
+													<TableHead className="px-3 py-2 text-right">帖子（含首帖）</TableHead>
+													<TableHead className="px-3 py-2 text-right">占已统计版块</TableHead>
 												</TableRow>
 											</TableHeader>
 											<TableBody>

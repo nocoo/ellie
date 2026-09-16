@@ -15,6 +15,7 @@ import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import {
 	type AdminLog,
 	type AdminLogFilters,
+	adminLogActorKey,
 	dateInputToUnix,
 	formatLogTime,
 	formatTarget,
@@ -274,11 +275,10 @@ export default function AdminLogsPage() {
 						hint: "当前条件下的全部记录",
 					},
 					{
-						label: "本页操作人员",
-						value: loading
-							? "—"
-							: new Set(data.filter((r) => r.adminId > 0).map((r) => r.adminId)).size,
+						label: "本页操作账号",
+						value: loading ? "—" : new Set(data.map(adminLogActorKey).filter(Boolean)).size,
 						icon: Users,
+						hint: "按邮箱或历史用户 ID 去重，不含系统任务",
 					},
 					{
 						label: "本页操作类型",

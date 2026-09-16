@@ -135,7 +135,7 @@ export function parseCheckinTrend(raw: unknown, range: AnalyticsRange): Analytic
 export const METRIC_LABELS: Record<AnalyticsTrendMetric, string> = {
 	users: "新注册",
 	threads: "新主题",
-	posts: "新回复",
+	posts: "新帖子（含首帖）",
 	checkins: "签到",
 };
 

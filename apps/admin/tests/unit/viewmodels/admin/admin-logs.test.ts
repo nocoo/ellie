@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	adminLogActorKey,
 	buildAdminLogSearchParams,
 	dateInputToUnix,
 	formatLogTime,
@@ -9,6 +10,22 @@ import {
 } from "@/viewmodels/admin/admin-logs";
 
 describe("admin-logs viewmodel", () => {
+	it("counts email-backed admins and historical users while excluding unidentified system tasks", () => {
+		const keys = [
+			{ adminId: 0, details: '{"actorEmail":" One@example.com "}' },
+			{ adminId: 0, details: '{"actorEmail":"one@example.com"}' },
+			{ adminId: 0, details: '{"actorEmail":"two@example.com"}' },
+			{ adminId: 9, details: "legacy action" },
+			{ adminId: 0, details: "" },
+			{ adminId: 0, details: "null" },
+			{ adminId: 0, details: '{"actorEmail":123}' },
+			{ adminId: 0, details: '{"actorEmail":" "}' },
+		].map(adminLogActorKey);
+		expect(new Set(keys.filter(Boolean))).toEqual(
+			new Set(["email:one@example.com", "email:two@example.com", "user:9"]),
+		);
+	});
+
 	describe("buildAdminLogSearchParams", () => {
 		it("forwards page and limit", () => {
 			const params = buildAdminLogSearchParams({ page: 2, limit: 50 });

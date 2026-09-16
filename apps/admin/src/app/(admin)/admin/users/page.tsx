@@ -330,11 +330,9 @@ export default function UsersPage() {
 					},
 					{
 						label: "本页用户内容贡献",
-						value: state.loading
-							? "—"
-							: state.data.reduce((n, u) => n + (u.threads ?? 0) + (u.posts ?? 0), 0),
+						value: state.loading ? "—" : state.data.reduce((n, u) => n + (u.posts ?? 0), 0),
 						icon: MessageSquare,
-						hint: "主题与帖子累计",
+						hint: "帖子累计，包含主题首帖",
 					},
 				]}
 			/>
