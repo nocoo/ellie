@@ -48,7 +48,7 @@ export function StatCard({ label, value, icon: Icon, subItems, hint, tone }: Sta
 				status={
 					tone ? (
 						<span
-							className={`text-xl font-semibold tabular-nums ${tone === "success" ? "text-basalt-badge-green-foreground" : "text-basalt-destructive"}`}
+							className={`text-xl font-semibold tabular-nums ${tone === "success" ? "text-basalt-primary" : "text-basalt-destructive"}`}
 						>
 							{formattedValue}
 						</span>

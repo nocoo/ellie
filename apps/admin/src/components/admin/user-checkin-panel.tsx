@@ -256,7 +256,7 @@ export function UserCheckinPanel({ userId }: Props) {
 												title={`${date}${checked ? "（已签到）" : ""}`}
 												aria-label={`${date} ${checked ? "已签到，点击取消" : "未签到，点击补签"}`}
 												data-testid={`checkin-day-${date}`}
-												className={`h-10 flex-col gap-0 p-1 text-[10px] ${checked ? "border-basalt-badge-green-foreground/40 bg-basalt-badge-green-foreground/10 text-basalt-badge-green-foreground" : ""} ${isToday ? "ring-1 ring-basalt-primary" : ""}`}
+												className={`h-10 flex-col gap-0 p-1 text-[10px] ${checked ? "border-basalt-primary/40 bg-basalt-primary/10 text-basalt-primary" : ""} ${isToday ? "ring-1 ring-basalt-primary" : ""}`}
 												variant={checked ? "secondary" : "outline"}
 												size="sm"
 												aria-pressed={checked}

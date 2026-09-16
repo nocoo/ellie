@@ -159,7 +159,12 @@ function AnalyticsPageInner(): React.JSX.Element {
 					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 						<StatCard label="今日新注册" value={overview.today.newUsers} icon={Users} />
 						<StatCard label="今日新主题" value={overview.today.newThreads} icon={FileText} />
-						<StatCard label="今日新回复" value={overview.today.newPosts} icon={MessageSquare} />
+						<StatCard
+							label="今日新帖子"
+							value={overview.today.newPosts}
+							icon={MessageSquare}
+							hint="包含主题首帖和回复"
+						/>
 						<StatCard label="今日签到" value={overview.today.checkins} icon={CalendarCheck} />
 					</div>
 				)}

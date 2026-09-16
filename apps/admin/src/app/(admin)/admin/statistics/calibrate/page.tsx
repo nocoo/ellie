@@ -278,89 +278,99 @@ export default function StatsCalibratePage() {
 					{error && <AdminInlineMessage variant="error" text={error} />}
 					{success && <AdminInlineMessage variant="success" text={success} />}
 
-					<Table
-						aria-label="计数器比对"
-						className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2"
+					<section
+						className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-basalt-ring"
+						aria-label="计数器比对表格"
+						// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
+						tabIndex={0}
 					>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-[180px]">计数器</TableHead>
-								<TableHead className="text-right">存储值</TableHead>
-								<TableHead className="text-right">真实值</TableHead>
-								<TableHead className="text-right">偏差</TableHead>
-								<TableHead className="text-right w-[120px]">调整偏移</TableHead>
-								<TableHead className="text-right">最终值</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{loading && counters.length === 0 && (
+						<Table
+							aria-label="计数器比对"
+							className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2"
+						>
+							<TableHeader>
 								<TableRow>
-									<TableCell colSpan={6} className="h-24 text-center text-basalt-muted-foreground">
-										加载计数器…
-									</TableCell>
+									<TableHead className="w-[180px]">计数器</TableHead>
+									<TableHead className="text-right">存储值</TableHead>
+									<TableHead className="text-right">真实值</TableHead>
+									<TableHead className="text-right">偏差</TableHead>
+									<TableHead className="text-right w-[120px]">调整偏移</TableHead>
+									<TableHead className="text-right">最终值</TableHead>
 								</TableRow>
-							)}
-							{counters.map((row) => {
-								const diff = getDiff(row);
-								const offset = offsets[row.key] ?? 0;
-								const final = getFinal(row);
-
-								return (
-									<TableRow key={row.key}>
-										<TableCell className="font-medium">
-											{COUNTER_LABELS[row.key] ?? row.key}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{formatNumber(row.stored)}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{row.real !== null ? formatNumber(row.real) : "—"}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{diff !== null ? (
-												<span
-													className={
-														diff === 0
-															? "text-basalt-muted-foreground"
-															: diff > 0
-																? "text-basalt-badge-green-foreground"
-																: "text-basalt-danger"
-													}
-												>
-													{diff > 0 ? "+" : ""}
-													{formatNumber(diff)}
-												</span>
-											) : (
-												"—"
-											)}
-										</TableCell>
-										<TableCell className="text-right">
-											<Input
-												type="number"
-												aria-label={`${COUNTER_LABELS[row.key] ?? row.key}调整偏移`}
-												className="h-8 w-[100px] text-right tabular-nums ml-auto"
-												value={offset}
-												onChange={(e) => {
-													const val = Number.parseInt(e.target.value, 10) || 0;
-													setOffsets((prev) => ({ ...prev, [row.key]: val }));
-												}}
-												disabled={
-													loading || running || applying || row.key === "stats.yesterday_posts"
-												}
-											/>
-										</TableCell>
-										<TableCell className="text-right tabular-nums font-medium">
-											{offset !== 0 ? (
-												<span className="text-basalt-primary">{formatNumber(final)}</span>
-											) : (
-												formatNumber(final)
-											)}
+							</TableHeader>
+							<TableBody>
+								{loading && counters.length === 0 && (
+									<TableRow>
+										<TableCell
+											colSpan={6}
+											className="h-24 text-center text-basalt-muted-foreground"
+										>
+											加载计数器…
 										</TableCell>
 									</TableRow>
-								);
-							})}
-						</TableBody>
-					</Table>
+								)}
+								{counters.map((row) => {
+									const diff = getDiff(row);
+									const offset = offsets[row.key] ?? 0;
+									const final = getFinal(row);
+
+									return (
+										<TableRow key={row.key}>
+											<TableCell className="font-medium">
+												{COUNTER_LABELS[row.key] ?? row.key}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{formatNumber(row.stored)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{row.real !== null ? formatNumber(row.real) : "—"}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{diff !== null ? (
+													<span
+														className={
+															diff === 0
+																? "text-basalt-muted-foreground"
+																: diff > 0
+																	? "text-basalt-primary"
+																	: "text-basalt-danger"
+														}
+													>
+														{diff > 0 ? "+" : ""}
+														{formatNumber(diff)}
+													</span>
+												) : (
+													"—"
+												)}
+											</TableCell>
+											<TableCell className="text-right">
+												<Input
+													type="number"
+													aria-label={`${COUNTER_LABELS[row.key] ?? row.key}调整偏移`}
+													className="h-8 w-[100px] text-right tabular-nums ml-auto"
+													value={offset}
+													onChange={(e) => {
+														const val = Number.parseInt(e.target.value, 10) || 0;
+														setOffsets((prev) => ({ ...prev, [row.key]: val }));
+													}}
+													disabled={
+														loading || running || applying || row.key === "stats.yesterday_posts"
+													}
+												/>
+											</TableCell>
+											<TableCell className="text-right tabular-nums font-medium">
+												{offset !== 0 ? (
+													<span className="text-basalt-primary">{formatNumber(final)}</span>
+												) : (
+													formatNumber(final)
+												)}
+											</TableCell>
+										</TableRow>
+									);
+								})}
+							</TableBody>
+						</Table>
+					</section>
 
 					<div className="flex flex-wrap items-center justify-end gap-2 p-4">
 						<Button

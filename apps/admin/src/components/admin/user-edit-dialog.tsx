@@ -412,7 +412,7 @@ export function UserEditDialog({
 	const statusColor = useMemo(
 		() =>
 			form.status === 0
-				? "text-basalt-badge-green-foreground"
+				? "text-basalt-primary"
 				: form.status === -1
 					? "text-basalt-destructive"
 					: "text-basalt-muted-foreground",

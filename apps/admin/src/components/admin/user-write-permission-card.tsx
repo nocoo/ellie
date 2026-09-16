@@ -42,7 +42,7 @@ const STATUS_ICON: Record<CheckStatus, typeof Check> = {
 };
 
 const STATUS_ICON_CLASS: Record<CheckStatus, string> = {
-	pass: "text-basalt-badge-green-foreground",
+	pass: "text-basalt-primary",
 	fail: "text-basalt-destructive",
 	skip: "text-basalt-muted-foreground",
 	info: "text-basalt-info",
@@ -101,7 +101,7 @@ export function UserWritePermissionCard({ user }: UserWritePermissionCardProps) 
 								error
 									? "text-xs text-basalt-muted-foreground"
 									: result.canWrite
-										? "text-xs text-basalt-badge-green-foreground"
+										? "text-xs text-basalt-primary"
 										: "text-xs text-basalt-destructive"
 							}
 							data-testid="write-permission-conclusion"

@@ -78,10 +78,10 @@ export function tokenizeJson(pretty: string): Token[] {
 
 const KIND_CLASS: Record<TokenKind, string> = {
 	key: "text-basalt-primary",
-	string: "text-basalt-badge-green-foreground",
+	string: "text-basalt-primary",
 	number: "text-basalt-warning",
-	boolean: "text-basalt-badge-purple-foreground",
-	null: "text-basalt-badge-purple-foreground",
+	boolean: "text-basalt-info",
+	null: "text-basalt-info",
 	punct: "text-basalt-muted-foreground",
 	plain: "",
 };
