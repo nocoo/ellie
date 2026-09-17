@@ -2,23 +2,66 @@ import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import { createJwt } from "../../../src/lib/jwt";
 import { checkMaintenance } from "../../../src/middleware/maintenance";
-import { createMockKV, makeEnv, TEST_JWT_SECRET } from "../../helpers";
+import { makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 describe("maintenance middleware", () => {
-	/** Create a mock DB that returns user with specified role and status */
-	function createMockDbWithUser(_userId: number, role: number, status = 0) {
+	/** Create a mock DB that returns settings for getSettingsFresh and optionally a user */
+	function createMockMaintenanceDb(options: {
+		maintenanceMode?: boolean;
+		adminBypass?: boolean;
+		maintenanceMessage?: string;
+		dbUser?: { role: number; status?: number };
+	}) {
+		const settingsMap: Record<string, { value: string; type: string }> = {
+			"features.access.maintenance_mode": {
+				value: String(options.maintenanceMode ?? false),
+				type: "boolean",
+			},
+			"features.access.maintenance_admin_bypass": {
+				value: String(options.adminBypass ?? false),
+				type: "boolean",
+			},
+		};
+		if (options.maintenanceMessage !== undefined) {
+			settingsMap["features.access.maintenance_message"] = {
+				value: options.maintenanceMessage,
+				type: "string",
+			};
+		}
+
 		return {
 			prepare: vi.fn((sql: string) => {
+				if (sql.includes("FROM settings WHERE key IN")) {
+					return {
+						bind: vi.fn((...keys: string[]) => ({
+							all: vi.fn(async () => {
+								const results = keys
+									.filter((k) => k in settingsMap)
+									.map((k) => ({
+										key: k,
+										value: settingsMap[k].value,
+										type: settingsMap[k].type,
+									}));
+								return { success: true, results };
+							}),
+						})),
+					};
+				}
 				if (sql.includes("SELECT role, status FROM users")) {
 					return {
 						bind: vi.fn(() => ({
-							first: vi.fn(() => Promise.resolve({ role, status })),
+							first: vi.fn(async () =>
+								options.dbUser
+									? { role: options.dbUser.role, status: options.dbUser.status ?? 0 }
+									: null,
+							),
 						})),
 					};
 				}
 				return {
 					bind: vi.fn(() => ({
-						first: vi.fn(() => Promise.resolve(null)),
+						first: vi.fn(async () => null),
+						all: vi.fn(async () => ({ success: true, results: [] })),
 					})),
 				};
 			}),
@@ -27,27 +70,21 @@ describe("maintenance middleware", () => {
 
 	/** Create an env where maintenance mode is ON */
 	function makeMaintenanceEnv(adminBypass = false, dbUser?: { role: number; status?: number }) {
-		const kv = createMockKV({
-			"settings:all": JSON.stringify({
-				"features.access.maintenance_mode": true,
-				"features.access.maintenance_admin_bypass": adminBypass,
-				"features.access.maintenance_message": "Under maintenance",
-			}),
+		const db = createMockMaintenanceDb({
+			maintenanceMode: true,
+			adminBypass,
+			maintenanceMessage: "Under maintenance",
+			dbUser,
 		});
-		const db = dbUser
-			? createMockDbWithUser(1, dbUser.role, dbUser.status ?? 0)
-			: ({} as D1Database);
-		return makeEnv({ KV: kv, DB: db });
+		return makeEnv({ DB: db });
 	}
 
 	/** Create an env where maintenance mode is OFF */
 	function makeNormalEnv() {
-		const kv = createMockKV({
-			"settings:all": JSON.stringify({
-				"features.access.maintenance_mode": false,
-			}),
+		const db = createMockMaintenanceDb({
+			maintenanceMode: false,
 		});
-		return makeEnv({ KV: kv });
+		return makeEnv({ DB: db });
 	}
 
 	// ─── Bypass paths ────────────────────────────────────────
@@ -118,7 +155,7 @@ describe("maintenance middleware", () => {
 			const result = await checkMaintenance(req, env);
 			expect(result).not.toBeNull();
 			expect(result?.status).toBe(503);
-			const data = await result?.json();
+			const data = (await result?.json()) as { error: { code: string } };
 			expect(data.error.code).toBe("MAINTENANCE_MODE");
 		});
 
@@ -126,7 +163,7 @@ describe("maintenance middleware", () => {
 			const env = makeMaintenanceEnv(false);
 			const req = new Request("https://api.example.com/api/v1/forums");
 			const result = await checkMaintenance(req, env);
-			const data = await result?.json();
+			const data = (await result?.json()) as { error: { details: { message: string } } };
 			expect(data.error.details.message).toBe("Under maintenance");
 		});
 
@@ -140,16 +177,14 @@ describe("maintenance middleware", () => {
 		});
 
 		it("should use default message when custom message not set", async () => {
-			const kv = createMockKV({
-				"settings:all": JSON.stringify({
-					"features.access.maintenance_mode": true,
-					"features.access.maintenance_admin_bypass": false,
-				}),
+			const db = createMockMaintenanceDb({
+				maintenanceMode: true,
+				adminBypass: false,
 			});
-			const env = makeEnv({ KV: kv });
+			const env = makeEnv({ DB: db });
 			const req = new Request("https://api.example.com/api/v1/forums");
 			const result = await checkMaintenance(req, env);
-			const data = await result?.json();
+			const data = (await result?.json()) as { error: { details: { message: string } } };
 			expect(data.error.details.message).toContain("维护中");
 		});
 	});

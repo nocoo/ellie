@@ -4,6 +4,7 @@
 // Admin logs are read-only — no create/update/delete from API (created internally).
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { getAdminReport } from "../../lib/cache/admin-report-read";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
@@ -63,69 +64,9 @@ const adminLogConfig: EntityConfig = {
 
 export const list = withEntityAuth(
 	adminLogConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const url = new URL(request.url);
-
-		const conditions: string[] = [];
-		const params: unknown[] = [];
-
-		// Filter: adminId
-		const adminIdFilter = url.searchParams.get("adminId");
-		if (adminIdFilter) {
-			const adminId = Number.parseInt(adminIdFilter, 10);
-			if (!Number.isNaN(adminId)) {
-				conditions.push("admin_id = ?");
-				params.push(adminId);
-			}
-		}
-
-		// Filter: action
-		const actionFilter = url.searchParams.get("action");
-		if (actionFilter) {
-			conditions.push("action = ?");
-			params.push(actionFilter);
-		}
-
-		// Filter: targetType
-		const targetTypeFilter = url.searchParams.get("targetType");
-		if (targetTypeFilter) {
-			conditions.push("target_type = ?");
-			params.push(targetTypeFilter);
-		}
-
-		// Filter: targetId
-		const targetIdFilter = url.searchParams.get("targetId");
-		if (targetIdFilter) {
-			const targetId = Number.parseInt(targetIdFilter, 10);
-			if (!Number.isNaN(targetId)) {
-				conditions.push("target_id = ?");
-				params.push(targetId);
-			}
-		}
-
-		// Filter: date range (startDate, endDate as Unix timestamps)
-		const startDateFilter = url.searchParams.get("startDate");
-		if (startDateFilter) {
-			const startDate = Number.parseInt(startDateFilter, 10);
-			if (!Number.isNaN(startDate)) {
-				conditions.push("created_at >= ?");
-				params.push(startDate);
-			}
-		}
-
-		const endDateFilter = url.searchParams.get("endDate");
-		if (endDateFilter) {
-			const endDate = Number.parseInt(endDateFilter, 10);
-			if (!Number.isNaN(endDate)) {
-				conditions.push("created_at <= ?");
-				params.push(endDate);
-			}
-		}
-
-		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-		// Pagination
 		const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
 		const limit = Math.min(
 			Math.max(Number.parseInt(url.searchParams.get("limit") ?? "20", 10), 1),
@@ -134,25 +75,37 @@ export const list = withEntityAuth(
 		if (page < 1 || Number.isNaN(page)) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
-
-		const [countResult, result] = await Promise.all([
-			env.DB.prepare(`SELECT COUNT(*) as total FROM admin_logs ${whereClause}`)
-				.bind(...params)
-				.first<{ total: number }>(),
-			env.DB.prepare(
-				`SELECT ${ADMIN_LOG_COLUMNS} FROM admin_logs ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-			)
-				.bind(...params, limit, (page - 1) * limit)
-				.all(),
-		]);
-
-		return paginatedNoStoreResponse(
-			result.results.map((r) => toAdminLog(r as Record<string, unknown>)),
-			countResult?.total ?? 0,
-			page,
-			limit,
-			origin,
-		);
+		const adminId = Number.parseInt(url.searchParams.get("adminId") ?? "", 10);
+		const targetId = Number.parseInt(url.searchParams.get("targetId") ?? "", 10);
+		const startDate = Number.parseInt(url.searchParams.get("startDate") ?? "", 10);
+		const endDate = Number.parseInt(url.searchParams.get("endDate") ?? "", 10);
+		const action = url.searchParams.get("action");
+		const targetType = url.searchParams.get("targetType");
+		if ((action && action.length > 128) || (targetType && targetType.length > 64)) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid filter" }, origin);
+		}
+		const data = await getAdminReport<{
+			items: unknown[];
+			total: number;
+			page: number;
+			limit: number;
+		}>(env, ctx, {
+			family: "admin:display",
+			scope: "admin",
+			params: {
+				resource: "admin-logs",
+				operation: "list",
+				adminId: Number.isSafeInteger(adminId) && adminId > 0 ? adminId : null,
+				action: action || null,
+				targetType: targetType || null,
+				targetId: Number.isSafeInteger(targetId) && targetId > 0 ? targetId : null,
+				startDate: Number.isSafeInteger(startDate) && startDate >= 0 ? startDate : null,
+				endDate: Number.isSafeInteger(endDate) && endDate >= 0 ? endDate : null,
+				page,
+				limit,
+			},
+		});
+		return paginatedNoStoreResponse(data.items, data.total, data.page, data.limit, origin);
 	},
 );
 

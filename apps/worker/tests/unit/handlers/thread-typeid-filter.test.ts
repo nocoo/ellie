@@ -1,269 +1,96 @@
-// Tests for `?typeId=` filter on GET /api/v1/threads.
-//
-// Coverage:
-//   - typeId=0/empty/missing → unfiltered (existing path, with global
-//     announcement merge — sanity)
-//   - typeId !== 0 with disabled forum → 400 (forumDisabled)
-//   - typeId !== 0 with no matching enabled row → 400 (notFound)
-//   - typeId !== 0 with cross-forum synthetic id → 400 (notFound)
-//   - typeId !== 0 with matching row → SQL is `forum_id=? AND type_id=?`,
-//     NO `sticky=STICKY_GLOBAL` merge → no site-wide announcements
-//   - typeId-filtered request bypasses the page1 KV cache
-
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-// Mock the forum-meta gate. We control `threadTypes.enabled` per test.
-const { metaForumPayload, page1Loader } = vi.hoisted(() => ({
-	metaForumPayload: { enabled: true },
-	page1Loader: vi.fn(async (_env, _ctx, _forumId, _limit, loader: () => Promise<unknown>) =>
-		loader(),
-	),
-}));
-
-vi.mock("../../../src/lib/cache/forum-read", async () => {
-	const actual = await vi.importActual<Record<string, unknown>>(
-		"../../../src/lib/cache/forum-read",
-	);
-	return {
-		...actual,
-		getForumMetaV2: vi.fn(async (_env, _ctx, id: number) => ({
-			kind: "ok",
-			forum: {
-				id,
-				status: 1,
-				visibility: "public",
-				name: "F",
-				threadTypes: {
-					enabled: metaForumPayload.enabled,
-					required: false,
-					listable: true,
-					prefix: false,
-				},
-			},
-		})),
-	};
-});
-
-vi.mock("../../../src/lib/cache/thread-list-read", async () => {
-	const actual = await vi.importActual<Record<string, unknown>>(
-		"../../../src/lib/cache/thread-list-read",
-	);
-	return {
-		...actual,
-		getThreadListPageOneV2: page1Loader,
-	};
-});
-
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { list } from "../../../src/handlers/thread";
-import type { Env } from "../../../src/lib/env";
-import { createMockCtx, createMockKV, makeD1ThreadRow, TEST_JWT_SECRET } from "../../helpers";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
-const mockEnv: Env = {
-	API_KEY: "k",
-	DB: {} as D1Database,
-	ENVIRONMENT: "test",
-	JWT_SECRET: TEST_JWT_SECRET,
-	KV: createMockKV(),
-	USE_KV_USER_CACHE: "false",
-};
+let f: ReturnType<typeof readingFixture>;
+beforeEach(() => {
+	f = readingFixture();
+	f.sqlite.exec("UPDATE forums SET thread_types_enabled=1 WHERE id=1");
+	f.insert("forum_thread_types", { id: 11, source_typeid: 11, forum_id: 1, name: "Question" });
+	f.insert("forum_thread_types", { id: 12, source_typeid: 12, forum_id: 2, name: "Other" });
+	f.insert("forum_thread_types", {
+		id: 13,
+		source_typeid: 13,
+		forum_id: 1,
+		name: "Disabled",
+		enabled: 0,
+	});
+	f.thread(1, { type_id: 11, type_name: "Question" });
+	f.thread(2, { type_id: 0 });
+	f.thread(3, { forum_id: 2, sticky: 2 });
+});
+afterEach(async () => {
+	await Promise.all(f.ctx._waitUntilPromises);
+	f.close();
+});
+const read = (query: string) =>
+	list(new Request(`https://x/api/v1/threads?forumId=1${query}`), f.env, f.ctx);
 
-interface PrepareCall {
-	sql: string;
-	binds: unknown[];
-}
+describe("GET threads typeId filter", () => {
+	it.each(["", "&typeId=", "&typeId=0"])(
+		"absent/zero filter %s includes global announcements",
+		async (query) => {
+			const response = await read(query);
+			expect(response.status).toBe(200);
+			expect((await response.json()).data.map((row: { id: number }) => row.id)).toEqual([3, 2, 1]);
+			expect(f.calls.some((call) => call.sql.includes("FROM forum_thread_types"))).toBe(false);
+		},
+	);
 
-/**
- * Build a D1 mock that:
- *   - Returns `typeRow` for the `forum_thread_types WHERE id=? AND
- *     forum_id=? AND enabled=1` lookup
- *   - Returns `{total: countRow}` for any COUNT(*) read
- *   - Returns `{results: rows}` for any other SELECT
- *   - Records every prepare/bind call in `calls`
- */
-function makeDb({
-	typeRow,
-	countTotal = 1,
-	rows = [],
-}: {
-	typeRow: { id: number; forum_id: number; name: string } | null;
-	countTotal?: number;
-	rows?: unknown[];
-}): { db: D1Database; calls: PrepareCall[] } {
-	const calls: PrepareCall[] = [];
-	const prepare = vi.fn((sql: string) => ({
-		bind: vi.fn((...binds: unknown[]) => {
-			calls.push({ sql, binds });
-			return {
-				first: vi.fn(async () => {
-					if (sql.includes("forum_thread_types")) return typeRow;
-					if (sql.includes("COUNT(*)")) return { total: countTotal };
-					return null;
-				}),
-				all: vi.fn(async () => ({ results: rows })),
-			};
-		}),
-	}));
-	return { db: { prepare } as unknown as D1Database, calls };
-}
+	it.each(["abc", "1abc", "-1", "1.5", "01", "+1", "9007199254740992"])(
+		"rejects malformed typeId=%s before D1",
+		async (typeId) => {
+			expect((await read(`&typeId=${encodeURIComponent(typeId)}`)).status).toBe(400);
+			expect(f.calls).toHaveLength(0);
+		},
+	);
 
-describe("GET /api/v1/threads — typeId filter", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		metaForumPayload.enabled = true;
+	it("rejects a disabled forum configuration without looking up a type", async () => {
+		f.sqlite.exec("UPDATE forums SET thread_types_enabled=0 WHERE id=1");
+		expect((await read("&typeId=11")).status).toBe(400);
+		expect(f.calls).toHaveLength(1);
+		expect(f.snapshots("thread:list")).toHaveLength(0);
 	});
 
-	it("typeId=0 is treated as unfiltered (no D1 lookup, original SQL with global announcement merge)", async () => {
-		const { db, calls } = makeDb({ typeRow: null, rows: [makeD1ThreadRow()] });
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=0"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(200);
-		// No forum_thread_types lookup performed.
-		expect(calls.find((c) => c.sql.includes("forum_thread_types"))).toBeUndefined();
-		// List query uses unfiltered shape (sticky=STICKY_GLOBAL merge present).
-		const listCall = calls.find((c) => c.sql.includes("ORDER BY"));
-		expect(listCall?.sql).toContain("sticky =");
+	it.each([12, 13, 999])("rejects foreign/disabled/missing typeId=%i", async (typeId) => {
+		expect((await read(`&typeId=${typeId}`)).status).toBe(400);
+		expect(f.calls.find((call) => call.sql.includes("FROM forum_thread_types"))?.params).toEqual([
+			typeId,
+			1,
+		]);
+		expect(f.snapshots("thread:list")).toHaveLength(0);
 	});
 
-	it("typeId=abc → 400 INVALID_REQUEST", async () => {
-		const { db } = makeDb({ typeRow: null });
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=abc"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("typeId=1abc → 400 (strict parse, NOT silently treated as 1) — reviewer pin msg b4221d27", async () => {
-		// Regression pin: the previous `Number.parseInt` path accepted
-		// "1abc" as 1 and would have dispatched to forum_thread_types
-		// with id=1. After tightening, this MUST 400 before any D1 hit.
-		const { db, calls } = makeDb({ typeRow: null });
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=1abc"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(400);
-		// No row lookup, no list query.
-		expect(calls.find((c) => c.sql.includes("forum_thread_types"))).toBeUndefined();
-		expect(calls.find((c) => c.sql.includes("ORDER BY"))).toBeUndefined();
-	});
-
-	it("typeId !== 0 with forum thread_types_enabled=0 → 400 (forumDisabled, no D1 row lookup)", async () => {
-		metaForumPayload.enabled = false;
-		const { db, calls } = makeDb({ typeRow: null });
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=11"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(400);
-		// No row lookup nor list query when the gate trips.
-		expect(calls.find((c) => c.sql.includes("forum_thread_types"))).toBeUndefined();
-		expect(calls.find((c) => c.sql.includes("ORDER BY"))).toBeUndefined();
-	});
-
-	it("typeId !== 0 with no matching enabled row → 400 (notFound)", async () => {
-		const { db, calls } = makeDb({ typeRow: null });
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=11"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(400);
-		// Lookup ran (correct call shape) but list query did NOT.
-		const lookup = calls.find((c) => c.sql.includes("forum_thread_types"));
-		expect(lookup).toBeDefined();
-		expect(lookup?.binds).toEqual([11, 1]);
-		expect(calls.find((c) => c.sql.includes("ORDER BY"))).toBeUndefined();
-	});
-
-	it("typeId !== 0 with cross-forum row → 400 (lookup binds forumId so it returns null)", async () => {
-		// Synthetic id 11 only exists in forum 99. Caller asks forumId=1.
-		// The lookup is bound to (typeId=11, forumId=1) so D1 returns null.
-		const { db, calls } = makeDb({ typeRow: null });
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=11"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(400);
-		const lookup = calls.find((c) => c.sql.includes("forum_thread_types"));
-		expect(lookup?.binds).toEqual([11, 1]);
-	});
-
-	it("typeId match: SQL is `forum_id=? AND type_id=?`, NO global announcement merge", async () => {
-		const { db, calls } = makeDb({
-			typeRow: { id: 11, forum_id: 1, name: "Question" },
-			rows: [makeD1ThreadRow()],
+	it("filters counts and rows to the exact forum/type and caches deep pages", async () => {
+		for (let id = 4; id <= 34; id++) f.thread(id, { type_id: 11, type_name: "Question" });
+		const response = await read("&typeId=11&page=2&limit=25");
+		expect(response.status).toBe(200);
+		const body = await response.json();
+		expect(body.meta).toMatchObject({ total: 32, page: 2, limit: 25, pages: 2 });
+		expect(body.data.map((row: { id: number }) => row.id)).toEqual([9, 8, 7, 6, 5, 4, 1]);
+		const snapshots = f.snapshots("thread:list");
+		expect(snapshots).toHaveLength(1);
+		expect(snapshots[0]).toMatchObject({
+			tier: "SHORT",
+			params: { forumId: 1, typeId: 11, limit: 25, offset: 25 },
 		});
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=11"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(200);
-		const listCall = calls.find(
-			(c) => c.sql.includes("ORDER BY") && !c.sql.includes("forum_thread_types"),
-		);
-		expect(listCall).toBeDefined();
-		// Filtered shape: forum_id=? AND type_id=?
-		expect(listCall?.sql).toMatch(/t\.forum_id\s*=\s*\?\s+AND\s+t\.type_id\s*=\s*\?/i);
-		// Reviewer pin (msg 11e374e8): filtered list MUST NOT include
-		// site-wide announcements via the WHERE-side `OR sticky = N` merge.
-		// (The ORDER-BY-side `CASE WHEN t.sticky = ... THEN ... END` is a
-		// sort rank, not a row inclusion filter, so it's allowed to stay.)
-		expect(listCall?.sql).not.toMatch(/OR\s+t?\.?sticky\s*=/i);
-		// Bind order: forumId, typeId, ..., limit
-		expect(listCall?.binds[0]).toBe(1);
-		expect(listCall?.binds[1]).toBe(11);
+		f.calls.length = 0;
+		expect((await (await read("&typeId=11&page=2&limit=25")).json()).data).toEqual(body.data);
+		// Current forum, current category, and one candidate access batch.
+		expect(f.calls).toHaveLength(3);
 	});
 
-	it("typeId-filtered request bypasses the page1 KV cache", async () => {
-		const { db } = makeDb({
-			typeRow: { id: 11, forum_id: 1, name: "Q" },
-			rows: [],
-		});
-		const env = { ...mockEnv, DB: db };
-		await list(new Request("https://x/api/v1/threads?forumId=1&typeId=11"), env, createMockCtx());
-		expect(page1Loader).not.toHaveBeenCalled();
+	it("checks current forum access before consulting a category or cached membership", async () => {
+		await read("&typeId=11");
+		f.sqlite.exec("UPDATE forums SET visibility='staff' WHERE id=1");
+		f.calls.length = 0;
+		expect((await read("&typeId=11")).status).toBe(403);
+		expect(f.calls).toHaveLength(1);
 	});
 
-	it("unfiltered request still uses the page1 KV cache", async () => {
-		const { db } = makeDb({ typeRow: null, rows: [] });
-		const env = { ...mockEnv, DB: db };
-		await list(new Request("https://x/api/v1/threads?forumId=1"), env, createMockCtx());
-		expect(page1Loader).toHaveBeenCalled();
-	});
-
-	it("typeId-filtered COUNT also drops the global announcement merge", async () => {
-		const { db, calls } = makeDb({
-			typeRow: { id: 11, forum_id: 1, name: "Q" },
-			countTotal: 7,
-			rows: [],
-		});
-		const env = { ...mockEnv, DB: db };
-		const res = await list(
-			new Request("https://x/api/v1/threads?forumId=1&typeId=11&page=1&limit=20"),
-			env,
-			createMockCtx(),
-		);
-		expect(res.status).toBe(200);
-		const countCall = calls.find((c) => c.sql.includes("COUNT(*)"));
-		expect(countCall).toBeDefined();
-		expect(countCall?.sql).toMatch(/forum_id\s*=\s*\?\s+AND\s+type_id\s*=\s*\?/i);
-		expect(countCall?.sql).not.toMatch(/OR\s+sticky\s*=/i);
-		expect(countCall?.binds).toEqual([1, 11]);
+	it("a category disabled after cache warming is rejected immediately", async () => {
+		await read("&typeId=11");
+		f.sqlite.exec("UPDATE forum_thread_types SET enabled=0 WHERE id=11");
+		expect((await read("&typeId=11")).status).toBe(400);
 	});
 });

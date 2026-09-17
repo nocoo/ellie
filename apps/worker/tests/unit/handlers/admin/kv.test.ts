@@ -25,6 +25,16 @@ vi.mock("../../../../src/lib/adminLog", async () => {
 	};
 });
 
+vi.mock("../../../../src/lib/cache/wrap", async () => {
+	const actual = await vi.importActual<typeof import("../../../../src/lib/cache/wrap")>(
+		"../../../../src/lib/cache/wrap",
+	);
+	return {
+		...actual,
+		settleCacheLoads: vi.fn(actual.settleCacheLoads),
+	};
+});
+
 vi.mock("../../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../../src/lib/cache/invalidate")>(
 		"../../../../src/lib/cache/invalidate",
@@ -54,6 +64,7 @@ import {
 	bumpThreadListGen,
 	bumpThreadListGenAll,
 } from "../../../../src/lib/cache/invalidate";
+import { settleCacheLoads } from "../../../../src/lib/cache/wrap";
 import { createAdminRequest, createMockKV, makeEnv } from "../../../helpers";
 
 const mockAudit = writeAdminLog as ReturnType<typeof vi.fn>;
@@ -62,6 +73,7 @@ const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockBumpTLForum = bumpThreadListGen as ReturnType<typeof vi.fn>;
 const mockBumpTLAll = bumpThreadListGenAll as ReturnType<typeof vi.fn>;
 const mockBumpDigest = bumpDigestGen as ReturnType<typeof vi.fn>;
+const mockSettle = settleCacheLoads as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -82,6 +94,22 @@ describe("admin/kv — refresh dispatcher", () => {
 		const body = (await res.json()) as { error: { code: string } };
 		expect(body.error.code).toBe("KV_ACTION_MISMATCH");
 		expect(mockBumpTree).not.toHaveBeenCalled();
+	});
+
+	it("treats '!unavailable' generation bump as a failed group invalidate", async () => {
+		mockBumpTree.mockResolvedValueOnce("!unavailable");
+		const env = makeEnv();
+		const res = await kv.refresh(
+			refreshRequest({ family: "forum:tree:v2", action: { kind: "bump-forum-tree" } }),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { outcome: string; ok: boolean; error?: { code: string } };
+		};
+		expect(body.data.ok).toBe(false);
+		expect(body.data.outcome).toBe("failed");
+		expect(body.data.error?.code).toBe("KV_INVALIDATE_UNAVAILABLE");
 	});
 
 	it("bump-forum-tree calls bumpForumTreeGen and audits", async () => {
@@ -292,7 +320,11 @@ describe("admin/kv — getKey sensitivity gates", () => {
 		const env = makeEnv();
 		const req = createAdminRequest("GET", "/api/admin/kv/get?key=settings:all");
 		const res = await kv.getKey(req, env);
-		expect(res.status).toBe(404);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { found: boolean; status: string; valid: boolean } };
+		expect(body.data.found).toBe(false);
+		expect(body.data.valid).toBe(false);
+		expect(body.data.status).toBe("not-found");
 	});
 
 	it("returns 404 for unknown family", async () => {
@@ -372,6 +404,108 @@ describe("admin/kv — listFamily", () => {
 		const body = (await res.json()) as { data: { keys: unknown[] } };
 		expect(body.data.keys).toEqual([]);
 	});
+
+	it("lists singleton metadata without reading the body", async () => {
+		const kvStore = createMockKV();
+		await kvStore.put("settings:all", '{"siteName":"secret"}', {
+			metadata: { contentUtf8Bytes: 21, expiresAt: 9, schemaVersion: 3 },
+		});
+		const env = makeEnv({ KV: kvStore });
+		const res = await kv.listFamily(
+			createAdminRequest("GET", "/api/admin/kv/list?family=settings:all"),
+			env,
+		);
+		expect(res.status).toBe(200);
+		expect(kvStore.get).not.toHaveBeenCalled();
+		const body = (await res.json()) as {
+			data: {
+				keys: {
+					rawKey: string | null;
+					contentUtf8Bytes: number | null;
+					schemaVersion: number | null;
+				}[];
+				countKind: string;
+			};
+		};
+		expect(body.data.countKind).toBe("observed");
+		expect(body.data.keys[0]).toMatchObject({
+			rawKey: "settings:all",
+			contentUtf8Bytes: 21,
+			schemaVersion: 3,
+		});
+	});
+
+	it("does not treat an exact miss past sibling scan as observed zero", async () => {
+		const kvStore = createMockKV();
+		kvStore.list = vi.fn(async (opts: { prefix?: string } = {}) => {
+			if (opts.prefix === "settings:all") {
+				return {
+					keys: Array.from({ length: 32 }, (_, i) => ({ name: `settings:all:sib${i}` })),
+					list_complete: false,
+					cursor: "more",
+				};
+			}
+			return { keys: [], list_complete: true, cursor: "" };
+		}) as unknown as KVNamespace["list"];
+		const env = makeEnv({ KV: kvStore });
+		const res = await kv.listFamily(
+			createAdminRequest("GET", "/api/admin/kv/list?family=settings:all"),
+			env,
+		);
+		const body = (await res.json()) as {
+			data: { keys: unknown[]; countKind: string; listComplete: boolean };
+		};
+		expect(kvStore.get).not.toHaveBeenCalled();
+		expect(body.data.keys).toEqual([]);
+		expect(body.data.countKind).toBe("unknown");
+		expect(body.data.listComplete).toBe(false);
+	});
+
+	it("locates a hashed family by params and scope without a value GET", async () => {
+		const kvStore = createMockKV({ "user:mini:42": '{"id":42}' });
+		const env = makeEnv({ KV: kvStore });
+		const params = encodeURIComponent(JSON.stringify({ id: 42 }));
+		const res = await kv.listFamily(
+			createAdminRequest(
+				"GET",
+				`/api/admin/kv/list?family=user:mini:v1&params=${params}&scope=public`,
+			),
+			env,
+		);
+		expect(res.status).toBe(200);
+		expect(kvStore.get).not.toHaveBeenCalled();
+		const body = (await res.json()) as {
+			data: {
+				keys: { rawKey: string | null; params: unknown; scope: string | null }[];
+				countKind: string;
+			};
+		};
+		expect(body.data.countKind).toBe("observed");
+		expect(body.data.keys).toEqual([
+			expect.objectContaining({
+				rawKey: "user:mini:42",
+				params: { id: 42 },
+				scope: "public",
+			}),
+		]);
+	});
+
+	it("rejects mixing a full key with params, and invalid param JSON", async () => {
+		const env = makeEnv();
+		const mixed = await kv.listFamily(
+			createAdminRequest(
+				"GET",
+				"/api/admin/kv/list?family=user:mini:v1&key=user:mini:1&params=%7B%22id%22%3A1%7D",
+			),
+			env,
+		);
+		expect(mixed.status).toBe(400);
+		const bad = await kv.listFamily(
+			createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1&params=not-json"),
+			env,
+		);
+		expect(bad.status).toBe(400);
+	});
 });
 
 describe("admin/kv — getKey mask-value gating", () => {
@@ -432,9 +566,9 @@ describe("admin/kv — overview presence + no gen seeding", () => {
 		// Hide-name shipped with 0 keys is "absent" too.
 		const refreshRow = body.data.families.find((f) => f.family === "refresh");
 		expect(refreshRow?.presence).toBe("absent");
-		// gen tokens read raw — overview MUST NOT have written any new
-		// values into KV (would change the very state we observe).
-		expect(env.KV.put as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+		// Overview may fill the monitor snapshot, but must never seed gen tokens.
+		const puts = (env.KV.put as ReturnType<typeof vi.fn>).mock.calls.map((call) => String(call[0]));
+		expect(puts.every((key) => key.startsWith("cache:v3:monitor:"))).toBe(true);
 		// Forum-tree row should expose gen value as null when missing.
 		const tree = body.data.families.find((f) => f.family === "forum:tree:v2");
 		expect(tree?.currentGens?.[0].value).toBeNull();
@@ -534,6 +668,22 @@ describe("admin/kv — refresh: per-thread bumpers", () => {
 });
 
 describe("admin/kv — getKey misc", () => {
+	it("inspects by params and scope when the hashed key is not supplied", async () => {
+		const env = makeEnv({ KV: createMockKV({ "user:mini:42": '{"id":42,"username":"n"}' }) });
+		const params = encodeURIComponent(JSON.stringify({ id: 42 }));
+		const res = await kv.getKey(
+			createAdminRequest(
+				"GET",
+				`/api/admin/kv/get?family=user:mini:v1&params=${params}&scope=public`,
+			),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { rawKey: string | null; found: boolean } };
+		expect(body.data.rawKey).toBe("user:mini:42");
+		expect(body.data.found).toBe(true);
+	});
+
 	it("returns 400 when key query param is missing", async () => {
 		const env = makeEnv();
 		const req = createAdminRequest("GET", "/api/admin/kv/get");
@@ -622,6 +772,49 @@ describe("admin/kv — overview", () => {
 		const refreshRow = body.data.families.find((f) => f.family === "refresh");
 		expect(refreshRow?.sampleKeys).toEqual([]);
 	});
+
+	it("does not stamp a later occupancy minute from a cached overview", async () => {
+		const { __resetMetricsForTest, swapSnapshot } = await import(
+			"../../../../src/lib/cache/metrics"
+		);
+		vi.useFakeTimers();
+		try {
+			const origin = 1_700_000_000_000;
+			vi.setSystemTime(origin);
+			__resetMetricsForTest();
+			const kvStore = createMockKV({ "settings:all": "{}" });
+			const env = makeEnv({ KV: kvStore });
+			const first = await kv.overview(createAdminRequest("GET", "/api/admin/kv/overview"), env);
+			expect(first.status).toBe(200);
+			const firstBody = (await first.json()) as { data: { observedAt: number } };
+			expect(firstBody.data.observedAt).toBe(origin);
+			const minuteT = Math.floor(origin / 60_000);
+			const warm = swapSnapshot();
+			expect(
+				[...warm.keys()].some(
+					(key) => key.startsWith("footprint:") && key.includes(`\u0001${minuteT}\u0001`),
+				),
+			).toBe(true);
+			vi.mocked(kvStore.list).mockClear();
+			vi.setSystemTime(origin + 61_000);
+			const second = await kv.overview(createAdminRequest("GET", "/api/admin/kv/overview"), env);
+			expect(second.status).toBe(200);
+			const secondBody = (await second.json()) as { data: { observedAt: number } };
+			expect(secondBody.data.observedAt).toBe(origin);
+			expect(kvStore.list).not.toHaveBeenCalled();
+			const laterMinute = Math.floor((origin + 61_000) / 60_000);
+			expect(laterMinute).not.toBe(minuteT);
+			const hot = swapSnapshot();
+			expect(
+				[...hot.keys()].some(
+					(key) => key.startsWith("footprint:") && key.includes(`\u0001${laterMinute}\u0001`),
+				),
+			).toBe(false);
+		} finally {
+			vi.useRealTimers();
+			__resetMetricsForTest();
+		}
+	});
 });
 
 describe("admin/kv — metrics", () => {
@@ -638,7 +831,7 @@ describe("admin/kv — metrics", () => {
 		const db = {
 			prepare: () => ({
 				bind: () => ({
-					all: async () => ({ results: rows }),
+					all: async () => ({ success: true, results: rows }),
 				}),
 			}),
 		} as unknown as D1Database;
@@ -663,6 +856,44 @@ describe("admin/kv — metrics", () => {
 		expect(body.data.series[3].count).toBe(2);
 	});
 
+	it("passes through application:d1 observation from the same metrics table, no extra SQL", async () => {
+		const tsNow = Math.floor(Date.now() / 60_000);
+		const rows = [
+			{ family: "application:d1", ts_minute: tsNow, op: "d1-query", count: 4 },
+			{ family: "application:d1", ts_minute: tsNow, op: "d1-duration-ms", count: 18 },
+			{ family: "application:d1", ts_minute: tsNow, op: "d1-rows-read", count: 22 },
+		];
+		const sql: string[] = [];
+		const db = {
+			prepare: (query: string) => {
+				sql.push(query);
+				expect(query).toContain("kv_cache_metrics_minute");
+				expect(query).not.toContain("sqlite_master");
+				expect(query.toLowerCase()).not.toContain("pragma");
+				return {
+					bind: () => ({
+						all: async () => ({ success: true, results: rows }),
+					}),
+				};
+			},
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const res = await kv.metrics(
+			createAdminRequest("GET", "/api/admin/kv/metrics?minutes=60"),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { series: { family: string; op: string; count: number }[] };
+		};
+		expect(sql).toHaveLength(1);
+		expect(body.data.series.map((r) => r.op)).toEqual([
+			"d1-query",
+			"d1-duration-ms",
+			"d1-rows-read",
+		]);
+	});
+
 	it("degrades gracefully when D1 query throws (table missing)", async () => {
 		const db = {
 			prepare: () => ({
@@ -682,5 +913,430 @@ describe("admin/kv — metrics", () => {
 		};
 		expect(body.data.series).toEqual([]);
 		expect(body.data.note).toContain("metrics table unavailable");
+	});
+});
+
+describe("admin/kv — inspect lifecycle without side effects", () => {
+	it("returns authorized envelope data, utf-8 size, and does not write", async () => {
+		const now = Date.now();
+		const envelope = {
+			schemaVersion: 3,
+			family: "settings:all",
+			tier: "MEDIUM",
+			loadedAt: now - 1_000,
+			expiresAt: now + 60_000,
+			data: { siteName: "preview" },
+			params: {},
+			scope: "public",
+		};
+		const env = makeEnv({ KV: createMockKV({ "settings:all": JSON.stringify(envelope) }) });
+		const req = createAdminRequest("GET", "/api/admin/kv/get?key=settings:all");
+		const res = await kv.getKey(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: {
+				value: { siteName: string };
+				status: string;
+				contentUtf8Bytes: number;
+				footprint: { kind: string; bytes: number };
+				valid: boolean;
+				scope: string;
+			};
+		};
+		expect(body.data.value.siteName).toBe("preview");
+		expect(body.data.scope).toBe("public");
+		if (body.data.valid) expect(body.data.status).toBe("valid");
+		else expect(body.data.status).not.toBe("valid");
+		expect(body.data.contentUtf8Bytes).toBeGreaterThan(0);
+		expect(body.data.footprint.kind).toBe("observed");
+		expect(env.KV.put as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+	});
+
+	it("returns read-failed without filling when KV get throws", async () => {
+		const env = makeEnv({ KV: createMockKV({ "settings:all": '{"siteName":"x"}' }) });
+		(env.KV.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("kv down"));
+		const res = await kv.getKey(
+			createAdminRequest("GET", "/api/admin/kv/get?key=settings:all"),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { status: string; found: boolean; valid: boolean } };
+		expect(body.data.status).toBe("read-failed");
+		expect(body.data.found).toBe(false);
+		expect(body.data.valid).toBe(false);
+		expect(env.KV.put as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+	});
+
+	it("previews internal scope on the admin inspect path only", async () => {
+		const now = Date.now();
+		const envelope = {
+			schemaVersion: 3,
+			family: "settings:all",
+			tier: "LONG",
+			loadedAt: now - 1_000,
+			expiresAt: now + 60_000,
+			data: { secret: "admin-only" },
+			params: {},
+			scope: "internal",
+		};
+		const env = makeEnv({ KV: createMockKV({ "settings:all": JSON.stringify(envelope) }) });
+		const res = await kv.getKey(
+			createAdminRequest("GET", "/api/admin/kv/get?key=settings:all"),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { scope: string; adminOnlyPreview: boolean; value: { secret: string } };
+		};
+		expect(body.data.scope).toBe("internal");
+		expect(body.data.adminOnlyPreview).toBe(true);
+		expect(body.data.value.secret).toBe("admin-only");
+	});
+
+	it("marks logically expired envelope as diagnostic, still no loader write", async () => {
+		const envelope = {
+			schemaVersion: 3,
+			family: "settings:all",
+			tier: "SHORT",
+			loadedAt: 1,
+			expiresAt: 2,
+			data: { siteName: "old" },
+			params: {},
+			scope: "public",
+		};
+		const env = makeEnv({ KV: createMockKV({ "settings:all": JSON.stringify(envelope) }) });
+		const res = await kv.getKey(
+			createAdminRequest("GET", "/api/admin/kv/get?key=settings:all"),
+			env,
+		);
+		const body = (await res.json()) as {
+			data: { status: string; value: { siteName: string }; valid: boolean };
+		};
+		expect(body.data.status).toBe("logically-expired");
+		expect(body.data.valid).toBe(false);
+		expect(body.data.value.siteName).toBe("old");
+		expect(env.KV.put as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+	});
+});
+
+describe("admin/kv — per-entry delete vs group invalidate", () => {
+	it("deletes only the target business key and does not bump a generation", async () => {
+		const { __resetMetricsForTest, swapSnapshot } = await import(
+			"../../../../src/lib/cache/metrics"
+		);
+		__resetMetricsForTest();
+		const env = makeEnv({
+			KV: createMockKV({
+				"forum:tree:v2:anon:g1": '{"ok":true}',
+				"forum:tree:v2:member:g1": '{"ok":true}',
+			}),
+		});
+		const res = await kv.deleteEntry(
+			createAdminRequest("POST", "/api/admin/kv/delete", {
+				family: "forum:tree:v2",
+				key: "forum:tree:v2:anon:g1",
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { outcome: string; deletedKeys: string[] } };
+		expect(body.data.outcome).toBe("deleted");
+		expect(body.data.deletedKeys).toEqual(["forum:tree:v2:anon:g1"]);
+		expect(mockBumpTree).not.toHaveBeenCalled();
+		expect(await env.KV.get("forum:tree:v2:anon:g1")).toBeNull();
+		expect(await env.KV.get("forum:tree:v2:member:g1")).not.toBeNull();
+		const keys = [...swapSnapshot().keys()];
+		expect(keys.some((key) => key.startsWith("admin:forum:tree:v2"))).toBe(true);
+		expect(keys.some((key) => key.startsWith("forum:tree:v2\u0001"))).toBe(false);
+	});
+
+	it("refuses runtime-state keys instead of deleting credentials", async () => {
+		const env = makeEnv({ KV: createMockKV({ "refresh:supersecret": "1" }) });
+		const res = await kv.deleteEntry(
+			createAdminRequest("POST", "/api/admin/kv/delete", {
+				family: "refresh",
+				key: "refresh:supersecret",
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { outcome: string } };
+		expect(body.data.outcome).toBe("not-allowed");
+		expect(await env.KV.get("refresh:supersecret")).toBe("1");
+	});
+});
+
+describe("admin/kv — rebuild is not a generation bump", () => {
+	it("does not bump a generation or delete a valid snapshot when rebuild cannot load", async () => {
+		const env = makeEnv({ KV: createMockKV({ "settings:all": '{"siteName":"x"}' }) });
+		const res = await kv.rebuild(
+			createAdminRequest("POST", "/api/admin/kv/rebuild", {
+				family: "settings:all",
+				key: "settings:all",
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { outcome: string; error?: { code: string }; stage?: string };
+		};
+		expect(body.data.outcome).toBe("failed");
+		expect(body.data.error?.code).toBe("INVALID_DESCRIPTOR");
+		expect(mockBumpTree).not.toHaveBeenCalled();
+		expect(await env.KV.get("settings:all")).toBe('{"siteName":"x"}');
+	});
+
+	it("keeps the old snapshot when rebuild reports STALE_VERSION", async () => {
+		const now = Date.now();
+		const envelope = {
+			schemaVersion: 3,
+			family: "forum:tree:v2",
+			tier: "LONG",
+			loadedAt: now - 1_000,
+			expiresAt: now + 3_600_000,
+			data: { nodes: [] },
+			params: { bucket: "anon" },
+			scope: "role:anon",
+		};
+		const raw = JSON.stringify(envelope);
+		const env = makeEnv({
+			KV: createMockKV({ "forum:tree:v2:anon:gold": raw }),
+		});
+		const res = await kv.rebuild(
+			createAdminRequest("POST", "/api/admin/kv/rebuild", {
+				family: "forum:tree:v2",
+				key: "forum:tree:v2:anon:gold",
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { outcome: string; error?: { code: string }; stage?: string };
+		};
+		expect(body.data.outcome).toBe("failed");
+		expect(body.data.error?.code).toBe("STALE_VERSION");
+		expect(body.data.stage).toBe("validate");
+		expect(await env.KV.get("forum:tree:v2:anon:gold")).toBe(raw);
+		expect(mockBumpTree).not.toHaveBeenCalled();
+	});
+
+	it("returns BUSY validate when a pending fill has not settled, and keeps the snapshot", async () => {
+		const now = Date.now();
+		const envelope = {
+			schemaVersion: 3,
+			family: "settings:all",
+			tier: "LONG",
+			loadedAt: now - 1_000,
+			expiresAt: now + 60_000,
+			data: { siteName: "still-here" },
+			params: {},
+			scope: "public",
+		};
+		const raw = JSON.stringify(envelope);
+		mockSettle.mockRejectedValueOnce(new Error("fill timeout"));
+		const env = makeEnv({ KV: createMockKV({ "settings:all": raw }) });
+		const res = await kv.rebuild(
+			createAdminRequest("POST", "/api/admin/kv/rebuild", {
+				family: "settings:all",
+				key: "settings:all",
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { outcome: string; error?: { code: string }; stage?: string };
+		};
+		expect(body.data.outcome).toBe("failed");
+		expect(body.data.error?.code).toBe("BUSY");
+		expect(body.data.stage).toBe("validate");
+		expect(await env.KV.get("settings:all")).toBe(raw);
+		expect(mockBumpTree).not.toHaveBeenCalled();
+	});
+
+	it("rejects caller-supplied params or scope on rebuild", async () => {
+		const env = makeEnv({ KV: createMockKV({ "settings:all": '{"siteName":"x"}' }) });
+		const res = await kv.rebuild(
+			createAdminRequest("POST", "/api/admin/kv/rebuild", {
+				family: "settings:all",
+				key: "settings:all",
+				params: { siteName: "injected" },
+				scope: "admin",
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("UNKNOWN_KEYS");
+		expect(mockBumpTree).not.toHaveBeenCalled();
+	});
+});
+
+describe("admin/kv — operations and metrics window", () => {
+	it("does not treat a failed audit read as a healthy empty log", async () => {
+		const db = {
+			prepare: () => ({
+				bind: () => ({
+					all: async () => ({ success: false, results: [] }),
+				}),
+			}),
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const res = await kv.operations(createAdminRequest("GET", "/api/admin/kv/operations"), env);
+		const body = (await res.json()) as {
+			data: { rows: unknown[]; note?: string; listComplete?: boolean };
+		};
+		expect(body.data.rows).toEqual([]);
+		expect(body.data.note).toContain("unavailable");
+		expect(body.data.listComplete).toBe(false);
+	});
+
+	it("pages operations with createdAt/id cursor and limit+1", async () => {
+		const { encodeGenericCursor } = await import("@ellie/types");
+		const rows = [
+			{
+				id: 3,
+				admin_id: 1,
+				admin_name: "a",
+				action: "kv.delete_key",
+				target_type: "kv_key",
+				target_id: null,
+				details: "{}",
+				created_at: 30,
+			},
+			{
+				id: 2,
+				admin_id: 1,
+				admin_name: "a",
+				action: "kv.rebuild",
+				target_type: "kv_key",
+				target_id: null,
+				details: "{}",
+				created_at: 20,
+			},
+			{
+				id: 1,
+				admin_id: 1,
+				admin_name: "a",
+				action: "kv.bump_gen",
+				target_type: "kv_key",
+				target_id: null,
+				details: "{}",
+				created_at: 10,
+			},
+		];
+		const binds: unknown[][] = [];
+		const db = {
+			prepare: () => ({
+				bind: (...args: unknown[]) => {
+					binds.push(args);
+					const limit = Number(args[args.length - 1]);
+					const createdAt = args.length > 5 ? Number(args[4]) : Number.POSITIVE_INFINITY;
+					const id = args.length > 5 ? Number(args[6]) : Number.POSITIVE_INFINITY;
+					const filtered = rows.filter(
+						(row) => row.created_at < createdAt || (row.created_at === createdAt && row.id < id),
+					);
+					return {
+						all: async () => ({ success: true, results: filtered.slice(0, limit) }),
+					};
+				},
+			}),
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const first = await kv.operations(
+			createAdminRequest("GET", "/api/admin/kv/operations?limit=1"),
+			env,
+		);
+		const firstBody = (await first.json()) as {
+			data: { rows: { id: number }[]; cursor: string | null; listComplete: boolean };
+		};
+		expect(binds[0]?.[binds[0].length - 1]).toBe(2);
+		expect(firstBody.data.rows.map((row) => row.id)).toEqual([3]);
+		expect(firstBody.data.listComplete).toBe(false);
+		expect(firstBody.data.cursor).toBe(encodeGenericCursor({ createdAt: 30, id: 3 }));
+		const second = await kv.operations(
+			createAdminRequest(
+				"GET",
+				`/api/admin/kv/operations?limit=2&cursor=${encodeURIComponent(firstBody.data.cursor ?? "")}`,
+			),
+			env,
+		);
+		const secondBody = (await second.json()) as {
+			data: { rows: { id: number }[]; listComplete: boolean; cursor: string | null };
+		};
+		expect(secondBody.data.rows.map((row) => row.id)).toEqual([2, 1]);
+		expect(secondBody.data.listComplete).toBe(true);
+		expect(secondBody.data.cursor).toBeNull();
+	});
+
+	it("rejects a malformed operations cursor", async () => {
+		const env = makeEnv();
+		const res = await kv.operations(
+			createAdminRequest("GET", "/api/admin/kv/operations?cursor=not-a-cursor"),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("returns empty operations when admin_logs is missing", async () => {
+		const db = {
+			prepare: () => ({
+				bind: () => ({
+					all: async () => {
+						throw new Error("no such table: admin_logs");
+					},
+				}),
+			}),
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const res = await kv.operations(createAdminRequest("GET", "/api/admin/kv/operations"), env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { rows: unknown[]; note?: string } };
+		expect(body.data.rows).toEqual([]);
+		expect(body.data.note).toContain("unavailable");
+	});
+
+	it("accepts a 7-day metrics window without extra D1 stats SQL", async () => {
+		const db = {
+			prepare: (sql: string) => {
+				expect(sql).toContain("kv_cache_metrics_minute");
+				expect(sql).not.toContain("sqlite_master");
+				expect(sql.toLowerCase()).not.toContain("pragma");
+				return {
+					bind: () => ({
+						all: async () => ({ success: true, results: [] }),
+					}),
+				};
+			},
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const res = await kv.metrics(
+			createAdminRequest("GET", "/api/admin/kv/metrics?minutes=10080"),
+			env,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { minutes: number; source: string } };
+		expect(body.data.minutes).toBe(10080);
+		expect(body.data.source).toContain("application");
+	});
+});
+
+describe("admin/kv — overview count kind", () => {
+	it("labels truncated family counts as at-least, never unknown as 0 bytes", async () => {
+		const env = makeEnv();
+		const res = await kv.overview(createAdminRequest("GET", "/api/admin/kv/overview"), env);
+		const body = (await res.json()) as {
+			data: {
+				families: {
+					family: string;
+					count: number;
+					countKind: string;
+					footprint: { kind: string; bytes: number | null };
+				}[];
+			};
+		};
+		const settings = body.data.families.find((f) => f.family === "settings:all");
+		expect(settings?.countKind).toBe("observed");
+		expect(settings?.footprint.kind).toBe("unknown");
+		expect(settings?.footprint.bytes).toBeNull();
 	});
 });

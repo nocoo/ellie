@@ -1,159 +1,142 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { shanghaiDateLocal, shanghaiTodayStartUnix } from "../../../src/lib/shanghaiTime";
 import { checkAndRolloverDailyStats } from "../../../src/lib/stats-rollover";
-
-// ─── Helpers ──────────────────────────────────────────────────
-
-function makeDb() {
-	return {
-		prepare: vi.fn(() => ({
-			bind: vi.fn(() => ({
-				run: vi.fn(async () => ({ success: true })),
-			})),
-		})),
-	} as unknown as D1Database;
-}
-
-function makeKv(initialState: Record<string, string> = {}) {
-	const store = { ...initialState };
-	return {
-		get: vi.fn(async (key: string) => store[key] ?? null),
-		put: vi.fn(async (key: string, value: string) => {
-			store[key] = value;
-		}),
-		delete: vi.fn(async (key: string) => {
-			delete store[key];
-		}),
-		_store: store,
-	} as unknown as KVNamespace & { _store: Record<string, string> };
-}
-
-function makeEnv(overrides: Partial<{ DB: D1Database; KV: KVNamespace }> = {}) {
-	return {
-		DB: overrides.DB ?? makeDb(),
-		KV: overrides.KV ?? makeKv(),
-	} as unknown as import("../../../src/lib/env").Env;
-}
-
-// ─── Tests ────────────────────────────────────────────────────
+import { readingFixture } from "./cache/thread-cache-fixture";
 
 describe("stats-rollover", () => {
+	let f: ReturnType<typeof readingFixture>;
+
 	beforeEach(() => {
 		vi.useFakeTimers();
+		f = readingFixture();
+		f.thread(1);
 	});
 
 	afterEach(() => {
+		f.close();
 		vi.useRealTimers();
+		vi.restoreAllMocks();
 	});
 
 	describe("checkAndRolloverDailyStats", () => {
-		it("initializes date marker on first run", async () => {
-			// Set to 2026-05-30 10:00 Beijing time (02:00 UTC)
+		it("initializes date marker and sets yesterday_posts from committed records on first run", async () => {
+			// Set time to 2026-05-30 10:00 Beijing (02:00 UTC)
+			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
+			const todayStart = shanghaiTodayStartUnix();
+
+			// Insert posts from yesterday (2026-05-29)
+			f.post(10, { created_at: todayStart - 3600 });
+			f.post(11, { created_at: todayStart - 7200 });
+
+			await checkAndRolloverDailyStats(f.env);
+
+			// Date marker should be set in KV to current Shanghai date
+			expect(await f.env.KV.get("stats:today_date")).toBe("2026-05-30");
+
+			// settings.stats.yesterday_posts should be updated to 2 from committed records
+			const yesterday = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.yesterday_posts'")
+				.get() as { value: string };
+			expect(yesterday.value).toBe("2");
+		});
+
+		it("does nothing when date marker matches current Shanghai date", async () => {
+			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
+			await f.env.KV.put("stats:today_date", "2026-05-30");
+
+			const callsBefore = f.calls.length;
+			await checkAndRolloverDailyStats(f.env);
+
+			// No D1 writes should occur
+			const updateCalls = f.calls.slice(callsBefore).filter((c) => c.sql.startsWith("UPDATE"));
+			expect(updateCalls).toHaveLength(0);
+		});
+
+		it("derives yesterday from committed posts on changed date marker and invalidates public-stats cache", async () => {
+			// Start on 2026-05-30
+			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
+			await f.env.KV.put("stats:today_date", "2026-05-30");
+
+			// Insert 3 posts on 2026-05-30
+			const may30Start = shanghaiTodayStartUnix();
+			f.post(20, { created_at: may30Start + 1000 });
+			f.post(21, { created_at: may30Start + 2000 });
+			f.post(22, { created_at: may30Start + 3000 });
+
+			// Populate public-stats in KV
+			await f.env.KV.put("public-stats", JSON.stringify({ cached: true }));
+
+			// Advance time to 2026-05-31 00:05 Beijing (16:05 UTC May 30)
+			vi.setSystemTime(new Date("2026-05-30T16:05:00Z"));
+			expect(shanghaiDateLocal()).toBe("2026-05-31");
+
+			await checkAndRolloverDailyStats(f.env);
+
+			// Date marker updated
+			expect(await f.env.KV.get("stats:today_date")).toBe("2026-05-31");
+
+			// Yesterday's count updated in D1 settings to 3
+			const yesterday = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.yesterday_posts'")
+				.get() as { value: string };
+			expect(yesterday.value).toBe("3");
+
+			// ONLY public-stats cache invalidated
+			expect(await f.env.KV.get("public-stats")).toBeNull();
+		});
+
+		it("handles zero posts yesterday accurately", async () => {
+			await f.env.KV.put("stats:today_date", "2026-05-29");
 			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
 
-			const kv = makeKv({});
-			const env = makeEnv({ KV: kv });
+			await checkAndRolloverDailyStats(f.env);
 
-			await checkAndRolloverDailyStats(env);
-
-			// Should set today's date (no TTL)
-			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30");
+			const yesterday = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.yesterday_posts'")
+				.get() as { value: string };
+			expect(yesterday.value).toBe("0");
 		});
 
-		it("does nothing when same day", async () => {
+		it("D1 failure does not mutate date marker", async () => {
+			await f.env.KV.put("stats:today_date", "2026-05-29");
 			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
 
-			const db = makeDb();
-			const kv = makeKv({
-				"stats:today_date": "2026-05-30",
-				"stats:today_posts": "5",
+			// Simulate D1 failure on UPDATE
+			vi.spyOn(f.env.DB, "prepare").mockImplementationOnce(() => {
+				throw new Error("D1 unavailable");
 			});
-			const env = makeEnv({ DB: db, KV: kv });
 
-			await checkAndRolloverDailyStats(env);
+			await expect(checkAndRolloverDailyStats(f.env)).rejects.toThrow("D1 unavailable");
 
-			// Should NOT update settings
-			expect(db.prepare).not.toHaveBeenCalled();
-			// Should NOT reset today_posts
-			expect(kv._store["stats:today_posts"]).toBe("5");
+			// Marker must NOT have been updated to 2026-05-30
+			expect(await f.env.KV.get("stats:today_date")).toBe("2026-05-29");
 		});
 
-		it("performs rollover when day changes", async () => {
-			// Set to 2026-05-31 00:05 Beijing time (previous day was 2026-05-30)
-			vi.setSystemTime(new Date("2026-05-30T16:05:00Z")); // 2026-05-31 00:05 Beijing
-
-			const db = makeDb();
-			const kv = makeKv({
-				"stats:today_date": "2026-05-30",
-				"stats:today_posts": "42",
-			});
-			const env = makeEnv({ DB: db, KV: kv });
-
-			await checkAndRolloverDailyStats(env);
-
-			// Should update settings.stats.yesterday_posts to 42
-			expect(db.prepare).toHaveBeenCalledTimes(1);
-
-			// Should reset today_posts to 0 (no TTL)
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "0");
-
-			// Should update today_date to new date (no TTL)
-			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-31");
-		});
-
-		it("handles missing today_posts gracefully (defaults to 0)", async () => {
-			vi.setSystemTime(new Date("2026-05-30T16:05:00Z")); // 2026-05-31 Beijing
-
-			const db = makeDb();
-			const kv = makeKv({
-				"stats:today_date": "2026-05-30",
-				// No today_posts key
-			});
-			const env = makeEnv({ DB: db, KV: kv });
-
-			await checkAndRolloverDailyStats(env);
-
-			// Should update settings with 0
-			expect(db.prepare).toHaveBeenCalledTimes(1);
-		});
-
-		it("preserves orphaned today_posts when date marker is missing", async () => {
+		it("D1 unconfirmed update failure throws and does not mutate marker", async () => {
+			await f.env.KV.put("stats:today_date", "2026-05-29");
 			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
 
-			const db = makeDb();
-			const kv = makeKv({
-				// No today_date (marker missing)
-				"stats:today_posts": "17", // But posts have accumulated
+			const origPrepare = f.env.DB.prepare.bind(f.env.DB);
+			vi.spyOn(f.env.DB, "prepare").mockImplementation((sql: string) => {
+				const stmt = origPrepare(sql);
+				if (sql.startsWith("UPDATE settings")) {
+					return {
+						bind: (..._params: unknown[]) => ({
+							run: async () => ({
+								success: false,
+								results: [],
+								meta: { changes: 0, last_row_id: 0 },
+							}),
+						}),
+					} as unknown as D1PreparedStatement;
+				}
+				return stmt;
 			});
-			const env = makeEnv({ DB: db, KV: kv });
 
-			await checkAndRolloverDailyStats(env);
-
-			// Should move orphaned posts to yesterday
-			expect(db.prepare).toHaveBeenCalledTimes(1);
-			// Should reset today_posts
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "0");
-			// Should initialize date marker
-			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30");
-			// Should invalidate public-stats cache
-			expect(kv.delete).toHaveBeenCalledWith("public-stats");
-		});
-
-		it("just initializes marker when both marker and posts are missing", async () => {
-			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
-
-			const db = makeDb();
-			const kv = makeKv({
-				// Empty state — first deploy
-			});
-			const env = makeEnv({ DB: db, KV: kv });
-
-			await checkAndRolloverDailyStats(env);
-
-			// Should NOT call DB (no posts to move)
-			expect(db.prepare).not.toHaveBeenCalled();
-			// Should only initialize date marker
-			expect(kv.put).toHaveBeenCalledTimes(1);
-			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30");
+			await expect(checkAndRolloverDailyStats(f.env)).rejects.toThrow(
+				"Daily statistics update was not confirmed",
+			);
+			expect(await f.env.KV.get("stats:today_date")).toBe("2026-05-29");
 		});
 	});
 });

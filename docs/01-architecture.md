@@ -52,7 +52,7 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台并重建
 | 语言（CLI） | Rust (2024 edition) | 高性能 TUI，独立分发 |
 | 数据库 | Cloudflare D1 | SQLite 兼容，全球分布式读副本 |
 | 文件存储 | Cloudflare R2 | S3 兼容，无出口费用 |
-| 缓存 | Cache API + Workers KV | 边缘缓存 + 全球 KV |
+| 缓存 | Workers KV；静态资源使用 HTTP/CDN 缓存 | 业务缓存目标见 [统一缓存模块设计](20-worker-kv-reference.md) |
 | Web 框架 | Next.js 16 | App Router, Server Components |
 | API 层 | Cloudflare Workers | D1 中间层，手动路由 |
 | CLI TUI | ratatui + crossterm | 全屏交互式终端 |

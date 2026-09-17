@@ -1,3 +1,5 @@
+export type { CacheDescriptor, CacheEnvelope, CacheParams, CacheTier } from "./cache";
+export { CACHE_SCHEMA_VERSION, CACHE_TTL_SECONDS, getCacheTTL } from "./cache";
 export type { CheckinHistoryEntry, CheckinLevel, CheckinMood, UserCheckin, UserCheckinSummary, } from "./checkin";
 export { CHECKIN_HOUR_END_EXCLUSIVE, CHECKIN_HOUR_START, CHECKIN_LEVELS, CHECKIN_MOODS, CHECKIN_REWARD_MAX, CHECKIN_REWARD_MIN, CHECKIN_TIMEZONE, getCheckinLevel, } from "./checkin";
 export type { EmailNotVerifiedCtaVariant, EmailNotVerifiedDialog, EmailNotVerifiedPayload, EmailRequestCodeBody, EmailVerifyCodeBody, } from "./email-verification";

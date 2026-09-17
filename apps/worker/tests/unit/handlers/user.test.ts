@@ -1,1110 +1,240 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-	getAvatarPath,
-	getById,
-	listDigest,
-	listPosts,
-	listThreads,
-	search,
-} from "../../../src/handlers/user";
-import type { Env } from "../../../src/lib/env";
-import { createJwtForRole, createMockKV, makeEnv as makeFullEnv } from "../../helpers";
+import { encodeGenericCursor } from "@ellie/types";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import * as user from "../../../src/handlers/user";
+import { createJwtForRole } from "../../helpers";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
-describe("user handlers", () => {
-	const mockEnv: Env = {
-		API_KEY: "test-api-key",
-		DB: {} as D1Database,
-		ENVIRONMENT: "test",
-		JWT_SECRET: "test-secret",
-		KV: createMockKV(),
-	};
-
-	/** D1 row (snake_case) as it would come from SELECT with PublicUser columns */
-	const makeD1UserRow = (overrides?: Record<string, unknown>) => ({
-		id: 123,
-		username: "testuser",
-		avatar: "avatar.png",
-		role: 1,
-		reg_date: 1711540800,
-		threads: 10,
-		posts: 50,
-		credits: 100,
-		...overrides,
+let f: ReturnType<typeof readingFixture>;
+beforeEach(() => {
+	f = readingFixture();
+});
+afterEach(() => f.close());
+function request(path: string, token?: string) {
+	return new Request(`https://api.example.com/api/v1/${path}`, {
+		headers: {
+			Origin: "http://localhost:7031",
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+		},
 	});
+}
+async function body(response: Promise<Response>) {
+	return (await response).json();
+}
 
-	describe("getById", () => {
-		it("should map D1 snake_case row to camelCase User", async () => {
-			const d1Row = makeD1UserRow();
-			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(new Request("https://example.com/api/v1/users/123"), env);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-
-			// Verify camelCase mapping — PublicUser model (8 fields)
-			expect(data.data.id).toBe(123);
-			expect(data.data.username).toBe("testuser");
-			expect(data.data.avatar).toBe("avatar.png");
-			expect(data.data.role).toBe(1);
-			expect(data.data.regDate).toBe(1711540800);
-			expect(data.data.threads).toBe(10);
-			expect(data.data.posts).toBe(50);
-			expect(data.data.credits).toBe(100);
-
-			// PublicUser should NOT contain sensitive fields
-			expect(data.data.email).toBeUndefined();
-			expect(data.data.status).toBeUndefined();
-			expect(data.data.lastLogin).toBeUndefined();
-
-			// No snake_case leaks
-			expect(data.data.reg_date).toBeUndefined();
-
-			// Metadata
-			expect(data.meta.timestamp).toBeDefined();
-			expect(data.meta.requestId).toBeDefined();
+describe("user profiles and avatar paths", () => {
+	it("maps an explicit public field allowlist and separates stable values from dynamic counters", async () => {
+		f.sqlite.exec(
+			"UPDATE users SET threads=3, posts=8, credits=50, coins=4, signature='sig', reg_ip='secret ip', last_ip='private ip' WHERE id=10",
+		);
+		f.insert("user_checkins", {
+			user_id: 10,
+			total_days: 8,
+			month_days: 3,
+			streak_days: 2,
+			last_checkin_at: 100,
 		});
-
-		it("should NOT leak password_hash or password_salt", async () => {
-			const d1Row = makeD1UserRow();
-			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(new Request("https://example.com/api/v1/users/123"), env);
-
-			const data = await response.json();
-			// Even if D1 somehow returned them, the mapper should strip them
-			expect(data.data.password_hash).toBeUndefined();
-			expect(data.data.password_salt).toBeUndefined();
-			expect(data.data.passwordHash).toBeUndefined();
-			expect(data.data.passwordSalt).toBeUndefined();
+		const result = await body(user.getById(request("users/10"), f.env));
+		expect(result.data).toMatchObject({
+			id: 10,
+			username: "alice",
+			avatarPath: "alice.jpg",
+			threads: 3,
+			posts: 8,
+			credits: 50,
+			coins: 4,
+			signature: "sig",
+			checkin: { totalDays: 8 },
 		});
-
-		it("should SELECT specific columns (not SELECT *)", async () => {
-			const d1Row = makeD1UserRow();
-			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await getById(new Request("https://example.com/api/v1/users/123"), env);
-
-			const sql = prepareSpy.mock.calls[0][0] as string;
-			// Should NOT use SELECT *
-			expect(sql).not.toContain("SELECT *");
-
-			// Allowlist approach: parse the column list between SELECT and FROM,
-			// and assert every selected column appears in the explicit allowlist.
-			// This is more robust than a denylist — any newly-added sensitive
-			// field will fail the test instead of silently leaking.
-			const match = sql.match(/SELECT\s+([\s\S]+?)\s+FROM\b/i);
-			expect(match).not.toBeNull();
-			const columns = (match?.[1] ?? "")
-				.split(",")
-				.map((c) => c.trim())
-				.filter((c) => c.length > 0);
-
-			// PublicUser fields exposed via toPublicUser mapper, plus `status`
-			// which is selected to gate visibility but never returned to clients.
-			const ALLOWED_COLUMNS = new Set([
-				"id",
-				"username",
-				"avatar",
-				"avatar_path",
-				"role",
-				"reg_date",
-				"threads",
-				"posts",
-				"credits",
-				"coins",
-				"signature",
-				"group_title",
-				"group_stars",
-				"group_color",
-				"custom_title",
-				"digest_posts",
-				"ol_time",
-				"last_activity",
-				"gender",
-				"birth_year",
-				"birth_month",
-				"birth_day",
-				"reside_province",
-				"reside_city",
-				"graduate_school",
-				"bio",
-				"interest",
-				"qq",
-				"site",
-				"campus",
-				"reg_ip",
-				"last_ip",
-				"status",
-				// LEFT JOIN user_checkins — surfaced as alias columns so they map
-				// onto the optional fields on D1UserRow.
-				"c.total_days AS checkin_total_days",
-				"c.month_days AS checkin_month_days",
-				"c.streak_days AS checkin_streak_days",
-				"c.last_checkin_at AS checkin_last_checkin_at",
-			]);
-
-			for (const col of columns) {
-				expect(ALLOWED_COLUMNS.has(col)).toBe(true);
-			}
-
-			// Sensitive columns must never appear in the selection.
-			expect(columns).not.toContain("email");
-			expect(columns).not.toContain("last_login");
-			expect(columns).not.toContain("password_hash");
-			expect(columns).not.toContain("password_salt");
-		});
-
-		it("should return 404 with CORS headers when user not found", async () => {
-			const firstSpy = vi.fn(() => Promise.resolve(null));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(
-				new Request("https://example.com/api/v1/users/999", {
-					headers: {
-						Origin: "https://ellie.nocoo.cloud",
-					},
-				}),
-				env,
-			);
-
-			expect(response.status).toBe(404);
-			const data = await response.json();
-			expect(data.error.code).toBe("USER_NOT_FOUND");
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
-		});
-
-		it("should return 404 for banned users (status = -1)", async () => {
-			const d1Row = makeD1UserRow({ id: 123, status: -1 });
-			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(
-				new Request("https://example.com/api/v1/users/123", {
-					headers: {
-						Origin: "https://ellie.nocoo.cloud",
-					},
-				}),
-				env,
-			);
-
-			expect(response.status).toBe(404);
-			const data = await response.json();
-			expect(data.error.code).toBe("USER_NOT_FOUND");
-		});
-
-		it("should parse user ID from URL", async () => {
-			const d1Row = makeD1UserRow({ id: 456 });
-			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await getById(new Request("https://example.com/api/v1/users/456"), env);
-
-			expect(bindSpy).toHaveBeenCalledWith(456);
-		});
-
-		it("should handle non-numeric ID gracefully", async () => {
-			const firstSpy = vi.fn(() => Promise.resolve(null));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(new Request("https://example.com/api/v1/users/abc"), env);
-
-			// NaN should result in not found
-			expect(response.status).toBe(404);
-		});
-
-		it("should include CORS headers with valid origin", async () => {
-			const d1Row = makeD1UserRow();
-			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(
-				new Request("https://example.com/api/v1/users/123", {
-					headers: {
-						Origin: "http://localhost:3000",
-					},
-				}),
-				env,
-			);
-
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
-		});
+		for (const field of ["email", "password_hash", "password_salt", "regIp", "lastIp"])
+			expect(result.data).not.toHaveProperty(field);
+		const stable = JSON.parse(
+			f.values.get("user:public:v2:10:public") ?? expect.fail("Missing public user snapshot"),
+		);
+		const stats = JSON.parse(
+			f.values.get("user:stats:10") ?? expect.fail("Missing user stats snapshot"),
+		);
+		expect(stable.tier).toBe("MEDIUM");
+		expect(stats.tier).toBe("SHORT");
+		expect(stable.data).not.toHaveProperty("threads");
+		expect(stable.data).not.toHaveProperty("checkin");
+		f.calls.length = 0;
+		expect((await body(user.getById(request("users/10"), f.env))).data).toEqual(result.data);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).toContain("SELECT id, status");
 	});
-
-	describe("listThreads", () => {
-		const makeD1ThreadRows = () => [
-			{
-				id: 100,
-				forum_id: 1,
-				author_id: 123,
-				author_name: "testuser",
-				subject: "Thread One",
-				created_at: 1711540800,
-				last_post_at: 1711544400,
-				last_poster: "bob",
-				replies: 5,
-				views: 100,
-				closed: 0,
-				sticky: 0,
-				digest: 0,
-				special: 0,
-				highlight: 0,
-				recommends: 0,
-				post_table_id: 1,
-			},
-		];
-
-		it("should return threads for a valid user", async () => {
-			const rows = makeD1ThreadRows();
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/123/threads"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toHaveLength(1);
-			expect(data.data[0].id).toBe(100);
-			expect(data.data[0].subject).toBe("Thread One");
-			expect(data.data[0].forumId).toBe(1);
-			expect(data.meta.nextCursor).toBeNull(); // only 1 result, limit 20
-		});
-
-		it("should return empty array when user has no threads", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/999/threads"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toEqual([]);
-			expect(data.meta.nextCursor).toBeNull();
-		});
-
-		it("should use keyset WHERE clause when cursor is provided", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 100 }));
-			await listThreads(
-				new Request(`https://example.com/api/v1/users/123/threads?cursor=${cursor}`),
-				env,
-			);
-
-			const sql = prepareSpy.mock.calls[0][0] as string;
-			expect(sql).toContain("created_at < ?");
-		});
-
-		it("should parse userId from URL path", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await listThreads(new Request("https://example.com/api/v1/users/456/threads"), env);
-
-			// First bind param should be the userId
-			expect(bindSpy.mock.calls[0][0]).toBe(456);
-		});
+	it("keeps staff IP projection in its original scope", async () => {
+		f.sqlite.exec("UPDATE users SET reg_ip='1.2.3.4', last_ip='2.3.4.5' WHERE id=10");
+		const token = await createJwtForRole(3, 30);
+		const staff = await body(user.getById(request("users/10", token), f.env));
+		expect(staff.data).toMatchObject({ regIp: "1.2.3.4", lastIp: "2.3.4.5" });
+		expect((await body(user.getById(request("users/10"), f.env))).data).not.toHaveProperty("regIp");
 	});
-
-	describe("listPosts", () => {
-		/** Build a joined posts/threads row with all `thread_*` aliased columns. */
-		const makePostJoinRow = (overrides?: Record<string, unknown>) => ({
-			// post columns
-			id: 200,
-			thread_id: 10,
-			forum_id: 1,
-			author_id: 123,
-			author_name: "testuser",
-			content: "<p>Hello</p>",
-			created_at: 1711540800,
-			is_first: 0,
-			position: 2,
-			// thread join columns (aliased)
-			thread_id_for_link: 10,
-			thread_forum_id: 1,
-			thread_subject: "原帖标题",
-			thread_replies: 5,
-			thread_views: 42,
-			thread_created_at: 1711000000,
-			thread_last_post_at: 1711540800,
-			thread_closed: 0,
-			thread_sticky: 0,
-			thread_digest: 0,
-			thread_special: 0,
-			thread_highlight: 0,
-			thread_type_name: "",
-			...overrides,
-		});
-
-		it("should return UserPostHistoryItem with post+thread for a valid user", async () => {
-			const rows = [makePostJoinRow()];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listPosts(
-				new Request("https://example.com/api/v1/users/123/posts"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toHaveLength(1);
-			// New shape: { post, thread }
-			expect(data.data[0].post.id).toBe(200);
-			expect(data.data[0].post.threadId).toBe(10);
-			expect(data.data[0].post.content).toBe("<p>Hello</p>");
-			expect(data.data[0].thread.id).toBe(10);
-			expect(data.data[0].thread.subject).toBe("原帖标题");
-			expect(data.data[0].thread.replies).toBe(5);
-			expect(data.data[0].thread.views).toBe(42);
-			expect(data.data[0].thread.forumId).toBe(1);
-		});
-
-		it("should select thread columns with explicit thread_* aliases (no field collisions)", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await listPosts(new Request("https://example.com/api/v1/users/123/posts"), env);
-
-			const sql = prepareSpy.mock.calls[0][0] as string;
-			// Must NOT use SELECT p.*, t.* (would collide on id/forum_id/created_at)
-			expect(sql).not.toContain("p.*");
-			expect(sql).not.toContain("t.*");
-			// Must alias key thread columns to avoid clashing with post columns
-			expect(sql).toContain("t.id AS thread_id_for_link");
-			expect(sql).toContain("t.subject AS thread_subject");
-			expect(sql).toContain("t.replies AS thread_replies");
-			expect(sql).toContain("t.views AS thread_views");
-			expect(sql).toContain("t.created_at AS thread_created_at");
-		});
-
-		it("should return empty array when user has no posts", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listPosts(
-				new Request("https://example.com/api/v1/users/999/posts"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toEqual([]);
-		});
-
-		it("excludes thread first-posts via p.is_first = 0 (回复 means replies, not own subjects)", async () => {
-			// The 回复 tab must not surface a user's own thread-opening posts —
-			// those belong in the 主题 tab and would otherwise duplicate-render
-			// here. Without this WHERE clause the page mixes subjects the user
-			// authored back into reply history.
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			// Both branches (with and without cursor) must enforce the filter.
-			await listPosts(new Request("https://example.com/api/v1/users/123/posts"), env);
-			const sqlNoCursor = prepareSpy.mock.calls[0][0] as string;
-			expect(sqlNoCursor).toContain("p.is_first = 0");
-
-			prepareSpy.mockClear();
-			const cursor = btoa(JSON.stringify({ createdAt: 1, id: 1 }));
-			await listPosts(
-				new Request(`https://example.com/api/v1/users/123/posts?cursor=${cursor}`),
-				env,
-			);
-			const sqlWithCursor = prepareSpy.mock.calls[0][0] as string;
-			expect(sqlWithCursor).toContain("p.is_first = 0");
-		});
-
-		it("first-post rows (is_first=1) returned by D1 are surfaced unchanged — filter happens in SQL", async () => {
-			// Defensive: if a future migration drops the filter, behavior would
-			// regress silently. We assert the SQL-side filter is present (above)
-			// AND that mapping doesn't accidentally drop is_first=0 rows.
-			const rows = [
-				makePostJoinRow({ id: 200, is_first: 0, position: 2 }),
-				makePostJoinRow({ id: 201, is_first: 0, position: 5 }),
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listPosts(
-				new Request("https://example.com/api/v1/users/123/posts"),
-				env,
-			);
-			const data = await response.json();
-			expect(data.data).toHaveLength(2);
-			expect(data.data.every((d: { post: { isFirst: boolean } }) => d.post.isFirst === false)).toBe(
-				true,
-			);
-		});
+	it.each(["abc", "-1", "0", "999"])("returns 404 for missing/invalid user %s", async (id) => {
+		expect((await user.getById(request(`users/${id}`), f.env)).status).toBe(404);
 	});
-
-	describe("getAvatarPath", () => {
-		it("should return avatarPath for user with GUID avatar", async () => {
-			const firstSpy = vi.fn(() => Promise.resolve({ avatar_path: "avatars/abc123.jpg" }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getAvatarPath(
-				new Request("https://example.com/api/v1/users/123/avatar-path"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data.avatarPath).toBe("avatars/abc123.jpg");
+	it.each([-1, -2, -3])(
+		"honors current user status %s even when profile is hot",
+		async (status) => {
+			await user.getById(request("users/10"), f.env);
+			f.sqlite.prepare("UPDATE users SET status=? WHERE id=10").run(status);
+			expect((await user.getById(request("users/10"), f.env)).status).toBe(404);
+		},
+	);
+	it("returns a LONG avatar mapping without applying the public-profile status filter", async () => {
+		f.sqlite.exec("UPDATE users SET status=-1 WHERE id=10");
+		expect((await body(user.getAvatarPath(request("users/10/avatar-path"), f.env))).data).toEqual({
+			avatarPath: "alice.jpg",
 		});
-
-		it("should return empty avatarPath for user without GUID avatar", async () => {
-			const firstSpy = vi.fn(() => Promise.resolve({ avatar_path: "" }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getAvatarPath(
-				new Request("https://example.com/api/v1/users/123/avatar-path"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data.avatarPath).toBe("");
-		});
-
-		it("should return 404 for non-existent user", async () => {
-			const firstSpy = vi.fn(() => Promise.resolve(null));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getAvatarPath(
-				new Request("https://example.com/api/v1/users/999/avatar-path"),
-				env,
-			);
-
-			expect(response.status).toBe(404);
-		});
-
-		it("should NOT check user status (return data even for banned users)", async () => {
-			// This is intentional — avatar proxy needs to display avatars for
-			// banned/archived users whose historical posts are still visible
-			const firstSpy = vi.fn(() => Promise.resolve({ avatar_path: "avatars/banned-user.jpg" }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = vi.fn((sql: string) => {
-				// Verify the query does NOT include status check
-				expect(sql).not.toContain("AND status");
-				return { bind: bindSpy };
-			});
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getAvatarPath(
-				new Request("https://example.com/api/v1/users/123/avatar-path"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data.avatarPath).toBe("avatars/banned-user.jpg");
-		});
-
-		it("should return 400 for invalid userId", async () => {
-			const response = await getAvatarPath(
-				new Request("https://example.com/api/v1/users/abc/avatar-path"),
-				mockEnv,
-			);
-
-			expect(response.status).toBe(400);
-		});
+		expect(
+			JSON.parse(f.values.get("user:avatar-path:10") ?? expect.fail("Missing avatar snapshot"))
+				.tier,
+		).toBe("LONG");
+		f.calls.length = 0;
+		await user.getAvatarPath(request("users/10/avatar-path"), f.env);
+		expect(f.calls).toHaveLength(0);
 	});
-
-	describe("listThreads — edge cases", () => {
-		it("should return 400 for invalid userId", async () => {
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/0/threads"),
-				mockEnv,
-			);
-			expect(response.status).toBe(400);
+	it("handles an empty path, missing user, and invalid avatar ID", async () => {
+		f.sqlite.exec("UPDATE users SET avatar_path='' WHERE id=10");
+		expect((await body(user.getAvatarPath(request("users/10/avatar-path"), f.env))).data).toEqual({
+			avatarPath: "",
 		});
-
-		it("should return 400 for negative userId", async () => {
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/-1/threads"),
-				mockEnv,
-			);
-			expect(response.status).toBe(400);
-		});
-
-		it("should return nextCursor when results equal limit", async () => {
-			// Create exactly 1 row and set limit=1
-			const rows = [
-				{
-					id: 100,
-					forum_id: 1,
-					author_id: 123,
-					author_name: "testuser",
-					subject: "Thread One",
-					created_at: 1711540800,
-					last_post_at: 1711544400,
-					last_poster: "bob",
-					replies: 5,
-					views: 100,
-					closed: 0,
-					sticky: 0,
-					digest: 0,
-					special: 0,
-					highlight: 0,
-					recommends: 0,
-					post_table_id: 1,
-				},
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/123/threads?limit=1"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toHaveLength(1);
-			expect(data.meta.nextCursor).not.toBeNull();
-		});
-
-		it("should clamp limit to MAX_HISTORY_LIMIT", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await listThreads(new Request("https://example.com/api/v1/users/123/threads?limit=999"), env);
-
-			// The last bind param should be 50 (MAX_HISTORY_LIMIT)
-			const lastBindCall = bindSpy.mock.calls[0];
-			expect(lastBindCall[lastBindCall.length - 1]).toBe(50);
-		});
+		expect((await user.getAvatarPath(request("users/999/avatar-path"), f.env)).status).toBe(404);
+		expect((await user.getAvatarPath(request("users/abc/avatar-path"), f.env)).status).toBe(400);
 	});
+});
 
-	describe("listPosts — edge cases", () => {
-		it("should return 400 for invalid userId", async () => {
-			const response = await listPosts(
-				new Request("https://example.com/api/v1/users/0/posts"),
-				mockEnv,
+describe("user history with current gates", () => {
+	it.each(["threads", "digest"] as const)(
+		"paginates %s using membership and shared entities",
+		async (kind) => {
+			for (let id = 1; id <= 4; id++) f.thread(id, { digest: 1 });
+			const handler = kind === "threads" ? user.listThreads : user.listDigest;
+			const first = await body(handler(request(`users/10/${kind}?limit=2`), f.env));
+			expect(first.data.map((row: { id: number }) => row.id)).toEqual([4, 3]);
+			const second = await body(
+				handler(
+					request(`users/10/${kind}?limit=2&cursor=${encodeURIComponent(first.meta.nextCursor)}`),
+					f.env,
+				),
 			);
-			expect(response.status).toBe(400);
-		});
-
-		it("should use keyset WHERE clause when cursor is provided", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 200 }));
-			await listPosts(
-				new Request(`https://example.com/api/v1/users/123/posts?cursor=${cursor}`),
-				env,
-			);
-
-			const sql = prepareSpy.mock.calls[0][0] as string;
-			expect(sql).toContain("created_at < ?");
-		});
-
-		it("should return nextCursor when results equal limit", async () => {
-			const rows = [
-				{
-					id: 200,
-					thread_id: 10,
-					forum_id: 1,
-					author_id: 123,
-					author_name: "testuser",
-					content: "<p>Hello</p>",
-					created_at: 1711540800,
-					is_first: 0,
-					position: 2,
-					// joined thread columns
-					thread_id_for_link: 10,
-					thread_forum_id: 1,
-					thread_subject: "原帖",
-					thread_replies: 0,
-					thread_views: 0,
-					thread_created_at: 1711000000,
-					thread_last_post_at: 1711540800,
-					thread_closed: 0,
-					thread_sticky: 0,
-					thread_digest: 0,
-					thread_special: 0,
-					thread_highlight: 0,
-					thread_type_name: "",
-				},
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listPosts(
-				new Request("https://example.com/api/v1/users/123/posts?limit=1"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.meta.nextCursor).not.toBeNull();
-		});
-
-		it("should anchor nextCursor on post.createdAt+post.id (not thread.*)", async () => {
-			// Post and thread deliberately have different created_at/id so we
-			// can prove the cursor follows the post columns.
-			const rows = [
-				{
-					id: 200,
-					thread_id: 10,
-					forum_id: 1,
-					author_id: 123,
-					author_name: "testuser",
-					content: "<p>Hello</p>",
-					created_at: 1711540800, // post created_at
-					is_first: 0,
-					position: 2,
-					thread_id_for_link: 10,
-					thread_forum_id: 1,
-					thread_subject: "原帖",
-					thread_replies: 0,
-					thread_views: 0,
-					thread_created_at: 1700000000, // older — must NOT leak into cursor
-					thread_last_post_at: 1711540800,
-					thread_closed: 0,
-					thread_sticky: 0,
-					thread_digest: 0,
-					thread_special: 0,
-					thread_highlight: 0,
-					thread_type_name: "",
-				},
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listPosts(
-				new Request("https://example.com/api/v1/users/123/posts?limit=1"),
-				env,
-			);
-			const data = await response.json();
-			const decoded = JSON.parse(atob(data.meta.nextCursor as string));
-			expect(decoded).toEqual({ createdAt: 1711540800, id: 200 });
-		});
+			expect(second.data.map((row: { id: number }) => row.id)).toEqual([2, 1]);
+			expect(second.meta.nextCursor).toBeNull();
+			f.calls.length = 0;
+			await handler(request(`users/10/${kind}?limit=2`), f.env);
+			expect(f.calls).toHaveLength(1);
+			expect(f.calls[0].sql).toContain("JOIN forums f");
+		},
+	);
+	it("projects names from user mini and excludes anonymous history after the flag changes", async () => {
+		f.thread(1);
+		await user.listThreads(request("users/10/threads"), f.env);
+		f.sqlite.exec("UPDATE threads SET anonymous_author=1 WHERE id=1");
+		expect((await body(user.listThreads(request("users/10/threads"), f.env))).data).toEqual([]);
+		const self = await createJwtForRole(0, 10);
+		const mod = await createJwtForRole(3, 30);
+		for (const token of [self, mod])
+			expect(
+				(await body(user.listThreads(request("users/10/threads", token), f.env))).data[0],
+			).toMatchObject({ authorId: 10, authorName: "alice" });
 	});
-
-	describe("listDigest", () => {
-		it("should return 400 for invalid userId", async () => {
-			const response = await listDigest(
-				new Request("https://example.com/api/v1/users/0/digest"),
-				mockEnv,
-			);
-			expect(response.status).toBe(400);
-		});
-
-		it("should return digest threads for a valid user", async () => {
-			const rows = [
-				{
-					id: 100,
-					forum_id: 1,
-					author_id: 123,
-					author_name: "testuser",
-					subject: "Digest Thread",
-					created_at: 1711540800,
-					last_post_at: 1711544400,
-					last_poster: "bob",
-					replies: 5,
-					views: 100,
-					closed: 0,
-					sticky: 0,
-					digest: 2,
-					special: 0,
-					highlight: 0,
-					recommends: 0,
-					post_table_id: 1,
-				},
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listDigest(
-				new Request("https://example.com/api/v1/users/123/digest"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toHaveLength(1);
-			expect(data.data[0].digest).toBe(2);
-
-			// SQL should filter by digest > 0
-			const sql = prepareSpy.mock.calls[0][0] as string;
-			expect(sql).toContain("digest > 0");
-		});
-
-		it("should return empty array when no digest threads", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listDigest(
-				new Request("https://example.com/api/v1/users/123/digest"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toEqual([]);
-			expect(data.meta.nextCursor).toBeNull();
-		});
-
-		it("should use cursor for keyset pagination", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 100 }));
-			await listDigest(
-				new Request(`https://example.com/api/v1/users/123/digest?cursor=${cursor}`),
-				env,
-			);
-
-			const sql = prepareSpy.mock.calls[0][0] as string;
-			expect(sql).toContain("created_at < ?");
-		});
-
-		it("should return nextCursor when results equal limit", async () => {
-			const rows = [
-				{
-					id: 100,
-					forum_id: 1,
-					author_id: 123,
-					author_name: "testuser",
-					subject: "Digest Thread",
-					created_at: 1711540800,
-					last_post_at: 1711544400,
-					last_poster: "bob",
-					replies: 5,
-					views: 100,
-					closed: 0,
-					sticky: 0,
-					digest: 1,
-					special: 0,
-					highlight: 0,
-					recommends: 0,
-					post_table_id: 1,
-				},
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await listDigest(
-				new Request("https://example.com/api/v1/users/123/digest?limit=1"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.meta.nextCursor).not.toBeNull();
-		});
+	it.each([
+		"UPDATE threads SET sticky=-1 WHERE id=1",
+		"UPDATE forums SET visibility='staff' WHERE id=1",
+		"UPDATE forums SET status=0 WHERE id=1",
+		"UPDATE threads SET author_id=20 WHERE id=1",
+	])("gates a hot thread history: %s", async (sql) => {
+		f.thread(1);
+		await user.listThreads(request("users/10/threads"), f.env);
+		f.sqlite.exec(sql);
+		expect((await body(user.listThreads(request("users/10/threads"), f.env))).data).toEqual([]);
 	});
-
-	describe("search", () => {
-		it("should return 400 when query is missing", async () => {
-			const response = await search(
-				new Request("https://example.com/api/v1/users/search"),
-				mockEnv,
-			);
-			expect(response.status).toBe(400);
-		});
-
-		it("should return 400 when query is too short", async () => {
-			const response = await search(
-				new Request("https://example.com/api/v1/users/search?q=a"),
-				mockEnv,
-			);
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.details.message).toContain("at least 2 characters");
-		});
-
-		it("should return matching users", async () => {
-			const rows = [
-				{ id: 1, username: "alice" },
-				{ id: 2, username: "alex" },
-			];
-			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await search(
-				new Request("https://example.com/api/v1/users/search?q=al"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toHaveLength(2);
-			expect(data.data[0].username).toBe("alice");
-
-			// Verify bind params: prefix match + limit
-			expect(bindSpy.mock.calls[0][0]).toBe("al%");
-			expect(bindSpy.mock.calls[0][1]).toBe(10); // default limit
-		});
-
-		it("should clamp limit to MAX_SEARCH_LIMIT", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await search(new Request("https://example.com/api/v1/users/search?q=test&limit=100"), env);
-
-			expect(bindSpy.mock.calls[0][1]).toBe(20); // MAX_SEARCH_LIMIT
-		});
-
-		it("should escape special LIKE characters", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await search(new Request("https://example.com/api/v1/users/search?q=te%25st"), env);
-
-			// % should be escaped
-			expect(bindSpy.mock.calls[0][0]).toBe("te\\%st%");
-		});
-
-		it("should return empty array when no matches", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await search(
-				new Request("https://example.com/api/v1/users/search?q=zzz"),
-				env,
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toEqual([]);
-		});
-
-		it("should use custom limit when provided", async () => {
-			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
-			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await search(new Request("https://example.com/api/v1/users/search?q=test&limit=5"), env);
-
-			expect(bindSpy.mock.calls[0][1]).toBe(5);
-		});
+	it("paginates post history with distinct thread/post IDs and excludes first posts", async () => {
+		f.thread(30, { subject: "Target", created_at: 900 });
+		f.post(1, { thread_id: 30, is_first: 1 });
+		for (let id = 2; id <= 5; id++) f.post(id, { thread_id: 30, is_first: 0, created_at: id * 10 });
+		const first = await body(user.listPosts(request("users/10/posts?limit=2"), f.env));
+		expect(first.data.map((row: { post: { id: number } }) => row.post.id)).toEqual([5, 4]);
+		expect(first.data[0].thread).toMatchObject({ id: 30, subject: "Target", createdAt: 900 });
+		expect(JSON.parse(atob(first.meta.nextCursor))).toEqual({ createdAt: 40, id: 4 });
+		const next = await body(
+			user.listPosts(
+				request(`users/10/posts?limit=2&cursor=${encodeURIComponent(first.meta.nextCursor)}`),
+				f.env,
+			),
+		);
+		expect(next.data.map((row: { post: { id: number } }) => row.post.id)).toEqual([3, 2]);
+		expect(next.meta.nextCursor).toBeNull();
 	});
-
-	// ─── Anonymous mapper viewer-passing (P2 — review feedback) ────────────
-	// listThreads / listDigest must pass `viewer` to toThread so staff/self
-	// see the real author of anonymous threads in /users/:id/{threads,digest}.
-	// Without it the mapper defaulted to viewer=null and masked everyone.
-	describe("listThreads / listDigest — passes viewer to toThread", () => {
-		// Build a per-test env that handles BOTH the user-status verification
-		// query (auth middleware) and the listThreads/listDigest query.
-		function makeViewerEnv(opts: {
-			viewerId: number;
-			viewerRole: number;
-			rows: Record<string, unknown>[];
-		}): Env {
-			const prepareSpy = vi.fn((sql: string) => ({
-				bind: vi.fn(() => ({
-					all: vi.fn(() => Promise.resolve({ results: opts.rows })),
-					first: vi.fn(() => {
-						// optionalAuthVerified probes (role, status); return active.
-						if (sql.includes("SELECT role, status FROM users")) {
-							return Promise.resolve({ role: opts.viewerRole, status: 0 });
-						}
-						return Promise.resolve(null);
-					}),
-				})),
-			}));
-			return makeFullEnv({ DB: { prepare: prepareSpy } as unknown as D1Database });
+	it.each([
+		"UPDATE posts SET invisible=-1 WHERE id=2",
+		"UPDATE posts SET anonymous=1 WHERE id=2",
+		"UPDATE posts SET author_id=20 WHERE id=2",
+		"UPDATE posts SET thread_id=2 WHERE id=2",
+		"UPDATE threads SET sticky=-1 WHERE id=1",
+	])("gates hot post history: %s", async (sql) => {
+		f.thread(1);
+		f.thread(2);
+		f.post(2, { is_first: 0 });
+		await user.listPosts(request("users/10/posts"), f.env);
+		f.sqlite.exec(sql);
+		expect((await body(user.listPosts(request("users/10/posts"), f.env))).data).toEqual([]);
+	});
+	it("keeps post history origin queries bounded across 50 threads", async () => {
+		for (let id = 1; id <= 50; id++) {
+			f.thread(id);
+			f.post(id + 100, { thread_id: id, is_first: 0 });
 		}
+		const data = await body(user.listPosts(request("users/10/posts?limit=50"), f.env));
+		expect(data.data).toHaveLength(50);
+		expect(f.calls).toHaveLength(7);
+		expect(Math.max(...f.calls.map((c) => c.params.length))).toBeLessThanOrEqual(100);
+		f.calls.length = 0;
+		await user.listPosts(request("users/10/posts?limit=50"), f.env);
+		expect(f.calls).toHaveLength(2);
+	});
+	it.each([user.listThreads, user.listPosts, user.listDigest])(
+		"validates resource IDs and returns an empty page",
+		async (handler) => {
+			expect((await handler(request("users/abc/threads"), f.env)).status).toBe(400);
+			expect(
+				(await body(handler(request("users/10/threads?limit=garbage&cursor=invalid"), f.env))).data,
+			).toEqual([]);
+		},
+	);
+	it("keeps staff histories scoped by role and supports valid explicit cursors", async () => {
+		f.thread(1, { digest: 1, anonymous_author: 1 });
+		const token = await createJwtForRole(3, 30);
+		const result = await body(
+			user.listDigest(
+				request(`users/10/digest?cursor=${encodeGenericCursor({ createdAt: 10, id: 10 })}`, token),
+				f.env,
+			),
+		);
+		expect(result.data[0]).toMatchObject({ authorId: 10, digest: 1 });
+	});
+});
 
-		const anonRow = {
-			id: 1058149,
-			forum_id: 335,
-			author_id: 340271,
-			author_name: "小牧童",
-			subject: "日本风俗店体验",
-			created_at: 1367326318,
-			last_post_at: 1370000000,
-			last_poster: "batlet",
-			last_poster_id: 445134,
-			replies: 30,
-			views: 5000,
-			closed: 0,
-			sticky: 0,
-			digest: 1,
-			special: 0,
-			highlight: 0,
-			recommends: 0,
-			type_name: "",
-			anonymous_author: 1,
-			anonymous_last_poster: 0,
-		};
-
-		it("listThreads: profile-owner viewing own anonymous thread sees the real author", async () => {
-			const env = makeViewerEnv({ viewerId: 340271, viewerRole: 0, rows: [anonRow] });
-			const token = await createJwtForRole(0, 340271);
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/340271/threads", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				env,
-			);
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data[0].authorId).toBe(340271);
-			expect(data.data[0].authorName).toBe("小牧童");
-			expect(data.data[0].anonymousAuthor).toBe(1);
-		});
-
-		it("listThreads: staff (Mod) viewing anonymous thread sees the real author", async () => {
-			const env = makeViewerEnv({ viewerId: 999, viewerRole: 3, rows: [anonRow] });
-			const token = await createJwtForRole(3, 999);
-			const response = await listThreads(
-				new Request("https://example.com/api/v1/users/340271/threads", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				env,
-			);
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data[0].authorId).toBe(340271);
-			expect(data.data[0].authorName).toBe("小牧童");
-		});
-
-		it("listDigest: staff sees the real author of an anonymous digest thread", async () => {
-			const env = makeViewerEnv({ viewerId: 999, viewerRole: 1, rows: [anonRow] });
-			const token = await createJwtForRole(1, 999);
-			const response = await listDigest(
-				new Request("https://example.com/api/v1/users/340271/digest", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				env,
-			);
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data[0].authorId).toBe(340271);
-			expect(data.data[0].authorName).toBe("小牧童");
-		});
+describe("user search", () => {
+	it.each(["", "a"])("rejects short query %s", async (q) =>
+		expect((await user.search(request(`users/search?q=${q}`), f.env)).status).toBe(400),
+	);
+	it("caches normalized ASCII search and checks current active users", async () => {
+		expect((await body(user.search(request("users/search?q=AL&limit=1"), f.env))).data).toEqual([
+			{ id: 10, username: "alice" },
+		]);
+		f.calls.length = 0;
+		await user.search(request("users/search?q=al&limit=1"), f.env);
+		expect(f.calls).toHaveLength(1);
+		f.sqlite.exec("UPDATE users SET status=-1 WHERE id=10");
+		expect((await body(user.search(request("users/search?q=al&limit=1"), f.env))).data).toEqual([]);
+	});
+	it("escapes LIKE wildcards and handles no matches without a permission query", async () => {
+		f.insert("users", { id: 40, username: "a_percent", email_verified_at: 1 });
+		expect((await body(user.search(request("users/search?q=a_"), f.env))).data).toEqual([
+			{ id: 40, username: "a_percent" },
+		]);
+		expect(
+			(await body(user.search(request("users/search?q=missing&limit=abc"), f.env))).data,
+		).toEqual([]);
 	});
 });

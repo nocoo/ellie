@@ -1,120 +1,416 @@
-import { describe, expect, it, vi } from "vitest";
-import { cacheGetOrSet } from "../../../../src/lib/cache/wrap";
+import { CACHE_TTL_SECONDS, type CacheTier } from "@ellie/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { __resetMetricsForTest, swapSnapshot } from "../../../../src/lib/cache/metrics";
+import {
+	CacheLoadLimitError,
+	cacheDelete,
+	cacheGetOrSet,
+	cacheRead,
+	cacheReadMany,
+	cacheWrite,
+	createCacheEnvelope,
+	isCacheEnvelope,
+	putCacheEnvelope,
+} from "../../../../src/lib/cache/wrap";
 import { createMockCtx, makeEnv } from "../../../helpers";
 
-interface Payload {
-	v: number;
-}
+const options = {
+	family: "thread:stats",
+	tier: "SHORT" as const,
+	scope: "public",
+	params: { id: 1 },
+};
+const now = 1_000_000;
 
-function jsonKV(initial: Record<string, string> = {}) {
-	const store = new Map<string, string>(Object.entries(initial));
+function jsonKV() {
+	const store = new Map<string, string>();
+	const read = (key: string, type?: string) => {
+		const raw = store.get(key) ?? null;
+		return raw !== null && type === "json" ? JSON.parse(raw) : raw;
+	};
 	const kv = {
-		get: vi.fn(async (key: string, type?: string) => {
-			const raw = store.get(key) ?? null;
-			if (raw === null) return null;
-			if (type === "json") return JSON.parse(raw);
-			return raw;
-		}),
-		put: vi.fn(async (key: string, value: string) => {
+		get: vi.fn(async (key: string | string[], type?: string) =>
+			Array.isArray(key) ? new Map(key.map((k) => [k, read(k, type)])) : read(key, type),
+		),
+		put: vi.fn(async (key: string, value: string, _opts?: KVNamespacePutOptions) => {
 			store.set(key, value);
 		}),
 		delete: vi.fn(async (key: string) => {
 			store.delete(key);
 		}),
 	} as unknown as KVNamespace;
-	return { kv, store };
+	return { kv, store, env: makeEnv({ KV: kv }), ctx: createMockCtx() };
 }
 
-describe("cache/wrap — cacheGetOrSet", () => {
-	it("returns cached value on hit and does not call loader", async () => {
-		const { kv } = jsonKV({ k: JSON.stringify({ v: 1 }) });
-		const env = makeEnv({ KV: kv });
-		const ctx = createMockCtx();
-		const loader = vi.fn(async (): Promise<Payload> => ({ v: 99 }));
+beforeEach(() => {
+	vi.useFakeTimers();
+	vi.setSystemTime(now);
+	__resetMetricsForTest();
+});
+afterEach(() => {
+	vi.useRealTimers();
+	vi.restoreAllMocks();
+});
 
-		const out = await cacheGetOrSet<Payload>(env, ctx, "k", loader, { ttl: 60 });
-		expect(out).toEqual({ v: 1 });
-		expect(loader).not.toHaveBeenCalled();
+describe("unified cache time and origin contract", () => {
+	it.each(Object.entries(CACHE_TTL_SECONDS))(
+		"%s uses exactly its tier and expires at the boundary",
+		async (tier, seconds) => {
+			const { env, ctx, kv, store } = jsonKV();
+			const settings = {
+				...options,
+				family: { SHORT: "thread:stats", MEDIUM: "thread:entity", LONG: "post:attachments" }[
+					tier as CacheTier
+				],
+				tier: tier as CacheTier,
+			};
+			const load = vi.fn(async () => ({ id: 7 }));
+			expect(await cacheGetOrSet(env, ctx, "k", load, settings)).toEqual({ id: 7 });
+			const initial = store.get("k");
+			const parsed = JSON.parse(initial ?? expect.fail("Missing cache snapshot"));
+			expect(parsed).toMatchObject({ loadedAt: now, expiresAt: now + seconds * 1000, tier });
+			expect(kv.put).toHaveBeenCalledWith(
+				"k",
+				initial,
+				expect.objectContaining({ expirationTtl: seconds }),
+			);
+			vi.setSystemTime(now + seconds * 1000 - 1);
+			await cacheGetOrSet(env, ctx, "k", load, settings);
+			expect(load).toHaveBeenCalledTimes(1);
+			expect(store.get("k")).toBe(initial);
+			vi.setSystemTime(now + seconds * 1000);
+			await cacheGetOrSet(env, ctx, "k", load, settings);
+			expect(load).toHaveBeenCalledTimes(2);
+		},
+	);
+	it("rejects arbitrary seconds, old 30-second options and invalid tiers before any I/O", async () => {
+		const { env, ctx, kv } = jsonKV();
+		const load = vi.fn(async () => 1);
+		for (const settings of [
+			{ ...options, tier: "FIVE_MINUTES" },
+			{ family: options.family, ttl: 30 },
+			{ ...options, family: "" },
+		]) {
+			await expect(
+				cacheGetOrSet(env, ctx, "k", load, settings as typeof options),
+			).rejects.toThrow();
+		}
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(load).not.toHaveBeenCalled();
 	});
-
-	it("on miss: calls loader, returns fresh value, schedules waitUntil write", async () => {
-		const { kv, store } = jsonKV();
-		const env = makeEnv({ KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		const loader = vi.fn(async (): Promise<Payload> => ({ v: 7 }));
-
-		const out = await cacheGetOrSet<Payload>(env, ctx, "k", loader, { ttl: 30 });
-		expect(out).toEqual({ v: 7 });
-		expect(loader).toHaveBeenCalledTimes(1);
-
-		// Drain the scheduled write.
-		await Promise.all(ctx._waitUntilPromises);
-		expect(store.get("k")).toBe(JSON.stringify({ v: 7 }));
-		expect(kv.put).toHaveBeenCalledWith("k", JSON.stringify({ v: 7 }), { expirationTtl: 30 });
+	it("old unwrapped data, malformed data, future timestamps and schema drift cannot hit", async () => {
+		const { env, ctx, store } = jsonKV();
+		const load = vi.fn(async () => 7);
+		for (const value of [
+			5,
+			"{",
+			JSON.stringify({ ...createCacheEnvelope(3, options), schemaVersion: 2 }),
+			JSON.stringify({ ...createCacheEnvelope(3, options), loadedAt: now + 1 }),
+		]) {
+			store.set("k", typeof value === "string" ? value : JSON.stringify(value));
+			expect(await cacheGetOrSet(env, ctx, "k", load, options)).toBe(7);
+		}
+		expect(load).toHaveBeenCalledTimes(4);
 	});
-
-	it("validator returning false forces a miss", async () => {
-		const { kv } = jsonKV({ k: JSON.stringify({ wrong: "shape" }) });
-		const env = makeEnv({ KV: kv });
-		const ctx = createMockCtx();
-		const loader = vi.fn(async (): Promise<Payload> => ({ v: 42 }));
-		const validator = (val: unknown): val is Payload =>
-			typeof val === "object" && val !== null && typeof (val as Payload).v === "number";
-
-		const out = await cacheGetOrSet<Payload>(env, ctx, "k", loader, { ttl: 60, validator });
-		expect(out).toEqual({ v: 42 });
-		expect(loader).toHaveBeenCalledTimes(1);
-	});
-
-	it("validator passing returns cached value", async () => {
-		const { kv } = jsonKV({ k: JSON.stringify({ v: 5 }) });
-		const env = makeEnv({ KV: kv });
-		const ctx = createMockCtx();
-		const loader = vi.fn(async (): Promise<Payload> => ({ v: 1 }));
-		const validator = (val: unknown): val is Payload =>
-			typeof val === "object" && val !== null && typeof (val as Payload).v === "number";
-
-		const out = await cacheGetOrSet<Payload>(env, ctx, "k", loader, { ttl: 60, validator });
-		expect(out).toEqual({ v: 5 });
-		expect(loader).not.toHaveBeenCalled();
-	});
-
-	it("KV.get throwing falls through to loader", async () => {
-		const env = makeEnv({
-			KV: {
-				get: vi.fn(async () => {
-					throw new Error("boom");
-				}),
-				put: vi.fn(async () => {}),
-				delete: vi.fn(async () => {}),
-			} as unknown as KVNamespace,
+	it.each([null, [], {}, { items: [], hasMore: false }, { forums: [] }])(
+		"negative result %j uses SHORT and is reusable without renewal",
+		async (value) => {
+			const { env, ctx, store } = jsonKV();
+			const load = vi.fn(async () => value);
+			const settings = { ...options, family: "post:attachments", tier: "LONG" as const };
+			await cacheGetOrSet(env, ctx, "k", load, settings);
+			await cacheGetOrSet(env, ctx, "k", load, settings);
+			expect(load).toHaveBeenCalledTimes(1);
+			expect(JSON.parse(store.get("k") ?? expect.fail("Missing cache snapshot"))).toMatchObject({
+				tier: "SHORT",
+				expiresAt: now + 60_000,
+			});
+		},
+	);
+	it("retains the earliest source deadline across composition and delayed fill", async () => {
+		const { env, kv } = jsonKV();
+		const entry = createCacheEnvelope("snapshot", {
+			...options,
+			family: "post:attachments",
+			tier: "LONG",
+			expiresAt: now + 30_000,
 		});
-		const ctx = createMockCtx();
-		const loader = vi.fn(async (): Promise<Payload> => ({ v: 11 }));
-
-		const out = await cacheGetOrSet<Payload>(env, ctx, "k", loader, { ttl: 60 });
-		expect(out).toEqual({ v: 11 });
-		expect(loader).toHaveBeenCalled();
+		vi.setSystemTime(now + 20_000);
+		await putCacheEnvelope(env, "k", entry);
+		expect(kv.put).toHaveBeenCalledWith(
+			"k",
+			JSON.stringify(entry),
+			expect.objectContaining({ expirationTtl: 86400 }),
+		);
+		vi.setSystemTime(now + 30_000);
+		await expect(putCacheEnvelope(env, "k", entry)).rejects.toThrow(/expired/);
+		expect(
+			await cacheRead(env, "k", { ...options, family: "post:attachments", tier: "LONG" }),
+		).toBeNull();
 	});
-
-	it("KV.put throwing does not surface to caller", async () => {
-		const env = makeEnv({
-			KV: {
-				get: vi.fn(async () => null),
-				put: vi.fn(async () => {
-					throw new Error("kv put down");
+	it("100 concurrent cold reads share one loader through a slow writeback", async () => {
+		const { env, ctx, kv } = jsonKV();
+		let finishWrite!: () => void;
+		vi.mocked(kv.put).mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					finishWrite = resolve;
 				}),
-				delete: vi.fn(async () => {}),
-			} as unknown as KVNamespace,
+		);
+		const load = vi.fn(async () => ({ id: 1 }));
+		const requests = Array.from({ length: 100 }, () => cacheGetOrSet(env, ctx, "k", load, options));
+		for (let i = 0; i < 8; i++) await Promise.resolve();
+		expect(load).toHaveBeenCalledTimes(1);
+		requests.push(cacheGetOrSet(env, ctx, "k", load, options));
+		finishWrite();
+		const values = await Promise.all(requests);
+		expect(values).toHaveLength(101);
+		expect(kv.put).toHaveBeenCalledTimes(1);
+		values[0].id = 99;
+		expect(values[1].id).toBe(1);
+	});
+	it("different scopes and bindings never share loaders or expose cached values", async () => {
+		const first = jsonKV();
+		const second = jsonKV();
+		const publicLoad = vi.fn(async () => "public");
+		const privateLoad = vi.fn(async () => "private");
+		await Promise.all([
+			cacheGetOrSet(first.env, first.ctx, "k", publicLoad, options),
+			cacheGetOrSet(second.env, second.ctx, "k", privateLoad, options),
+		]);
+		expect(privateLoad).toHaveBeenCalledTimes(1);
+		expect(await cacheRead(first.env, "k", { ...options, scope: "user:1" })).toBeNull();
+		expect(await cacheRead(first.env, "k", { ...options, family: "post:ratings" })).toBeNull();
+	});
+	it("loader failure is shared, never cached as empty, and the next attempt can retry", async () => {
+		const { env, ctx, kv } = jsonKV();
+		const failure = new Error("D1 unavailable");
+		const load = vi.fn(async () => {
+			throw failure;
 		});
-		const ctx = createMockCtx() as ExecutionContext & {
-			_waitUntilPromises: Promise<unknown>[];
+		const results = await Promise.allSettled(
+			Array.from({ length: 20 }, () => cacheGetOrSet(env, ctx, "k", load, options)),
+		);
+		expect(results.every((result) => result.status === "rejected")).toBe(true);
+		expect(load).toHaveBeenCalledTimes(1);
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(await cacheGetOrSet(env, ctx, "k", async () => 3, options)).toBe(3);
+	});
+	it("KV read/write outages preserve the authoritative result without first-hit D1 metric writes", async () => {
+		const { env, ctx, kv } = jsonKV();
+		env.DB = { prepare: vi.fn() } as unknown as D1Database;
+		vi.mocked(kv.get).mockRejectedValue(new Error("429"));
+		vi.mocked(kv.put).mockRejectedValue(new Error("429"));
+		expect(await cacheGetOrSet(env, ctx, "k", async () => 42, options)).toBe(42);
+		expect(env.DB.prepare).not.toHaveBeenCalled();
+	});
+	it("generation read failures and family rollback bypass KV without seeding", async () => {
+		const { env, ctx, kv } = jsonKV();
+		await cacheGetOrSet(env, ctx, "cache:!unavailable", async () => 1, options);
+		env.CACHE_DISABLED_FAMILIES = options.family;
+		await cacheGetOrSet(env, ctx, "k", async () => 2, options);
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+	});
+	it("bulk reads deduplicate and respect the 100-key boundary, then report misses", async () => {
+		const { env, kv, store } = jsonKV();
+		const keys = Array.from({ length: 201 }, (_, i) => `k${i}`);
+		store.set("k0", JSON.stringify(createCacheEnvelope(7, options)));
+		const found = await cacheReadMany<number>(env, [...keys, "k0"], () => options);
+		expect(found).toEqual(new Map([["k0", 7]]));
+		expect(vi.mocked(kv.get).mock.calls.map((call) => (call[0] as string[]).length)).toEqual([
+			100, 100, 1,
+		]);
+		vi.mocked(kv.get).mockRejectedValue(new Error("unavailable"));
+		expect(await cacheReadMany(env, ["x"], options)).toEqual(new Map());
+		env.CACHE_DISABLED_FAMILIES = options.family;
+		expect(await cacheReadMany(env, ["x"], options)).toEqual(new Map());
+	});
+	it("validator mismatch reloads; invalid loader values and oversized entries never fill", async () => {
+		const { env, ctx, store } = jsonKV();
+		const validator = (value: unknown): value is number => typeof value === "number";
+		store.set("k", JSON.stringify(createCacheEnvelope("old", options)));
+		expect(await cacheGetOrSet(env, ctx, "k", async () => 9, { ...options, validator })).toBe(9);
+		expect(await cacheWrite(env, ctx, "invalid", undefined, options)).toBe(false);
+		expect(await cacheWrite(env, ctx, "large", "x".repeat(2 * 1024 * 1024), options)).toBe(false);
+		expect(
+			await cacheWrite(env, ctx, "shape", "x", {
+				...options,
+				validator: ((value: unknown) => typeof value === "number") as (
+					value: unknown,
+				) => value is string,
+			}),
+		).toBe(false);
+		expect(store.has("invalid")).toBe(false);
+	});
+	it("metadata has actual UTF-8 bytes and preview cannot write or renew", async () => {
+		const { env, ctx, kv, store } = jsonKV();
+		await cacheWrite(env, ctx, "k", { text: "缓存💾" }, options);
+		const content = store.get("k") ?? expect.fail("Missing cache snapshot");
+		expect(kv.put).toHaveBeenCalledWith(
+			"k",
+			content,
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					contentUtf8Bytes: new TextEncoder().encode(content).length,
+				}),
+			}),
+		);
+		vi.mocked(kv.put).mockClear();
+		expect(await cacheRead(env, "k", options)).toEqual({ text: "缓存💾" });
+		expect(kv.put).not.toHaveBeenCalled();
+	});
+	it("delete fences pending fills and reports KV failure honestly", async () => {
+		const { env, ctx, kv, store } = jsonKV();
+		let complete!: (value: number) => void;
+		const request = cacheGetOrSet(
+			env,
+			ctx,
+			"k",
+			() =>
+				new Promise<number>((resolve) => {
+					complete = resolve;
+				}),
+			options,
+		);
+		for (let i = 0; i < 4; i++) await Promise.resolve();
+		const deletion = cacheDelete(env, "k", options.family);
+		complete(4);
+		await request;
+		expect(await deletion).toBe(true);
+		expect(store.has("k")).toBe(false);
+		vi.mocked(kv.delete).mockRejectedValue(new Error("down"));
+		expect(await cacheDelete(env, "k", options.family)).toBe(false);
+	});
+	it("origin timeout fences late fill and releases capacity only after origin settles", async () => {
+		const { env, ctx, kv } = jsonKV();
+		let finish!: (value: number) => void;
+		const request = cacheGetOrSet(
+			env,
+			ctx,
+			"k",
+			() =>
+				new Promise<number>((resolve) => {
+					finish = resolve;
+				}),
+			options,
+		);
+		const check = expect(request).rejects.toBeInstanceOf(CacheLoadLimitError);
+		await vi.advanceTimersByTimeAsync(20_000);
+		await check;
+		finish(1);
+		for (let i = 0; i < 4; i++) await Promise.resolve();
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(await cacheGetOrSet(env, undefined, "k", async () => 2, options)).toBe(2);
+	});
+	it("management metrics have a distinct source family", async () => {
+		const { env } = jsonKV();
+		await cacheGetOrSet(env, undefined, "k", async () => 1, { ...options, source: "admin" });
+		expect([...swapSnapshot().keys()].every((key) => key.startsWith("admin:thread:stats"))).toBe(
+			true,
+		);
+	});
+	it("envelope validation rejects invalid lifetimes and descriptors", () => {
+		const entry = createCacheEnvelope(1, options);
+		for (const invalid of [
+			null,
+			{},
+			{ ...entry, tier: "OTHER" },
+			{ ...entry, expiresAt: now },
+			{ ...entry, expiresAt: Infinity },
+			{ ...entry, expiresAt: now + 60_001 },
+			{ ...entry, params: { id: NaN } },
+		])
+			expect(isCacheEnvelope(invalid)).toBe(false);
+		expect(() => createCacheEnvelope(1, { ...options, expiresAt: NaN })).toThrow();
+	});
+	it("256 outstanding origins retain their permits after timeouts until the actual I/O settles", async () => {
+		const { env, kv } = jsonKV();
+		vi.mocked(kv.get).mockRejectedValue(new Error("KV unavailable"));
+		const finish: ((value: number) => void)[] = [];
+		const load = vi.fn(
+			() =>
+				new Promise<number>((resolve) => {
+					finish.push(resolve);
+				}),
+		);
+		const requests = Promise.allSettled(
+			Array.from({ length: 256 }, (_, id) =>
+				cacheGetOrSet(env, undefined, `cold-${id}`, load, options),
+			),
+		);
+		for (let index = 0; index < 6; index++) await Promise.resolve();
+		expect(load).toHaveBeenCalledTimes(256);
+		await expect(cacheGetOrSet(env, undefined, "overflow", load, options)).rejects.toBeInstanceOf(
+			CacheLoadLimitError,
+		);
+		await vi.advanceTimersByTimeAsync(20_000);
+		expect((await requests).every((result) => result.status === "rejected")).toBe(true);
+		await expect(
+			cacheGetOrSet(env, undefined, "still-overflow", load, options),
+		).rejects.toBeInstanceOf(CacheLoadLimitError);
+		for (const resolve of finish) resolve(1);
+		for (let index = 0; index < 8; index++) await Promise.resolve();
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(await cacheGetOrSet(env, undefined, "recovered", async () => 2, options)).toBe(2);
+	});
+	it("sequential KV-failure requests cannot exceed 8192 origin admissions per 60 seconds", async () => {
+		const { env, kv, store } = jsonKV();
+		env.CACHE_DISABLED_FAMILIES = options.family;
+		const load = vi.fn(async () => 1);
+		for (let index = 0; index < 8192; index++)
+			await cacheGetOrSet(env, undefined, "bypass", load, options);
+		await expect(cacheGetOrSet(env, undefined, "bypass", load, options)).rejects.toBeInstanceOf(
+			CacheLoadLimitError,
+		);
+		expect(load).toHaveBeenCalledTimes(8192);
+		expect(kv.put).not.toHaveBeenCalled();
+		// A valid hit does not consume an origin admission even while the origin is capped.
+		env.CACHE_DISABLED_FAMILIES = "";
+		store.set("hot", JSON.stringify(createCacheEnvelope(7, options)));
+		expect(await cacheGetOrSet(env, undefined, "hot", load, options)).toBe(7);
+		vi.setSystemTime(now + 60_000);
+		expect(await cacheGetOrSet(env, undefined, "bypass", load, options)).toBe(1);
+		expect(load).toHaveBeenCalledTimes(8193);
+	});
+	it("regional negative read caching may cause another load, but cannot renew the logical deadline", async () => {
+		const authoritative = new Map<string, string>();
+		const regional = () => {
+			const reads = new Map<string, { raw: string | null; until: number }>();
+			const kv = {
+				get: vi.fn(async (key: string, type?: string) => {
+					let cached = reads.get(key);
+					if (!cached || cached.until <= Date.now()) {
+						cached = { raw: authoritative.get(key) ?? null, until: Date.now() + 60_000 };
+						reads.set(key, cached);
+					}
+					return type === "json" && cached.raw !== null ? JSON.parse(cached.raw) : cached.raw;
+				}),
+				put: vi.fn(async (key: string, raw: string) => {
+					authoritative.set(key, raw);
+				}),
+			} as unknown as KVNamespace;
+			return makeEnv({ KV: kv });
 		};
-		const loader = vi.fn(async (): Promise<Payload> => ({ v: 3 }));
-
-		const out = await cacheGetOrSet<Payload>(env, ctx, "k", loader, { ttl: 60 });
-		expect(out).toEqual({ v: 3 });
-		// waitUntil promise should resolve (catch swallows).
-		await expect(Promise.all(ctx._waitUntilPromises)).resolves.toBeDefined();
+		const west = regional();
+		const east = regional();
+		// East has observed absence before the West fill; it may retain that absence for 60s.
+		await east.KV.get("k");
+		const load = vi.fn(async () => ({ id: 1 }));
+		await cacheGetOrSet(west, undefined, "k", load, options);
+		await Promise.all(
+			Array.from({ length: 100 }, () => cacheGetOrSet(east, undefined, "k", load, options)),
+		);
+		expect(load).toHaveBeenCalledTimes(2);
+		const deadline = JSON.parse(
+			authoritative.get("k") ?? expect.fail("Missing cache snapshot"),
+		).expiresAt;
+		vi.setSystemTime(deadline);
+		// An old, physically present SHORT value is still rejected at its fixed deadline.
+		await cacheGetOrSet(east, undefined, "k", load, options);
+		expect(load).toHaveBeenCalledTimes(3);
+		expect(
+			JSON.parse(authoritative.get("k") ?? expect.fail("Missing cache snapshot")).loadedAt,
+		).toBe(deadline);
 	});
 });

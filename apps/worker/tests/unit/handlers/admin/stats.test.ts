@@ -11,15 +11,15 @@ describe("admin stats handler", () => {
 				})),
 			})),
 			batch: vi.fn(async () => [
-				{ results: [{ cnt: 100 }] }, // total users
-				{ results: [{ cnt: 5 }] }, // today users
-				{ results: [{ cnt: 3 }] }, // banned users
-				{ results: [{ cnt: 50 }] }, // total threads
-				{ results: [{ cnt: 2 }] }, // today threads
-				{ results: [{ cnt: 500 }] }, // total posts
-				{ results: [{ cnt: 10 }] }, // today posts
-				{ results: [{ cnt: 8 }] }, // total forums
-				{ results: [{ cnt: 1 }] }, // hidden forums
+				{ success: true, results: [{ cnt: 100 }] },
+				{ success: true, results: [{ cnt: 5 }] },
+				{ success: true, results: [{ cnt: 3 }] },
+				{ success: true, results: [{ cnt: 50 }] },
+				{ success: true, results: [{ cnt: 2 }] },
+				{ success: true, results: [{ cnt: 500 }] },
+				{ success: true, results: [{ cnt: 10 }] },
+				{ success: true, results: [{ cnt: 8 }] },
+				{ success: true, results: [{ cnt: 1 }] },
 			]),
 		} as unknown as D1Database;
 

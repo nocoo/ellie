@@ -70,7 +70,8 @@ function makeMockDb(opts: {
 			}),
 			all: vi.fn(async () => {
 				calls.push({ sql, binds: [...binds] });
-				return (allQueue.shift() ?? { results: [] }) as { results: unknown[] };
+				const next = allQueue.shift() ?? { results: [] };
+				return { success: true, results: next.results };
 			}),
 			run: vi.fn(async () => {
 				calls.push({ sql, binds: [...binds] });
@@ -89,9 +90,8 @@ function makeMockDb(opts: {
 			for (const s of stmts) {
 				calls.push({ sql: s._sql, binds: [...s._binds] });
 			}
-			return (batchQueue.shift() ?? stmts.map(() => ({ results: [] }))) as Array<{
-				results: unknown[];
-			}>;
+			const next = batchQueue.shift() ?? stmts.map(() => ({ results: [] }));
+			return next.map((item) => ({ success: true, results: item.results }));
 		}),
 	} as unknown as D1Database & { _calls: typeof calls };
 	(db as unknown as { _calls: typeof calls })._calls = calls;
@@ -277,8 +277,8 @@ describe("todayVisits — KPI handler", () => {
 
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
-		expect(kv.get).not.toHaveBeenCalled();
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.get).toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 		// D1 was hit even though KV held a payload.
 		expect(db._calls.length).toBeGreaterThan(0);
 	});
@@ -296,7 +296,7 @@ describe("todayVisits — KPI handler", () => {
 			// ctx absent
 		);
 		expect(res.status).toBe(200);
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 	});
 
 	it("defaults all counters to 0 / empty on empty aggregate", async () => {

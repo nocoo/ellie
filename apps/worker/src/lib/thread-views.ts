@@ -1,67 +1,67 @@
-// Thread view counter — increment scheduler
-//
-// ────────────────────────────────────────────────────────────────
-// Why this file exists
-// ────────────────────────────────────────────────────────────────
-// The thread-detail handler (`GET /api/v1/threads/:id`) must bump
-// `threads.views` on every successful fetch. Historically the bump was
-// inlined as a `void DB.prepare(...).run()` — fire-and-forget without
-// `ctx.waitUntil`. On Cloudflare Workers, any Promise that is not handed
-// to `ctx.waitUntil` may be cancelled the moment the response is
-// returned, especially on low-traffic isolates with nothing else
-// keeping them alive. This was observed in production: brand-new
-// threads (e.g. id 1184179) stayed pinned at `views = 0` even after
-// being opened, because the bumps were dropped before D1 flushed them.
-//
-// `scheduleThreadViewIncrement` centralizes the bump so:
-//   1. The UPDATE is bound to the Worker lifecycle via `ctx.waitUntil`.
-//   2. D1 errors are logged (`console.warn`) instead of being swallowed
-//      by the original `void` discard.
-//   3. The handler stays a one-liner; the helper is the single
-//      replacement point if/when we move to an in-isolate accumulator
-//      with batched flush (P1 — see thread `#ellie-阅读数:b55aba36`).
-//
-// Contract:
-//   - Returns `void`. The helper itself owns the `ctx.waitUntil` call.
-//     Callers MUST NOT wrap a second `ctx.waitUntil(...)` around it.
-//   - Never throws synchronously: the DB call is constructed inside the
-//     waitUntil-bound Promise and any rejection is caught by `.catch`.
-//   - Safe to call from any code path that already validated the
-//     thread is visible to the caller. The helper has no authorization
-//     awareness — gate it at the handler level.
-
+// Best-effort view aggregation. Later requests (or the existing cron) flush
+// completed 60-second windows. No timer assumes the isolate stays alive.
+// Isolate eviction can lose unflushed events; this is not durable accounting.
+import { CACHE_TTL_SECONDS } from "@ellie/types";
+import { recordKvOp } from "./cache/metrics";
 import type { Env } from "./env";
 
-/**
- * Schedule a `views = views + 1` UPDATE for the given thread.
- *
- * The UPDATE is registered with `ctx.waitUntil` so the Worker isolate
- * stays alive until D1 has acknowledged the write. Errors are logged
- * via `console.warn` and never propagate to the caller — view bumps
- * are best-effort by design and must never fail the user-visible
- * detail request.
- *
- * Implementation note: the D1 chain (`prepare → bind → run`) is wrapped
- * in `Promise.resolve().then(...)` so a synchronous throw from
- * `prepare` or `bind` (e.g. a future binding implementation that
- * validates argument types eagerly) is converted into a rejected
- * Promise. Without this indirection a synchronous throw would bypass
- * the `.catch` handler AND the `ctx.waitUntil` registration entirely,
- * propagating into the request hot path and breaking the user-visible
- * 200 response.
- */
+const WINDOW_MS = CACHE_TTL_SECONDS.SHORT * 1000;
+const MAX_THREADS = 2048;
+interface Window {
+	since: number;
+	counts: Map<number, number>;
+}
+const windows = new WeakMap<KVNamespace, Window>();
+
+export async function flushThreadViews(env: Env): Promise<void> {
+	const current = windows.get(env.KV);
+	if (!current || Date.now() - current.since < WINDOW_MS || !current.counts.size) return;
+	// Detach before I/O: another request can collect the next window while
+	// this one writes, but cannot flush these same increments a second time.
+	windows.set(env.KV, { since: Date.now(), counts: new Map() });
+	const entries = [...current.counts];
+	for (let start = 0; start < entries.length; start += 25) {
+		const batch = entries.slice(start, start + 25);
+		try {
+			const cases = batch.map(() => "WHEN ? THEN ?").join(" ");
+			const ids = batch.map(([id]) => id);
+			const result =
+				await env.DB.prepare(`UPDATE threads SET views = views + CASE id ${cases} ELSE 0 END
+    WHERE id IN (${ids.map(() => "?").join(",")})`)
+					.bind(...batch.flat(), ...ids)
+					.run();
+			if (!result.success) throw new Error("View update failed");
+			recordKvOp(
+				"thread:views",
+				"view-written",
+				batch.reduce((sum, [, count]) => sum + count, 0),
+			);
+		} catch {
+			// Retrying an unknown write outcome could count it twice. The existing
+			// best-effort contract drops this batch and records the lost/unknown amount.
+			recordKvOp(
+				"thread:views",
+				"view-dropped",
+				batch.reduce((sum, [, count]) => sum + count, 0),
+			);
+			console.warn("[thread-views] view batch not confirmed", { threads: batch.length });
+		}
+	}
+}
+
 export function scheduleThreadViewIncrement(
 	env: Env,
 	ctx: ExecutionContext,
 	threadId: number,
 ): void {
-	const task = Promise.resolve()
-		.then(() =>
-			env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(threadId).run(),
-		)
-		.then(() => undefined)
-		.catch((err: unknown) => {
-			console.warn("[thread-views] increment failed", { threadId, err });
-		});
-	ctx.waitUntil(task);
+	if (!Number.isSafeInteger(threadId) || threadId <= 0) return;
+	const current = windows.get(env.KV) ?? { since: Date.now(), counts: new Map<number, number>() };
+	windows.set(env.KV, current);
+	recordKvOp("thread:views", "view-event");
+	if (current.counts.has(threadId) || current.counts.size < MAX_THREADS) {
+		current.counts.set(threadId, (current.counts.get(threadId) ?? 0) + 1);
+	} else {
+		recordKvOp("thread:views", "view-dropped");
+	}
+	if (Date.now() - current.since >= WINDOW_MS) ctx.waitUntil(flushThreadViews(env));
 }

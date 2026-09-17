@@ -1,406 +1,354 @@
-// Forum v2 read-path glue. Sits between the pure builders/validators in
-// `lib/cache/forum.ts` and the public read handlers in `handlers/forum.ts`.
-//
-// Responsibilities:
-//   - Resolve `forum:tree:gen` / `forum:summary:gen` once per request.
-//   - Drive `cacheGetOrSet` for tree / summary / meta keys, lazy per bucket.
-//   - Provide a *request-local* full-forum snapshot promise so a cold-start
-//     (tree miss + summary miss in the same request) hits D1 only ONCE.
-//   - Feed builders enriched rows that already carry `lastPosterAvatar` /
-//     `lastPosterAvatarPath` so cache HITS never need user:mini / D1.
-//
-// This module owns IO. The pure module `forum.ts` does not.
-
+// Structural LONG snapshots and SHORT counters/membership compose at response time.
+// Current forum/thread gates run even on hot data; no combined snapshot renews TTL.
 import {
+	CACHE_TTL_SECONDS,
+	type CacheDescriptor,
 	canViewForumVisibility,
 	type Forum,
 	type ForumVisibility,
-	type ModeratorInfo,
 } from "@ellie/types";
 import type { Env } from "../env";
-import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds } from "../mappers";
-import { isForumActive, THREAD_VISIBLE } from "../visibility";
-import { bumpGen, getGen } from "./epoch";
+import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds, toForum } from "../mappers";
+import { getUserProfiles } from "../user-cache";
+import { getGen } from "./epoch";
 import {
 	bucketToVisibilityContext,
-	buildForumMetaPayload,
 	buildForumSummaryPayload,
 	buildForumTreePayload,
 	type ForumAggregateV2,
-	type ForumMetaPayloadV2,
 	type ForumSummaryPayloadV2,
 	type ForumTreeNodeV2,
 	type ForumTreePayloadV2,
-	isForumMetaPayload,
 	isForumSummaryPayload,
 	isForumTreePayload,
 } from "./forum";
 import {
-	forumMetaKey,
 	forumSummaryGenKey,
 	forumSummaryKey,
 	forumTreeGenKey,
 	forumTreeKey,
 	type VisibilityBucket,
 } from "./keys";
-import {
-	flushPendingNow,
-	recordError,
-	recordHit,
-	recordMiss,
-	recordRead,
-	recordWrite,
-	scheduleMetricsFlush,
-} from "./metrics";
+import { getThreadRows, type ReadingRow } from "./thread-loaders";
 import { cacheGetOrSet } from "./wrap";
 
-// ─── TTLs (docs/19 §4) ────────────────────────────────────────────
-
-/** Structural tree — long TTL, correctness from `forum:tree:gen`. */
-export const FORUM_TREE_TTL = 86_400; // 24h
-/** Aggregates incl. last-poster avatar — long TTL, correctness from `forum:summary:gen`. */
-export const FORUM_SUMMARY_TTL = 86_400; // 24h
-/** Single-forum view — same gen as summary; 24h. */
-export const FORUM_META_TTL = 86_400; // 24h
-
-// ─── Snapshot row (D1) ────────────────────────────────────────────
-
-/**
- * One enriched D1 row. Combines the `forums` table (incl. `moderator_ids`)
- * with the visible-last-thread override (sticky >= 0), the moderator
- * name list, the today-thread count, and the visible last poster's
- * avatar (resolved from `users` keyed by the *visible* poster id, NOT
- * `forums.last_poster_id`). Both tree and summary builders are fed this
- * same row shape so a single D1 fetch can satisfy both.
- */
+export const FORUM_TREE_TTL = CACHE_TTL_SECONDS.LONG;
+export const FORUM_SUMMARY_TTL = CACHE_TTL_SECONDS.SHORT;
 export interface ForumSnapshotRow extends Forum {
-	/** Comma-separated moderator user IDs (preserved verbatim from D1). */
 	moderatorIds: string;
 }
+const STRUCTURE_COLUMNS = `id, parent_id, name, description, announcement, icon, display_order, type, status, visibility, moderators, moderator_ids, thread_types_enabled, thread_types_required, thread_types_listable, thread_types_prefix`;
+interface CurrentForum {
+	id: number;
+	parent_id: number;
+	status: number;
+	visibility: ForumVisibility;
+	moderators: string;
+	moderator_ids: string;
+	thread_types_enabled: number;
+	thread_types_required: number;
+	thread_types_listable: number;
+	thread_types_prefix: number;
+}
+function snapshot(row: Record<string, unknown>): ForumSnapshotRow {
+	return {
+		...toForum(row),
+		moderatorIds: String(row.moderator_ids ?? ""),
+		moderatorList: [],
+		lastThreadSubject: "",
+		lastPoster: "",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
+		lastPostAt: 0,
+	};
+}
+export async function loadForumStructure(env: Env): Promise<ForumSnapshotRow[]> {
+	const result = await env.DB.prepare(
+		`SELECT ${STRUCTURE_COLUMNS} FROM forums ORDER BY display_order, id`,
+	).all<Record<string, unknown>>();
+	if (!result.success) throw new Error("Forum structure could not be loaded");
+	return result.results.map((row) => snapshot({ ...row, threads: 0, posts: 0, last_thread_id: 0 }));
+}
 
-// ─── Snapshot loader ──────────────────────────────────────────────
-
-/**
- * Fetch the full forum row set + per-forum today count + moderator names +
- * last-poster avatar in as few D1 round-trips as possible. This is the
- * single source of truth for both `buildForumTreePayload` and
- * `buildForumSummaryPayload`; cold-start of a request that misses both
- * caches will run this loader exactly once.
- *
- * Applies a visible-last-thread override on top of the raw `forums`
- * row: the raw `forums.last_thread_*` columns can point at a hidden /
- * recycled thread (sticky < 0). For each forum we batch-query the most
- * recent VISIBLE thread (sticky >= 0) and override the last-thread /
- * last-poster fields with that, including a separate avatar lookup
- * keyed by the visible last-poster id (which may differ from
- * `forums.last_poster_id`). Forums with no visible thread get all
- * last-* + avatar fields cleared.
- */
+/** One indexed newest-thread lookup per forum within a single SQL statement. */
+const LAST_ID =
+	"(SELECT t.id FROM threads t WHERE t.forum_id = f.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1)";
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
-	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
-
-	// We deliberately DO NOT JOIN users for the last-poster avatar here:
-	// the visible-last-thread override (below) may point at a different
-	// user than `forums.last_poster_id`, so the JOIN'd avatar would be
-	// stale. Avatars are fetched in a second batched lookup keyed by
-	// the *visible* last-poster ids.
-	const forumQuery = "SELECT * FROM forums ORDER BY display_order";
-
-	const [forumResult, countResult] = await Promise.all([
-		env.DB.prepare(forumQuery).all(),
+	const cutoff = Math.floor(Date.now() / 1000) - 86400;
+	const [forums, counts] = await Promise.all([
 		env.DB.prepare(
-			`SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND ${THREAD_VISIBLE} GROUP BY forum_id`,
+			`SELECT f.id, f.status, f.visibility, f.threads, f.posts, ${LAST_ID} AS last_thread_id FROM forums f`,
+		).all<Record<string, unknown>>(),
+		env.DB.prepare(
+			"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
 		)
-			.bind(cutoff24h)
+			.bind(cutoff)
 			.all<{ forum_id: number; cnt: number }>(),
 	]);
-
-	const todayMap = new Map<number, number>();
-	for (const row of countResult.results) {
-		todayMap.set(row.forum_id, row.cnt);
-	}
-
-	const rawRows = forumResult.results as Record<string, unknown>[];
-	const { allModIds, perRowModIds, forumIds } = collectRowIds(rawRows);
-
-	// Visible-last-thread per forum (sticky >= 0). Mirrors
-	// `fetchVisibleLastThreads` in handlers/forum.ts.
-	const visibleLastByForum = await fetchVisibleLastThreadsForSnapshot(env, forumIds);
-
-	const avatarIds = new Set<number>();
-	for (const v of visibleLastByForum.values()) {
-		if (v.lastPosterId > 0) avatarIds.add(v.lastPosterId);
-	}
-
-	const { modNameMap, avatarMap } = await loadUserMaps(env, allModIds, avatarIds);
-
-	const out: ForumSnapshotRow[] = new Array(rawRows.length);
-	for (let i = 0; i < rawRows.length; i++) {
-		out[i] = buildSnapshotRow(rawRows[i], {
-			modIds: perRowModIds[i],
-			modNameMap,
-			visible: visibleLastByForum.get((rawRows[i] as Record<string, unknown>).id as number),
-			avatarMap,
-			todayMap,
-		});
-	}
-	return out;
+	if (!forums.success || !counts.success) throw new Error("Forum summary could not be loaded");
+	const today = new Map(counts.results.map((row) => [row.forum_id, row.cnt]));
+	return forums.results.map((row) => ({
+		...snapshot({ ...row, last_thread_id: row.last_thread_id ?? 0 }),
+		todayThreads: today.get(Number(row.id)) ?? 0,
+	}));
 }
-
-interface RowIdCollectResult {
-	allModIds: Set<number>;
-	perRowModIds: number[][];
-	forumIds: number[];
-}
-
-function collectRowIds(rawRows: Record<string, unknown>[]): RowIdCollectResult {
-	const allModIds = new Set<number>();
-	const perRowModIds: number[][] = new Array(rawRows.length);
-	const forumIds: number[] = new Array(rawRows.length);
-	for (let i = 0; i < rawRows.length; i++) {
-		const r = rawRows[i];
-		const ids = parseModeratorIds(((r.moderator_ids as string) ?? "") || "");
-		perRowModIds[i] = ids;
-		for (const id of ids) allModIds.add(id);
-		forumIds[i] = r.id as number;
-	}
-	return { allModIds, perRowModIds, forumIds };
-}
-
-interface UserMaps {
-	modNameMap: Map<number, string>;
-	avatarMap: Map<number, { avatar: string; avatarPath: string }>;
-}
-
-async function loadUserMaps(
-	env: Env,
-	modIds: Set<number>,
-	avatarIds: Set<number>,
-): Promise<UserMaps> {
-	const modNameMap = new Map<number, string>();
-	const avatarMap = new Map<number, { avatar: string; avatarPath: string }>();
-	if (modIds.size === 0 && avatarIds.size === 0) return { modNameMap, avatarMap };
-
-	const idUnion = new Set<number>([...modIds, ...avatarIds]);
-	const ids = [...idUnion];
-
-	// SQLite caps prepared-statement variables at 999. Forums + moderators +
-	// last-posters can plausibly exceed that on a large board, so chunk the
-	// IN-list into BATCH_SIZE-element windows that stay well under the cap.
-	const BATCH_SIZE = 100;
-	for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-		const batch = ids.slice(i, i + BATCH_SIZE);
-		const placeholders = batch.map(() => "?").join(",");
-		const result = await env.DB.prepare(
-			`SELECT id, username, avatar, avatar_path FROM users WHERE id IN (${placeholders})`,
-		)
-			.bind(...batch)
-			.all<{ id: number; username: string; avatar: string | null; avatar_path: string | null }>();
-		for (const row of result.results) {
-			if (modIds.has(row.id)) modNameMap.set(row.id, row.username);
-			if (avatarIds.has(row.id)) {
-				avatarMap.set(row.id, {
-					avatar: row.avatar ?? "",
-					avatarPath: row.avatar_path ?? "",
-				});
-			}
-		}
-	}
-	return { modNameMap, avatarMap };
-}
-
-interface BuildRowCtx {
-	modIds: number[];
-	modNameMap: Map<number, string>;
-	visible: VisibleLastThreadRow | undefined;
-	avatarMap: Map<number, { avatar: string; avatarPath: string }>;
-	todayMap: Map<number, number>;
-}
-
-function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): ForumSnapshotRow {
-	const id = raw.id as number;
-	const moderatorIdsStr = (raw.moderator_ids as string) ?? "";
-	const moderatorList: ModeratorInfo[] = [];
-	for (const mid of ctx.modIds) {
-		const name = ctx.modNameMap.get(mid);
-		if (name) moderatorList.push({ id: mid, name });
-	}
-
-	// Apply visible-last-thread override. If no visible thread exists,
-	// all last-* + avatar fields default to cleared values (no
-	// last-thread / last-poster shown for that forum).
-	//
-	// Forum cache is shared across all viewers (bucket-independent), so
-	// anonymous-last-poster threads are rendered with masked values for
-	// everyone — staff/self can still see the real author by clicking into
-	// the thread detail (which is viewer-aware). Same trade-off as
-	// thread:list:v2 (docs/19 §6).
-	const v = ctx.visible;
-	const isAnonLast = v?.anonymousLastPoster === 1;
-	const av = v && !isAnonLast ? ctx.avatarMap.get(v.lastPosterId) : undefined;
-
-	return {
-		id,
-		parentId: raw.parent_id as number,
-		name: raw.name as string,
-		description: raw.description as string,
-		announcement: (raw.announcement as string) ?? "",
-		icon: raw.icon as string,
-		displayOrder: raw.display_order as number,
-		threads: raw.threads as number,
-		posts: raw.posts as number,
-		type: raw.type as Forum["type"],
-		status: raw.status as number,
-		visibility: ((raw.visibility as string) || "public") as ForumVisibility,
-		moderators: (raw.moderators as string) ?? "",
-		moderatorIds: moderatorIdsStr,
-		moderatorList,
-		todayThreads: ctx.todayMap.get(id) ?? 0,
-		lastThreadId: v?.threadId ?? 0,
-		lastPostAt: v?.lastPostAt ?? 0,
-		lastPoster: isAnonLast ? ANONYMOUS_AUTHOR_NAME : (v?.lastPoster ?? ""),
-		lastPosterId: isAnonLast ? 0 : (v?.lastPosterId ?? 0),
-		lastPosterAvatar: isAnonLast ? "" : (av?.avatar ?? ""),
-		lastPosterAvatarPath: isAnonLast ? "" : (av?.avatarPath ?? ""),
-		lastThreadSubject: v?.subject ?? "",
-		threadTypes: {
-			enabled: ((raw.thread_types_enabled as number | undefined) ?? 0) === 1,
-			required: ((raw.thread_types_required as number | undefined) ?? 0) === 1,
-			listable: ((raw.thread_types_listable as number | undefined) ?? 0) === 1,
-			prefix: ((raw.thread_types_prefix as number | undefined) ?? 0) === 1,
-		},
-	};
-}
-
-interface VisibleLastThreadRow {
-	threadId: number;
-	subject: string;
-	lastPostAt: number;
-	lastPosterId: number;
-	lastPoster: string;
-	/** 1 = the thread's last post is anonymous; the renderer masks lastPoster*. */
-	anonymousLastPoster: number;
-}
-
-/**
- * Snapshot-local copy of `fetchVisibleLastThreads` from handlers/forum.ts.
- * Kept private here so the cache module owns its own IO and stays
- * decoupled from the handler module.
- */
-async function fetchVisibleLastThreadsForSnapshot(
-	env: Env,
-	forumIds: number[],
-): Promise<Map<number, VisibleLastThreadRow>> {
-	const out = new Map<number, VisibleLastThreadRow>();
-	if (forumIds.length === 0) return out;
-
-	const BATCH_SIZE = 100; // SQLite var limit guard
-	for (let i = 0; i < forumIds.length; i += BATCH_SIZE) {
-		const batch = forumIds.slice(i, i + BATCH_SIZE);
-		const placeholders = batch.map(() => "?").join(",");
-		const res = await env.DB.prepare(
-			`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster, t.anonymous_last_poster
-			 FROM threads t
-			 INNER JOIN (
-				 SELECT forum_id, MAX(last_post_at) as max_post_at
-				 FROM threads
-				 WHERE forum_id IN (${placeholders}) AND sticky >= 0
-				 GROUP BY forum_id
-			 ) sub ON t.forum_id = sub.forum_id AND t.last_post_at = sub.max_post_at
-			 WHERE t.sticky >= 0
-			 ORDER BY t.last_post_at DESC, t.id DESC`,
-		)
-			.bind(...batch)
-			.all<{
-				forum_id: number;
-				thread_id: number;
-				subject: string;
-				last_post_at: number;
-				last_poster_id: number;
-				last_poster: string;
-				anonymous_last_poster: number;
-			}>();
-		for (const row of res.results) {
-			if (!out.has(row.forum_id)) {
-				out.set(row.forum_id, {
-					threadId: row.thread_id,
-					subject: row.subject,
-					lastPostAt: row.last_post_at,
-					lastPosterId: row.last_poster_id,
-					lastPoster: row.last_poster,
-					anonymousLastPoster: row.anonymous_last_poster === 1 ? 1 : 0,
-				});
-			}
-		}
-	}
-	return out;
-}
-
-/**
- * Wrap a loader so it's invoked at most once per request. Both tree and
- * summary `cacheGetOrSet` loaders share the same lazy promise — the second
- * call resolves to the same snapshot without touching D1 again.
- */
 export function lazyForumSnapshot(env: Env): () => Promise<ForumSnapshotRow[]> {
-	let p: Promise<ForumSnapshotRow[]> | null = null;
-	return () => {
-		if (!p) p = loadForumSnapshot(env);
-		return p;
-	};
+	let task: Promise<ForumSnapshotRow[]> | undefined;
+	return () => (task ??= loadForumSnapshot(env));
 }
-
-// ─── Tree / Summary readers ───────────────────────────────────────
-
-/** Read `forum:tree:v2:<bucket>:g<gen>`, building only this bucket on miss. */
+async function currentForums(env: Env): Promise<Map<number, CurrentForum>> {
+	const result = await env.DB.prepare(
+		`SELECT id, parent_id, status, visibility, moderators, moderator_ids, thread_types_enabled, thread_types_required, thread_types_listable, thread_types_prefix FROM forums`,
+	).all<CurrentForum>();
+	if (!result.success) throw new Error("Current forum permissions could not be loaded");
+	return new Map(result.results.map((row) => [row.id, row]));
+}
+function visible(row: CurrentForum | undefined, bucket: VisibilityBucket): row is CurrentForum {
+	return (
+		!!row &&
+		row.status === 1 &&
+		canViewForumVisibility(row.visibility, bucketToVisibilityContext(bucket))
+	);
+}
+export async function forumCacheKey(env: Env, d: CacheDescriptor): Promise<string> {
+	const bucket = d.params.bucket;
+	if (
+		!["anon", "member", "staff", "admin"].includes(String(bucket)) ||
+		d.scope !== `role:${bucket}` ||
+		Object.keys(d.params).length !== 1
+	)
+		throw new TypeError("Invalid forum cache descriptor");
+	if (d.family === "forum:tree:v2")
+		return forumTreeKey(bucket as VisibilityBucket, await getGen(env, forumTreeGenKey()));
+	if (d.family === "forum:summary:v2")
+		return forumSummaryKey(bucket as VisibilityBucket, await getGen(env, forumSummaryGenKey()));
+	throw new TypeError("Unsupported forum cache family");
+}
+export function isForumCacheData(d: CacheDescriptor, value: unknown): boolean {
+	if (d.family === "forum:tree:v2")
+		return (
+			isForumTreePayload(value) &&
+			value.bucket === d.params.bucket &&
+			value.forums.every(
+				(row) =>
+					Number.isSafeInteger(row.id) &&
+					row.id > 0 &&
+					typeof row.name === "string" &&
+					typeof row.moderatorIds === "string" &&
+					Array.isArray(row.moderatorList),
+			)
+		);
+	return (
+		d.family === "forum:summary:v2" &&
+		isForumSummaryPayload(value) &&
+		value.bucket === d.params.bucket &&
+		Object.values(value.aggregates).every((row) =>
+			[row.threads, row.posts, row.todayThreads, row.lastThreadId].every(Number.isFinite),
+		)
+	);
+}
+export async function rebuildForumCache(
+	env: Env,
+	_ctx: ExecutionContext | undefined,
+	d: CacheDescriptor,
+): Promise<ForumTreePayloadV2 | ForumSummaryPayloadV2> {
+	await forumCacheKey(env, d);
+	const bucket = d.params.bucket as VisibilityBucket;
+	return d.family === "forum:tree:v2"
+		? buildForumTreePayload(await loadForumStructure(env), bucket)
+		: buildForumSummaryPayload(await loadForumSnapshot(env), bucket);
+}
 export async function getForumTreeV2(
 	env: Env,
-	ctx: ExecutionContext,
+	ctx: ExecutionContext | undefined,
 	bucket: VisibilityBucket,
-	loadSnapshot: () => Promise<ForumSnapshotRow[]>,
+	_loadSnapshot?: () => Promise<ForumSnapshotRow[]>,
+	checked?: Map<number, CurrentForum>,
 ): Promise<ForumTreeNodeV2[]> {
-	const gen = await getGen(env, forumTreeGenKey());
-	const key = forumTreeKey(bucket, gen);
-	const payload = await cacheGetOrSet<ForumTreePayloadV2>(
+	const d = { family: "forum:tree:v2", params: { bucket }, scope: `role:${bucket}` };
+	const [key, current] = await Promise.all([forumCacheKey(env, d), checked ?? currentForums(env)]);
+	const payload = await cacheGetOrSet(
 		env,
 		ctx,
 		key,
-		async () => {
-			const snapshot = await loadSnapshot();
-			return buildForumTreePayload(snapshot, bucket);
+		async () => buildForumTreePayload(await loadForumStructure(env), bucket),
+		{
+			...d,
+			tier: "LONG",
+			validator: (value): value is ForumTreePayloadV2 => isForumCacheData(d, value),
 		},
-		{ ttl: FORUM_TREE_TTL, validator: isForumTreePayload, family: "forum:tree:v2" },
 	);
-	return payload.forums;
+	const nodes = payload.forums.flatMap((node) => {
+		const row = current.get(node.id);
+		return visible(row, bucket) ? [{ node, row }] : [];
+	});
+	const minis = await getUserProfiles(
+		env,
+		ctx,
+		nodes.flatMap(({ row }) => parseModeratorIds(row.moderator_ids)),
+	);
+	return nodes.map(({ node, row }) => ({
+		...node,
+		parentId: row.parent_id,
+		status: row.status,
+		visibility: row.visibility,
+		moderators: row.moderators,
+		moderatorIds: row.moderator_ids,
+		moderatorList: parseModeratorIds(row.moderator_ids).flatMap((id) => {
+			const user = minis.get(id);
+			return user ? [{ id, name: user.username }] : [];
+		}),
+		threadTypes: {
+			enabled: row.thread_types_enabled === 1,
+			required: row.thread_types_required === 1,
+			listable: row.thread_types_listable === 1,
+			prefix: row.thread_types_prefix === 1,
+		},
+	}));
 }
-
-/** Read `forum:summary:v2:<bucket>:g<gen>`, building only this bucket on miss. */
+interface Candidate {
+	id: number;
+	forum_id: number;
+	sticky: number;
+	anonymous_last_poster: number;
+}
+async function currentCandidates(env: Env, ids: number[]): Promise<Map<number, Candidate>> {
+	const rows = new Map<number, Candidate>();
+	for (let start = 0; start < ids.length; start += 100) {
+		const part = ids.slice(start, start + 100);
+		const result = await env.DB.prepare(
+			`SELECT id, forum_id, sticky, anonymous_last_poster FROM threads WHERE id IN (${part.map(() => "?").join(",")})`,
+		)
+			.bind(...part)
+			.all<Candidate>();
+		if (!result.success) throw new Error("Current last-thread permissions could not be loaded");
+		for (const row of result.results) rows.set(row.id, row);
+	}
+	return rows;
+}
+async function replaceMissingCandidates(
+	env: Env,
+	aggregates: Record<number, ForumAggregateV2>,
+	gates: Map<number, Candidate>,
+): Promise<void> {
+	const missing = Object.entries(aggregates)
+		.filter(([id, row]) => {
+			const gate = gates.get(row.lastThreadId);
+			return row.lastThreadId > 0 && (!gate || gate.forum_id !== Number(id) || gate.sticky < 0);
+		})
+		.map(([id]) => Number(id));
+	for (let start = 0; start < missing.length; start += 100) {
+		const part = missing.slice(start, start + 100);
+		const result = await env.DB.prepare(
+			`SELECT f.id, ${LAST_ID} AS thread_id FROM forums f WHERE f.id IN (${part.map(() => "?").join(",")})`,
+		)
+			.bind(...part)
+			.all<{ id: number; thread_id: number | null }>();
+		if (!result.success) throw new Error("Visible last-thread fallback could not be loaded");
+		for (const id of part) aggregates[id].lastThreadId = 0;
+		for (const row of result.results) aggregates[row.id].lastThreadId = row.thread_id ?? 0;
+		const replacements = await currentCandidates(
+			env,
+			result.results.flatMap((row) => (row.thread_id ? [row.thread_id] : [])),
+		);
+		for (const [id, row] of replacements) gates.set(id, row);
+	}
+}
+function composeLastThread(
+	aggregate: ForumAggregateV2,
+	row: ReadingRow | undefined,
+	gate: Candidate | undefined,
+	minis: Awaited<ReturnType<typeof getUserProfiles>>,
+): ForumAggregateV2 {
+	if (!row || !gate || gate.sticky < 0)
+		return {
+			...aggregate,
+			lastThreadId: 0,
+			lastThreadSubject: "",
+			lastPostAt: 0,
+			lastPoster: "",
+			lastPosterId: 0,
+			lastPosterAvatar: "",
+			lastPosterAvatarPath: "",
+		};
+	const anonymous = row.anonymous_last_poster === 1 || gate.anonymous_last_poster === 1;
+	const userId = Number(row.last_poster_id ?? 0);
+	const user = !anonymous ? minis.get(userId) : undefined;
+	return {
+		...aggregate,
+		lastThreadSubject: String(row.subject),
+		lastPostAt: Number(row.last_post_at ?? 0),
+		lastPoster: anonymous
+			? ANONYMOUS_AUTHOR_NAME
+			: (user?.username ?? String(row.last_poster ?? "")),
+		lastPosterId: anonymous ? 0 : userId,
+		lastPosterAvatar: user?.avatar ?? "",
+		lastPosterAvatarPath: user?.avatarPath ?? "",
+	};
+}
 export async function getForumSummaryV2(
 	env: Env,
-	ctx: ExecutionContext,
+	ctx: ExecutionContext | undefined,
 	bucket: VisibilityBucket,
-	loadSnapshot: () => Promise<ForumSnapshotRow[]>,
+	loadSnapshot = () => loadForumSnapshot(env),
+	checked?: Map<number, CurrentForum>,
 ): Promise<Record<number, ForumAggregateV2>> {
-	const gen = await getGen(env, forumSummaryGenKey());
-	const key = forumSummaryKey(bucket, gen);
-	const payload = await cacheGetOrSet<ForumSummaryPayloadV2>(
+	const d = { family: "forum:summary:v2", params: { bucket }, scope: `role:${bucket}` };
+	const [key, current] = await Promise.all([forumCacheKey(env, d), checked ?? currentForums(env)]);
+	const payload = await cacheGetOrSet(
 		env,
 		ctx,
 		key,
-		async () => {
-			const snapshot = await loadSnapshot();
-			return buildForumSummaryPayload(snapshot, bucket);
+		async () => buildForumSummaryPayload(await loadSnapshot(), bucket),
+		{
+			...d,
+			tier: "SHORT",
+			validator: (value): value is ForumSummaryPayloadV2 => isForumCacheData(d, value),
 		},
-		{ ttl: FORUM_SUMMARY_TTL, validator: isForumSummaryPayload, family: "forum:summary:v2" },
 	);
-	return payload.aggregates;
+	const aggregates = Object.fromEntries(
+		Object.entries(payload.aggregates).filter(([id]) => visible(current.get(Number(id)), bucket)),
+	) as Record<number, ForumAggregateV2>;
+	const ids = () => [
+		...new Set(
+			Object.values(aggregates)
+				.map((row) => row.lastThreadId)
+				.filter((id) => id > 0),
+		),
+	];
+	const gates = await currentCandidates(env, ids());
+	await replaceMissingCandidates(env, aggregates, gates);
+	const rows = await getThreadRows(env, ctx, ids());
+	const minis = await getUserProfiles(
+		env,
+		ctx,
+		[...rows.values()]
+			.filter(
+				(row) =>
+					row.anonymous_last_poster !== 1 && gates.get(Number(row.id))?.anonymous_last_poster !== 1,
+			)
+			.map((row) => Number(row.last_poster_id ?? 0)),
+	);
+	return Object.fromEntries(
+		Object.entries(aggregates).map(([id, agg]) => [
+			id,
+			composeLastThread(agg, rows.get(agg.lastThreadId), gates.get(agg.lastThreadId), minis),
+		]),
+	);
 }
-
-/**
- * Merge a tree node + bucket-filtered aggregate into a public `Forum` shape
- * (the response contract for `GET /api/v1/forums`). Forums with no aggregate
- * (e.g. brand-new forum that hasn't been re-snapshotted yet) are still
- * returned with zeroed aggregate fields, matching the legacy behaviour.
- */
+export async function getForums(
+	env: Env,
+	ctx: ExecutionContext | undefined,
+	bucket: VisibilityBucket,
+): Promise<Forum[]> {
+	const current = await currentForums(env);
+	const [tree, summary] = await Promise.all([
+		getForumTreeV2(env, ctx, bucket, undefined, current),
+		getForumSummaryV2(env, ctx, bucket, undefined, current),
+	]);
+	return mergeTreeAndSummary(tree, summary);
+}
 export function mergeTreeAndSummary(
 	tree: ForumTreeNodeV2[],
 	aggregates: Record<number, ForumAggregateV2>,
@@ -438,99 +386,27 @@ export function mergeTreeAndSummary(
 	return out;
 }
 
-// ─── Meta reader ──────────────────────────────────────────────────
-
-/**
- * Three-state outcome for the v2 `getById` path. Callers translate these to
- * HTTP responses; `notFound` and `forbidden` MUST NOT write KV.
- */
 export type ForumMetaResult =
 	| { kind: "ok"; forum: Forum }
 	| { kind: "notFound" }
 	| { kind: "forbidden" };
-
-/**
- * Resolve a single-forum v2 view for `(forumId, bucket)`.
- *
- * Order:
- *   1. cache get on `forum:meta:v2:<id>:<bucket>:g<gen>`.
- *   2. miss → re-read raw row from D1 (NOT cached) so we can distinguish:
- *        - row missing OR `!isForumActive`  → 404, no KV write
- *        - row visible to bucket failed     → 403, no KV write
- *        - otherwise build full payload and write KV.
- *   3. hit → 0 SQL.
- *
- * We deliberately DO NOT route 403/404 through `buildForumMetaPayload(null)`
- * because that helper returns `null` for both — the explicit row probe is
- * the only way to keep the "not found" vs. "forbidden" distinction.
- */
 export async function getForumMetaV2(
 	env: Env,
-	ctx: ExecutionContext,
+	ctx: ExecutionContext | undefined,
 	forumId: number,
 	bucket: VisibilityBucket,
-	loadFullForum: () => Promise<Forum | null>,
 ): Promise<ForumMetaResult> {
-	const gen = await getGen(env, forumSummaryGenKey());
-	const key = forumMetaKey(forumId, bucket, gen);
-
-	// Try cache directly (read-only). We don't use `cacheGetOrSet` here
-	// because the miss path needs to short-circuit to 404/403 without a
-	// payload to write back. Read/hit/miss/error are still tracked under
-	// the `forum:meta:v2` family so the admin monitor sees this path.
-	recordRead("forum:meta:v2");
-	try {
-		const cached = (await env.KV.get(key, "json")) as unknown;
-		if (cached !== null && cached !== undefined && isForumMetaPayload(cached)) {
-			recordHit("forum:meta:v2");
-			scheduleMetricsFlush(env, ctx);
-			return { kind: "ok", forum: cached.forum };
-		}
-	} catch (err) {
-		// Fall through.
-		recordError("forum:meta:v2");
-		console.warn(`[cache] forum:meta read failed key=${key}`, err);
-	}
-
-	// Miss path: load full forum row from D1.
-	recordMiss("forum:meta:v2");
-	const forum = await loadFullForum();
-	if (forum == null) return { kind: "notFound" };
-	if (!isForumActive(forum)) return { kind: "notFound" };
-	if (!canViewForumVisibility(forum.visibility, bucketToVisibilityContext(bucket))) {
-		return { kind: "forbidden" };
-	}
-
-	const payload: ForumMetaPayloadV2 | null = buildForumMetaPayload(forum, bucket);
-	if (payload == null) {
-		// Defence in depth: builder agrees this isn't cacheable.
-		return { kind: "forbidden" };
-	}
-
-	// Best-effort write-back; never block the response. Flush from
-	// inside the put-then chain so the `write` op recorded after the
-	// outer scheduleMetricsFlush already swapped still lands in D1.
-	const putPromise = env.KV.put(key, JSON.stringify(payload), {
-		expirationTtl: FORUM_META_TTL,
-	})
-		.then(() => {
-			recordWrite("forum:meta:v2");
-		})
-		.catch((err) => {
-			recordError("forum:meta:v2");
-			console.warn(`[cache] forum:meta write-back failed key=${key}`, err);
-		})
-		.finally(() => {
-			flushPendingNow(env, ctx);
-		});
-	ctx.waitUntil(putPromise);
-	scheduleMetricsFlush(env, ctx);
-
-	return { kind: "ok", forum: payload.forum };
+	const current = await currentForums(env);
+	const row = current.get(forumId);
+	if (row?.status !== 1) return { kind: "notFound" };
+	if (!visible(row, bucket)) return { kind: "forbidden" };
+	const [tree, summary] = await Promise.all([
+		getForumTreeV2(env, ctx, bucket, undefined, current),
+		getForumSummaryV2(env, ctx, bucket, undefined, current),
+	]);
+	const forum = mergeTreeAndSummary(
+		tree.filter((node) => node.id === forumId),
+		summary,
+	)[0];
+	return forum ? { kind: "ok", forum } : { kind: "notFound" };
 }
-
-// ─── Local helpers ────────────────────────────────────────────────
-
-// Re-export the bumpGen helper at module scope so test mocks can stub it via
-// the same module they import the readers from.
-export { bumpGen };

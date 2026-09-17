@@ -1,15 +1,10 @@
+import { dataCacheKey } from "./cache/keys";
+// apps/worker/src/lib/settings.ts
 // Settings KV cache helper — read-through cache with write-invalidation
 // Single KV key "settings:all" holds all settings as JSON (< 2KB)
+// Conforms to docs/20-worker-kv-reference.md: unified envelope caching with LONG tier.
 
-import {
-	recordDelete,
-	recordError,
-	recordHit,
-	recordMiss,
-	recordRead,
-	recordWrite,
-	scheduleMetricsFlush,
-} from "./cache/metrics";
+import { cacheDelete, cacheGetOrSet } from "./cache/wrap";
 import type { Env } from "./env";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -26,9 +21,9 @@ export type SettingsDetailMap = Record<string, SettingEntry>;
 
 // ─── Constants ────────────────────────────────────────────────
 
-const KV_KEY = "settings:all";
-const KV_TTL = 900; // 15 minutes
-const METRICS_FAMILY = "settings:all";
+export const SETTINGS_KEY = "settings:all";
+export const SETTINGS_FAMILY = "settings:all";
+export const SETTINGS_TIER = "LONG" as const;
 
 // ─── Internal helpers ─────────────────────────────────────────
 
@@ -59,63 +54,44 @@ function parseValue(value: string, type: string): string | number | boolean | ob
 	}
 }
 
-/** Fetch all settings rows from D1 */
-async function fetchAllFromDb(env: Env): Promise<SettingsRow[]> {
-	const result = await env.DB.prepare("SELECT key, value, type, updated_at FROM settings").all();
-	return (result.results ?? []) as unknown as SettingsRow[];
+/** Fetch all settings rows from D1 (authoritative DB read) */
+export async function fetchAllSettingsFromDb(env: Env): Promise<SettingsMap> {
+	const result = await env.DB.prepare("SELECT key, value, type FROM settings").all<{
+		key: string;
+		value: string;
+		type: string;
+	}>();
+	if (!result.success) throw new Error("Settings could not be loaded");
+	const map: SettingsMap = {};
+	for (const row of result.results ?? []) {
+		map[row.key] = parseValue(row.value, row.type);
+	}
+	return map;
+}
+
+export function isValidSettingsMap(value: unknown): value is SettingsMap {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // ─── Exported functions ───────────────────────────────────────
 
 /**
  * Get all settings as a typed map (number/boolean/json values already parsed).
- * Uses KV read-through cache with 24h TTL.
- *
- * `ctx` is optional: when provided, the in-isolate metrics accumulator is
- * flushed via `ctx.waitUntil` so the admin KV monitor sees per-minute
- * counters for the `settings:all` family. Callers in cron / startup
- * paths that have no `ExecutionContext` may omit it; the recorded
- * counters then ride along with the next request that does pass `ctx`.
+ * Uses core cacheGetOrSet with LONG tier (86400s), envelope schema, and parameters.
  */
 export async function getSettings(env: Env, ctx?: ExecutionContext): Promise<SettingsMap> {
-	// Try KV cache first
-	let cached: string | null = null;
-	recordRead(METRICS_FAMILY);
-	try {
-		cached = await env.KV.get(KV_KEY);
-	} catch (err) {
-		recordError(METRICS_FAMILY);
-		console.warn("[settings] KV read failed", err);
-	}
-	if (cached) {
-		recordHit(METRICS_FAMILY);
-		if (ctx) scheduleMetricsFlush(env, ctx);
-		return JSON.parse(cached) as SettingsMap;
-	}
-
-	// Cache miss — read from D1
-	recordMiss(METRICS_FAMILY);
-	const rows = await fetchAllFromDb(env);
-	const map: SettingsMap = {};
-	for (const row of rows) {
-		map[row.key] = parseValue(row.value, row.type);
-	}
-
-	// Backfill KV cache
-	try {
-		await env.KV.put(KV_KEY, JSON.stringify(map), { expirationTtl: KV_TTL });
-		recordWrite(METRICS_FAMILY);
-	} catch (err) {
-		recordError(METRICS_FAMILY);
-		console.warn("[settings] KV write-back failed", err);
-	}
-
-	if (ctx) scheduleMetricsFlush(env, ctx);
-	return map;
+	return cacheGetOrSet<SettingsMap>(env, ctx, SETTINGS_KEY, () => fetchAllSettingsFromDb(env), {
+		family: SETTINGS_FAMILY,
+		tier: SETTINGS_TIER,
+		params: {},
+		scope: "public",
+		validator: isValidSettingsMap,
+	});
 }
 
 /**
  * Get a single setting value with a typed default.
+ * Display reads use the cached getSettings map.
  */
 export async function getSetting<T extends string | number | boolean | object>(
 	env: Env,
@@ -131,13 +107,44 @@ export async function getSetting<T extends string | number | boolean | object>(
 }
 
 /**
+ * Authoritative setting reader that bypasses KV cache.
+ * Use for security, permission gate, write-validation or token validation.
+ */
+export async function getSettingFresh<T extends string | number | boolean | object>(
+	env: Env,
+	key: string,
+	defaultValue: T,
+): Promise<T> {
+	const row = await env.DB.prepare("SELECT value, type FROM settings WHERE key = ?")
+		.bind(key)
+		.first<{ value: string; type: string }>();
+	if (!row) return defaultValue;
+	return parseValue(row.value, row.type) as T;
+}
+
+/** Batch the current policy keys needed by one authorization decision. */
+export async function getSettingsFresh(env: Env, keys: readonly string[]): Promise<SettingsMap> {
+	if (!keys.length) return {};
+	const rows = await env.DB.prepare(
+		`SELECT key, value, type FROM settings WHERE key IN (${keys.map(() => "?").join(",")})`,
+	)
+		.bind(...keys)
+		.all<{ key: string; value: string; type: string }>();
+	if (!rows.success) throw new Error("Current settings could not be loaded");
+	return Object.fromEntries(rows.results.map((row) => [row.key, parseValue(row.value, row.type)]));
+}
+
+/**
  * Get all settings with full metadata (value + type + updatedAt).
  * Always reads from D1 (admin UI needs fresh data).
  */
 export async function getSettingsDetailed(env: Env): Promise<SettingsDetailMap> {
-	const rows = await fetchAllFromDb(env);
+	const result = await env.DB.prepare(
+		"SELECT key, value, type, updated_at FROM settings",
+	).all<SettingsRow>();
+	if (!result.success) throw new Error("Settings could not be loaded");
 	const map: SettingsDetailMap = {};
-	for (const row of rows) {
+	for (const row of result.results ?? []) {
 		map[row.key] = {
 			value: row.value,
 			type: row.type,
@@ -148,7 +155,7 @@ export async function getSettingsDetailed(env: Env): Promise<SettingsDetailMap> 
 }
 
 /**
- * Batch update settings and invalidate KV cache.
+ * Batch update settings and invalidate KV cache via core cacheDelete.
  * Only UPDATE existing keys — INSERT of new keys is not allowed.
  * Uses D1 batch() for atomic execution.
  */
@@ -165,9 +172,13 @@ export async function upsertSettings(env: Env, entries: Record<string, string>):
 		),
 	);
 
-	await env.DB.batch(stmts);
+	const written = await env.DB.batch(stmts);
+	if (written.length !== stmts.length || written.some((row) => !row.success))
+		throw new Error("Settings writes were not confirmed");
 
-	// Invalidate KV cache immediately
-	await env.KV.delete(KV_KEY);
-	recordDelete(METRICS_FAMILY);
+	// Invalidate KV cache entry via core cacheDelete
+	await Promise.all([
+		cacheDelete(env, SETTINGS_KEY, SETTINGS_FAMILY),
+		cacheDelete(env, await dataCacheKey("admin:settings", {}, "admin"), "admin:settings"),
+	]);
 }

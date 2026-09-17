@@ -2,6 +2,7 @@
 // Tests admin endpoints: forums, threads, posts, users, settings, etc.
 
 import { describe, expect, test } from "bun:test";
+import { dataCacheKey } from "../../../apps/worker/src/lib/cache/keys";
 import {
 	adminDelete,
 	adminGet,
@@ -746,7 +747,23 @@ describe("L2: Worker Admin API", () => {
 			const cleanupRes = await adminPost("/api/admin/reports/batch-delete", { ids });
 			expect(cleanupRes.status).toBe(200);
 
-			// Verify cleanup — detail of the deleted thread report should now 404.
+			// Admin display snapshots last 60s. Remove this one snapshot before
+			// verifying authoritative deletion; this must never remove D1 rows.
+			const key = await dataCacheKey(
+				"admin:display",
+				{
+					resource: "reports",
+					operation: "detail",
+					id: threadReportId,
+				},
+				"admin",
+			);
+			const eviction = await adminPost("/api/admin/kv/delete", { family: "admin:display", key });
+			expect(eviction.status).toBe(200);
+			expect(((await eviction.json()) as { data: { outcome: string } }).data.outcome).toBe(
+				"deleted",
+			);
+			// Verify cleanup — a fresh detail read of the deleted report is 404.
 			const verifyRes = await adminGet(`/api/admin/reports/${threadReportId}`);
 			expect(verifyRes.status).toBe(404);
 		});

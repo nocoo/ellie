@@ -2,11 +2,15 @@
 import { ForumType } from "@ellie/types";
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
 	affectsForumDigest,
+	bumpThreadListGenAll,
 	invalidateForumReorderV2,
 	invalidateForumStructureV2,
 	invalidateForumUpdateV2,
+	invalidateThreadListForForums,
+	invalidateThreadReading,
 } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import {
@@ -16,13 +20,16 @@ import {
 	createRemoveHandler,
 	createUpdateHandler,
 } from "../../lib/crud";
+import { confirmedBatch } from "../../lib/d1-write";
 import type { Env } from "../../lib/env";
 import { toForum } from "../../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
+import { STICKY_GLOBAL } from "../../lib/visibility";
 
 import { errorResponse } from "../../middleware/error";
+import { invalidateRecommendedCache } from "../recommended";
 
 // ─── Validation helpers ──────────────────────────────────────────
 
@@ -260,20 +267,44 @@ const forumConfig: EntityConfig = {
 
 	// Invalidate forum tree + volatile cache after any structural change
 	async afterCreate(_id, _data, env) {
-		await invalidateForumStructureV2(env);
+		await Promise.all([
+			invalidateForumStructureV2(env),
+			invalidateAdminEntityCache(env, "forum_thread_types"),
+		]);
 	},
-	async afterUpdate(_id, data, _existing, env) {
-		// Digest filters depend on name/status/visibility/parent_id/type only.
-		// `data` here is keyed by DB column names (set by validateAndCollectFields
-		// via `data[f.column] = value`). The set of digest-affecting columns is
-		// the single source of truth `FORUM_DIGEST_AFFECTING_COLUMNS` exported
-		// by `lib/cache/invalidate`; `affectsForumDigest` is the only place
-		// that decides per-update whether to bump digest gen.
-		const affectsDigest = affectsForumDigest(data as Record<string, unknown>);
-		await invalidateForumUpdateV2(env, { affectsDigest });
+	async afterUpdate(id, data, existing, env) {
+		const changed = Object.fromEntries(
+			Object.entries(data).filter(([key, value]) => value !== existing[key]),
+		);
+		if (Object.keys(changed).length === 0) return;
+		const gateChanged = [
+			"status",
+			"visibility",
+			"parent_id",
+			"type",
+			"moderators",
+			"moderator_ids",
+		].some((key) => key in changed);
+		const globalThread = gateChanged
+			? await env.DB.prepare("SELECT id FROM threads WHERE forum_id = ? AND sticky = ? LIMIT 1")
+					.bind(id, STICKY_GLOBAL)
+					.first()
+			: null;
+		const ops: Promise<unknown>[] = [
+			invalidateForumUpdateV2(env, { affectsDigest: affectsForumDigest(changed) }),
+		];
+		if (gateChanged)
+			ops.push(invalidateThreadListForForums(env, [id]), invalidateRecommendedCache(env, id));
+		if (globalThread) ops.push(bumpThreadListGenAll(env));
+		await Promise.all(ops);
 	},
-	async afterDelete(_id, _existing, env) {
-		await invalidateForumStructureV2(env);
+	async afterDelete(id, _existing, env) {
+		await Promise.all([
+			invalidateAdminEntityCache(env, "forum_thread_types"),
+			invalidateForumStructureV2(env),
+			invalidateThreadListForForums(env, [id]),
+			invalidateRecommendedCache(env, id),
+		]);
 	},
 };
 
@@ -518,7 +549,11 @@ export const merge = withEntityAuth(
 		}
 
 		const targetForumId = body.targetForumId;
-		if (typeof targetForumId !== "number") {
+		if (
+			typeof targetForumId !== "number" ||
+			!Number.isSafeInteger(targetForumId) ||
+			targetForumId <= 0
+		) {
 			return errorResponse("INVALID_BODY", 400, { message: "targetForumId is required" }, origin);
 		}
 
@@ -531,15 +566,14 @@ export const merge = withEntityAuth(
 			);
 		}
 
-		// Source/target forum + thread/post counts are 4 independent reads.
-		// Run them in parallel to halve D1 round-trip latency on the merge
-		// admin operation.
-		const [source, target, threadCount, postCount] = await Promise.all([
+		// Snapshot moved IDs with the count so all child cache generations can
+		// change after the move without another per-thread lookup.
+		const [source, target, threads, postCount] = await Promise.all([
 			env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(sourceId).first(),
 			env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(targetForumId).first(),
-			env.DB.prepare("SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?")
+			env.DB.prepare("SELECT id, sticky FROM threads WHERE forum_id = ?")
 				.bind(sourceId)
-				.first<{ cnt: number }>(),
+				.all<{ id: number; sticky: number }>(),
 			env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE forum_id = ?")
 				.bind(sourceId)
 				.first<{ cnt: number }>(),
@@ -552,11 +586,16 @@ export const merge = withEntityAuth(
 			return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" }, origin);
 		}
 
-		const threadsMoved = threadCount?.cnt ?? 0;
+		if (!threads.success) throw new Error("Forum merge thread query failed");
+		const movedThreadIds = threads.results.map((thread) => thread.id);
+		const threadsMoved = movedThreadIds.length;
 		const postsMoved = postCount?.cnt ?? 0;
 
 		// Batch: move threads, move posts, update target counts, delete source
 		const statements: D1PreparedStatement[] = [
+			env.DB.prepare(
+				"DELETE FROM forum_recommended_threads WHERE forum_id = ? OR thread_id IN (SELECT value FROM json_each(?))",
+			).bind(sourceId, JSON.stringify(movedThreadIds)),
 			env.DB.prepare("UPDATE threads SET forum_id = ? WHERE forum_id = ?").bind(
 				targetForumId,
 				sourceId,
@@ -571,13 +610,18 @@ export const merge = withEntityAuth(
 			env.DB.prepare("DELETE FROM forums WHERE id = ?").bind(sourceId),
 		];
 
-		await env.DB.batch(statements);
+		await confirmedBatch(env, statements);
 
-		// Post-merge fan-out: recalc + cache invalidation + audit log are all
-		// independent of each other (and of the response body), so run them
-		// in parallel.
-		await Promise.all([
-			recalcForumMetadata(env, targetForumId as number),
+		// A reader of the new generation must see repaired metadata.
+		await recalcForumMetadata(env, targetForumId);
+		const invalidations: Promise<unknown>[] = [
+			...["forums", "threads", "posts", "forum_thread_types"].map((resource) =>
+				invalidateAdminEntityCache(env, resource),
+			),
+			invalidateThreadReading(env, movedThreadIds, { posts: true }),
+			invalidateThreadListForForums(env, [sourceId, targetForumId]),
+			invalidateRecommendedCache(env, sourceId),
+			invalidateRecommendedCache(env, targetForumId),
 			invalidateForumStructureV2(env),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "forum.merge",
@@ -590,7 +634,10 @@ export const merge = withEntityAuth(
 					postsMoved,
 				},
 			}),
-		]);
+		];
+		if (threads.results.some((thread) => thread.sticky === STICKY_GLOBAL))
+			invalidations.push(bumpThreadListGenAll(env));
+		await Promise.all(invalidations);
 
 		return jsonNoStoreResponse(
 			{
@@ -662,12 +709,12 @@ export const reorder = withEntityAuth(
 		// them anyway); unchanged rows are dropped to avoid recording false
 		// "edits" when a reorder request matches current state.
 		const ids = orderItems.map((o) => o.id);
-		const placeholders = ids.map(() => "?").join(",");
 		const existingRows = await env.DB.prepare(
-			`SELECT id, display_order FROM forums WHERE id IN (${placeholders})`,
+			"SELECT id, display_order FROM forums WHERE id IN (SELECT value FROM json_each(?))",
 		)
-			.bind(...ids)
+			.bind(JSON.stringify(ids))
 			.all<{ id: number; display_order: number }>();
+		if (!existingRows.success) throw new Error("Forum reorder snapshot failed");
 		const existingById = new Map<number, number>(
 			(existingRows.results ?? []).map((r) => [r.id, r.display_order]),
 		);
@@ -686,12 +733,13 @@ export const reorder = withEntityAuth(
 			),
 		);
 
-		await env.DB.batch(statements);
+		await confirmedBatch(env, statements);
 
 		// Invalidate forum tree cache + write audit row (when there are
 		// actual changes) in parallel — they're independent.
 		await Promise.all([
 			invalidateForumReorderV2(env),
+			changedRows.length > 0 ? invalidateAdminEntityCache(env, "forums") : Promise.resolve(),
 			changedRows.length > 0
 				? writeAdminLog(env, resolveActor(request, env), {
 						action: "forum.reorder",

@@ -40,7 +40,7 @@ describe("admin forum — KV cache invalidation", () => {
 
 	it("invalidates after successful create", async () => {
 		const { db } = createMockDb({
-			runResults: { "INSERT INTO forums": { success: true, meta: { last_row_id: 1 } } },
+			runResults: { "INSERT INTO forums": { success: true, meta: { last_row_id: 1, changes: 1 } } },
 			firstResults: {
 				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 1, name: "New" }),
 			},
@@ -63,7 +63,7 @@ describe("admin forum — KV cache invalidation", () => {
 	it("invalidates after successful update (digest-affecting field bumps digest)", async () => {
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, name: "Updated" }),
+				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, name: "Old" }),
 			},
 		});
 
@@ -207,8 +207,13 @@ describe("admin forum — KV cache invalidation", () => {
 			firstResults: {
 				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 10 }),
 				"SELECT id FROM forums WHERE id": { id: 20 },
-				"SELECT COUNT(*) as cnt FROM threads": { cnt: 2 },
 				"SELECT COUNT(*) as cnt FROM posts": { cnt: 10 },
+			},
+			allResults: {
+				"SELECT id, sticky FROM threads WHERE forum_id": [
+					{ id: 1, sticky: 0 },
+					{ id: 2, sticky: 0 },
+				],
 			},
 		});
 

@@ -12,6 +12,7 @@ export type AuthenticatedHandler = (
 	request: Request,
 	env: Env,
 	user: AuthUser,
+	ctx?: ExecutionContext,
 ) => Promise<Response>;
 
 /**
@@ -22,10 +23,12 @@ export type AuthenticatedHandler = (
  * For sensitive endpoints, use withAuthVerified instead.
  */
 export function withAuth(handler: AuthenticatedHandler) {
-	return async (request: Request, env: Env): Promise<Response> => {
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const authResult = await authMiddleware(request, env);
 		if (authResult instanceof Response) return authResult;
-		return handler(request, env, authResult.user);
+		return ctx
+			? handler(request, env, authResult.user, ctx)
+			: handler(request, env, authResult.user);
 	};
 }
 
@@ -37,10 +40,12 @@ export function withAuth(handler: AuthenticatedHandler) {
  * Use this for sensitive endpoints (messages, profile edit, password change, content deletion).
  */
 export function withAuthVerified(handler: AuthenticatedHandler) {
-	return async (request: Request, env: Env): Promise<Response> => {
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const authResult = await authMiddlewareVerified(request, env);
 		if (authResult instanceof Response) return authResult;
-		return handler(request, env, authResult.user);
+		return ctx
+			? handler(request, env, authResult.user, ctx)
+			: handler(request, env, authResult.user);
 	};
 }
 
@@ -55,10 +60,12 @@ export function withAuthVerified(handler: AuthenticatedHandler) {
  * thread create / attachment upload, etc.) per docs/17 §5 Read-only gate.
  */
 export function withVerifiedEmail(handler: AuthenticatedHandler) {
-	return async (request: Request, env: Env): Promise<Response> => {
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const authResult = await requireVerifiedEmail(request, env);
 		if (authResult instanceof Response) return authResult;
-		return handler(request, env, authResult.user);
+		return ctx
+			? handler(request, env, authResult.user, ctx)
+			: handler(request, env, authResult.user);
 	};
 }
 
@@ -94,7 +101,7 @@ async function verifyUserRole(
  * Performs database lookup to verify current role.
  */
 export function withAdmin(handler: AuthenticatedHandler) {
-	return async (request: Request, env: Env): Promise<Response> => {
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const authResult = await authMiddleware(request, env);
 		if (authResult instanceof Response) return authResult;
@@ -108,7 +115,7 @@ export function withAdmin(handler: AuthenticatedHandler) {
 			return errorResponse("FORBIDDEN_ADMIN_ONLY", 403, undefined, origin);
 		}
 
-		return handler(request, env, user);
+		return ctx ? handler(request, env, user, ctx) : handler(request, env, user);
 	};
 }
 
@@ -117,7 +124,7 @@ export function withAdmin(handler: AuthenticatedHandler) {
  * Performs database lookup to verify current role.
  */
 export function withModerator(handler: AuthenticatedHandler) {
-	return async (request: Request, env: Env): Promise<Response> => {
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const authResult = await authMiddleware(request, env);
 		if (authResult instanceof Response) return authResult;
@@ -135,6 +142,6 @@ export function withModerator(handler: AuthenticatedHandler) {
 			return errorResponse("FORBIDDEN_MOD_ONLY", 403, undefined, origin);
 		}
 
-		return handler(request, env, user);
+		return ctx ? handler(request, env, user, ctx) : handler(request, env, user);
 	};
 }

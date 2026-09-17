@@ -83,10 +83,10 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 						return {
 							bind: vi.fn(() => ({
 								first: vi.fn(() => Promise.resolve(null)),
-								all: vi.fn(() => Promise.resolve({ results: [] })),
-								run: vi.fn(() => Promise.resolve()),
+								all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
+								run: vi.fn(() => Promise.resolve({ success: true, results: [], meta: {} })),
 							})),
-							all: vi.fn(() => Promise.resolve({ results: [] })),
+							all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 							first: vi.fn(() => Promise.resolve(null)),
 						};
 					}),

@@ -3,6 +3,8 @@
 > 将管理后台可配置的 settings 值接入论坛前端，替换散落在多个文件中的 hardcode。
 >
 > **前置依赖**：08（settings 基建已完成）、04d（论坛前端架构）
+>
+> 本文保留前端接入的设计背景；缓存时间、多层复用与写后更新统一以 [20 · 统一缓存模块目标设计](20-worker-kv-reference.md) 为准。
 
 ---
 
@@ -26,7 +28,7 @@
 
 ### 1.2 已就绪的基建
 
-- ✅ 公共 API：`GET /api/v1/settings`（KV 缓存 24h，写入时立即失效）
+- ✅ 公共 API：`GET /api/v1/settings`（缓存目标见统一设计；KV 更新存在传播延迟）
 - ✅ 桥接函数：`fetchPublicSettings()` 已定义在 `viewmodels/forum/settings.server.ts`
 - ✅ 管理 UI：通用设置 + 导航链接 + 友情链接三个页面已上线
 - ❌ **缺失**：论坛前端没有任何 consumer 调用 `fetchPublicSettings()`
@@ -693,4 +695,4 @@ Step 5 ──────────→ Step 6
 | 前端 `HOT_KEYWORDS` 动态化 | 搜索热词目前 hardcoded，需新增 settings key |
 | 前端 `FOOTER_QUICK_LINKS` 动态化 | 页脚快速链接，需新增 settings key |
 | Logo URL 动态化 | 页头 / 页脚 logo 图片 URL 需新增 settings key |
-| 前端 ISR / revalidate | 当前依赖 Next.js 默认 fetch cache；如需更精确的缓存控制可添加 `revalidate` 配置 |
+| 前端缓存 | 按统一目标：到 Worker 的业务读取默认 `no-store`，请求内去重；展示快照继承上游截止时间，避免独立 revalidate 延长数据有效期 |

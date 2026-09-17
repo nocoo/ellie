@@ -1,9 +1,5 @@
-// Phase 3 commit C — explicit invalidation matrix coverage for moderation
-// single-thread actions and admin-thread digest tracking. The pre-existing
-// `forum-summary-invalidation.test.ts` covers DESTRUCTIVE writes; this file
-// covers MUTATING writes that keep the row but change a list-affecting
-// column (sticky / digest / closed / highlight) and admin update/delete
-// digest bumps.
+// Thread mutations refresh reusable entities; membership changes also
+// invalidate scoped lists. Global sticky transitions affect every forum.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +17,8 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 		bumpThreadListGen,
 		bumpThreadListGenAll,
 		bumpDigestGen,
+		bumpThreadMetaGen: vi.fn(async () => "g1"),
+		invalidateThreadReading: vi.fn(actual.invalidateThreadReading),
 		invalidateForumSummaryV2: vi.fn(async () => {
 			await bumpForumSummaryGen();
 		}),
@@ -43,6 +41,8 @@ import {
 	bumpForumSummaryGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
+	bumpThreadMetaGen,
+	invalidateThreadReading,
 } from "../../../src/lib/cache/invalidate";
 import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
@@ -50,6 +50,8 @@ const mockSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockThreadList = bumpThreadListGen as ReturnType<typeof vi.fn>;
 const mockThreadListAll = bumpThreadListGenAll as ReturnType<typeof vi.fn>;
 const mockDigest = bumpDigestGen as ReturnType<typeof vi.fn>;
+const mockThreadMeta = vi.mocked(bumpThreadMetaGen);
+const mockThreadReading = vi.mocked(invalidateThreadReading);
 
 async function modToken(role: number, userId = 1): Promise<string> {
 	return createJwtForRole(role, userId);
@@ -78,6 +80,7 @@ function modAuthRow(role = 1) {
 			forum_id: 7,
 			author_id: 99,
 		},
+		"SELECT sticky, digest FROM threads WHERE id": { sticky: 0, digest: 0 },
 	};
 }
 
@@ -85,7 +88,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 });
 
-describe("moderation single-thread mutations bump per-forum thread-list gen", () => {
+describe("moderation thread entity and membership invalidation", () => {
 	it("setSticky level=global bumps per-forum AND thread:list:gen:all (cross-forum fan-out)", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({ firstResults: modAuthRow(1) });
@@ -130,7 +133,10 @@ describe("moderation single-thread mutations bump per-forum thread-list gen", ()
 		// Mock prev sticky = 2 so the handler sees a "demote from global" transition.
 		const auth = modAuthRow(1);
 		const { db } = createMockDb({
-			firstResults: { ...auth, "SELECT sticky FROM threads WHERE id": { sticky: 2 } },
+			firstResults: {
+				...auth,
+				"SELECT sticky, digest FROM threads WHERE id": { sticky: 2, digest: 0 },
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = new Request("https://api.example.com/api/v1/moderation/threads/1/sticky", {
@@ -178,7 +184,7 @@ describe("moderation single-thread mutations bump per-forum thread-list gen", ()
 		expect(mockThreadListAll).toHaveBeenCalled();
 	});
 
-	it("setDigest bumps thread:list:gen AND digest:gen", async () => {
+	it("setDigest refreshes the thread entity and digest membership", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({ firstResults: modAuthRow(1) });
 		const env = makeEnv({ DB: db });
@@ -189,11 +195,12 @@ describe("moderation single-thread mutations bump per-forum thread-list gen", ()
 		});
 		const res = await setDigest(req, env);
 		expect(res.status).toBe(200);
-		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 7);
+		expect(mockThreadMeta).toHaveBeenCalledExactlyOnceWith(env, 1);
+		expect(mockThreadList).not.toHaveBeenCalled();
 		expect(mockDigest).toHaveBeenCalled();
 	});
 
-	it("setClose bumps thread:list:gen for the thread's forum", async () => {
+	it("setClose refreshes the thread entity and preserves membership", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({ firstResults: modAuthRow(1) });
 		const env = makeEnv({ DB: db });
@@ -204,10 +211,11 @@ describe("moderation single-thread mutations bump per-forum thread-list gen", ()
 		});
 		const res = await setClose(req, env);
 		expect(res.status).toBe(200);
-		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 7);
+		expect(mockThreadMeta).toHaveBeenCalledExactlyOnceWith(env, 1);
+		expect(mockThreadList).not.toHaveBeenCalled();
 	});
 
-	it("setHighlight bumps thread:list:gen for the thread's forum", async () => {
+	it("setHighlight refreshes the thread entity and preserves membership", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({ firstResults: modAuthRow(1) });
 		const env = makeEnv({ DB: db });
@@ -218,7 +226,8 @@ describe("moderation single-thread mutations bump per-forum thread-list gen", ()
 		});
 		const res = await setHighlight(req, env);
 		expect(res.status).toBe(200);
-		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 7);
+		expect(mockThreadMeta).toHaveBeenCalledExactlyOnceWith(env, 1);
+		expect(mockThreadList).not.toHaveBeenCalled();
 	});
 });
 
@@ -239,7 +248,7 @@ describe("admin thread update digest tracking", () => {
 		};
 	}
 
-	it("update with digest field change bumps per-forum thread-list AND digest:gen", async () => {
+	it("digest update refreshes the thread entity and digest membership", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
@@ -260,11 +269,12 @@ describe("admin thread update digest tracking", () => {
 		const req = createAdminRequest("PATCH", "/api/admin/threads/11", { digest: 2 });
 		const res = await adminThreadUpdate(req, env);
 		expect(res.status).toBe(200);
-		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 5);
+		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
+		expect(mockThreadList).not.toHaveBeenCalled();
 		expect(mockDigest).toHaveBeenCalled();
 	});
 
-	it("update with subject-only change bumps per-forum thread-list AND summary, NOT digest", async () => {
+	it("subject update refreshes the thread entity and summary, preserving membership", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
@@ -285,7 +295,8 @@ describe("admin thread update digest tracking", () => {
 		const req = createAdminRequest("PATCH", "/api/admin/threads/11", { subject: "new" });
 		const res = await adminThreadUpdate(req, env);
 		expect(res.status).toBe(200);
-		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 5);
+		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
+		expect(mockThreadList).not.toHaveBeenCalled();
 		// Subject is part of `forum:summary:v2.lastThreadSubject`, so a
 		// subject-only update MUST also bump forum:summary:gen.
 		expect(mockSummary).toHaveBeenCalled();
@@ -405,17 +416,16 @@ describe("admin statistics recalc-threads gen invalidation", () => {
 		};
 	}
 
-	it("recalc-threads with no forumId scope bumps thread:list:gen:all (global) on done", async () => {
-		// Phase B job-mode: invalidation runs in ticker.finalize on the
-		// `done` transition (empty batch). Seed total=0 so the first
-		// follow-up POST returns an empty batch and triggers finalize.
+	it("recalc-threads with confirmed updates bumps thread:list:gen:all on done", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
-				"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
+				"SELECT COUNT(*) as cnt FROM threads": { cnt: 1 },
 			},
 			allResults: {
-				"FROM threads WHERE id >": [],
+				"FROM threads WHERE id >": [
+					{ id: 11, created_at: 100, author_name: "alice", author_id: 10, anonymous_author: 0 },
+				],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -424,27 +434,29 @@ describe("admin statistics recalc-threads gen invalidation", () => {
 			createAdminRequest("POST", "/api/admin/statistics/recalc-threads", {}),
 			env,
 		);
-		// 2) First advance — empty batch -> done -> finalize fires.
+		// The short final batch must confirm a derived write before invalidating.
 		const res = await adminRecalcThreads(
 			createAdminRequest("POST", "/api/admin/statistics/recalc-threads", {}),
 			env,
 		);
 		expect(res.status).toBe(200);
+		expect((await res.json()).data).toMatchObject({ status: "done", updated: 1 });
+		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
 		expect(mockSummary).toHaveBeenCalled();
 		expect(mockThreadListAll).toHaveBeenCalled();
 		expect(mockThreadList).not.toHaveBeenCalled();
 	});
 
-	it("recalc-threads scoped to forumId bumps per-forum gen, NOT global, on done", async () => {
-		// Same shape as above but with `forumId` in the body — finalize
-		// reads it back from `params` and routes to per-forum gen.
+	it("recalc-threads with confirmed scoped updates bumps the forum gen on done", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
-				"SELECT COUNT(*) as cnt FROM threads WHERE forum_id": { cnt: 0 },
+				"SELECT COUNT(*) as cnt FROM threads WHERE forum_id": { cnt: 1 },
 			},
 			allResults: {
-				"FROM threads WHERE forum_id = ? AND id >": [],
+				"FROM threads WHERE forum_id = ? AND id >": [
+					{ id: 11, created_at: 100, author_name: "alice", author_id: 10, anonymous_author: 0 },
+				],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -457,6 +469,8 @@ describe("admin statistics recalc-threads gen invalidation", () => {
 			env,
 		);
 		expect(res.status).toBe(200);
+		expect((await res.json()).data).toMatchObject({ status: "done", updated: 1 });
+		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
 		expect(mockSummary).toHaveBeenCalled();
 		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 42);
 		expect(mockThreadListAll).not.toHaveBeenCalled();

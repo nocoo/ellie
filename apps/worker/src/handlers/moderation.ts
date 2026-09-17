@@ -18,16 +18,21 @@ import {
 	canModerate,
 	canMoveThread,
 } from "@ellie/types";
+import { invalidateAdminEntityCache } from "../lib/cache/admin-entity-read";
 import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
-	bumpThreadListGen,
+	bumpPostAttachmentsGen,
+	bumpPostEntityGen,
 	bumpThreadListGenAll,
 	bumpThreadMetaGen,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
+	invalidateThreadReading,
+	invalidateUserCaches,
 } from "../lib/cache/invalidate";
 import { buildDeletePostStatements, buildDeleteThreadChildStatements } from "../lib/contentDelete";
+import { confirmedBatch, confirmedRun } from "../lib/d1-write";
 import type { Env } from "../lib/env";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import {
@@ -78,7 +83,7 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 	}
 
 	const { level } = body;
-	if (typeof level !== "string" || !(level in STICKY_MAP)) {
+	if (typeof level !== "string" || !Object.hasOwn(STICKY_MAP, level)) {
 		return errorResponse(
 			"INVALID_BODY",
 			400,
@@ -124,9 +129,9 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 	// global OR demote FROM global) must invalidate every forum's page1
 	// cache, because a global pin appears at the top of every forum's
 	// thread list.
-	const prevRow = await env.DB.prepare("SELECT sticky FROM threads WHERE id = ?")
+	const prevRow = await env.DB.prepare("SELECT sticky, digest FROM threads WHERE id = ?")
 		.bind(threadId)
-		.first<{ sticky: number }>();
+		.first<{ sticky: number; digest: number }>();
 	const prevSticky = prevRow?.sticky ?? STICKY_NONE;
 
 	// Singleton enforcement: at most ONE thread can be sticky=global
@@ -135,47 +140,60 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 	// the thread should remain visible at the top of its own forum).
 	// We collect every forum_id touched by the demotion so we can fan-out
 	// thread-list cache invalidation precisely.
-	let demotedForumIds: number[] = [];
+	let demotedThreads: { id: number; forum_id: number }[] = [];
+	const writes: D1PreparedStatement[] = [];
 	if (stickyValue === STICKY_GLOBAL) {
 		const existing = await env.DB.prepare(
 			`SELECT id, forum_id FROM threads WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
 		)
 			.bind(threadId)
 			.all<{ id: number; forum_id: number }>();
-		const rows = existing.results ?? [];
+		if (!existing.success) throw new Error("Global thread query failed");
+		const rows = existing.results;
 		if (rows.length > 0) {
-			demotedForumIds = rows.map((r) => r.forum_id);
-			await env.DB.prepare(
-				`UPDATE threads SET sticky = ${STICKY_FORUM} WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
-			)
-				.bind(threadId)
-				.run();
+			demotedThreads = rows;
+			writes.push(
+				env.DB.prepare(
+					`UPDATE threads SET sticky = ${STICKY_FORUM} WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+				).bind(threadId),
+			);
 		}
 	}
 
-	await env.DB.prepare("UPDATE threads SET sticky = ? WHERE id = ?")
-		.bind(stickyValue, threadId)
-		.run();
-
-	// Invalidation matrix:
-	//   - global transition (TO or FROM sticky=2):
-	//       bump per-forum gen for the target thread's forum, every forum
-	//       where an old global was demoted, AND the all-forum gen so
-	//       every forum's page1 cache drops the now-stale global pin.
-	//   - non-global update (forum/none ↔ forum/none):
-	//       only bump per-forum gen. We must NOT bump all-gen here, or a
-	//       routine per-forum sticky toggle would invalidate every other
-	//       forum's page1 cache.
-	const isGlobalTransition = stickyValue === STICKY_GLOBAL || prevSticky === STICKY_GLOBAL;
-	if (isGlobalTransition) {
-		const forumIds = new Set<number>([thread.forumId, ...demotedForumIds]);
-		await Promise.all([
-			invalidateThreadListForForums(env, Array.from(forumIds)),
-			bumpThreadListGenAll(env),
-		]);
-	} else {
-		await bumpThreadListGen(env, thread.forumId);
+	if (stickyValue === prevSticky && demotedThreads.length === 0) {
+		return jsonResponse({ id: threadId, sticky: stickyValue }, origin);
 	}
+	const forumIds = [...new Set([thread.forumId, ...demotedThreads.map((row) => row.forum_id)])];
+	const restored = prevSticky < 0;
+	writes.push(
+		env.DB.prepare("UPDATE threads SET sticky = ? WHERE id = ?").bind(stickyValue, threadId),
+	);
+	if (restored) writes.push(...buildContentRecalcStatements(env, [threadId], forumIds));
+	await confirmedBatch(env, writes);
+
+	// A restore also replaces child body/asset keys; demoted global rows
+	// have their own stable entity keys and must change in the same pass.
+	const invalidations: Promise<unknown>[] = [
+		invalidateAdminEntityCache(env, "threads"),
+		invalidateThreadReading(env, [threadId], { posts: restored }),
+		invalidateThreadReading(
+			env,
+			demotedThreads.map((row) => row.id),
+		),
+		invalidateThreadListForForums(env, forumIds),
+		...forumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
+	];
+	if (restored)
+		invalidations.push(
+			bumpForumSummaryGen(env),
+			invalidateAdminEntityCache(env, "posts"),
+			invalidateAdminEntityCache(env, "forums"),
+		);
+	if ((prevRow?.digest ?? 0) > 0 || demotedThreads.length > 0)
+		invalidations.push(bumpDigestGen(env));
+	const isGlobalTransition = stickyValue === STICKY_GLOBAL || prevSticky === STICKY_GLOBAL;
+	if (isGlobalTransition) invalidations.push(bumpThreadListGenAll(env));
+	await Promise.all(invalidations);
 
 	return jsonResponse({ id: threadId, sticky: stickyValue }, origin);
 }
@@ -234,11 +252,19 @@ export async function setDigest(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	await env.DB.prepare("UPDATE threads SET digest = ? WHERE id = ?").bind(level, threadId).run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE threads SET digest = ? WHERE id = ?").bind(level, threadId),
+	);
 
-	// Digest changes affect digest filter visibility AND thread row payload
-	// in the page1 list → bump both.
-	await Promise.all([bumpThreadListGen(env, thread.forumId), bumpDigestGen(env)]);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			bumpThreadMetaGen(env, threadId),
+			bumpDigestGen(env),
+			invalidateRecommendedCache(env, thread.forumId),
+			invalidateAdminEntityCache(env, "threads"),
+			invalidateAdminEntityCache(env, "users"),
+		]);
+	}
 
 	return jsonResponse({ id: threadId, digest: level }, origin);
 }
@@ -298,12 +324,17 @@ export async function setClose(request: Request, env: Env): Promise<Response> {
 	}
 
 	const closedValue = closed ? 1 : 0;
-	await env.DB.prepare("UPDATE threads SET closed = ? WHERE id = ?")
-		.bind(closedValue, threadId)
-		.run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE threads SET closed = ? WHERE id = ?").bind(closedValue, threadId),
+	);
 
-	// `closed` is part of the cached Thread row → bump per-forum gen.
-	await bumpThreadListGen(env, thread.forumId);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			bumpThreadMetaGen(env, threadId),
+			invalidateRecommendedCache(env, thread.forumId),
+			invalidateAdminEntityCache(env, "threads"),
+		]);
+	}
 
 	return jsonResponse({ id: threadId, closed: closedValue }, origin);
 }
@@ -352,9 +383,11 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 		);
 	}
 
-	const thread = await env.DB.prepare("SELECT id, forum_id, replies FROM threads WHERE id = ?")
+	const thread = await env.DB.prepare(
+		"SELECT id, forum_id, replies, sticky, digest FROM threads WHERE id = ?",
+	)
 		.bind(id)
-		.first<{ id: number; forum_id: number; replies: number }>();
+		.first<{ id: number; forum_id: number; replies: number; sticky: number; digest: number }>();
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
@@ -385,7 +418,7 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	// without an explicit DELETE. Use thread_id (not the composite key)
 	// so a stray row in another forum from a prior bug would also be
 	// cleaned up — recommendation is conceptually a single-forum binding.
-	await env.DB.batch([
+	await confirmedBatch(env, [
 		env.DB.prepare("UPDATE threads SET forum_id = ? WHERE id = ?").bind(targetForumId, id),
 		env.DB.prepare("UPDATE posts SET forum_id = ? WHERE thread_id = ?").bind(targetForumId, id),
 		env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?").bind(
@@ -400,22 +433,21 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	]);
 
 	// Recalc metadata for both forums
-	await recalcForumMetadata(env, oldForumId);
-	await recalcForumMetadata(env, targetForumId);
-
-	// Invalidate volatile cache for BOTH source and target forums (counts +
-	// last-post + thread-list page1 all changed in each). Also bump the
-	// thread meta gen — `isRecommended` flips from true→false when the
-	// thread leaves the source forum (the recommendation row above is
-	// dropped), so any cached thread-detail payload must miss.
-	// The recommendation row was deleted above, so invalidate the source
-	// forum's recommended cache as well.
 	await Promise.all([
-		invalidateForumVolatileV2(env, oldForumId),
-		invalidateForumVolatileV2(env, targetForumId),
-		bumpThreadMetaGen(env, id),
-		invalidateRecommendedCache(env, oldForumId),
+		recalcForumMetadata(env, oldForumId),
+		recalcForumMetadata(env, targetForumId),
 	]);
+	const invalidations: Promise<unknown>[] = [
+		...["threads", "posts", "forums"].map((resource) => invalidateAdminEntityCache(env, resource)),
+		invalidateThreadReading(env, [id], { posts: true }),
+		invalidateThreadListForForums(env, [oldForumId, targetForumId]),
+		bumpForumSummaryGen(env),
+		invalidateRecommendedCache(env, oldForumId),
+		invalidateRecommendedCache(env, targetForumId),
+	];
+	if (thread.digest > 0) invalidations.push(bumpDigestGen(env));
+	if (thread.sticky === STICKY_GLOBAL) invalidations.push(bumpThreadListGenAll(env));
+	await Promise.all(invalidations);
 
 	return jsonResponse({ id, forumId: targetForumId, moved: true }, origin);
 }
@@ -488,8 +520,23 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 		);
 	}
 
-	await env.DB.batch(buildDeletePostStatements(env, [post]));
-	await invalidateForumVolatileV2(env, post.forum_id);
+	const thread = await env.DB.prepare("SELECT sticky, digest FROM threads WHERE id = ?")
+		.bind(post.thread_id)
+		.first<{ sticky: number; digest: number }>();
+	await confirmedBatch(env, buildDeletePostStatements(env, [post]));
+	const invalidations: Promise<unknown>[] = [
+		...["posts", "threads", "forums", "users", "attachments"].map((resource) =>
+			invalidateAdminEntityCache(env, resource),
+		),
+		bumpPostEntityGen(env, id),
+		bumpPostAttachmentsGen(env, id),
+		invalidateThreadReading(env, [post.thread_id], { posts: true }),
+		invalidateForumVolatileV2(env, post.forum_id),
+		invalidateRecommendedCache(env, post.forum_id),
+	];
+	if ((thread?.digest ?? 0) > 0) invalidations.push(bumpDigestGen(env));
+	if (thread?.sticky === STICKY_GLOBAL) invalidations.push(bumpThreadListGenAll(env));
+	await Promise.all(invalidations);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
@@ -595,12 +642,17 @@ export async function setHighlight(request: Request, env: Env): Promise<Response
 		!!underline,
 	);
 
-	await env.DB.prepare("UPDATE threads SET highlight = ? WHERE id = ?")
-		.bind(highlightValue, id)
-		.run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE threads SET highlight = ? WHERE id = ?").bind(highlightValue, id),
+	);
 
-	// Highlight is part of the cached thread row → bump per-forum gen.
-	await bumpThreadListGen(env, thread.forumId);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			bumpThreadMetaGen(env, id),
+			invalidateRecommendedCache(env, thread.forumId),
+			invalidateAdminEntityCache(env, "threads"),
+		]);
+	}
 
 	return jsonResponse({ id, highlight: highlightValue }, origin);
 }
@@ -618,10 +670,17 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 	}
 
 	const thread = await env.DB.prepare(
-		"SELECT id, forum_id, author_id, replies, digest FROM threads WHERE id = ?",
+		"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads WHERE id = ?",
 	)
 		.bind(id)
-		.first<{ id: number; forum_id: number; author_id: number; replies: number; digest: number }>();
+		.first<{
+			id: number;
+			forum_id: number;
+			author_id: number;
+			replies: number;
+			digest: number;
+			sticky: number;
+		}>();
 
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
@@ -661,13 +720,14 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 	const posts = await env.DB.prepare("SELECT author_id FROM posts WHERE thread_id = ?")
 		.bind(id)
 		.all<{ author_id: number }>();
+	if (!posts.success) throw new Error("Thread deletion author query failed");
 
 	const authorCounts = new Map<number, number>();
 	for (const post of posts.results) {
 		authorCounts.set(post.author_id, (authorCounts.get(post.author_id) ?? 0) + 1);
 	}
 
-	await env.DB.batch([
+	await confirmedBatch(env, [
 		...buildDeleteThreadChildStatements(env, [id]),
 		env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 		env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
@@ -682,10 +742,15 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 	]);
 
 	const tail: Promise<unknown>[] = [
+		...["threads", "posts", "forums", "users", "attachments"].map((resource) =>
+			invalidateAdminEntityCache(env, resource),
+		),
+		invalidateThreadReading(env, [id], { posts: true }),
 		invalidateForumVolatileV2(env, thread.forum_id),
 		invalidateRecommendedCache(env, thread.forum_id),
 	];
 	if (thread.digest > 0) tail.push(bumpDigestGen(env));
+	if (thread.sticky === STICKY_GLOBAL) tail.push(bumpThreadListGenAll(env));
 	await Promise.all(tail);
 
 	return jsonResponse({ deleted: true, id }, origin);
@@ -750,7 +815,12 @@ export async function editPost(request: Request, env: Env): Promise<Response> {
 		return errorResponse("FORBIDDEN", 403, { message: "No permission to edit this post" }, origin);
 	}
 
-	await env.DB.prepare("UPDATE posts SET content = ? WHERE id = ?").bind(content.trim(), id).run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE posts SET content = ? WHERE id = ?").bind(content.trim(), id),
+	);
+	if (written.meta.changes > 0) {
+		await Promise.all([bumpPostEntityGen(env, id), invalidateAdminEntityCache(env, "posts")]);
+	}
 
 	return jsonResponse({ id, updated: true }, origin);
 }
@@ -923,7 +993,15 @@ export async function muteUser(request: Request, env: Env): Promise<Response> {
 
 	// Mute = set status to -2 (Archived/Muted)
 	// Note: duration is informational only - actual unmute would be a separate action
-	await env.DB.prepare("UPDATE users SET status = -2 WHERE id = ?").bind(userId).run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE users SET status = -2 WHERE id = ?").bind(userId),
+	);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			invalidateUserCaches(env, userId),
+			invalidateAdminEntityCache(env, "users"),
+		]);
+	}
 
 	return jsonResponse(
 		{
@@ -984,7 +1062,15 @@ export async function unmuteUser(request: Request, env: Env): Promise<Response> 
 	}
 
 	// Unmute = set status back to 0 (Active)
-	await env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(userId).run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(userId),
+	);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			invalidateUserCaches(env, userId),
+			invalidateAdminEntityCache(env, "users"),
+		]);
+	}
 
 	return jsonResponse(
 		{
@@ -1044,7 +1130,15 @@ export async function banUser(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Ban = set status to -1
-	await env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(userId).run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(userId),
+	);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			invalidateUserCaches(env, userId),
+			invalidateAdminEntityCache(env, "users"),
+		]);
+	}
 
 	return jsonResponse(
 		{
@@ -1104,7 +1198,15 @@ export async function unbanUser(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Unban = set status back to 0 (Active)
-	await env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(userId).run();
+	const written = await confirmedRun(
+		env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(userId),
+	);
+	if (written.meta.changes > 0) {
+		await Promise.all([
+			invalidateUserCaches(env, userId),
+			invalidateAdminEntityCache(env, "users"),
+		]);
+	}
 
 	return jsonResponse(
 		{
@@ -1177,11 +1279,33 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 	// for every forum touched by `deleteUserContent`; if any deleted thread
 	// was a digest, also bump digest gen.
 	const tail: Promise<unknown>[] = [
+		invalidateAdminEntityCache(env, "users"),
+		invalidateThreadReading(env, result.affectedThreadIds, { posts: true }),
 		invalidateThreadListForForums(env, result.affectedForumIds),
 		bumpForumSummaryGen(env),
+		...result.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 	];
+	if (result.affectedThreadIds.length > 0) tail.push(invalidateAdminEntityCache(env, "threads"));
+	if (result.affectedForumIds.length > 0) tail.push(invalidateAdminEntityCache(env, "forums"));
+	if (result.postsDeleted > 0) tail.push(invalidateAdminEntityCache(env, "posts"));
+	if (result.postsDeleted > 0 || result.attachmentsDeleted > 0)
+		tail.push(invalidateAdminEntityCache(env, "attachments"));
 	if (result.hadDigestThread) tail.push(bumpDigestGen(env));
+	if (result.hadGlobalThread) tail.push(bumpThreadListGenAll(env));
 	await Promise.all(tail);
+	const affectedUsers = [...new Set([userId, ...result.collateralAuthorIds])];
+	for (let start = 0; start < affectedUsers.length; start += 50) {
+		await Promise.all(
+			affectedUsers.slice(start, start + 50).map((id) => invalidateUserCaches(env, id)),
+		);
+	}
+	for (let start = 0; start < result.attachmentPostIds.length; start += 50) {
+		await Promise.all(
+			result.attachmentPostIds
+				.slice(start, start + 50)
+				.map((postId) => bumpPostAttachmentsGen(env, postId)),
+		);
+	}
 
 	return jsonResponse(
 		{

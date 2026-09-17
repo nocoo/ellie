@@ -13,7 +13,7 @@ const SAMPLE_ROWS = [
 function makeSettingsDb(rows = SAMPLE_ROWS) {
 	return {
 		prepare: vi.fn(() => ({
-			all: vi.fn(async () => ({ results: rows })),
+			all: vi.fn(async () => ({ success: true, results: rows })),
 			bind: vi.fn((..._params: unknown[]) => ({
 				run: vi.fn(async () => ({ success: true })),
 			})),
@@ -398,13 +398,13 @@ describe("admin settings handler", () => {
 			const calls: { sql: string; params: unknown[] }[] = [];
 			const db = {
 				prepare: vi.fn((sql: string) => ({
-					all: vi.fn(async () => ({ results: priorRows })),
+					all: vi.fn(async () => ({ success: true, results: priorRows })),
 					bind: vi.fn((...params: unknown[]) => {
 						calls.push({ sql, params });
 						return {
 							run: vi.fn(async () => ({ success: true })),
 							first: vi.fn(async () => null),
-							all: vi.fn(async () => ({ results: [] })),
+							all: vi.fn(async () => ({ success: true, results: [] })),
 						};
 					}),
 				})),

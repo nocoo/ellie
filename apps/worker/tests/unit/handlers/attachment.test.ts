@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { listByPost } from "../../../src/handlers/attachment";
 import type { Env } from "../../../src/lib/env";
 import { createMockDb, createMockKV, makeD1AttachmentRow, TEST_JWT_SECRET } from "../../helpers";
@@ -11,6 +11,9 @@ describe("attachment handlers", () => {
 		JWT_SECRET: TEST_JWT_SECRET,
 		KV: createMockKV(),
 	};
+	beforeEach(() => {
+		mockEnv.KV = createMockKV();
+	});
 
 	describe("listByPost", () => {
 		it("should return attachments for a post", async () => {
@@ -18,12 +21,21 @@ describe("attachment handlers", () => {
 			const row2 = makeD1AttachmentRow({ id: 2, post_id: 42, filename: "doc.pdf", is_image: 0 });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 				allResults: {
-					"SELECT * FROM attachments WHERE post_id": [row1, row2],
+					"FROM attachments WHERE post_id": [row1, row2],
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -45,12 +57,21 @@ describe("attachment handlers", () => {
 		it("should return empty array when no attachments", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 				allResults: {
-					"SELECT * FROM attachments WHERE post_id": [],
+					"FROM attachments WHERE post_id": [],
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -69,12 +90,21 @@ describe("attachment handlers", () => {
 			const row = makeD1AttachmentRow({ thread_id: 5, post_id: 10, author_id: 100, has_thumb: 1 });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 5, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 5,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 				allResults: {
-					"SELECT * FROM attachments WHERE post_id": [row],
+					"FROM attachments WHERE post_id": [row],
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -99,12 +129,21 @@ describe("attachment handlers", () => {
 		it("should include CORS headers", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 				allResults: {
-					"SELECT * FROM attachments WHERE post_id": [],
+					"FROM attachments WHERE post_id": [],
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -122,12 +161,21 @@ describe("attachment handlers", () => {
 		it("should include metadata in response", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 				allResults: {
-					"SELECT * FROM attachments WHERE post_id": [],
+					"FROM attachments WHERE post_id": [],
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -175,7 +223,7 @@ describe("attachment handlers", () => {
 		it("should return 404 when post not found", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": null,
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": null,
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -193,7 +241,10 @@ describe("attachment handlers", () => {
 		it("should return 404 when post is invisible", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 1 },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 1,
+					},
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -209,8 +260,17 @@ describe("attachment handlers", () => {
 		it("should return 404 when thread is hidden (sticky < 0)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: -1, author_id: 10 },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: -1,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+					},
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -228,9 +288,18 @@ describe("attachment handlers", () => {
 		it("should return 404 for anon viewer on moderated thread (sticky=-2)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: -2, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "50" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: -2,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "50",
+					},
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -248,8 +317,11 @@ describe("attachment handlers", () => {
 		it("should return 404 when thread not found", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 99, invisible: 0 },
-					"FROM threads WHERE id": null,
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 99,
+						invisible: 0,
+					},
+					"JOIN forums f": null,
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -267,9 +339,18 @@ describe("attachment handlers", () => {
 		it("should return 404 when forum is inactive (status <= 0)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 0, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 0,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -287,9 +368,18 @@ describe("attachment handlers", () => {
 		it("should return 404 when forum is paused (status === 2)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 2, visibility: "public", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 2,
+						visibility: "public",
+						moderator_ids: "",
+					},
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -305,9 +395,18 @@ describe("attachment handlers", () => {
 		it("should return 403 when visibility check fails (members-only, no auth)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
-					"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-					"FROM forums WHERE id": { status: 1, visibility: "members", moderator_ids: "" },
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "members",
+						moderator_ids: "",
+					},
 				},
 			});
 			const env = { ...mockEnv, DB: db };

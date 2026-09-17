@@ -1,3 +1,4 @@
+import { invalidateAdminEntityCache, readAdminEntity } from "../../lib/cache/admin-entity-read";
 // Admin settings handler — #62 GET, #63 PUT /api/admin/settings
 // Custom handler (not CRUD factory) — settings use "get all + bulk update" pattern
 
@@ -173,12 +174,18 @@ function validateEntryValue(key: string, value: string): ValidationResult {
  * Returns SettingsDetailMap with type/updatedAt metadata.
  * Supports ?prefix= to filter by namespace.
  */
-async function listSettings(request: Request, env: Env): Promise<Response> {
+export const loadAdminSettings = getSettingsDetailed;
+
+async function listSettings(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const prefix = url.searchParams.get("prefix");
 
-	const all = await getSettingsDetailed(env);
+	const all = await readAdminEntity<SettingsDetailMap>(env, ctx, {
+		family: "admin:settings",
+		params: {},
+		scope: "admin",
+	});
 
 	if (prefix) {
 		const filtered: SettingsDetailMap = {};
@@ -265,17 +272,20 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 	}
 
 	if (changedKeys.length > 0) {
-		await writeAdminLog(env, resolveActor(request, env), {
-			action: "setting.update",
-			targetType: "setting",
-			targetId: null,
-			details: {
-				count: changedKeys.length,
-				changedKeys,
-				before: valuesBefore,
-				after: valuesAfter,
-			},
-		});
+		await Promise.all([
+			writeAdminLog(env, resolveActor(request, env), {
+				action: "setting.update",
+				targetType: "setting",
+				targetId: null,
+				details: {
+					count: changedKeys.length,
+					changedKeys,
+					before: valuesBefore,
+					after: valuesAfter,
+				},
+			}),
+			invalidateAdminEntityCache(env, "settings"),
+		]);
 	}
 
 	return jsonNoStoreResponse({ updated: entries.length }, origin);

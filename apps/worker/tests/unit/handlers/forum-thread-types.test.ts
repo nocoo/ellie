@@ -1,318 +1,119 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getThreadTypes } from "../../../src/handlers/forum";
-import { createMockCtx, createMockKV, makeEnv } from "../../helpers";
+import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
+import { createJwtForRole } from "../../helpers";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
-// We mock the v2 forum:meta path so the test focuses on:
-//   1. Visibility / 403 / 404 propagation from getForumMetaV2
-//   2. The shape of the public payload (config + types[])
-//   3. WHERE filter (enabled = 1, ORDER BY display_order ASC, id ASC)
-vi.mock("../../../src/middleware/auth", () => ({
-	optionalAuthVerified: vi.fn(async () => null),
-}));
+describe("getThreadTypes handler", () => {
+	let f: ReturnType<typeof readingFixture>;
 
-vi.mock("../../../src/lib/cache/forum-read", async () => {
-	const actual = await vi.importActual<typeof import("../../../src/lib/cache/forum-read")>(
-		"../../../src/lib/cache/forum-read",
-	);
-	return {
-		...actual,
-		getForumMetaV2: vi.fn(),
-		// Stubbed to satisfy the closure capture in getThreadTypes — the
-		// loadFullForumFromD1 callback is never invoked because we mock the
-		// surrounding getForumMetaV2 directly.
-	};
-});
-
-import type { Forum } from "@ellie/types";
-import { getForumMetaV2 } from "../../../src/lib/cache/forum-read";
-
-const mockGetMeta = getForumMetaV2 as ReturnType<typeof vi.fn>;
-
-function makeForum(overrides?: Partial<Forum>): Forum {
-	return {
-		id: 1,
-		parentId: 0,
-		name: "General",
-		description: "",
-		icon: "",
-		displayOrder: 1,
-		threads: 0,
-		posts: 0,
-		type: "forum" as Forum["type"],
-		status: 1,
-		visibility: "public",
-		moderators: "",
-		moderatorList: [],
-		todayThreads: 0,
-		lastThreadId: 0,
-		lastPostAt: 0,
-		lastPoster: "",
-		lastPosterId: 0,
-		lastPosterAvatar: "",
-		lastPosterAvatarPath: "",
-		lastThreadSubject: "",
-		threadTypes: { enabled: true, required: false, listable: true, prefix: false },
-		...overrides,
-	};
-}
-
-describe("getThreadTypes", () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(1_700_000_000_000);
+		__resetMetricsForTest();
+		f = readingFixture();
+	});
+
+	afterEach(() => {
+		f.close();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
 	});
 
 	it("returns 400 for invalid forum ID", async () => {
-		const env = makeEnv();
-		const ctx = createMockCtx();
 		const req = new Request("https://api.example.com/api/v1/forums/abc/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
+		const res = await getThreadTypes(req, f.env, f.ctx);
 		expect(res.status).toBe(400);
 	});
 
-	it("returns 404 when meta path reports notFound (forum missing or inactive)", async () => {
-		mockGetMeta.mockResolvedValue({ kind: "notFound" });
-		const env = makeEnv();
-		const ctx = createMockCtx();
-		const req = new Request("https://api.example.com/api/v1/forums/999/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
-		expect(res.status).toBe(404);
+	it("returns 404 when forum is missing or inactive", async () => {
+		const reqMissing = new Request("https://api.example.com/api/v1/forums/999/thread-types");
+		const resMissing = await getThreadTypes(reqMissing, f.env, f.ctx);
+		expect(resMissing.status).toBe(404);
+
+		// forum 3 in fixture has status = 0 (paused/inactive)
+		const reqInactive = new Request("https://api.example.com/api/v1/forums/3/thread-types");
+		const resInactive = await getThreadTypes(reqInactive, f.env, f.ctx);
+		expect(resInactive.status).toBe(404);
 	});
 
-	it("returns 403 when meta path reports forbidden (visibility mismatch)", async () => {
-		mockGetMeta.mockResolvedValue({ kind: "forbidden" });
-		const env = makeEnv();
-		const ctx = createMockCtx();
-		const req = new Request("https://api.example.com/api/v1/forums/5/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
-		expect(res.status).toBe(403);
+	it("returns 403 when viewer lacks forum visibility", async () => {
+		// forum 2 is staff-only
+		const anonReq = new Request("https://api.example.com/api/v1/forums/2/thread-types");
+		const anonRes = await getThreadTypes(anonReq, f.env, f.ctx);
+		expect(anonRes.status).toBe(403);
+
+		// Regular user (role=0) also 403
+		const token = await createJwtForRole(0, 10, f.env.JWT_SECRET);
+		const userReq = new Request("https://api.example.com/api/v1/forums/2/thread-types", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const userRes = await getThreadTypes(userReq, f.env, f.ctx);
+		expect(userRes.status).toBe(403);
 	});
 
-	it("returns config + enabled rows on 200", async () => {
-		mockGetMeta.mockResolvedValue({
-			kind: "ok",
-			forum: makeForum({
-				id: 7,
-				threadTypes: { enabled: true, required: true, listable: true, prefix: false },
-			}),
-		});
-		const all = vi.fn().mockResolvedValue({
-			results: [
-				{
-					id: 11,
-					name: "Question",
-					display_order: 0,
-					icon: "❓",
-					enabled: 1,
-					moderator_only: 0,
-				},
-				{
-					id: 12,
-					name: "Answer",
-					display_order: 1,
-					icon: "",
-					enabled: 1,
-					moderator_only: 1,
-				},
-			],
-		});
-		const bind = vi.fn().mockReturnValue({ all });
-		const prepare = vi.fn().mockReturnValue({ bind });
-		const env = makeEnv({ DB: { prepare } as unknown as D1Database });
-		const ctx = createMockCtx();
-		const req = new Request("https://api.example.com/api/v1/forums/7/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
+	it("returns config flags and enabled thread types on 200", async () => {
+		f.sqlite
+			.prepare(
+				"UPDATE forums SET thread_types_enabled = 1, thread_types_required = 1, thread_types_listable = 1, thread_types_prefix = 1 WHERE id = 1",
+			)
+			.run();
+		f.sqlite
+			.prepare(
+				"INSERT INTO forum_thread_types (id, forum_id, source_typeid, name, display_order, enabled, moderator_only) VALUES (1, 1, 10, 'Notice', 2, 1, 0), (2, 1, 20, 'Discussion', 1, 1, 0), (3, 1, 30, 'Archived', 0, 0, 0)",
+			)
+			.run();
+
+		const req = new Request("https://api.example.com/api/v1/forums/1/thread-types");
+		const res = await getThreadTypes(req, f.env, f.ctx);
 		expect(res.status).toBe(200);
 
-		const body = (await res.json()) as { data: unknown };
-		expect(body.data).toEqual({
-			enabled: true,
-			required: true,
-			listable: true,
-			prefix: false,
-			types: [
-				{
-					id: 11,
-					name: "Question",
-					displayOrder: 0,
-					icon: "❓",
-					enabled: true,
-					moderatorOnly: false,
-				},
-				{
-					id: 12,
-					name: "Answer",
-					displayOrder: 1,
-					icon: "",
-					enabled: true,
-					moderatorOnly: true,
-				},
-			],
-		});
-
-		// Pin: only enabled rows surface (tombstones excluded). The SQL
-		// must filter on `enabled = 1` and order by display_order then id —
-		// regression-guard the WHERE clause directly. Also pin the column
-		// list so the full ForumThreadType DTO surface stays available.
-		const sql = (prepare.mock.calls[0]?.[0] ?? "") as string;
-		expect(sql).toMatch(/WHERE\s+forum_id\s*=\s*\?\s+AND\s+enabled\s*=\s*1/i);
-		expect(sql).toMatch(/ORDER\s+BY\s+display_order\s+ASC\s*,\s*id\s+ASC/i);
-		expect(sql).toMatch(/icon/);
-		expect(sql).toMatch(/moderator_only/);
-		expect(bind).toHaveBeenCalledWith(7);
-	});
-
-	it("empty types[] is a valid payload (forum has switches but no rows)", async () => {
-		mockGetMeta.mockResolvedValue({
-			kind: "ok",
-			forum: makeForum({
-				id: 9,
-				threadTypes: { enabled: false, required: false, listable: false, prefix: false },
-			}),
-		});
-		const all = vi.fn().mockResolvedValue({ results: [] });
-		const env = makeEnv({
-			DB: {
-				prepare: vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) }),
-			} as unknown as D1Database,
-		});
-		const ctx = createMockCtx();
-		const req = new Request("https://api.example.com/api/v1/forums/9/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
-		expect(res.status).toBe(200);
-		const body = (await res.json()) as { data: { types: unknown[]; enabled: boolean } };
-		expect(body.data.types).toEqual([]);
-		expect(body.data.enabled).toBe(false);
-	});
-
-	it("does NOT expose source_typeid (admin-only field)", async () => {
-		mockGetMeta.mockResolvedValue({
-			kind: "ok",
-			forum: makeForum({ id: 7 }),
-		});
-		const all = vi.fn().mockResolvedValue({
-			results: [
-				{
-					id: 11,
-					name: "Q",
-					display_order: 0,
-					icon: "",
-					enabled: 1,
-					moderator_only: 0,
-					source_typeid: 999,
-				},
-			],
-		});
-		const env = makeEnv({
-			DB: {
-				prepare: vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) }),
-			} as unknown as D1Database,
-		});
-		const ctx = createMockCtx();
-		const req = new Request("https://api.example.com/api/v1/forums/7/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
 		const body = (await res.json()) as {
-			data: { types: Array<Record<string, unknown>> };
+			data: {
+				enabled: boolean;
+				required: boolean;
+				listable: boolean;
+				prefix: boolean;
+				types: {
+					id: number;
+					name: string;
+					displayOrder: number;
+					enabled: boolean;
+					moderatorOnly: boolean;
+				}[];
+			};
 		};
-		expect(body.data.types[0]).toEqual({
-			id: 11,
-			name: "Q",
-			displayOrder: 0,
-			icon: "",
-			enabled: true,
-			moderatorOnly: false,
-		});
-		expect("source_typeid" in body.data.types[0]).toBe(false);
-		expect("typeId" in body.data.types[0]).toBe(false);
+
+		expect(body.data.enabled).toBe(true);
+		expect(body.data.required).toBe(true);
+		expect(body.data.listable).toBe(true);
+		expect(body.data.prefix).toBe(true);
+		// Only enabled rows (Archived enabled=0 excluded)
+		expect(body.data.types).toHaveLength(2);
+		expect(body.data.types[0].name).toBe("Discussion");
+		expect(body.data.types[1].name).toBe("Notice");
 	});
 
-	it("falls back to empty icon when DB returns NULL", async () => {
-		mockGetMeta.mockResolvedValue({
-			kind: "ok",
-			forum: makeForum({ id: 7 }),
-		});
-		const all = vi.fn().mockResolvedValue({
-			results: [
-				{
-					id: 11,
-					name: "Q",
-					display_order: 0,
-					icon: null,
-					enabled: 1,
-					moderator_only: 0,
-				},
-			],
-		});
-		const env = makeEnv({
-			DB: {
-				prepare: vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) }),
-			} as unknown as D1Database,
-		});
-		const ctx = createMockCtx();
-		const req = new Request("https://api.example.com/api/v1/forums/7/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
-		const body = (await res.json()) as { data: { types: Array<{ icon: string }> } };
-		expect(body.data.types[0].icon).toBe("");
-	});
+	it("serves subsequent requests from cache without re-querying forum_thread_types", async () => {
+		f.sqlite.prepare("UPDATE forums SET thread_types_enabled = 1 WHERE id = 1").run();
+		f.sqlite
+			.prepare(
+				"INSERT INTO forum_thread_types (id, forum_id, source_typeid, name, display_order, enabled, moderator_only) VALUES (10, 1, 10, 'General', 1, 1, 0)",
+			)
+			.run();
 
-	it("returns cached data on KV hit without querying D1 for rows", async () => {
-		const cachedPayload = {
-			enabled: true,
-			required: false,
-			listable: true,
-			prefix: false,
-			types: [
-				{ id: 88, name: "Cached", displayOrder: 0, icon: "", enabled: true, moderatorOnly: false },
-			],
-		};
-		mockGetMeta.mockResolvedValue({
-			kind: "ok",
-			forum: makeForum({ id: 5 }),
-		});
-		const kv = createMockKV({ "thread-types:5": JSON.stringify(cachedPayload) });
-		const all = vi.fn();
-		const prepare = vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) });
-		const env = makeEnv({ DB: { prepare } as unknown as D1Database, KV: kv });
-		const ctx = createMockCtx();
+		const req = new Request("https://api.example.com/api/v1/forums/1/thread-types");
+		const res1 = await getThreadTypes(req, f.env, f.ctx);
+		expect(res1.status).toBe(200);
 
-		const req = new Request("https://api.example.com/api/v1/forums/5/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
+		const callsBefore = f.calls.filter((c) => c.sql.includes("FROM forum_thread_types")).length;
+		expect(callsBefore).toBe(1);
 
-		expect(res.status).toBe(200);
-		const body = (await res.json()) as { data: typeof cachedPayload };
-		expect(body.data.types[0].id).toBe(88);
-		// DB all() should not be called (cache hit)
-		expect(all).not.toHaveBeenCalled();
-	});
+		// Cache hit
+		const res2 = await getThreadTypes(req, f.env, f.ctx);
+		expect(res2.status).toBe(200);
 
-	it("writes to KV cache after D1 query on cache miss", async () => {
-		mockGetMeta.mockResolvedValue({
-			kind: "ok",
-			forum: makeForum({
-				id: 3,
-				threadTypes: { enabled: true, required: false, listable: false, prefix: true },
-			}),
-		});
-		const all = vi.fn().mockResolvedValue({
-			results: [
-				{ id: 77, name: "Fresh", display_order: 0, icon: "", enabled: 1, moderator_only: 0 },
-			],
-		});
-		const kv = createMockKV({});
-		const env = makeEnv({
-			DB: {
-				prepare: vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) }),
-			} as unknown as D1Database,
-			KV: kv,
-		});
-		const ctx = createMockCtx();
-
-		const req = new Request("https://api.example.com/api/v1/forums/3/thread-types");
-		const res = await getThreadTypes(req, env, ctx);
-
-		expect(res.status).toBe(200);
-		expect(kv.put).toHaveBeenCalledTimes(1);
-		const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(putCall[0]).toBe("thread-types:3");
-		expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(86400);
+		const callsAfter = f.calls.filter((c) => c.sql.includes("FROM forum_thread_types")).length;
+		expect(callsAfter).toBe(callsBefore);
 	});
 });

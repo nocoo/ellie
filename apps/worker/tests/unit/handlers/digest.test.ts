@@ -1,26 +1,29 @@
-import { describe, expect, it, type vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as digest from "../../../src/handlers/digest";
-import {
-	createJwtForRole,
-	createMockCtx,
-	createMockDb,
-	createMockKV,
-	makeEnv,
-} from "../../helpers";
+import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
+import { createJwtForRole } from "../../helpers";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 describe("digest handlers", () => {
-	// ─── list ───────────────────────────────────────────────────────
+	let f: ReturnType<typeof readingFixture>;
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_700_000_000_000);
+		__resetMetricsForTest();
+		f = readingFixture();
+	});
+
+	afterEach(() => {
+		f.close();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
 
 	describe("list", () => {
-		it("should return empty list when no digest threads exist", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
+		it("should return empty list when no digest threads exist with SHORT cache tier", async () => {
 			const request = new Request("https://api.example.com/api/v1/digest");
-			const response = await digest.list(request, env);
+			const response = await digest.list(request, f.env, f.ctx);
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as {
 				data: unknown[];
@@ -31,341 +34,169 @@ describe("digest handlers", () => {
 		});
 
 		it("should return digest threads with next cursor when page is full", async () => {
-			const threads = Array.from({ length: 20 }, (_, i) => ({
-				id: i + 1,
-				forum_id: 1,
-				author_id: 10,
-				author_name: "alice",
-				subject: `Thread ${i + 1}`,
-				created_at: 1711540800 + i,
-				last_post_at: 1711544400 + i,
-				last_poster: "bob",
-				last_poster_id: 20,
-				replies: 5,
-				views: 100,
-				closed: 0,
-				sticky: 0,
-				digest: 1,
-				special: 0,
-				highlight: 0,
-				recommends: 0,
-				type_name: "",
-				post_table_id: 1,
-				author_avatar: "",
-				last_poster_avatar: "",
-			}));
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": threads,
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest");
-			const response = await digest.list(request, env);
+			for (let i = 1; i <= 25; i++) {
+				f.thread(i, {
+					forum_id: 1,
+					digest: 1,
+					created_at: 1711540800 + i,
+					last_post_at: 1711544400 + i,
+				});
+			}
+
+			const request = new Request("https://api.example.com/api/v1/digest?limit=20");
+			const response = await digest.list(request, f.env, f.ctx);
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as {
-				data: unknown[];
+				data: { id: number }[];
 				meta: { nextCursor: string | null };
 			};
 			expect(body.data).toHaveLength(20);
 			expect(body.meta.nextCursor).not.toBeNull();
 		});
 
-		it("should support cursor-based pagination", async () => {
-			const cursor = btoa(JSON.stringify({ digest: 1, lastPostAt: 1711544400, id: 5 }));
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request(`https://api.example.com/api/v1/digest?cursor=${cursor}`);
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
+		it("should support cursor-based pagination across pages", async () => {
+			for (let i = 1; i <= 3; i++) {
+				f.thread(i, {
+					forum_id: 1,
+					digest: 1,
+					created_at: 1711540800 + i,
+					last_post_at: 1711544400 + i,
+				});
+			}
+
+			// Page 1 with limit 2
+			const res1 = await digest.list(
+				new Request("https://api.example.com/api/v1/digest?limit=2"),
+				f.env,
+				f.ctx,
+			);
+			const body1 = (await res1.json()) as { data: { id: number }[]; meta: { nextCursor: string } };
+			expect(body1.data).toHaveLength(2);
+			expect(body1.meta.nextCursor).not.toBeNull();
+
+			// Page 2 using cursor
+			const res2 = await digest.list(
+				new Request(
+					`https://api.example.com/api/v1/digest?limit=2&cursor=${encodeURIComponent(body1.meta.nextCursor)}`,
+				),
+				f.env,
+				f.ctx,
+			);
+			const body2 = (await res2.json()) as {
+				data: { id: number }[];
+				meta: { nextCursor: string | null };
+			};
+			expect(body2.data).toHaveLength(1);
+			expect(body2.meta.nextCursor).toBeNull();
 		});
 
-		it("should filter by forumId", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest?forumId=1");
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
+		it("should filter by forumId and level", async () => {
+			f.thread(1, { forum_id: 1, digest: 1 });
+			f.thread(2, { forum_id: 1, digest: 2 });
+
+			const res = await digest.list(
+				new Request("https://api.example.com/api/v1/digest?forumId=1&level=2"),
+				f.env,
+				f.ctx,
+			);
+			const body = (await res.json()) as { data: { id: number; digest: number }[] };
+			expect(body.data).toHaveLength(1);
+			expect(body.data[0].id).toBe(2);
+			expect(body.data[0].digest).toBe(2);
 		});
 
-		it("should filter by level", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest?level=2");
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
-		});
+		it("composes current forum visibility gate on hot cache hits", async () => {
+			// forum 2 is staff-only
+			f.thread(10, { forum_id: 2, digest: 1 });
 
-		it("should filter by year", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest?year=2024");
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
-		});
+			// Anonymous caller: cannot view staff forum
+			const anonRes = await digest.list(
+				new Request("https://api.example.com/api/v1/digest"),
+				f.env,
+				f.ctx,
+			);
+			const anonBody = (await anonRes.json()) as { data: unknown[] };
+			expect(anonBody.data).toHaveLength(0);
 
-		it("should respect limit parameter", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest?limit=5");
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
-		});
-
-		it("should clamp limit to MAX_LIMIT", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest?limit=200");
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
-		});
-
-		it("should handle authenticated user for visibility", async () => {
-			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				},
-				allResults: {
-					"SELECT t.* FROM threads": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest", {
+			// Staff caller (mod30 role=3): can view staff forum
+			const token = await createJwtForRole(3, 30, f.env.JWT_SECRET);
+			const staffReq = new Request("https://api.example.com/api/v1/digest", {
 				headers: { Authorization: `Bearer ${token}` },
 			});
-			const response = await digest.list(request, env);
-			expect(response.status).toBe(200);
+			const staffRes = await digest.list(staffReq, f.env, f.ctx);
+			const staffBody = (await staffRes.json()) as { data: { id: number }[] };
+			expect(staffBody.data).toHaveLength(1);
+			expect(staffBody.data[0].id).toBe(10);
 		});
 	});
-
-	// ─── stats ──────────────────────────────────────────────────────
 
 	describe("stats", () => {
-		it("should return digest statistics", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					SELECT: { total: 100, level1: 60, level2: 30, level3: 10 },
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest/stats");
-			const response = await digest.stats(request, env);
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as {
+		it("should calculate correct totals across digest levels", async () => {
+			f.thread(1, { forum_id: 1, digest: 1 });
+			f.thread(2, { forum_id: 1, digest: 2 });
+			f.thread(3, { forum_id: 1, digest: 3 });
+
+			const res = await digest.stats(
+				new Request("https://api.example.com/api/v1/digest/stats"),
+				f.env,
+				f.ctx,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as {
 				data: { total: number; level1: number; level2: number; level3: number };
 			};
-			expect(body.data.total).toBe(100);
-			expect(body.data.level1).toBe(60);
-			expect(body.data.level2).toBe(30);
-			expect(body.data.level3).toBe(10);
+			expect(body.data).toEqual({
+				total: 3,
+				level1: 1,
+				level2: 1,
+				level3: 1,
+			});
 		});
 
-		it("should return zeros when no digest threads exist", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					SELECT: null,
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest/stats");
-			const response = await digest.stats(request, env);
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: { total: number } };
-			expect(body.data.total).toBe(0);
-		});
+		it("excludes private forums from stats for non-staff viewers", async () => {
+			f.thread(1, { forum_id: 1, digest: 1 }); // public forum
+			f.thread(2, { forum_id: 2, digest: 1 }); // staff forum
 
-		it("should handle authenticated user for visibility", async () => {
-			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					SELECT: { total: 50, level1: 30, level2: 15, level3: 5 },
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest/stats", {
-				headers: { Authorization: `Bearer ${token}` },
-			});
-			const response = await digest.stats(request, env);
-			expect(response.status).toBe(200);
-		});
+			const anonRes = await digest.stats(
+				new Request("https://api.example.com/api/v1/digest/stats"),
+				f.env,
+				f.ctx,
+			);
+			const anonBody = (await anonRes.json()) as { data: { total: number } };
+			expect(anonBody.data.total).toBe(1);
 
-		it("should return cached data when KV hit", async () => {
-			const cachedData = { total: 77, level1: 40, level2: 27, level3: 10 };
-			// Gen-based key: digest:stats:v2:anon:g123
-			const kv = createMockKV({
-				"digest:gen": "123",
-				"digest:stats:v2:anon:g123": JSON.stringify(cachedData),
-			});
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db, KV: kv });
-			const ctx = createMockCtx();
-			const request = new Request("https://api.example.com/api/v1/digest/stats");
-
-			const response = await digest.stats(request, env, ctx);
-
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: typeof cachedData };
-			expect(body.data.total).toBe(77);
-			expect(kv.get).toHaveBeenCalled();
-			expect(kv.put).not.toHaveBeenCalled();
-		});
-
-		it("should write to KV cache after D1 read on miss", async () => {
-			// Gen returns "0" by default (falsy fallback); cache key uses g0
-			const kv = createMockKV({});
-			const { db } = createMockDb({
-				firstResults: {
-					SELECT: { total: 55, level1: 30, level2: 20, level3: 5 },
-				},
-			});
-			const env = makeEnv({ DB: db, KV: kv });
-			const ctx = createMockCtx();
-			const request = new Request("https://api.example.com/api/v1/digest/stats");
-
-			const response = await digest.stats(request, env, ctx);
-
-			expect(response.status).toBe(200);
-			expect(kv.put).toHaveBeenCalledTimes(1);
-			const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
-			// Gen-based key with fallback gen "0"
-			expect(putCall[0]).toBe("digest:stats:v2:anon:g0");
-			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(3600);
+			const token = await createJwtForRole(3, 30, f.env.JWT_SECRET);
+			const staffRes = await digest.stats(
+				new Request("https://api.example.com/api/v1/digest/stats", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				f.env,
+				f.ctx,
+			);
+			const staffBody = (await staffRes.json()) as { data: { total: number } };
+			expect(staffBody.data.total).toBe(2);
 		});
 	});
 
-	// ─── filters ────────────────────────────────────────────────────
-
 	describe("filters", () => {
-		it("should return available filter options", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT DISTINCT strftime": [{ year: "2024" }, { year: "2023" }],
-					"SELECT f.id, f.name": [
-						{ id: 1, name: "General", digest_count: 10 },
-						{ id: 2, name: "Tech", digest_count: 5 },
-					],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest/filters");
-			const response = await digest.filters(request, env);
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as {
+		it("returns unique years and per-forum digest counts", async () => {
+			f.thread(1, { forum_id: 1, digest: 1, created_at: 1711540800 }); // 2024
+			f.thread(2, { forum_id: 1, digest: 2, created_at: 1680000000 }); // 2023
+
+			const res = await digest.filters(
+				new Request("https://api.example.com/api/v1/digest/filters"),
+				f.env,
+				f.ctx,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as {
 				data: { years: number[]; forums: { id: number; name: string; digestCount: number }[] };
 			};
-			expect(body.data.years).toEqual([2024, 2023]);
-			expect(body.data.forums).toHaveLength(2);
-			expect(body.data.forums[0].name).toBe("General");
-			expect(body.data.forums[0].digestCount).toBe(10);
-		});
-
-		it("should return empty arrays when no digest content exists", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT DISTINCT strftime": [],
-					"SELECT f.id, f.name": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest/filters");
-			const response = await digest.filters(request, env);
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: { years: number[]; forums: unknown[] } };
-			expect(body.data.years).toEqual([]);
-			expect(body.data.forums).toEqual([]);
-		});
-
-		it("should handle authenticated user for visibility", async () => {
-			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				},
-				allResults: {
-					"SELECT DISTINCT strftime": [],
-					"SELECT f.id, f.name": [],
-				},
-			});
-			const env = makeEnv({ DB: db });
-			const request = new Request("https://api.example.com/api/v1/digest/filters", {
-				headers: { Authorization: `Bearer ${token}` },
-			});
-			const response = await digest.filters(request, env);
-			expect(response.status).toBe(200);
-		});
-
-		it("should return cached data when KV hit", async () => {
-			const cachedData = {
-				years: [2025, 2024],
-				forums: [{ id: 5, name: "Cached", digestCount: 99 }],
-			};
-			// Gen-based key: digest:filters:v2:anon:g456
-			const kv = createMockKV({
-				"digest:gen": "456",
-				"digest:filters:v2:anon:g456": JSON.stringify(cachedData),
-			});
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db, KV: kv });
-			const ctx = createMockCtx();
-			const request = new Request("https://api.example.com/api/v1/digest/filters");
-
-			const response = await digest.filters(request, env, ctx);
-
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: typeof cachedData };
-			expect(body.data.years).toEqual([2025, 2024]);
-			expect(body.data.forums[0].name).toBe("Cached");
-			expect(kv.get).toHaveBeenCalled();
-			expect(kv.put).not.toHaveBeenCalled();
-		});
-
-		it("should write to KV cache after D1 read on miss", async () => {
-			// Gen returns "0" by default (falsy fallback); cache key uses g0
-			const kv = createMockKV({});
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT DISTINCT strftime": [{ year: "2026" }],
-					"SELECT f.id, f.name": [{ id: 3, name: "New", digest_count: 7 }],
-				},
-			});
-			const env = makeEnv({ DB: db, KV: kv });
-			const ctx = createMockCtx();
-			const request = new Request("https://api.example.com/api/v1/digest/filters");
-
-			const response = await digest.filters(request, env, ctx);
-
-			expect(response.status).toBe(200);
-			expect(kv.put).toHaveBeenCalledTimes(1);
-			const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
-			// Gen-based key with fallback gen "0"
-			expect(putCall[0]).toBe("digest:filters:v2:anon:g0");
-			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(3600);
+			expect(body.data.years).toContain(2024);
+			expect(body.data.years).toContain(2023);
+			expect(body.data.forums).toHaveLength(1);
+			expect(body.data.forums[0].id).toBe(1);
+			expect(body.data.forums[0].digestCount).toBe(2);
 		});
 	});
 });

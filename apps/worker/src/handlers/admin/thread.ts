@@ -3,17 +3,21 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
-	bumpThreadListGen,
+	bumpPostListGen,
 	bumpThreadListGenAll,
+	bumpThreadMetaGen,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
+	invalidateThreadReading,
 } from "../../lib/cache/invalidate";
 import { buildDeleteThreadChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
+import { confirmedBatch, confirmedRun } from "../../lib/d1-write";
 import type { Env } from "../../lib/env";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
@@ -57,6 +61,32 @@ const THREAD_LIVE_SELECT = [
 	"recommends",
 	"type_name",
 ].join(", ");
+
+async function demoteOtherGlobalThreads(env: Env, id: number) {
+	const others = await env.DB.prepare(
+		`SELECT id, forum_id FROM threads WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+	)
+		.bind(id)
+		.all<{ id: number; forum_id: number }>();
+	if (!others.success) throw new Error("Global thread query failed");
+	if (others.results.length) {
+		await confirmedRun(
+			env.DB.prepare(
+				`UPDATE threads SET sticky = ${STICKY_FORUM} WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+			).bind(id),
+		);
+	}
+	return others.results;
+}
+
+function affectsDigest(previous: unknown, next: unknown, demotedCount: number): boolean {
+	return (
+		(next !== undefined && next !== previous) ||
+		Number(previous) > 0 ||
+		Number(next) > 0 ||
+		demotedCount > 0
+	);
+}
 
 const threadConfig: EntityConfig = {
 	table: "threads",
@@ -159,6 +189,7 @@ const threadConfig: EntityConfig = {
 	},
 
 	async afterUpdate(id, data, existing, env) {
+		if (Object.keys(data).every((field) => data[field] === existing[field])) return;
 		// Move side effects: update posts' forum_id and adjust forum counts
 		const movedForum = data.forum_id !== undefined && data.forum_id !== existing.forum_id;
 		if (movedForum) {
@@ -170,7 +201,7 @@ const threadConfig: EntityConfig = {
 			// Move thread + posts, adjust forum counts.
 			// Also drop any forum_recommended_threads row — a recommendation is
 			// per-forum and the thread is leaving the source forum.
-			await env.DB.batch([
+			await confirmedBatch(env, [
 				env.DB.prepare("UPDATE posts SET forum_id = ? WHERE thread_id = ?").bind(newForumId, id),
 				env.DB.prepare(
 					"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
@@ -198,76 +229,45 @@ const threadConfig: EntityConfig = {
 		const promotedToGlobal = newSticky === STICKY_GLOBAL && prevSticky !== STICKY_GLOBAL;
 		const demotedFromGlobal =
 			newSticky !== undefined && newSticky !== STICKY_GLOBAL && prevSticky === STICKY_GLOBAL;
-		let demotedForumIds: number[] = [];
-		if (promotedToGlobal) {
-			const others = await env.DB.prepare(
-				`SELECT id, forum_id FROM threads WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
-			)
-				.bind(id)
-				.all<{ id: number; forum_id: number }>();
-			const rows = others.results ?? [];
-			if (rows.length > 0) {
-				demotedForumIds = rows.map((r) => r.forum_id);
-				await env.DB.prepare(
-					`UPDATE threads SET sticky = ${STICKY_FORUM} WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
-				)
-					.bind(id)
-					.run();
-			}
-		}
+		const demotedThreads = promotedToGlobal ? await demoteOtherGlobalThreads(env, id) : [];
 
-		// Cache invalidation matrix per docs/19 §6 thread.update row:
-		//   - forum_id change ⇒ source + target volatile bump
-		//   - any list-affecting field change ⇒ per-forum thread-list bump
-		//     for the forum the thread now lives in
-		//   - subject change ⇒ ALSO bump forum:summary:gen, because
-		//     `forum:summary:v2` carries `lastThreadSubject` (the visible-
-		//     last-thread title). If the renamed thread happens to be the
-		//     forum's current visible-last, the summary cache would
-		//     otherwise serve the old title until TTL expiry. We do NOT
-		//     extend this to sticky/closed/digest/highlight — those don't
-		//     change `lastThreadSubject` and the summary refresh would be
-		//     pure overhead.
-		//   - digest change ⇒ also bump digest gen (filter visibility)
-		//   - global sticky transition (TO or FROM sticky=2) ⇒ ALSO bump
-		//     thread:list:gen:all so every forum's page1 cache drops the
-		//     stale global pin. Normal sticky changes (forum/none) MUST
-		//     NOT trigger the all-gen bump.
-		const LIST_AFFECTING = new Set(["sticky", "digest", "closed", "highlight", "subject"]);
-		const listAffected = Object.keys(data).some((c) => LIST_AFFECTING.has(c));
+		const currentForumId = (data.forum_id ?? existing.forum_id) as number;
+		const forumIds = [
+			...new Set([
+				existing.forum_id as number,
+				currentForumId,
+				...demotedThreads.map((t) => t.forum_id),
+			]),
+		];
+		const restored = newSticky !== undefined && prevSticky < 0 && newSticky >= 0;
+		if (restored) {
+			await confirmedBatch(env, buildContentRecalcStatements(env, [id], forumIds));
+		}
+		const membershipChanged = movedForum || (newSticky !== undefined && newSticky !== prevSticky);
 		const digestChanged = data.digest !== undefined && data.digest !== (existing.digest as number);
 		const subjectChanged =
 			data.subject !== undefined && data.subject !== (existing.subject as string);
-		const globalTransition = promotedToGlobal || demotedFromGlobal;
+		if (subjectChanged && !movedForum && !restored) await recalcForumMetadata(env, currentForumId);
+		const globalTransition =
+			promotedToGlobal || demotedFromGlobal || (movedForum && prevSticky === STICKY_GLOBAL);
 
-		const ops: Promise<unknown>[] = [];
-		if (movedForum) {
-			const oldForumId = existing.forum_id as number;
-			const newForumId = data.forum_id as number;
-			ops.push(
-				invalidateForumVolatileV2(env, oldForumId),
-				invalidateForumVolatileV2(env, newForumId),
-				// Invalidate recommended cache: moving a thread out of a forum
-				// should remove it from that forum's recommended list display.
-				invalidateRecommendedCache(env, oldForumId),
-			);
-		} else if (listAffected) {
-			const currentForumId = existing.forum_id as number;
-			ops.push(bumpThreadListGen(env, currentForumId));
-			if (subjectChanged) ops.push(bumpForumSummaryGen(env));
+		// Membership contains IDs/order only. Stable field edits refresh the
+		// shared entity; moves/restores also replace every child body/asset key.
+		const ops: Promise<unknown>[] = [
+			invalidateThreadReading(env, [id, ...demotedThreads.map((thread) => thread.id)]),
+			...forumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
+		];
+		if (membershipChanged) ops.push(invalidateThreadListForForums(env, forumIds));
+		if (movedForum || restored)
+			ops.push(bumpPostListGen(env, id), invalidateAdminEntityCache(env, "posts"));
+		if (movedForum || restored || subjectChanged)
+			ops.push(bumpForumSummaryGen(env), invalidateAdminEntityCache(env, "forums"));
+		if (digestChanged) ops.push(invalidateAdminEntityCache(env, "users"));
+		if (globalTransition) ops.push(bumpThreadListGenAll(env));
+		if (affectsDigest(existing.digest, data.digest, demotedThreads.length)) {
+			ops.push(bumpDigestGen(env));
 		}
-		if (globalTransition) {
-			// Per-forum bumps for any forum where an old global was demoted.
-			// The current thread's forum is already covered by the listAffected
-			// / movedForum branches above. The all-gen bump is the cross-forum
-			// fan-out.
-			if (demotedForumIds.length > 0) {
-				ops.push(invalidateThreadListForForums(env, demotedForumIds));
-			}
-			ops.push(bumpThreadListGenAll(env));
-		}
-		if (digestChanged) ops.push(bumpDigestGen(env));
-		if (ops.length > 0) await Promise.all(ops);
+		await Promise.all(ops);
 	},
 };
 
@@ -425,6 +425,7 @@ export const remove = withEntityAuth(
 			author_id: number;
 			replies: number;
 			digest: number;
+			sticky: number;
 		};
 
 		// Query post authors before deletion for user counter updates. The total
@@ -435,6 +436,7 @@ export const remove = withEntityAuth(
 		)
 			.bind(id)
 			.all();
+		if (!postAuthors.success) throw new Error("Thread deletion author query failed");
 		const authorCounts = new Map<number, number>();
 		let postsDeleted = 0;
 		for (const row of postAuthors.results as { author_id: number; cnt: number }[]) {
@@ -442,7 +444,7 @@ export const remove = withEntityAuth(
 			postsDeleted += row.cnt;
 		}
 
-		await env.DB.batch([
+		await confirmedBatch(env, [
 			...buildDeleteThreadChildStatements(env, [id]),
 			env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 			env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
@@ -456,10 +458,16 @@ export const remove = withEntityAuth(
 			),
 		]);
 		const tail: Promise<unknown>[] = [
+			...["threads", "posts", "forums", "users", "attachments"].map((resource) =>
+				invalidateAdminEntityCache(env, resource),
+			),
+			bumpThreadMetaGen(env, id),
+			bumpPostListGen(env, id),
 			invalidateForumVolatileV2(env, threadRow.forum_id),
 			invalidateRecommendedCache(env, threadRow.forum_id),
 		];
 		if (threadRow.digest > 0) tail.push(bumpDigestGen(env));
+		if (threadRow.sticky === STICKY_GLOBAL) tail.push(bumpThreadListGenAll(env));
 		await Promise.all(tail);
 
 		// F3-b: audit only after the mutation has committed.
@@ -542,13 +550,13 @@ export const batchDelete = withEntityAuth(
 		// Snapshot the actual existing threads (rows that aren't there shouldn't
 		// land in the audit row or the forum-counter math).
 		const placeholders = numericIds.map(() => "?").join(",");
-		const threadRows = (
-			await env.DB.prepare(
-				`SELECT id, forum_id, author_id, digest FROM threads WHERE id IN (${placeholders})`,
-			)
-				.bind(...numericIds)
-				.all<{ id: number; forum_id: number; author_id: number; digest: number }>()
-		).results;
+		const threads = await env.DB.prepare(
+			`SELECT id, forum_id, author_id, digest, sticky FROM threads WHERE id IN (${placeholders})`,
+		)
+			.bind(...numericIds)
+			.all<{ id: number; forum_id: number; author_id: number; digest: number; sticky: number }>();
+		if (!threads.success) throw new Error("Thread deletion snapshot failed");
+		const threadRows = threads.results;
 
 		if (threadRows.length === 0) {
 			return jsonNoStoreResponse({ deleted: true, count: 0 }, origin);
@@ -561,6 +569,7 @@ export const batchDelete = withEntityAuth(
 		)
 			.bind(idsJson)
 			.all<{ thread_id: number; author_id: number; cnt: number }>();
+		if (!postAuthors.success) throw new Error("Thread deletion author query failed");
 		const authorCounts = new Map<number, number>();
 		for (const row of postAuthors.results)
 			authorCounts.set(row.author_id, (authorCounts.get(row.author_id) ?? 0) + row.cnt);
@@ -575,7 +584,7 @@ export const batchDelete = withEntityAuth(
 				);
 		}
 		const affectedForumIds = [...new Set(threadRows.map((t) => t.forum_id))];
-		await env.DB.batch([
+		await confirmedBatch(env, [
 			...buildDeleteThreadChildStatements(env, existingIds),
 			env.DB.prepare("DELETE FROM posts WHERE thread_id IN (SELECT value FROM json_each(?))").bind(
 				idsJson,
@@ -591,6 +600,10 @@ export const batchDelete = withEntityAuth(
 
 		const hadDigestBatch = threadRows.some((t) => t.digest > 0);
 		const tailOps: Promise<unknown>[] = [
+			...["threads", "posts", "forums", "users", "attachments"].map((resource) =>
+				invalidateAdminEntityCache(env, resource),
+			),
+			invalidateThreadReading(env, existingIds, { posts: true }),
 			invalidateThreadListForForums(env, affectedForumIds),
 			bumpForumSummaryGen(env),
 			...affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
@@ -602,6 +615,7 @@ export const batchDelete = withEntityAuth(
 			}),
 		];
 		if (hadDigestBatch) tailOps.push(bumpDigestGen(env));
+		if (threadRows.some((t) => t.sticky === STICKY_GLOBAL)) tailOps.push(bumpThreadListGenAll(env));
 		await Promise.all(tailOps);
 
 		return jsonNoStoreResponse({ deleted: true, count: existingIds.length }, origin);
@@ -668,7 +682,9 @@ export const batchMove = withEntityAuth(
 		const placeholders = ids.map(() => "?").join(",");
 		const [targetForum, threads] = await Promise.all([
 			env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(targetForumId).first(),
-			env.DB.prepare(`SELECT id, forum_id, replies FROM threads WHERE id IN (${placeholders})`)
+			env.DB.prepare(
+				`SELECT id, forum_id, replies, sticky, digest FROM threads WHERE id IN (${placeholders})`,
+			)
 				.bind(...ids)
 				.all(),
 		]);
@@ -677,7 +693,14 @@ export const batchMove = withEntityAuth(
 			return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" }, origin);
 		}
 
-		const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
+		if (!threads.success) throw new Error("Thread move snapshot failed");
+		const threadRows = threads.results as {
+			id: number;
+			forum_id: number;
+			replies: number;
+			sticky: number;
+			digest: number;
+		}[];
 		if (threadRows.length === 0) {
 			return jsonNoStoreResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
 		}
@@ -691,7 +714,7 @@ export const batchMove = withEntityAuth(
 		const sourceForumIds = [...new Set(movable.map((t) => t.forum_id))];
 		const movedForumIds = [...sourceForumIds, targetForumId];
 		const movedIdsJson = JSON.stringify(movable.map((t) => t.id));
-		await env.DB.batch([
+		await confirmedBatch(env, [
 			env.DB.prepare(
 				"UPDATE threads SET forum_id = ? WHERE id IN (SELECT value FROM json_each(?))",
 			).bind(targetForumId, movedIdsJson),
@@ -704,11 +727,23 @@ export const batchMove = withEntityAuth(
 			...buildContentRecalcStatements(env, [], movedForumIds),
 		]);
 
-		await Promise.all([
+		const invalidations: Promise<unknown>[] = [
+			...["threads", "posts", "forums"].map((resource) =>
+				invalidateAdminEntityCache(env, resource),
+			),
+			invalidateThreadReading(
+				env,
+				movable.map((thread) => thread.id),
+				{ posts: true },
+			),
 			invalidateThreadListForForums(env, movedForumIds),
 			bumpForumSummaryGen(env),
-			...sourceForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
-		]);
+			...movedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
+		];
+		if (movable.some((t) => t.digest > 0)) invalidations.push(bumpDigestGen(env));
+		if (movable.some((t) => t.sticky === STICKY_GLOBAL))
+			invalidations.push(bumpThreadListGenAll(env));
+		await Promise.all(invalidations);
 
 		// F3-b: audit one row for the entire successful batch. fromForumIds
 		// is deduped (Map keys) so multi-source batches are searchable.

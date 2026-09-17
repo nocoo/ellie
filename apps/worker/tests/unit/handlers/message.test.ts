@@ -1,11 +1,54 @@
 import { describe, expect, it } from "vitest";
 import * as message from "../../../src/handlers/message";
+import type { MessageRow } from "../../../src/lib/cache/private-read";
 import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 import {
 	expectEmailNotVerifiedResponse,
 	makeUnverifiedEnv,
 	unverifiedUserJwt,
 } from "../helpers/email-gate";
+
+function messageReadDb(rows: MessageRow[] = [], unreadCount = 0) {
+	return createMockDb({
+		firstResults: {
+			"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+			"SELECT COUNT(*)": { count: unreadCount },
+		},
+		allResults: {
+			"SELECT id, created_at AS createdAt FROM messages": rows.map((row) => ({
+				id: row.id,
+				createdAt: row.created_at,
+			})),
+			"SELECT id, sender_id, receiver_id, is_read, sender_deleted, receiver_deleted FROM messages":
+				rows.map(({ id, sender_id, receiver_id, is_read, sender_deleted, receiver_deleted }) => ({
+					id,
+					sender_id,
+					receiver_id,
+					is_read,
+					sender_deleted,
+					receiver_deleted,
+				})),
+			"SELECT id, sender_id, sender_name, receiver_id": rows,
+		},
+	});
+}
+
+function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
+	return {
+		id: 1,
+		sender_id: 20,
+		sender_name: "bob",
+		receiver_id: 10,
+		receiver_name: "alice",
+		subject: "test",
+		content: "hello",
+		is_read: 0,
+		sender_deleted: 0,
+		receiver_deleted: 0,
+		created_at: 1711540800,
+		...overrides,
+	};
+}
 
 describe("message handlers", () => {
 	// ─── list ───────────────────────────────────────────────────────
@@ -20,29 +63,10 @@ describe("message handlers", () => {
 
 		it("should return inbox messages (default)", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT COUNT(*)": { count: 3 },
-				},
-				allResults: {
-					"SELECT * FROM messages": [
-						{
-							id: 1,
-							sender_id: 20,
-							sender_name: "bob",
-							receiver_id: 10,
-							receiver_name: "alice",
-							subject: "Hello",
-							content: "Test message content",
-							is_read: 0,
-							sender_deleted: 0,
-							receiver_deleted: 0,
-							created_at: 1711540800,
-						},
-					],
-				},
-			});
+			const { db } = messageReadDb(
+				[messageRow({ subject: "Hello", content: "Test message content" })],
+				3,
+			);
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages", {
 				headers: { Authorization: `Bearer ${token}` },
@@ -59,14 +83,7 @@ describe("message handlers", () => {
 
 		it("should return outbox messages", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				},
-				allResults: {
-					"SELECT * FROM messages": [],
-				},
-			});
+			const { db } = messageReadDb();
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages?box=outbox", {
 				headers: { Authorization: `Bearer ${token}` },
@@ -79,15 +96,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			// Encode a cursor manually
 			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 5 }));
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT COUNT(*)": { count: 0 },
-				},
-				allResults: {
-					"SELECT * FROM messages": [],
-				},
-			});
+			const { db } = messageReadDb();
 			const env = makeEnv({ DB: db });
 			const request = new Request(`https://api.example.com/api/v1/messages?cursor=${cursor}`, {
 				headers: { Authorization: `Bearer ${token}` },
@@ -98,15 +107,7 @@ describe("message handlers", () => {
 
 		it("should clamp limit to MAX_LIMIT", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT COUNT(*)": { count: 0 },
-				},
-				allResults: {
-					"SELECT * FROM messages": [],
-				},
-			});
+			const { db } = messageReadDb();
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages?limit=500", {
 				headers: { Authorization: `Bearer ${token}` },
@@ -172,12 +173,7 @@ describe("message handlers", () => {
 
 		it("should return 404 if message not found", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT * FROM messages WHERE id": null,
-				},
-			});
+			const { db } = messageReadDb();
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages/99", {
 				headers: { Authorization: `Bearer ${token}` },
@@ -188,80 +184,37 @@ describe("message handlers", () => {
 
 		it("should return 404 if user is not sender or receiver", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT * FROM messages WHERE id": {
-						id: 1,
-						sender_id: 20,
-						receiver_id: 30,
-						sender_name: "bob",
-						receiver_name: "carol",
-						subject: "test",
-						content: "hello",
-						is_read: 0,
-						sender_deleted: 0,
-						receiver_deleted: 0,
-						created_at: 1711540800,
-					},
-				},
-			});
+			const { db, calls } = messageReadDb([
+				messageRow({ receiver_id: 30, receiver_name: "carol" }),
+			]);
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages/1", {
 				headers: { Authorization: `Bearer ${token}` },
 			});
 			const response = await message.getById(request, env);
 			expect(response.status).toBe(404);
+			expect(calls.some((call) => call.sql.includes("SELECT id, sender_id, sender_name"))).toBe(
+				false,
+			);
 		});
 
 		it("should return 404 if message is deleted for receiver", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT * FROM messages WHERE id": {
-						id: 1,
-						sender_id: 20,
-						receiver_id: 10,
-						sender_name: "bob",
-						receiver_name: "alice",
-						subject: "test",
-						content: "hello",
-						is_read: 0,
-						sender_deleted: 0,
-						receiver_deleted: 1,
-						created_at: 1711540800,
-					},
-				},
-			});
+			const { db, calls } = messageReadDb([messageRow({ receiver_deleted: 1 })]);
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages/1", {
 				headers: { Authorization: `Bearer ${token}` },
 			});
 			const response = await message.getById(request, env);
 			expect(response.status).toBe(404);
+			expect(calls.some((call) => call.sql.includes("SELECT id, sender_id, sender_name"))).toBe(
+				false,
+			);
 		});
 
 		it("should return message detail for receiver and mark as read", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT * FROM messages WHERE id": {
-						id: 1,
-						sender_id: 20,
-						receiver_id: 10,
-						sender_name: "bob",
-						receiver_name: "alice",
-						subject: "test",
-						content: "hello world",
-						is_read: 0,
-						sender_deleted: 0,
-						receiver_deleted: 0,
-						created_at: 1711540800,
-					},
-				},
-			});
+			const { db, calls } = messageReadDb([messageRow({ content: "hello world" })]);
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages/1", {
 				headers: { Authorization: `Bearer ${token}` },
@@ -271,34 +224,23 @@ describe("message handlers", () => {
 			const body = (await response.json()) as { data: { content: string; isRead: boolean } };
 			expect(body.data.content).toBe("hello world");
 			expect(body.data.isRead).toBe(true);
+			expect(calls.filter((call) => call.sql.includes("UPDATE messages SET is_read"))).toEqual([
+				expect.objectContaining({ params: [1, 10] }),
+			]);
 		});
 
 		it("should return message detail for sender without marking read", async () => {
 			const token = await createJwtForRole(0, 10);
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT * FROM messages WHERE id": {
-						id: 1,
-						sender_id: 10,
-						receiver_id: 20,
-						sender_name: "alice",
-						receiver_name: "bob",
-						subject: "test",
-						content: "hello",
-						is_read: 0,
-						sender_deleted: 0,
-						receiver_deleted: 0,
-						created_at: 1711540800,
-					},
-				},
-			});
+			const { db, calls } = messageReadDb([
+				messageRow({ sender_id: 10, sender_name: "alice", receiver_id: 20, receiver_name: "bob" }),
+			]);
 			const env = makeEnv({ DB: db });
 			const request = new Request("https://api.example.com/api/v1/messages/1", {
 				headers: { Authorization: `Bearer ${token}` },
 			});
 			const response = await message.getById(request, env);
 			expect(response.status).toBe(200);
+			expect(calls.some((call) => call.sql.includes("UPDATE messages"))).toBe(false);
 		});
 	});
 
@@ -795,7 +737,13 @@ describe("message handlers — §5.4 email-verification gate", () => {
 	it("list: unverified user is allowed through gate (allow-list — read)", async () => {
 		// list stays on withAuthVerified per allow-list. An unverified user MUST
 		// NOT receive the §5.4 EmailNotVerifiedPayload here.
-		const { env } = makeUnverifiedEnv(1);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 0 },
+				"SELECT COUNT(*)": { count: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
 		const token = await unverifiedUserJwt(1);
 		const response = await message.list(
 			new Request("https://example.com/api/v1/messages", {
@@ -804,6 +752,7 @@ describe("message handlers — §5.4 email-verification gate", () => {
 			env,
 		);
 		const text = await response.clone().text();
+		expect(response.status).toBe(200);
 		expect(text).not.toContain("EMAIL_NOT_VERIFIED");
 	});
 });

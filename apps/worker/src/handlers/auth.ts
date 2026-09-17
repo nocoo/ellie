@@ -1,8 +1,11 @@
+import type { User } from "@ellie/types";
 import {
 	type LoginHistoryErrorCode,
 	type LoginHistoryKind,
 	scheduleLoginHistory,
 } from "../lib/analytics/loginHistory";
+import { getPrivateData } from "../lib/cache/private-read";
+import { cacheDelete } from "../lib/cache/wrap";
 // Auth handlers for Cloudflare Worker
 import { checkCensorWords } from "../lib/censor";
 import { extractTrustedClientIp } from "../lib/clientIp";
@@ -10,7 +13,6 @@ import { extractTrustedUserAgent } from "../lib/clientUa";
 import { normalizeEmail } from "../lib/email-verify";
 import type { Env } from "../lib/env";
 import { createJwt } from "../lib/jwt";
-import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
@@ -224,7 +226,14 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			}),
 			env.DB.prepare("UPDATE users SET last_login = ?, last_ip = ? WHERE id = ?")
 				.bind(Math.floor(Date.now() / 1000), ip, user.id)
-				.run(),
+				.run()
+				.then(async (saved) => {
+					if (!saved.success) throw new Error("Login state could not be saved");
+					await Promise.all([
+						cacheDelete(env, `user:self:${user.id}`, "user:self"),
+						cacheDelete(env, `user:public:v2:${user.id}:staff`, "user:public:v2"),
+					]);
+				}),
 		];
 		if (user.password_salt) {
 			sideEffects.push(
@@ -267,10 +276,6 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
 	}
 }
-
-/** Explicit column list — never SELECT * to avoid leaking sensitive fields */
-const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at";
 
 /** POST /api/v1/auth/refresh - Exchange refresh token for new JWT + rotated refresh token */
 export async function refresh(request: Request, env: Env): Promise<Response> {
@@ -359,18 +364,20 @@ export async function logout(request: Request, env: Env): Promise<Response> {
 }
 
 /** GET /api/v1/auth/me - Get current user profile */
-export const me = withAuthVerified(async (request, env, user) => {
+export const me = withAuthVerified(async (request, env, user, ctx) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	const row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
-		.bind(user.userId)
-		.first();
+	const row = await getPrivateData<User | null>(env, ctx, {
+		family: "user:self",
+		params: { userId: user.userId },
+		scope: `user:${user.userId}`,
+	});
 
 	if (!row) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	return jsonResponse(toUser(row as Record<string, unknown>), origin);
+	return jsonResponse({ ...row, role: user.role, status: 0 }, origin);
 });
 
 // ---------------------------------------------------------------------------

@@ -652,7 +652,13 @@ describe("router (src/index.ts)", () => {
 			expect(handleGetPostImageMock.mock.calls[0][0]).toBe(
 				"550e8400-e29b-41d4-a716-446655440000.jpg",
 			);
-			expect(handleGetPostImageMock.mock.calls[0][1]).toBe(env);
+			expect(handleGetPostImageMock.mock.calls[0][1]).toMatchObject({
+				API_KEY: env.API_KEY,
+				ENVIRONMENT: env.ENVIRONMENT,
+				JWT_SECRET: env.JWT_SECRET,
+				KV: env.KV,
+			});
+			expect(handleGetPostImageMock.mock.calls[0][1].DB).toBeDefined();
 		});
 
 		it("should not match POST on /api/v1/post-images/...", async () => {
@@ -778,7 +784,7 @@ describe("router (src/index.ts)", () => {
 
 			await worker.scheduled(event, env, ctx);
 
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(3);
 			expect(onlineStats.aggregateOnlineStats).toHaveBeenCalledTimes(1);
 			expect(statsRollover.checkAndRolloverDailyStats).toHaveBeenCalledTimes(1);
 			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();

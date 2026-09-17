@@ -1,104 +1,233 @@
-// Generic read-through KV cache wrapper.
-//
-// See docs/19 §1.3 (correctness vs. TTL): correctness comes from explicit
-// invalidation; TTL is a safety net. Each caller declares its own TTL when
-// it invokes `cacheGetOrSet`.
-//
-// The optional `validator` lets each cache entry guard against schema drift:
-// if a stored payload no longer matches the current shape (e.g. fields were
-// added in code but old payloads still live in KV), the validator returns
-// false, and the wrapper treats it as a miss. After `cacheGetOrSet`, all
-// callers see a value of type `T` that the validator accepted.
-//
-// Observability: `family` tags the call site for the in-isolate metrics
-// accumulator (`./metrics`). It MUST match a stable identifier in
-// `kv-registry.ts`. Hits / misses / errors are bumped here and flushed
-// to D1 at the end of the request via `scheduleMetricsFlush`.
-
 import type { Env } from "../env";
 import {
-	flushPendingNow,
+	recordDelete,
 	recordError,
 	recordHit,
+	recordKvOp,
 	recordMiss,
 	recordRead,
-	recordWrite,
 	scheduleMetricsFlush,
 } from "./metrics";
+import {
+	acceptsCacheValue,
+	bypassesCache,
+	type CacheGetOrSetOptions,
+	cacheWrite,
+	metricFamily,
+	validateCacheOptions,
+} from "./store";
 
-export interface CacheGetOrSetOptions<T> {
-	/** TTL in seconds. Required: every cache entry must declare a TTL. */
-	ttl: number;
-	/**
-	 * Optional shape validator. Called on the parsed JSON before it is
-	 * returned. Return `false` to force a miss (re-load and re-write).
-	 */
-	validator?: (value: unknown) => value is T;
-	/**
-	 * Registry family identifier for metrics (see `kv-registry.ts`).
-	 * Recorded as hit/miss/error counters per minute. Required: every
-	 * cache call must be observable.
-	 */
-	family: string;
+export { CACHE_TTL_SECONDS, getCacheTTL } from "@ellie/types";
+export {
+	type CacheGetOrSetOptions,
+	cacheRead,
+	cacheReadMany,
+	cacheWrite,
+	createCacheEnvelope,
+	isCacheEnvelope,
+	putCacheEnvelope,
+} from "./store";
+
+const MAX_PENDING = 256;
+const LOAD_TIMEOUT_MS = 20_000;
+const ORIGIN_WINDOW_MS = 60_000;
+const MAX_ORIGIN_LOADS_PER_WINDOW = 8192;
+const originWindows = new WeakMap<KVNamespace, { startedAt: number; count: number }>();
+
+interface PendingLoad {
+	promise: Promise<unknown>;
+	work: Promise<unknown>;
+	cancelled: boolean;
+	settled: boolean;
+	outcome: "hit" | "miss";
 }
 
-/**
- * Read-through cache: try KV first; on miss / invalid / KV failure, call
- * `loader`, write the result back via `ctx.waitUntil` (non-blocking on the
- * response path), and return the loaded value.
- *
- * KV failures (read OR write) MUST NOT propagate — the underlying handler
- * keeps working off D1.
- */
+function admitOriginLoad(env: Env): void {
+	let window = originWindows.get(env.KV);
+	if (!window || Date.now() - window.startedAt >= ORIGIN_WINDOW_MS) {
+		window = { startedAt: Date.now(), count: 0 };
+		originWindows.set(env.KV, window);
+	}
+	if (window.count >= MAX_ORIGIN_LOADS_PER_WINDOW) throw new CacheLoadLimitError();
+	window.count++;
+}
+
+// Only in-progress work is shared. No completed private values, credentials,
+// or durable counters are kept here. Different KV bindings never share tasks.
+const pendingByNamespace = new WeakMap<KVNamespace, Map<string, PendingLoad>>();
+const writeHolds = new WeakMap<KVNamespace, Map<string, number>>();
+const mutationQueues = new WeakMap<
+	KVNamespace,
+	{ tails: Map<string, Promise<unknown>>; count: number }
+>();
+const MAX_PENDING_MUTATIONS = 1024;
+
+/** Suppress fills started during an explicit write/delete, including late loaders. */
+export function holdCacheWrites(env: Env, key: string): () => void {
+	let holds = writeHolds.get(env.KV);
+	if (!holds) {
+		holds = new Map();
+		writeHolds.set(env.KV, holds);
+	}
+	holds.set(key, (holds.get(key) ?? 0) + 1);
+	return () => {
+		const remaining = (holds.get(key) ?? 1) - 1;
+		if (remaining > 0) holds.set(key, remaining);
+		else holds.delete(key);
+	};
+}
+
+function pendingLoads(env: Env): Map<string, PendingLoad> {
+	let pending = pendingByNamespace.get(env.KV);
+	if (!pending) {
+		pending = new Map();
+		pendingByNamespace.set(env.KV, pending);
+	}
+	return pending;
+}
+
+export class CacheLoadLimitError extends Error {
+	readonly status = 503;
+	constructor(message = "Cache origin load budget exhausted; retry later") {
+		super(message);
+		this.name = "CacheLoadLimitError";
+	}
+}
+
+/** Business invalidation and Admin rebuilds must finish their KV writes in order. */
+export async function runCacheMutation<T>(
+	env: Env,
+	key: string,
+	action: () => Promise<T>,
+): Promise<T> {
+	let queue = mutationQueues.get(env.KV);
+	if (!queue) {
+		queue = { tails: new Map(), count: 0 };
+		mutationQueues.set(env.KV, queue);
+	}
+	if (queue.count >= MAX_PENDING_MUTATIONS)
+		throw new CacheLoadLimitError("Cache mutation queue is full; retry later");
+	queue.count++;
+	const release = holdCacheWrites(env, key);
+	const previous = queue.tails.get(key) ?? Promise.resolve();
+	const tail = previous
+		.catch(() => undefined)
+		.then(action)
+		.finally(() => {
+			release();
+			queue.count--;
+			if (queue.tails.get(key) === tail) queue.tails.delete(key);
+		});
+	queue.tails.set(key, tail);
+	return tail;
+}
+
 export async function cacheGetOrSet<T>(
 	env: Env,
-	ctx: ExecutionContext,
+	ctx: ExecutionContext | undefined,
 	key: string,
 	loader: () => Promise<T>,
 	options: CacheGetOrSetOptions<T>,
 ): Promise<T> {
-	// Read attempt
-	recordRead(options.family);
-	try {
-		const cached = (await env.KV.get(key, "json")) as unknown;
-		if (cached !== null && cached !== undefined) {
-			if (!options.validator || options.validator(cached)) {
-				recordHit(options.family);
-				scheduleMetricsFlush(env, ctx);
-				return cached as T;
-			}
-		}
-	} catch (err) {
-		// KV read failure — log and fall through to loader so the handler
-		// keeps working off D1.
-		recordError(options.family);
-		console.warn(`[cache] read miss (KV error) key=${key}`, err);
+	validateCacheOptions(options);
+	const pending = pendingLoads(env);
+	const taskKey = `${options.source ?? "business"}:${options.family}:${options.tier}:${options.scope ?? "public"}:${key}`;
+	const family = metricFamily(options);
+	recordRead(family);
+	const existing = pending.get(taskKey);
+	if (existing) {
+		const value = await existing.promise;
+		if (existing.outcome === "hit") recordHit(family);
+		else recordMiss(family);
+		return structuredClone(value) as T;
 	}
+	if (pending.size >= MAX_PENDING) throw new CacheLoadLimitError();
+	const task: PendingLoad = {
+		promise: Promise.resolve(),
+		work: Promise.resolve(),
+		cancelled: writeHolds.get(env.KV)?.has(key) ?? false,
+		settled: false,
+		outcome: "miss",
+	};
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const work = async (): Promise<T> => {
+		try {
+			if (!bypassesCache(env, key, options.family)) recordKvOp(family, "kv-get");
+			const value = bypassesCache(env, key, options.family) ? null : await env.KV.get(key, "json");
+			if (acceptsCacheValue(value, options)) {
+				task.outcome = "hit";
+				recordHit(family);
+				return value.data;
+			}
+		} catch {
+			recordError(family);
+		}
+		recordMiss(family);
+		admitOriginLoad(env);
+		recordKvOp(family, "load");
+		let fresh: T;
+		try {
+			fresh = await loader();
+			if (fresh === undefined || (options.validator && !options.validator(fresh))) {
+				throw new TypeError("Cache loader returned an invalid value");
+			}
+		} catch (error) {
+			recordError(family);
+			recordKvOp(family, "load-error");
+			throw error;
+		}
+		if (!task.cancelled) await cacheWrite(env, ctx, key, fresh, options);
+		return fresh;
+	};
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
+			task.cancelled = true;
+			reject(new CacheLoadLimitError("Cache origin load timed out; retry later"));
+		}, LOAD_TIMEOUT_MS);
+	});
+	task.work = work().finally(() => {
+		task.settled = true;
+		clearTimeout(timer);
+		if (pending.get(taskKey) === task) pending.delete(taskKey);
+		if (ctx) scheduleMetricsFlush(env, ctx);
+	});
+	// A timeout releases the caller, never the origin's permit. A SQL/KV
+	// operation that is still running cannot be counted as completed work.
+	task.promise = Promise.race([task.work, timeout]);
+	pending.set(taskKey, task);
+	if (ctx)
+		ctx.waitUntil(
+			task.work.then(
+				() => undefined,
+				() => undefined,
+			),
+		);
+	return structuredClone(await task.promise) as T;
+}
 
-	// Miss path
-	recordMiss(options.family);
-	const fresh = await loader();
+/** Fence local outstanding fills before an explicit management mutation. */
+export async function settleCacheLoads(env: Env, key: string): Promise<void> {
+	const tasks = [...pendingLoads(env)]
+		.filter(([taskKey]) => taskKey.endsWith(`:${key}`))
+		.map(([, task]) => task);
+	for (const task of tasks) task.cancelled = true;
+	await Promise.allSettled(tasks.map((task) => task.promise));
+	if (tasks.some((task) => !task.settled)) {
+		throw new CacheLoadLimitError("An outstanding cache fill has not settled; retry later");
+	}
+}
 
-	// Best-effort write-back; never block the response. The `write`
-	// (or `error`) op is recorded AFTER the put resolves, so we also
-	// have to schedule a follow-up flush from inside the same waitUntil
-	// chain — the outer `scheduleMetricsFlush` below already swapped
-	// the read/miss snapshot before this put completed.
-	const putPromise = env.KV.put(key, JSON.stringify(fresh), {
-		expirationTtl: options.ttl,
-	})
-		.then(() => {
-			recordWrite(options.family);
-		})
-		.catch((err) => {
-			recordError(options.family);
-			console.warn(`[cache] write-back failed key=${key}`, err);
-		})
-		.finally(() => {
-			flushPendingNow(env, ctx);
+export async function cacheDelete(env: Env, key: string, family: string): Promise<boolean> {
+	try {
+		await runCacheMutation(env, key, async () => {
+			await settleCacheLoads(env, key);
+			recordKvOp(family, "kv-delete");
+			await env.KV.delete(key);
+			recordDelete(family);
 		});
-	ctx.waitUntil(putPromise);
-	scheduleMetricsFlush(env, ctx);
-
-	return fresh;
+		return true;
+	} catch {
+		recordError(family);
+		return false;
+	}
 }

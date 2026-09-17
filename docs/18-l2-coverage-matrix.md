@@ -4,19 +4,20 @@
 > Re-run with `bun run scripts/audit-l2-coverage.ts --write` after any change
 > to `apps/worker/src/index.ts`, `tests/integration/http/*.test.ts`, or `tests/integration/fast/*.fast.test.ts`.
 
-Last audit: **2026-06-14**
+Last audit: **2026-09-17**
 
 ## 1. Summary
 
 | Metric | Value |
 |---|---|
-| Total (route × method) | **173** |
-| Method breakdown | GET 78 / POST 56 / PATCH 23 / PUT 1 / DELETE 15 |
-| L2 calls scanned | 306 |
-| Routes hit | **170** (98.27%) |
-| Routes uncovered | **3** |
+| Total (route × method) | **177** |
+| Method breakdown | GET 80 / POST 58 / PATCH 23 / PUT 1 / DELETE 15 |
+| L2 calls scanned | 360 |
+| Routes hit | **177** (100.00%) |
+| Routes uncovered | **0** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
+| Negative auth probes (not endpoint coverage) | 2 |
 
 ## 2. Parser contract
 
@@ -66,6 +67,11 @@ Test paths with `${...}` template substitutions are rewritten to
 regex routes by substituting `:param` with `1` (numeric path
 params) or `abc` (string path params), in that order.
 
+The deliberate `GET /foo/bar` probes in `fast/api-key.fast.test.ts`
+are reported separately. They test the API-key middleware and never
+count as endpoint hits or remove routes from the denominator.
+All other unmatched calls remain failures in strict mode.
+
 ## 3. Exemptions
 
 _None._ Every route × method must be covered by L2.
@@ -74,187 +80,187 @@ _None._ Every route × method must be covered by L2.
 
 | Status | Method | Pattern | Source line |
 |---|---|---|---|
-| ✅ | GET | `/api/admin/admin-logs` | index.ts:801 |
-| ✅ | GET | `/api/admin/analytics/checkin` | index.ts:620 |
-| ✅ | GET | `/api/admin/analytics/forum-dist` | index.ts:617 |
-| ✅ | GET | `/api/admin/analytics/overview` | index.ts:611 |
-| ✅ | GET | `/api/admin/analytics/today/logins` | index.ts:636 |
-| ✅ | GET | `/api/admin/analytics/today/logins/list` | index.ts:643 |
-| ✅ | GET | `/api/admin/analytics/today/visits` | index.ts:655 |
-| ✅ | GET | `/api/admin/analytics/today/visits/list` | index.ts:662 |
-| ✅ | GET | `/api/admin/analytics/trend` | index.ts:614 |
-| ✅ | GET | `/api/admin/announcements` | index.ts:812 |
-| ✅ | POST | `/api/admin/announcements` | index.ts:815 |
-| ✅ | POST | `/api/admin/announcements/batch-delete` | index.ts:809 |
-| ✅ | GET | `/api/admin/attachments` | index.ts:703 |
-| ✅ | POST | `/api/admin/attachments/batch-delete` | index.ts:700 |
-| ✅ | GET | `/api/admin/censor-words` | index.ts:743 |
-| ✅ | POST | `/api/admin/censor-words` | index.ts:746 |
-| ✅ | POST | `/api/admin/censor-words/batch-delete` | index.ts:740 |
-| ✅ | POST | `/api/admin/censor-words/test` | index.ts:737 |
-| ✅ | GET | `/api/admin/forums` | index.ts:487 |
-| ✅ | POST | `/api/admin/forums` | index.ts:490 |
-| ✅ | POST | `/api/admin/forums/reorder` | index.ts:457 |
-| ✅ | GET | `/api/admin/ip-bans` | index.ts:720 |
-| ✅ | POST | `/api/admin/ip-bans` | index.ts:723 |
-| ✅ | POST | `/api/admin/ip-bans/batch-delete` | index.ts:717 |
-| ✅ | GET | `/api/admin/ip-bans/check-ip` | index.ts:714 |
-| ✅ | GET | `/api/admin/ip-lookup` | index.ts:695 |
-| ✅ | GET | `/api/admin/kv/get` | index.ts:681 |
-| ✅ | GET | `/api/admin/kv/list` | index.ts:678 |
-| ✅ | GET | `/api/admin/kv/metrics` | index.ts:687 |
-| ✅ | GET | `/api/admin/kv/overview` | index.ts:675 |
-| ✅ | POST | `/api/admin/kv/refresh` | index.ts:684 |
-| ✅ | GET | `/api/admin/posts` | index.ts:530 |
-| ✅ | POST | `/api/admin/posts/batch-delete` | index.ts:527 |
-| ✅ | GET | `/api/admin/reports` | index.ts:790 |
-| ✅ | POST | `/api/admin/reports/batch-delete` | index.ts:787 |
-| ✅ | GET | `/api/admin/settings` | index.ts:765 |
-| ✅ | PUT | `/api/admin/settings` | index.ts:768 |
-| ✅ | POST | `/api/admin/statistics/recalc-forums` | index.ts:585 |
-| ✅ | POST | `/api/admin/statistics/recalc-post-forums` | index.ts:594 |
-| ✅ | POST | `/api/admin/statistics/recalc-threads` | index.ts:588 |
-| ✅ | POST | `/api/admin/statistics/recalc-users` | index.ts:591 |
-| ✅ | GET | `/api/admin/stats` | index.ts:760 |
-| ❌ | GET | `/api/admin/stats/calibrate` | index.ts:773 |
-| ❌ | POST | `/api/admin/stats/calibrate` | index.ts:779 |
-| ✅ | GET | `/api/admin/threads` | index.ts:513 |
-| ✅ | POST | `/api/admin/threads/batch-delete` | index.ts:507 |
-| ✅ | POST | `/api/admin/threads/batch-move` | index.ts:510 |
-| ✅ | GET | `/api/admin/users` | index.ts:559 |
-| ✅ | GET | `/api/admin/users/batch` | index.ts:544 |
-| ✅ | POST | `/api/admin/users/batch-recalc-counters` | index.ts:553 |
-| ✅ | POST | `/api/admin/users/batch-role` | index.ts:550 |
-| ✅ | POST | `/api/admin/users/batch-status` | index.ts:547 |
-| ✅ | GET | `/api/admin/users/staff` | index.ts:556 |
-| ✅ | POST | `/api/internal/analytics/ingest` | index.ts:83 |
-| ✅ | GET | `/api/live` | index.ts:71 |
-| ✅ | GET | `/api/v1/auth/check-username` | index.ts:240 |
-| ✅ | POST | `/api/v1/auth/login` | index.ts:225 |
-| ✅ | DELETE | `/api/v1/auth/logout` | index.ts:231 |
-| ✅ | GET | `/api/v1/auth/me` | index.ts:234 |
-| ✅ | POST | `/api/v1/auth/refresh` | index.ts:228 |
-| ✅ | POST | `/api/v1/auth/register` | index.ts:237 |
-| ✅ | POST | `/api/v1/checkin` | index.ts:322 |
-| ✅ | GET | `/api/v1/checkin/status` | index.ts:319 |
-| ✅ | GET | `/api/v1/digest` | index.ts:201 |
-| ✅ | GET | `/api/v1/digest/filters` | index.ts:207 |
-| ✅ | GET | `/api/v1/digest/stats` | index.ts:204 |
-| ✅ | GET | `/api/v1/forums` | index.ts:104 |
-| ✅ | GET | `/api/v1/messages` | index.ts:280 |
-| ✅ | POST | `/api/v1/messages` | index.ts:292 |
-| ✅ | POST | `/api/v1/messages/mark-all-read` | index.ts:286 |
-| ✅ | GET | `/api/v1/messages/unread-count` | index.ts:283 |
-| ✅ | GET | `/api/v1/post-comments` | index.ts:303 |
-| ✅ | POST | `/api/v1/post-comments` | index.ts:306 |
-| ✅ | POST | `/api/v1/post-comments/batch` | index.ts:300 |
-| ✅ | GET | `/api/v1/posting-permission` | index.ts:314 |
-| ✅ | GET | `/api/v1/posts` | index.ts:141 |
-| ✅ | POST | `/api/v1/posts` | index.ts:248 |
-| ✅ | POST | `/api/v1/posts/attachments/batch` | index.ts:167 |
-| ✅ | POST | `/api/v1/reports` | index.ts:311 |
-| ✅ | GET | `/api/v1/search/threads` | index.ts:196 |
-| ✅ | GET | `/api/v1/settings` | index.ts:217 |
-| ✅ | GET | `/api/v1/stats` | index.ts:212 |
-| ✅ | GET | `/api/v1/threads` | index.ts:135 |
-| ✅ | POST | `/api/v1/threads` | index.ts:245 |
-| ✅ | POST | `/api/v1/upload` | index.ts:327 |
-| ✅ | GET | `/api/v1/users/batch` | index.ts:191 |
-| ✅ | PATCH | `/api/v1/users/me` | index.ts:253 |
-| ✅ | POST | `/api/v1/users/me/email/correct` | index.ts:275 |
-| ✅ | POST | `/api/v1/users/me/email/request-code` | index.ts:267 |
-| ✅ | POST | `/api/v1/users/me/email/verify` | index.ts:270 |
-| ✅ | POST | `/api/v1/users/me/password` | index.ts:256 |
-| ✅ | GET | `/api/v1/users/search` | index.ts:187 |
-| ✅ | GET | `/^\/api\/admin\/admin-logs\/\d+$/` | index.ts:804 |
-| ✅ | DELETE | `/^\/api\/admin\/announcements\/\d+$/` | index.ts:824 |
-| ✅ | GET | `/^\/api\/admin\/announcements\/\d+$/` | index.ts:818 |
-| ✅ | PATCH | `/^\/api\/admin\/announcements\/\d+$/` | index.ts:821 |
-| ✅ | DELETE | `/^\/api\/admin\/attachments\/\d+$/` | index.ts:709 |
-| ✅ | GET | `/^\/api\/admin\/attachments\/\d+$/` | index.ts:706 |
-| ✅ | DELETE | `/^\/api\/admin\/censor-words\/\d+$/` | index.ts:755 |
-| ✅ | GET | `/^\/api\/admin\/censor-words\/\d+$/` | index.ts:749 |
-| ✅ | PATCH | `/^\/api\/admin\/censor-words\/\d+$/` | index.ts:752 |
-| ✅ | DELETE | `/^\/api\/admin\/forum-thread-types\/\d+$/` | index.ts:484 |
-| ✅ | PATCH | `/^\/api\/admin\/forum-thread-types\/\d+$/` | index.ts:481 |
-| ✅ | DELETE | `/^\/api\/admin\/forums\/\d+$/` | index.ts:502 |
-| ✅ | GET | `/^\/api\/admin\/forums\/\d+$/` | index.ts:496 |
-| ✅ | PATCH | `/^\/api\/admin\/forums\/\d+$/` | index.ts:499 |
-| ✅ | POST | `/^\/api\/admin\/forums\/\d+\/merge$/` | index.ts:493 |
-| ✅ | GET | `/^\/api\/admin\/forums\/\d+\/thread-types$/` | index.ts:463 |
-| ✅ | POST | `/^\/api\/admin\/forums\/\d+\/thread-types$/` | index.ts:466 |
-| ✅ | PATCH | `/^\/api\/admin\/forums\/\d+\/thread-types-config$/` | index.ts:475 |
-| ✅ | PATCH | `/^\/api\/admin\/forums\/\d+\/thread-types\/reorder$/` | index.ts:469 |
-| ✅ | DELETE | `/^\/api\/admin\/ip-bans\/\d+$/` | index.ts:732 |
-| ✅ | GET | `/^\/api\/admin\/ip-bans\/\d+$/` | index.ts:726 |
-| ✅ | PATCH | `/^\/api\/admin\/ip-bans\/\d+$/` | index.ts:729 |
-| ✅ | DELETE | `/^\/api\/admin\/posts\/\d+$/` | index.ts:539 |
-| ✅ | GET | `/^\/api\/admin\/posts\/\d+$/` | index.ts:533 |
-| ✅ | PATCH | `/^\/api\/admin\/posts\/\d+$/` | index.ts:536 |
-| ✅ | GET | `/^\/api\/admin\/reports\/\d+$/` | index.ts:793 |
-| ✅ | PATCH | `/^\/api\/admin\/reports\/\d+$/` | index.ts:796 |
-| ✅ | GET | `/^\/api\/admin\/statistics\/job\/[a-z-]+$/` | index.ts:601 |
-| ✅ | DELETE | `/^\/api\/admin\/threads\/\d+$/` | index.ts:522 |
-| ✅ | GET | `/^\/api\/admin\/threads\/\d+$/` | index.ts:516 |
-| ✅ | PATCH | `/^\/api\/admin\/threads\/\d+$/` | index.ts:519 |
-| ✅ | GET | `/^\/api\/admin\/users\/\d+$/` | index.ts:577 |
-| ✅ | PATCH | `/^\/api\/admin\/users\/\d+$/` | index.ts:580 |
-| ✅ | POST | `/^\/api\/admin\/users\/\d+\/ban$/` | index.ts:562 |
-| ✅ | GET | `/^\/api\/admin\/users\/\d+\/checkins$/` | index.ts:831 |
-| ✅ | PATCH | `/^\/api\/admin\/users\/\d+\/checkins\/[^/]+$/` | index.ts:840 |
-| ✅ | PATCH | `/^\/api\/admin\/users\/\d+\/checkins\/streak$/` | index.ts:834 |
-| ✅ | POST | `/^\/api\/admin\/users\/\d+\/nuke$/` | index.ts:568 |
-| ✅ | POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:571 |
-| ✅ | POST | `/^\/api\/admin\/users\/\d+\/recalc-counters$/` | index.ts:574 |
-| ✅ | POST | `/^\/api\/admin\/users\/\d+\/unban$/` | index.ts:565 |
-| ✅ | GET | `/^\/api\/v1\/forums\/\d+$/` | index.ts:132 |
-| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/ancestors$/` | index.ts:109 |
-| ✅ | PATCH | `/^\/api\/v1\/forums\/\d+\/announcement$/` | index.ts:119 |
-| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/recommended-threads$/` | index.ts:125 |
-| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/thread-types$/` | index.ts:114 |
-| ✅ | DELETE | `/^\/api\/v1\/me\/posts\/\d+$/` | index.ts:433 |
-| ✅ | PATCH | `/^\/api\/v1\/me\/posts\/\d+$/` | index.ts:439 |
-| ✅ | DELETE | `/^\/api\/v1\/me\/threads\/\d+$/` | index.ts:436 |
-| ✅ | DELETE | `/^\/api\/v1\/messages\/\d+$/` | index.ts:295 |
-| ✅ | GET | `/^\/api\/v1\/messages\/\d+$/` | index.ts:289 |
-| ✅ | DELETE | `/^\/api\/v1\/moderation\/posts\/\d+$/` | index.ts:399 |
-| ✅ | PATCH | `/^\/api\/v1\/moderation\/posts\/\d+$/` | index.ts:402 |
-| ✅ | DELETE | `/^\/api\/v1\/moderation\/threads\/\d+$/` | index.ts:396 |
-| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/close$/` | index.ts:364 |
-| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/digest$/` | index.ts:358 |
-| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/highlight$/` | index.ts:373 |
-| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/move$/` | index.ts:370 |
-| ✅ | DELETE | `/^\/api\/v1\/moderation\/threads\/\d+\/recommend$/` | index.ts:390 |
-| ✅ | POST | `/^\/api\/v1\/moderation\/threads\/\d+\/recommend$/` | index.ts:384 |
-| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/sticky$/` | index.ts:352 |
-| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/ban$/` | index.ts:422 |
-| ✅ | GET | `/^\/api\/v1\/moderation\/users\/\d+\/ip-records$/` | index.ts:410 |
-| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/mute$/` | index.ts:416 |
-| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/nuke$/` | index.ts:428 |
-| ✅ | GET | `/^\/api\/v1\/moderation\/users\/\d+\/status$/` | index.ts:407 |
-| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unban$/` | index.ts:425 |
-| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unmute$/` | index.ts:419 |
-| ✅ | GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:346 |
-| ✅ | GET | `/^\/api\/v1\/posts\/\d+$/` | index.ts:160 |
-| ✅ | GET | `/^\/api\/v1\/posts\/\d+\/attachments$/` | index.ts:163 |
-| ✅ | POST | `/^\/api\/v1\/posts\/\d+\/rate$/` | index.ts:146 |
-| ✅ | GET | `/^\/api\/v1\/posts\/\d+\/ratings$/` | index.ts:150 |
-| ✅ | POST | `/^\/api\/v1\/posts\/\d+\/ratings\/\d+\/revoke$/` | index.ts:154 |
-| ✅ | GET | `/^\/api\/v1\/threads\/\d+$/` | index.ts:138 |
-| ❌ | PATCH | `/^\/api\/v1\/threads\/\d+$/` | index.ts:447 |
-| ✅ | GET | `/^\/api\/v1\/users\/\d+$/` | index.ts:170 |
-| ✅ | GET | `/^\/api\/v1\/users\/\d+\/avatar-path$/` | index.ts:173 |
-| ✅ | GET | `/^\/api\/v1\/users\/\d+\/digest$/` | index.ts:182 |
-| ✅ | GET | `/^\/api\/v1\/users\/\d+\/posts$/` | index.ts:179 |
-| ✅ | GET | `/^\/api\/v1\/users\/\d+\/threads$/` | index.ts:176 |
+| ✅ | GET | `/api/admin/admin-logs` | index.ts:822 |
+| ✅ | GET | `/api/admin/analytics/checkin` | index.ts:629 |
+| ✅ | GET | `/api/admin/analytics/forum-dist` | index.ts:626 |
+| ✅ | GET | `/api/admin/analytics/overview` | index.ts:620 |
+| ✅ | GET | `/api/admin/analytics/today/logins` | index.ts:645 |
+| ✅ | GET | `/api/admin/analytics/today/logins/list` | index.ts:652 |
+| ✅ | GET | `/api/admin/analytics/today/visits` | index.ts:664 |
+| ✅ | GET | `/api/admin/analytics/today/visits/list` | index.ts:671 |
+| ✅ | GET | `/api/admin/analytics/trend` | index.ts:623 |
+| ✅ | GET | `/api/admin/announcements` | index.ts:833 |
+| ✅ | POST | `/api/admin/announcements` | index.ts:836 |
+| ✅ | POST | `/api/admin/announcements/batch-delete` | index.ts:830 |
+| ✅ | GET | `/api/admin/attachments` | index.ts:724 |
+| ✅ | POST | `/api/admin/attachments/batch-delete` | index.ts:721 |
+| ✅ | GET | `/api/admin/censor-words` | index.ts:764 |
+| ✅ | POST | `/api/admin/censor-words` | index.ts:767 |
+| ✅ | POST | `/api/admin/censor-words/batch-delete` | index.ts:761 |
+| ✅ | POST | `/api/admin/censor-words/test` | index.ts:758 |
+| ✅ | GET | `/api/admin/forums` | index.ts:496 |
+| ✅ | POST | `/api/admin/forums` | index.ts:499 |
+| ✅ | POST | `/api/admin/forums/reorder` | index.ts:466 |
+| ✅ | GET | `/api/admin/ip-bans` | index.ts:741 |
+| ✅ | POST | `/api/admin/ip-bans` | index.ts:744 |
+| ✅ | POST | `/api/admin/ip-bans/batch-delete` | index.ts:738 |
+| ✅ | GET | `/api/admin/ip-bans/check-ip` | index.ts:735 |
+| ✅ | GET | `/api/admin/ip-lookup` | index.ts:716 |
+| ✅ | POST | `/api/admin/kv/delete` | index.ts:699 |
+| ✅ | GET | `/api/admin/kv/get` | index.ts:690 |
+| ✅ | GET | `/api/admin/kv/inspect` | index.ts:693 |
+| ✅ | GET | `/api/admin/kv/list` | index.ts:687 |
+| ✅ | GET | `/api/admin/kv/metrics` | index.ts:708 |
+| ✅ | GET | `/api/admin/kv/operations` | index.ts:702 |
+| ✅ | GET | `/api/admin/kv/overview` | index.ts:684 |
+| ✅ | POST | `/api/admin/kv/rebuild` | index.ts:696 |
+| ✅ | POST | `/api/admin/kv/refresh` | index.ts:705 |
+| ✅ | GET | `/api/admin/posts` | index.ts:539 |
+| ✅ | POST | `/api/admin/posts/batch-delete` | index.ts:536 |
+| ✅ | GET | `/api/admin/reports` | index.ts:811 |
+| ✅ | POST | `/api/admin/reports/batch-delete` | index.ts:808 |
+| ✅ | GET | `/api/admin/settings` | index.ts:786 |
+| ✅ | PUT | `/api/admin/settings` | index.ts:789 |
+| ✅ | POST | `/api/admin/statistics/recalc-forums` | index.ts:594 |
+| ✅ | POST | `/api/admin/statistics/recalc-post-forums` | index.ts:603 |
+| ✅ | POST | `/api/admin/statistics/recalc-threads` | index.ts:597 |
+| ✅ | POST | `/api/admin/statistics/recalc-users` | index.ts:600 |
+| ✅ | GET | `/api/admin/stats` | index.ts:781 |
+| ✅ | GET | `/api/admin/stats/calibrate` | index.ts:794 |
+| ✅ | POST | `/api/admin/stats/calibrate` | index.ts:800 |
+| ✅ | GET | `/api/admin/threads` | index.ts:522 |
+| ✅ | POST | `/api/admin/threads/batch-delete` | index.ts:516 |
+| ✅ | POST | `/api/admin/threads/batch-move` | index.ts:519 |
+| ✅ | GET | `/api/admin/users` | index.ts:568 |
+| ✅ | GET | `/api/admin/users/batch` | index.ts:553 |
+| ✅ | POST | `/api/admin/users/batch-recalc-counters` | index.ts:562 |
+| ✅ | POST | `/api/admin/users/batch-role` | index.ts:559 |
+| ✅ | POST | `/api/admin/users/batch-status` | index.ts:556 |
+| ✅ | GET | `/api/admin/users/staff` | index.ts:565 |
+| ✅ | POST | `/api/internal/analytics/ingest` | index.ts:92 |
+| ✅ | GET | `/api/live` | index.ts:80 |
+| ✅ | GET | `/api/v1/auth/check-username` | index.ts:249 |
+| ✅ | POST | `/api/v1/auth/login` | index.ts:234 |
+| ✅ | DELETE | `/api/v1/auth/logout` | index.ts:240 |
+| ✅ | GET | `/api/v1/auth/me` | index.ts:243 |
+| ✅ | POST | `/api/v1/auth/refresh` | index.ts:237 |
+| ✅ | POST | `/api/v1/auth/register` | index.ts:246 |
+| ✅ | POST | `/api/v1/checkin` | index.ts:331 |
+| ✅ | GET | `/api/v1/checkin/status` | index.ts:328 |
+| ✅ | GET | `/api/v1/digest` | index.ts:210 |
+| ✅ | GET | `/api/v1/digest/filters` | index.ts:216 |
+| ✅ | GET | `/api/v1/digest/stats` | index.ts:213 |
+| ✅ | GET | `/api/v1/forums` | index.ts:113 |
+| ✅ | GET | `/api/v1/messages` | index.ts:289 |
+| ✅ | POST | `/api/v1/messages` | index.ts:301 |
+| ✅ | POST | `/api/v1/messages/mark-all-read` | index.ts:295 |
+| ✅ | GET | `/api/v1/messages/unread-count` | index.ts:292 |
+| ✅ | GET | `/api/v1/post-comments` | index.ts:312 |
+| ✅ | POST | `/api/v1/post-comments` | index.ts:315 |
+| ✅ | POST | `/api/v1/post-comments/batch` | index.ts:309 |
+| ✅ | GET | `/api/v1/posting-permission` | index.ts:323 |
+| ✅ | GET | `/api/v1/posts` | index.ts:150 |
+| ✅ | POST | `/api/v1/posts` | index.ts:257 |
+| ✅ | POST | `/api/v1/posts/attachments/batch` | index.ts:176 |
+| ✅ | POST | `/api/v1/reports` | index.ts:320 |
+| ✅ | GET | `/api/v1/search/threads` | index.ts:205 |
+| ✅ | GET | `/api/v1/settings` | index.ts:226 |
+| ✅ | GET | `/api/v1/stats` | index.ts:221 |
+| ✅ | GET | `/api/v1/threads` | index.ts:144 |
+| ✅ | POST | `/api/v1/threads` | index.ts:254 |
+| ✅ | POST | `/api/v1/upload` | index.ts:336 |
+| ✅ | GET | `/api/v1/users/batch` | index.ts:200 |
+| ✅ | PATCH | `/api/v1/users/me` | index.ts:262 |
+| ✅ | POST | `/api/v1/users/me/email/correct` | index.ts:284 |
+| ✅ | POST | `/api/v1/users/me/email/request-code` | index.ts:276 |
+| ✅ | POST | `/api/v1/users/me/email/verify` | index.ts:279 |
+| ✅ | POST | `/api/v1/users/me/password` | index.ts:265 |
+| ✅ | GET | `/api/v1/users/search` | index.ts:196 |
+| ✅ | GET | `/^\/api\/admin\/admin-logs\/\d+$/` | index.ts:825 |
+| ✅ | DELETE | `/^\/api\/admin\/announcements\/\d+$/` | index.ts:845 |
+| ✅ | GET | `/^\/api\/admin\/announcements\/\d+$/` | index.ts:839 |
+| ✅ | PATCH | `/^\/api\/admin\/announcements\/\d+$/` | index.ts:842 |
+| ✅ | DELETE | `/^\/api\/admin\/attachments\/\d+$/` | index.ts:730 |
+| ✅ | GET | `/^\/api\/admin\/attachments\/\d+$/` | index.ts:727 |
+| ✅ | DELETE | `/^\/api\/admin\/censor-words\/\d+$/` | index.ts:776 |
+| ✅ | GET | `/^\/api\/admin\/censor-words\/\d+$/` | index.ts:770 |
+| ✅ | PATCH | `/^\/api\/admin\/censor-words\/\d+$/` | index.ts:773 |
+| ✅ | DELETE | `/^\/api\/admin\/forum-thread-types\/\d+$/` | index.ts:493 |
+| ✅ | PATCH | `/^\/api\/admin\/forum-thread-types\/\d+$/` | index.ts:490 |
+| ✅ | DELETE | `/^\/api\/admin\/forums\/\d+$/` | index.ts:511 |
+| ✅ | GET | `/^\/api\/admin\/forums\/\d+$/` | index.ts:505 |
+| ✅ | PATCH | `/^\/api\/admin\/forums\/\d+$/` | index.ts:508 |
+| ✅ | POST | `/^\/api\/admin\/forums\/\d+\/merge$/` | index.ts:502 |
+| ✅ | GET | `/^\/api\/admin\/forums\/\d+\/thread-types$/` | index.ts:472 |
+| ✅ | POST | `/^\/api\/admin\/forums\/\d+\/thread-types$/` | index.ts:475 |
+| ✅ | PATCH | `/^\/api\/admin\/forums\/\d+\/thread-types-config$/` | index.ts:484 |
+| ✅ | PATCH | `/^\/api\/admin\/forums\/\d+\/thread-types\/reorder$/` | index.ts:478 |
+| ✅ | DELETE | `/^\/api\/admin\/ip-bans\/\d+$/` | index.ts:753 |
+| ✅ | GET | `/^\/api\/admin\/ip-bans\/\d+$/` | index.ts:747 |
+| ✅ | PATCH | `/^\/api\/admin\/ip-bans\/\d+$/` | index.ts:750 |
+| ✅ | DELETE | `/^\/api\/admin\/posts\/\d+$/` | index.ts:548 |
+| ✅ | GET | `/^\/api\/admin\/posts\/\d+$/` | index.ts:542 |
+| ✅ | PATCH | `/^\/api\/admin\/posts\/\d+$/` | index.ts:545 |
+| ✅ | GET | `/^\/api\/admin\/reports\/\d+$/` | index.ts:814 |
+| ✅ | PATCH | `/^\/api\/admin\/reports\/\d+$/` | index.ts:817 |
+| ✅ | GET | `/^\/api\/admin\/statistics\/job\/[a-z-]+$/` | index.ts:610 |
+| ✅ | DELETE | `/^\/api\/admin\/threads\/\d+$/` | index.ts:531 |
+| ✅ | GET | `/^\/api\/admin\/threads\/\d+$/` | index.ts:525 |
+| ✅ | PATCH | `/^\/api\/admin\/threads\/\d+$/` | index.ts:528 |
+| ✅ | GET | `/^\/api\/admin\/users\/\d+$/` | index.ts:586 |
+| ✅ | PATCH | `/^\/api\/admin\/users\/\d+$/` | index.ts:589 |
+| ✅ | POST | `/^\/api\/admin\/users\/\d+\/ban$/` | index.ts:571 |
+| ✅ | GET | `/^\/api\/admin\/users\/\d+\/checkins$/` | index.ts:852 |
+| ✅ | PATCH | `/^\/api\/admin\/users\/\d+\/checkins\/[^/]+$/` | index.ts:861 |
+| ✅ | PATCH | `/^\/api\/admin\/users\/\d+\/checkins\/streak$/` | index.ts:855 |
+| ✅ | POST | `/^\/api\/admin\/users\/\d+\/nuke$/` | index.ts:577 |
+| ✅ | POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:580 |
+| ✅ | POST | `/^\/api\/admin\/users\/\d+\/recalc-counters$/` | index.ts:583 |
+| ✅ | POST | `/^\/api\/admin\/users\/\d+\/unban$/` | index.ts:574 |
+| ✅ | GET | `/^\/api\/v1\/forums\/\d+$/` | index.ts:141 |
+| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/ancestors$/` | index.ts:118 |
+| ✅ | PATCH | `/^\/api\/v1\/forums\/\d+\/announcement$/` | index.ts:128 |
+| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/recommended-threads$/` | index.ts:134 |
+| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/thread-types$/` | index.ts:123 |
+| ✅ | DELETE | `/^\/api\/v1\/me\/posts\/\d+$/` | index.ts:442 |
+| ✅ | PATCH | `/^\/api\/v1\/me\/posts\/\d+$/` | index.ts:448 |
+| ✅ | DELETE | `/^\/api\/v1\/me\/threads\/\d+$/` | index.ts:445 |
+| ✅ | DELETE | `/^\/api\/v1\/messages\/\d+$/` | index.ts:304 |
+| ✅ | GET | `/^\/api\/v1\/messages\/\d+$/` | index.ts:298 |
+| ✅ | DELETE | `/^\/api\/v1\/moderation\/posts\/\d+$/` | index.ts:408 |
+| ✅ | PATCH | `/^\/api\/v1\/moderation\/posts\/\d+$/` | index.ts:411 |
+| ✅ | DELETE | `/^\/api\/v1\/moderation\/threads\/\d+$/` | index.ts:405 |
+| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/close$/` | index.ts:373 |
+| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/digest$/` | index.ts:367 |
+| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/highlight$/` | index.ts:382 |
+| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/move$/` | index.ts:379 |
+| ✅ | DELETE | `/^\/api\/v1\/moderation\/threads\/\d+\/recommend$/` | index.ts:399 |
+| ✅ | POST | `/^\/api\/v1\/moderation\/threads\/\d+\/recommend$/` | index.ts:393 |
+| ✅ | PATCH | `/^\/api\/v1\/moderation\/threads\/\d+\/sticky$/` | index.ts:361 |
+| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/ban$/` | index.ts:431 |
+| ✅ | GET | `/^\/api\/v1\/moderation\/users\/\d+\/ip-records$/` | index.ts:419 |
+| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/mute$/` | index.ts:425 |
+| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/nuke$/` | index.ts:437 |
+| ✅ | GET | `/^\/api\/v1\/moderation\/users\/\d+\/status$/` | index.ts:416 |
+| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unban$/` | index.ts:434 |
+| ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unmute$/` | index.ts:428 |
+| ✅ | GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:355 |
+| ✅ | GET | `/^\/api\/v1\/posts\/\d+$/` | index.ts:169 |
+| ✅ | GET | `/^\/api\/v1\/posts\/\d+\/attachments$/` | index.ts:172 |
+| ✅ | POST | `/^\/api\/v1\/posts\/\d+\/rate$/` | index.ts:155 |
+| ✅ | GET | `/^\/api\/v1\/posts\/\d+\/ratings$/` | index.ts:159 |
+| ✅ | POST | `/^\/api\/v1\/posts\/\d+\/ratings\/\d+\/revoke$/` | index.ts:163 |
+| ✅ | GET | `/^\/api\/v1\/threads\/\d+$/` | index.ts:147 |
+| ✅ | PATCH | `/^\/api\/v1\/threads\/\d+$/` | index.ts:456 |
+| ✅ | GET | `/^\/api\/v1\/users\/\d+$/` | index.ts:179 |
+| ✅ | GET | `/^\/api\/v1\/users\/\d+\/avatar-path$/` | index.ts:182 |
+| ✅ | GET | `/^\/api\/v1\/users\/\d+\/digest$/` | index.ts:191 |
+| ✅ | GET | `/^\/api\/v1\/users\/\d+\/posts$/` | index.ts:188 |
+| ✅ | GET | `/^\/api\/v1\/users\/\d+\/threads$/` | index.ts:185 |
 
 ## 5. Uncovered queue (Phase 4 backlog)
 
-| Method | Pattern | Source line |
-|---|---|---|
-| PATCH | `/^\/api\/v1\/threads\/\d+$/` | index.ts:447 |
-| GET | `/api/admin/stats/calibrate` | index.ts:773 |
-| POST | `/api/admin/stats/calibrate` | index.ts:779 |
+_All routes covered._ 🎉
 
 ## 6. Unmatched L2 calls
 
@@ -263,3 +269,12 @@ count usually means the router file changed shape and this script
 needs a new parser branch (or a test points at a stale URL).
 
 _None._
+
+## 7. Negative auth probes
+
+These middleware assertions are not endpoint coverage or route exemptions.
+
+| Method | Path | Test file:line |
+|---|---|---|
+| GET | `/foo/bar` | tests/integration/fast/api-key.fast.test.ts:82 |
+| GET | `/foo/bar` | tests/integration/fast/api-key.fast.test.ts:91 |

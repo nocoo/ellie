@@ -816,41 +816,9 @@ LIMIT 20;
 
 ### 缓存架构
 
-```
-Request → Cloudflare Worker (Smart Placement enabled)
-  │
-  ├─ Cache API (edge, per-PoP)
-  │   ├─ Forum list ────────── TTL 5 min, invalidate on admin change
-  │   ├─ Thread list pages ─── TTL 1 min, invalidate on new thread/reply
-  │   └─ Thread view pages ─── TTL 1 min, invalidate on new reply
-  │
-  ├─ Workers KV (global, eventually consistent)
-  │   ├─ Homepage hot threads ─ TTL 30-60s
-  │   ├─ User sessions ──────── TTL 24h
-  │   └─ Forum metadata ─────── TTL 5 min
-  │
-  ├─ D1 (single database, read replication enabled)
-  │   ├─ Sessions API: "first-unconstrained" for reads (hit nearest replica)
-  │   └─ Sessions API: "first-primary" for post-write reads (consistency)
-  │
-  ├─ R2 (object storage)
-  │   ├─ Attachments (forum files)
-  │   └─ Avatars (user profile images)
-  │
-  └─ Queues (async write buffer)
-      ├─ View count batching ── aggregate, flush to D1 every N seconds
-      └─ Search index updates ─ rebuild embeddings on new content
-```
+业务缓存的唯一目标方案见 [20 · 统一缓存模块目标设计](20-worker-kv-reference.md)。Worker 统一管理 KV 中的业务快照，TTL 仅为 60 秒、30 分钟、24 小时；D1 承担未命中装载、权威校验和业务写入。该目标尚未全部实施。
 
-**各层用途说明：**
-
-| Layer | Latency | Use Case |
-|-------|---------|----------|
-| Cache API | <1 ms（边缘命中） | TTL 窗口内的相同页面请求 |
-| KV | ~10 ms（全球） | 跨页面共享数据（会话、热门内容） |
-| D1 replica | ~5-50 ms | 缓存未命中时的 SQL 查询，就近区域 |
-| D1 primary | ~20-100 ms | 写入和写后读 |
-| R2 | ~50-200 ms | 二进制文件（通过 CDN 缓存重复访问） |
+缓存命中应减少正文与集合查询；分页与索引优化仍决定未命中时的成本。验收同时比较 D1 查询次数、读取行数、写入行数，并计入指标、鉴权和浏览量产生的访问。会话属于运行状态，R2 文件使用独立的 HTTP/CDN 资源缓存规则。
 
 ### D1 读副本
 

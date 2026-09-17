@@ -114,20 +114,23 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 		expect(res.status).toBe(403);
 	});
 
-	it("should return 400 for invalid level", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: { ...mockAuthUser(1) }, // DB confirms Admin role
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
-			level: "invalid",
-		});
-		const res = await setSticky(req, env);
-		expect(res.status).toBe(400);
-		const data = await res.json();
-		expect(data.error.code).toBe("INVALID_BODY");
-	});
+	it.each(["invalid", "constructor", "__proto__", "toString"])(
+		"should return 400 for invalid level %s",
+		async (level) => {
+			const token = await makeModToken(1);
+			const { db } = createMockDb({
+				firstResults: { ...mockAuthUser(1) }, // DB confirms Admin role
+			});
+			const env = makeEnv({ DB: db });
+			const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
+				level,
+			});
+			const res = await setSticky(req, env);
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_BODY");
+		},
+	);
 
 	it("should return 404 when thread not found", async () => {
 		const token = await makeModToken(1);
@@ -453,7 +456,11 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 2, replies: 5 },
+				"SELECT id, forum_id, replies, sticky, digest FROM threads": {
+					id: 1,
+					forum_id: 2,
+					replies: 5,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -471,7 +478,11 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 3 },
+				"SELECT id, forum_id, replies, sticky, digest FROM threads": {
+					id: 1,
+					forum_id: 1,
+					replies: 3,
+				},
 				// "SELECT id FROM forums" returns null (not found)
 			},
 		});
@@ -490,7 +501,11 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		const { db, batchCalls, calls } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 5 },
+				"SELECT id, forum_id, replies, sticky, digest FROM threads": {
+					id: 1,
+					forum_id: 1,
+					replies: 5,
+				},
 				"SELECT id FROM forums WHERE id": { id: 2 },
 			},
 		});
@@ -523,7 +538,11 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 2, "supermod"),
-				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 5 },
+				"SELECT id, forum_id, replies, sticky, digest FROM threads": {
+					id: 1,
+					forum_id: 1,
+					replies: 5,
+				},
 				"SELECT id FROM forums WHERE id": { id: 2 },
 			},
 		});
@@ -1118,7 +1137,7 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 				},
 			},
 			allResults: {
-				"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
+				"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [],
 				"SELECT forum_id, COUNT": [],
 				"SELECT thread_id, COUNT": [],
 			},
@@ -1151,13 +1170,14 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 					status: 0,
 					role: 0,
 				},
-				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
+				"SELECT COUNT(*) as cnt, json_group_array(DISTINCT post_id) as post_ids FROM attachments WHERE author_id":
+					{ cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, digest FROM threads WHERE author_id": [
+				"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
 					{ id: 30, forum_id: 1, replies: 1, digest: 0 },
 				],
-				"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+				"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [
 					{ id: 80, thread_id: 30, forum_id: 1, author_id: 10 },
 					{ id: 81, thread_id: 40, forum_id: 1, author_id: 10 },
 				],
@@ -1250,11 +1270,12 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 					status: 0,
 					role: 0,
 				},
-				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 500 },
+				"SELECT COUNT(*) as cnt, json_group_array(DISTINCT post_id) as post_ids FROM attachments WHERE author_id":
+					{ cnt: 500 },
 			},
 			allResults: {
-				"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
-				"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": postRows,
+				"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": threadRows,
+				"SELECT p.id, p.thread_id, p.forum_id, p.author_id": postRows,
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -1280,14 +1301,14 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		// Collateral author query must use subquery, not expanded IN(...)
 		const collateralQuery = calls.find(
 			(c) =>
-				c.sql.includes("SELECT id, thread_id, forum_id, author_id FROM posts") &&
+				c.sql.includes("SELECT p.id, p.thread_id, p.forum_id, p.author_id") &&
 				c.sql.includes("thread_id IN (SELECT"),
 		);
 		expect(collateralQuery).toBeDefined();
 		// Must NOT have an expanded IN with literal placeholders
 		const expandedCollateral = calls.find(
 			(c) =>
-				c.sql.includes("SELECT id, thread_id, forum_id, author_id FROM posts") &&
+				c.sql.includes("SELECT p.id, p.thread_id, p.forum_id, p.author_id") &&
 				c.sql.includes("thread_id IN (?") &&
 				!c.sql.includes("SELECT id FROM threads"),
 		);
@@ -1882,7 +1903,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockAuthUser(1),
-				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1903,7 +1924,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(3, 2);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1926,7 +1947,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(1);
 		const { db, batchCalls } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1960,7 +1981,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(3, 10); // Mod, userId=10, same as author
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1986,7 +2007,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(1);
 		const { db, calls } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -2104,14 +2125,20 @@ describe("PATCH /api/v1/moderation/posts/:id (editPost)", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockAuthUser(1),
-				"SELECT id, author_id, forum_id FROM posts": { id: 1, authorId: 10, forumId: 1 },
+				"SELECT id, author_id, forum_id, thread_id, is_first FROM posts": {
+					id: 1,
+					author_id: 10,
+					forum_id: 1,
+					thread_id: 1,
+					is_first: 0,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/posts/1", token, { content: "updated" });
 		const res = await editPost(req, env);
-		// getPostForPermission uses different query key
-		expect(res.status).toBe(404);
+		// The post exists, but the current permission user/forum could not be loaded.
+		expect(res.status).toBe(500);
 	});
 
 	it("should return 403 for user without edit permission", async () => {
@@ -2474,10 +2501,11 @@ describe("nukeUser — atomic batch failures", () => {
 					status: 0,
 					role: 0,
 				},
-				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
+				"SELECT COUNT(*) as cnt, json_group_array(DISTINCT post_id) as post_ids FROM attachments WHERE author_id":
+					{ cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, digest FROM threads WHERE author_id": [
+				"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
 					{ id: 100, forum_id: 1, replies: 2, digest: 0 },
 				],
 				"SELECT forum_id, COUNT": [{ forum_id: 1, cnt: 1 }],
@@ -2485,7 +2513,7 @@ describe("nukeUser — atomic batch failures", () => {
 				"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [],
 			},
 		});
-		// Override batch to throw on the first call (the 7-stmt atomic delete batch)
+		// Fail the ownership snapshot before any destructive writes.
 		db.batch = vi.fn(async () => {
 			batchCallCount++;
 			if (batchCallCount === 1) {
@@ -2563,14 +2591,17 @@ describe("nukeUser — edge cases", () => {
 					status: 0,
 					role: 0,
 				},
-				"SELECT COUNT(*) as cnt FROM attachments": { cnt: 3 },
+				"SELECT COUNT(*) as cnt, json_group_array(DISTINCT post_id) as post_ids FROM attachments": {
+					cnt: 3,
+					post_ids: "[1,2]",
+				},
 			},
 			allResults: {
-				"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+				"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [
 					{ id: 1, thread_id: 100, forum_id: 1, author_id: 20 },
 					{ id: 2, thread_id: 200, forum_id: 3, author_id: 10 },
 				],
-				"SELECT id, forum_id, digest FROM threads WHERE author_id": [
+				"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
 					{ id: 100, forum_id: 1, replies: 2 },
 					{ id: 101, forum_id: 2, replies: 0 },
 				],

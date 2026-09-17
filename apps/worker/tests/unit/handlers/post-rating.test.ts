@@ -710,6 +710,7 @@ function buildListEnv(opts: BuildListEnvOpts = {}) {
 		firstResults,
 		allResults: {
 			"WHERE post_id = ? AND revoked_at = 0": rows,
+			"GROUP BY post_id": [{ post_id: 5, ...aggregate }],
 		},
 	});
 	return { env: makeEnv({ DB: db }), calls };

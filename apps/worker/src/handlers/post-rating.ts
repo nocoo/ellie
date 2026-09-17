@@ -1,3 +1,4 @@
+import { invalidateMessageUsers } from "../lib/cache/invalidate";
 // Post rating (评分) handlers for Cloudflare Worker.
 //
 // Phase 2 (docs/22-post-rating.md §6.2): create-rating endpoint.
@@ -23,17 +24,18 @@ import {
 	ratingKeyToDimension,
 	type UserRole,
 } from "@ellie/types";
+import {
+	getRatingAggregates,
+	getRatingRows,
+	threadAccessStatus,
+	validReadingId,
+} from "../lib/cache/thread-loaders";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import {
-	buildVisibilityContext,
-	canReadThreadContent,
-	canViewModeratedThread,
-	isForumActive,
-	STICKY_MODERATED,
-} from "../lib/visibility";
+import { getUserProfiles } from "../lib/user-cache";
+import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -561,6 +563,8 @@ async function createRating(
 		throw err;
 	}
 
+	if (batchResults.length !== statements.length || batchResults.some((result) => !result.success))
+		throw new Error("Rating write was not confirmed");
 	const ratingInsertMeta = batchResults[0]?.meta as
 		| { changes?: number; last_row_id?: number }
 		| undefined;
@@ -573,6 +577,8 @@ async function createRating(
 		);
 	}
 
+	if (parsed.notifyAuthor && (batchResults[2]?.meta.changes ?? 0) > 0)
+		await invalidateMessageUsers(env, [user.userId, postRow.author_id]);
 	const ratingId = ratingInsertMeta.last_row_id ?? 0;
 
 	const created: PostRatingRow = toPostRatingRow(
@@ -604,10 +610,8 @@ const POST_CHAIN_SQL = `SELECT
 	p.id            AS post_id,
 	p.thread_id     AS thread_id,
 	p.author_id     AS author_id,
-	p.author_name   AS author_name,
 	p.invisible     AS invisible,
 	p.anonymous     AS anonymous,
-	t.subject       AS thread_subject,
 	t.sticky        AS sticky,
 	t.author_id     AS thread_author_id,
 	t.forum_id      AS forum_id,
@@ -633,38 +637,26 @@ function rejectListVisibility(
 	if (postRow.invisible !== 0 || postRow.author_id === 0 || postRow.anonymous === 1) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
-	if (postRow.sticky < 0 && postRow.sticky !== STICKY_MODERATED) {
+	const access = threadAccessStatus(
+		{
+			status: postRow.forum_status,
+			visibility: postRow.forum_visibility,
+			sticky: postRow.sticky,
+			author_id: postRow.thread_author_id,
+			moderator_ids: postRow.forum_moderator_ids,
+		},
+		user,
+	);
+	if (access === 404) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
-	if (!isForumActive({ status: postRow.forum_status })) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-	if (postRow.sticky === STICKY_MODERATED) {
-		if (
-			!canViewModeratedThread({
-				authorId: postRow.thread_author_id,
-				forumModeratorIds: postRow.forum_moderator_ids ?? "",
-				user,
-			})
-		) {
-			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-		}
-	} else {
-		const visCtx = buildVisibilityContext(user);
-		if (
-			!canReadThreadContent({
-				sticky: postRow.sticky,
-				forumVisibility: postRow.forum_visibility as ForumVisibility,
-				visCtx,
-			})
-		) {
-			return errorResponse(
-				"FORBIDDEN",
-				403,
-				{ message: "You don't have access to this content" },
-				origin,
-			);
-		}
+	if (access === 403) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
 	}
 	return null;
 }
@@ -679,7 +671,11 @@ function rejectListVisibility(
  * Visibility gating matches the comments/post-by-id endpoints — see
  * {@link rejectListVisibility}; 404 hides the existence of invisible/hidden posts.
  */
-export async function listByPost(request: Request, env: Env): Promise<Response> {
+export async function listByPost(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const match = url.pathname.match(/^\/api\/v1\/posts\/(\d+)\/ratings$/);
@@ -687,7 +683,7 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid path" }, origin);
 	}
 	const postId = Number.parseInt(match[1] ?? "", 10);
-	if (!Number.isFinite(postId) || postId <= 0) {
+	if (!validReadingId(postId)) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid postId" }, origin);
 	}
 
@@ -701,21 +697,15 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 	// Non-null after `rejectListVisibility` short-circuited.
 	const chain = postRow as PostChainRow;
 
-	// Active rows only; default 200-row limit is enough for a single post.
-	const rowsResult = await env.DB.prepare(
-		`SELECT id, post_id, thread_id, rater_id, rater_name, dimension, score, reason, created_at, revoked_at
-		 FROM post_ratings
-		 WHERE post_id = ? AND revoked_at = 0
-		 ORDER BY created_at DESC
-		 LIMIT 200`,
-	)
-		.bind(postId)
-		.all();
+	const [rows, aggregates] = await Promise.all([
+		getRatingRows(env, ctx, postId),
+		getRatingAggregates(env, ctx, [postId]),
+	]);
 
 	const viewerRole = (user?.role ?? null) as UserRole | null;
-	const items = rowsResult.results.map((raw) =>
+	const items = rows.map((raw) =>
 		toPostRatingRow(
-			raw as unknown as {
+			raw as {
 				id: number;
 				post_id: number;
 				thread_id: number;
@@ -731,7 +721,13 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		),
 	);
 
-	const aggregate = await loadAggregate(env, postId);
+	const profiles = await getUserProfiles(
+		env,
+		ctx,
+		items.map((item) => item.raterId),
+	);
+	for (const item of items) item.raterName = profiles.get(item.raterId)?.username ?? item.raterName;
+	const aggregate = aggregates.get(postId) ?? EMPTY_RATING_AGGREGATE;
 	const payload: PostRatingsResponse = {
 		postId,
 		threadId: chain.thread_id,
@@ -837,6 +833,8 @@ async function revokeRating(
 	).bind(row.score, row.author_id, ratingId, now, user.userId);
 
 	const batchResults = await env.DB.batch([updateRating, refundAuthor]);
+	if (batchResults.length !== 2 || batchResults.some((result) => !result.success))
+		throw new Error("Rating revocation was not confirmed");
 	const updateMeta = batchResults[0]?.meta as { changes?: number } | undefined;
 	if (!updateMeta || (updateMeta.changes ?? 0) === 0) {
 		// Lost the race — somebody else revoked between our SELECT and UPDATE.
@@ -871,47 +869,19 @@ async function revokeRating(
 export async function loadAggregatesForPosts(
 	env: Env,
 	postIds: number[],
+	ctx?: ExecutionContext,
 ): Promise<Map<number, PostRatingAggregate>> {
-	const map = new Map<number, PostRatingAggregate>();
-	if (postIds.length === 0) return map;
-
-	const placeholders = postIds.map(() => "?").join(",");
-	const result = await env.DB.prepare(
-		`SELECT
-			post_id,
-			COUNT(*) AS total,
-			COALESCE(SUM(CASE WHEN dimension = 1 THEN 1 ELSE 0 END), 0) AS credits_count,
-			COALESCE(SUM(CASE WHEN dimension = 1 THEN score ELSE 0 END), 0) AS credits_sum,
-			COALESCE(SUM(CASE WHEN dimension = 2 THEN 1 ELSE 0 END), 0) AS coins_count,
-			COALESCE(SUM(CASE WHEN dimension = 2 THEN score ELSE 0 END), 0) AS coins_sum
-		 FROM post_ratings
-		 WHERE revoked_at = 0
-		   AND post_id IN (${placeholders})
-		 GROUP BY post_id`,
-	)
-		.bind(...postIds)
-		.all<{
-			post_id: number;
-			total: number;
-			credits_count: number;
-			credits_sum: number;
-			coins_count: number;
-			coins_sum: number;
-		}>();
-
-	for (const row of result.results) {
-		map.set(row.post_id, {
-			total: row.total,
-			credits: { count: row.credits_count, sum: row.credits_sum },
-			coins: { count: row.coins_count, sum: row.coins_sum },
-		});
-	}
-	return map;
+	const aggregates = await getRatingAggregates(env, ctx, postIds);
+	return new Map([...aggregates].filter(([, aggregate]) => aggregate.total > 0));
 }
 
-/** Single-post variant used by `GET /api/v1/posts/:id`. */
-export async function loadAggregateForPost(env: Env, postId: number): Promise<PostRatingAggregate> {
-	return loadAggregate(env, postId);
+/** Display-only single-post aggregate; write quotas still use current D1. */
+export async function loadAggregateForPost(
+	env: Env,
+	postId: number,
+	ctx?: ExecutionContext,
+): Promise<PostRatingAggregate> {
+	return (await getRatingAggregates(env, ctx, [postId])).get(postId) ?? EMPTY_RATING_AGGREGATE;
 }
 
 /** Re-export the zero-state so callers can use the same constant. */

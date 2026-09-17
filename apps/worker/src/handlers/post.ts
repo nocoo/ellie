@@ -1,12 +1,18 @@
 // Post handlers for Cloudflare Worker
 
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
-import { canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
+import { canViewForumVisibility, decodeGenericCursor, EMPTY_RATING_AGGREGATE } from "@ellie/types";
 import {
-	bumpPostListGen,
-	bumpThreadMetaGen,
-	invalidateForumVolatileV2,
-} from "../lib/cache/invalidate";
+	getPostPage,
+	getPostRows,
+	getRatingAggregates,
+	loadPostAccess,
+	loadPostAccessBatch,
+	loadPostPage,
+	loadThreadAccess,
+	threadAccessStatus,
+	validReadingId,
+} from "../lib/cache/thread-loaders";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
@@ -16,21 +22,10 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { incrementStatsOnPostCreate } from "../lib/stats-counter";
-import {
-	buildVisibilityContext,
-	canReadThreadContent,
-	canViewModeratedThread,
-	isForumActive,
-	POST_VISIBLE,
-	STICKY_MODERATED,
-} from "../lib/visibility";
+import { getUserProfiles } from "../lib/user-cache";
+import { isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
-import {
-	EMPTY_RATING_AGGREGATE,
-	loadAggregateForPost,
-	loadAggregatesForPosts,
-} from "./post-rating";
 
 /** Post cursor payload for keyset pagination */
 interface PostCursorPayload {
@@ -39,217 +34,124 @@ interface PostCursorPayload {
 
 /** Validate post cursor payload shape */
 function isPostCursor(p: Partial<PostCursorPayload>): boolean {
-	return typeof p.position === "number";
+	return Number.isSafeInteger(p.position) && (p.position as number) >= 0;
 }
 
-/** GET /api/v1/posts - List posts with position-based pagination */
-export async function list(request: Request, env: Env): Promise<Response> {
+/** GET /api/v1/posts - Position pages and last-page membership are SHORT. */
+export async function list(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
-	const threadId = url.searchParams.get("threadId");
-	const cursorStr = url.searchParams.get("cursor");
-
-	if (!threadId) {
+	const threadIdParam = url.searchParams.get("threadId");
+	if (!threadIdParam)
 		return errorResponse("INVALID_REQUEST", 400, { message: "threadId is required" }, origin);
-	}
-
-	const threadIdNum = Number.parseInt(threadId, 10);
-	if (Number.isNaN(threadIdNum)) {
+	const threadId = Number.parseInt(threadIdParam, 10);
+	if (!validReadingId(threadId))
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid threadId" }, origin);
-	}
-
-	// Kick off the (verified) auth lookup eagerly. We don't need the result
-	// until the visibility check, so it can run in parallel with the
-	// thread→forum JOIN query — saves one D1 round-trip on the hot path when
-	// the caller is authenticated.
-	const userPromise = optionalAuthVerified(request, env);
-
-	// Single JOIN query: thread → forum (replaces 2 serial queries)
-	const row = await env.DB.prepare(
-		`SELECT t.forum_id, t.sticky, t.author_id, f.status, f.visibility, f.moderator_ids
-		 FROM threads t
-		 JOIN forums f ON f.id = t.forum_id
-		 WHERE t.id = ?`,
-	)
-		.bind(threadIdNum)
-		.first<{
-			forum_id: number;
-			sticky: number;
-			author_id: number;
-			status: number;
-			visibility: string;
-			moderator_ids: string;
-		}>();
-
-	const user = await userPromise;
-	const visCtx = buildVisibilityContext(user);
-
-	if (!row || (row.sticky < 0 && row.sticky !== STICKY_MODERATED)) {
-		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
-	}
-
-	if (!isForumActive(row)) {
-		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
-	}
-
-	if (row.sticky === STICKY_MODERATED) {
-		if (
-			!canViewModeratedThread({
-				authorId: row.author_id,
-				forumModeratorIds: row.moderator_ids ?? "",
-				user,
-			})
-		) {
-			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
-		}
-	} else if (
-		!canReadThreadContent({
-			sticky: row.sticky,
-			forumVisibility: row.visibility as ForumVisibility,
-			visCtx,
-		})
-	) {
+	const limit = clampLimit(url.searchParams.get("limit"), { defaultLimit: 100, maxLimit: 100 });
+	if (!Number.isSafeInteger(limit))
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid limit" }, origin);
+	const [user, access] = await Promise.all([
+		optionalAuthVerified(request, env),
+		loadThreadAccess(env, threadId),
+	]);
+	const status = threadAccessStatus(access, user);
+	if (status === 404 || !access) return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	if (status === 403)
 		return errorResponse(
 			"FORBIDDEN",
 			403,
 			{ message: "You don't have access to this content" },
 			origin,
 		);
-	}
-
-	// Clamp limit to [1, 100], defaulting to 100
-	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
-		defaultLimit: 100,
-		maxLimit: 100,
-	});
-
+	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor) : null;
-	const lastPage = url.searchParams.get("last") === "1";
-
-	let result: D1Result;
-	if (lastPage) {
-		const stmt = env.DB.prepare(
-			`SELECT * FROM posts WHERE thread_id = ? AND ${POST_VISIBLE} ORDER BY position DESC LIMIT ?`,
+	const last = url.searchParams.get("last") === "1";
+	const query = { threadId, limit, cursorPosition: last ? null : (cursor?.position ?? null), last };
+	let membership = await getPostPage(env, ctx, query);
+	let current = await loadPostAccessBatch(
+		env,
+		membership.map((item) => item.id),
+		threadId,
+	);
+	if (membership.some((item) => !current.has(item.id))) {
+		membership = await loadPostPage(env, query);
+		current = await loadPostAccessBatch(
+			env,
+			membership.map((item) => item.id),
+			threadId,
 		);
-		result = await stmt.bind(threadIdNum, clampedLimit).all();
-		result.results.reverse();
-	} else if (cursor) {
-		// Position-based pagination: WHERE thread_id = ? AND position > ? ORDER BY position
-		// Only return visible posts (invisible = 0)
-		const stmt = env.DB.prepare(
-			`SELECT * FROM posts WHERE thread_id = ? AND ${POST_VISIBLE} AND position > ? ORDER BY position LIMIT ?`,
-		);
-		result = await stmt.bind(threadIdNum, cursor.position, clampedLimit).all();
-	} else {
-		// First page - only return visible posts (invisible = 0)
-		const stmt = env.DB.prepare(
-			`SELECT * FROM posts WHERE thread_id = ? AND ${POST_VISIBLE} ORDER BY position LIMIT ?`,
-		);
-		result = await stmt.bind(threadIdNum, clampedLimit).all();
 	}
-
-	// Map D1 snake_case rows to camelCase Post type. Per-post rating aggregate
-	// is fetched in a single GROUP BY (docs/22 §6.3) so we avoid N+1.
-	const postIds = result.results.map((row) => (row as { id: number }).id);
-	const aggregates = await loadAggregatesForPosts(env, postIds);
-	const viewer = user ? { userId: user.userId, role: user.role } : null;
-	const posts = result.results.map((row) => {
-		const r = row as Record<string, unknown>;
-		const agg = aggregates.get(r.id as number) ?? EMPTY_RATING_AGGREGATE;
-		return toPost(r, agg, viewer);
+	const ids = membership.filter((item) => current.has(item.id)).map((item) => item.id);
+	const [rows, ratings] = await Promise.all([
+		getPostRows(env, ctx, ids, threadId),
+		getRatingAggregates(env, ctx, ids),
+	]);
+	let posts = ids.flatMap((id) => {
+		const row = rows.get(id);
+		const gate = current.get(id);
+		return row && gate
+			? [
+					toPost(
+						{ ...row, ...gate, forum_id: access.forum_id },
+						ratings.get(id) ?? EMPTY_RATING_AGGREGATE,
+						user,
+					),
+				]
+			: [];
 	});
-
-	// Generate next cursor from raw D1 row (position is same in both)
-	const nextCursor = lastPage
+	const profiles = await getUserProfiles(
+		env,
+		ctx,
+		posts.map((post) => post.authorId).filter(validReadingId),
+	);
+	posts = posts.map((post) => ({
+		...post,
+		authorName: profiles.get(post.authorId)?.username ?? post.authorName,
+	}));
+	const nextCursor = last
 		? null
-		: buildNextCursor<(typeof posts)[number], PostCursorPayload>(posts, clampedLimit, (last) => ({
-				position: last.position,
-			}));
-
+		: buildNextCursor(membership, limit, (item) => ({ position: item.position }));
 	return jsonResponse(posts, origin, { nextCursor });
 }
 
-/** GET /api/v1/posts/:id - Get post by ID */
-export async function getById(request: Request, env: Env): Promise<Response> {
+/** GET /api/v1/posts/:id - Current access checks precede cached body exposure. */
+export async function getById(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const id = parseIdFromPath(request) ?? Number.NaN;
-
-	// Auth is independent of the post/thread chain — fire it eagerly so it
-	// overlaps with the post and visibility queries.
-	const userPromise = optionalAuthVerified(request, env);
-
-	// Only return visible posts (invisible = 0)
-	const stmt = env.DB.prepare(`SELECT * FROM posts WHERE id = ? AND ${POST_VISIBLE}`);
-	const result = await stmt.bind(id).first();
-
-	if (!result) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	const postRow = result as Record<string, unknown>;
-	const threadId = postRow.thread_id as number;
-
-	// Visibility check JOIN runs in parallel with auth resolution.
-	const [user, visRow] = await Promise.all([
-		userPromise,
-		env.DB.prepare(
-			`SELECT t.forum_id, t.sticky, t.author_id, f.status, f.visibility, f.moderator_ids
-			 FROM threads t
-			 JOIN forums f ON f.id = t.forum_id
-			 WHERE t.id = ?`,
-		)
-			.bind(threadId)
-			.first<{
-				forum_id: number;
-				sticky: number;
-				author_id: number;
-				status: number;
-				visibility: string;
-				moderator_ids: string;
-			}>(),
+	const id = parseIdFromPath(request);
+	if (!validReadingId(id)) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	const [user, current] = await Promise.all([
+		optionalAuthVerified(request, env),
+		loadPostAccess(env, id),
 	]);
-	const visCtx = buildVisibilityContext(user);
-
-	if (!visRow || (visRow.sticky < 0 && visRow.sticky !== STICKY_MODERATED)) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	if (visRow.sticky === STICKY_MODERATED) {
-		if (
-			!canViewModeratedThread({
-				authorId: visRow.author_id,
-				forumModeratorIds: visRow.moderator_ids ?? "",
-				user,
-			})
-		) {
-			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-		}
-	}
-
-	if (!isForumActive(visRow)) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	if (visRow.sticky !== STICKY_MODERATED) {
-		if (
-			!canReadThreadContent({
-				sticky: visRow.sticky,
-				forumVisibility: visRow.visibility as ForumVisibility,
-				visCtx,
-			})
-		) {
-			return errorResponse(
-				"FORBIDDEN",
-				403,
-				{ message: "You don't have access to this content" },
-				origin,
-			);
-		}
-	}
-
-	const aggregate = await loadAggregateForPost(env, id);
-	const viewer = user ? { userId: user.userId, role: user.role } : null;
-	return jsonResponse(toPost(postRow, aggregate, viewer), origin);
+	if (current?.invisible !== 0) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	const access = await loadThreadAccess(env, current.thread_id);
+	const status = threadAccessStatus(access, user);
+	if (status === 404 || !access) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	if (status === 403)
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
+	const [rows, ratings] = await Promise.all([
+		getPostRows(env, ctx, [id], current.thread_id),
+		getRatingAggregates(env, ctx, [id]),
+	]);
+	const row = rows.get(id);
+	if (!row) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	const post = toPost(
+		{ ...row, ...current, forum_id: access.forum_id },
+		ratings.get(id) ?? EMPTY_RATING_AGGREGATE,
+		user,
+	);
+	const profiles = await getUserProfiles(env, ctx, post.authorId > 0 ? [post.authorId] : []);
+	post.authorName = profiles.get(post.authorId)?.username ?? post.authorName;
+	return jsonResponse(post, origin);
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
@@ -353,12 +255,13 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(threadId, thread.forum_id, user.userId, authorName, content, now, nextPosition)
 		.run();
 
+	if (!postResult.success) throw new Error("Post creation was not confirmed");
 	const postId = postResult.meta.last_row_id;
 
 	// Run the counters batch and the createdPost fetch concurrently — the
 	// posts row was already committed by the prior INSERT, so the SELECT
 	// doesn't depend on the batch.
-	const [, createdPost] = await Promise.all([
+	const [written, createdPost] = await Promise.all([
 		env.DB.batch([
 			env.DB.prepare(
 				"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = 0 WHERE id = ?",
@@ -370,21 +273,14 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		]),
 		env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(postId).first(),
 	]);
+	if (written.length !== 3 || written.some((result) => !result.success))
+		throw new Error("Post counters were not confirmed");
 
-	// Cache invalidation (docs/19 §6 row "POST /api/v1/posts"):
-	// - Bump `forum:summary:gen` + `thread:list:gen:<forumId>` so the forum
-	//   summary reflects the new reply and threads list re-orders.
-	// - Bump thread:meta / post:list gens for completeness; consumers land in
-	//   Phase 3/4.
-	await Promise.all([
-		invalidateForumVolatileV2(env, thread.forum_id),
-		bumpThreadMetaGen(env, threadId),
-		bumpPostListGen(env, threadId),
-		// Increment pre-computed stats counters (fire-and-forget on error)
-		incrementStatsOnPostCreate(env).catch((e) =>
-			console.warn("[post:create] stats counter increment failed", e),
-		),
-	]);
+	// Replies do not clear the current 60-second page/list/stat snapshots.
+	// The response below is the committed post for the writer's own view.
+	await incrementStatsOnPostCreate(env).catch((error) =>
+		console.warn("[post:create] stats counter increment failed", error),
+	);
 
 	return jsonResponse(
 		toPost(createdPost as Record<string, unknown>, EMPTY_RATING_AGGREGATE, {

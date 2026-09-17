@@ -11,12 +11,10 @@ export interface Env {
 	R2: R2Bucket;
 	/** Comma-separated CORS allowed origins (wrangler [vars]) */
 	ALLOWED_ORIGINS?: string;
-	/**
-	 * Feature flag: use KV cache for user mini profiles.
-	 * When "false" (string), uses SQL JOINs instead.
-	 * Default: false (JOIN approach).
-	 */
+	/** Legacy binding, ignored; use CACHE_DISABLED_FAMILIES for a scoped fallback. */
 	USE_KV_USER_CACHE?: string;
+	/** Comma-separated business families temporarily routed to their original loaders. */
+	CACHE_DISABLED_FAMILIES?: string;
 	/**
 	 * HMAC key for email-verification codes (docs/17 §6.2).
 	 * 6-digit codes are too small to resist offline brute-force after KV
@@ -63,11 +61,6 @@ export interface Env {
 	 * MUST keep this server-only (never `NEXT_PUBLIC_*`).
 	 */
 	ANALYTICS_INGEST_KEY?: string;
-}
-
-/** Check if KV user cache is enabled */
-export function isKvUserCacheEnabled(env: Env): boolean {
-	return env.USE_KV_USER_CACHE === "true";
 }
 
 export interface CFRequest extends Request {

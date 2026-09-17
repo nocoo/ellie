@@ -385,6 +385,7 @@ interface CoverageReport {
 	exempt: typeof EXEMPTIONS;
 	calls: L2Call[];
 	unmatchedCalls: L2Call[];
+	negativeAuthProbes: L2Call[];
 }
 
 function parseL2Calls(): L2Call[] {
@@ -397,7 +398,19 @@ function buildReport(): CoverageReport {
 
 	const hits = new Set<string>();
 	const unmatched: L2Call[] = [];
+	const negativeAuthProbes: L2Call[] = [];
 	for (const c of calls) {
+		// These two deliberate middleware probes never exercise an endpoint.
+		// Classify only the known source/path/method; keep every router entry
+		// in the denominator, and keep all other unmatched calls strict errors.
+		if (
+			c.file === "tests/integration/fast/api-key.fast.test.ts" &&
+			c.method === "GET" &&
+			c.rawPath === "/foo/bar"
+		) {
+			negativeAuthProbes.push(c);
+			continue;
+		}
 		const r = matchCallToRoute(c, routes);
 		if (r) hits.add(`${r.method} ${r.pattern}`);
 		else unmatched.push(c);
@@ -414,6 +427,7 @@ function buildReport(): CoverageReport {
 		exempt: EXEMPTIONS,
 		calls,
 		unmatchedCalls: unmatched,
+		negativeAuthProbes,
 	};
 }
 
@@ -443,6 +457,7 @@ function printSummary(rep: CoverageReport): void {
 	console.log(`Routes uncovered  : ${rep.missRoutes.length}`);
 	console.log(`Exemptions        : ${rep.exempt.length}`);
 	console.log(`Unmatched calls   : ${rep.unmatchedCalls.length}`);
+	console.log(`Negative auth probes: ${rep.negativeAuthProbes.length} (not endpoint coverage)`);
 	console.log("");
 	if (rep.missRoutes.length) {
 		console.log("Uncovered (method, pattern):");
@@ -458,6 +473,13 @@ function printSummary(rep: CoverageReport): void {
 		}
 		if (rep.unmatchedCalls.length > 20) {
 			console.log(`  … and ${rep.unmatchedCalls.length - 20} more`);
+		}
+	}
+	if (rep.negativeAuthProbes.length) {
+		console.log("");
+		console.log("Negative auth probes (excluded from endpoint coverage):");
+		for (const c of rep.negativeAuthProbes) {
+			console.log(`  - ${c.method.padEnd(6)} ${c.templatePath}    (${c.file}:${c.line})`);
 		}
 	}
 }
@@ -506,6 +528,7 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push(`| Routes uncovered | **${rep.missRoutes.length}** |`);
 	lines.push(`| Exemptions | ${rep.exempt.length} |`);
 	lines.push(`| Unmatched test calls | ${rep.unmatchedCalls.length} |`);
+	lines.push(`| Negative auth probes (not endpoint coverage) | ${rep.negativeAuthProbes.length} |`);
 	lines.push("");
 	lines.push("## 2. Parser contract");
 	lines.push("");
@@ -549,6 +572,11 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push("`:param` and matched against literal routes verbatim or against");
 	lines.push("regex routes by substituting `:param` with `1` (numeric path");
 	lines.push("params) or `abc` (string path params), in that order.");
+	lines.push("");
+	lines.push("The deliberate `GET /foo/bar` probes in `fast/api-key.fast.test.ts`");
+	lines.push("are reported separately. They test the API-key middleware and never");
+	lines.push("count as endpoint hits or remove routes from the denominator.");
+	lines.push("All other unmatched calls remain failures in strict mode.");
 	lines.push("");
 	lines.push("## 3. Exemptions");
 	lines.push("");
@@ -602,6 +630,20 @@ function renderMarkdown(rep: CoverageReport): string {
 		lines.push("| Method | Path (templated) | Test file:line |");
 		lines.push("|---|---|---|");
 		for (const c of rep.unmatchedCalls) {
+			lines.push(`| ${c.method} | \`${c.templatePath}\` | ${c.file}:${c.line} |`);
+		}
+	}
+	lines.push("");
+	lines.push("## 7. Negative auth probes");
+	lines.push("");
+	lines.push("These middleware assertions are not endpoint coverage or route exemptions.");
+	lines.push("");
+	if (rep.negativeAuthProbes.length === 0) {
+		lines.push("_None._");
+	} else {
+		lines.push("| Method | Path | Test file:line |");
+		lines.push("|---|---|---|");
+		for (const c of rep.negativeAuthProbes) {
 			lines.push(`| ${c.method} | \`${c.templatePath}\` | ${c.file}:${c.line} |`);
 		}
 	}

@@ -1,3 +1,4 @@
+import type { User } from "@ellie/types";
 import { withEntityAuth } from "../../lib/adminHelpers";
 import {
 	type AdminLogActor,
@@ -6,24 +7,34 @@ import {
 	writeAdminLog,
 } from "../../lib/adminLog";
 import {
+	getAdminEntities,
+	invalidateAdminEntityCache,
+	readAdminEntity,
+} from "../../lib/cache/admin-entity-read";
+import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
+	bumpPostAttachmentsGen,
+	bumpThreadListGenAll,
 	invalidateThreadListForForums,
+	invalidateThreadReading,
 	invalidateUserCaches,
 } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import { createListHandler, createUpdateHandler } from "../../lib/crud";
+import { confirmedBatch, confirmedRun } from "../../lib/d1-write";
 import type { Env } from "../../lib/env";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { buildContentRecalcStatements } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { invalidateUserCache } from "../../lib/user-cache";
 import { deleteUserContent, readUserContentSnapshot } from "../../lib/userContentDelete";
 import { buildUserCounterDecrementStatements } from "../../lib/userCounters";
 import { buildTombstoneStatement } from "../../lib/userTombstone";
+import { STICKY_GLOBAL } from "../../lib/visibility";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import { errorResponse } from "../../middleware/error";
+import { invalidateRecommendedCache } from "../recommended";
 
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
 
@@ -100,6 +111,9 @@ async function enrichUserListRowsWithCounts(
 			.bind(...ids)
 			.all<{ uid: number; cnt: number }>(),
 	]);
+	if (!senderRes.success || !receiverRes.success || !attRes.success) {
+		throw new Error("Admin user message and attachment counts could not be loaded");
+	}
 
 	const messagesByUid = new Map<number, number>();
 	for (const r of senderRes.results) {
@@ -414,18 +428,19 @@ const userConfig: EntityConfig = {
 		return undefined;
 	},
 
-	// #38 afterUpdate: invalidate user cache if any PublicUser-payload field
-	// or visibility-affecting field was updated. The trigger set is the
-	// union of (`toPublicUser` output ∪ visibility/status gate). `email`
-	// stays out (not part of PublicUser, not used for visibility). Adding
-	// any new field to `updateFields` above that lands in `toPublicUser`
-	// also requires adding it here.
+	// Public profiles and the private self profile share this user-scoped
+	// invalidation. Include private email fields in addition to display/gates.
 	afterUpdate: async (id, data, _existing, env, _origin) => {
 		const cacheFields = [
 			// Identity / display
 			"username",
 			"avatar",
 			"avatar_path",
+			"email",
+			"email_verified_at",
+			"email_normalized",
+			"email_changed_at",
+			"last_login",
 			// Visibility / status gate
 			"status",
 			"role",
@@ -463,9 +478,7 @@ const userConfig: EntityConfig = {
 		];
 		const needsInvalidation = cacheFields.some((field) => data[field] !== undefined);
 		if (needsInvalidation) {
-			// Drop legacy `user:mini:<id>` + v2 mini + both viewer-bucket
-			// public variants.
-			await Promise.all([invalidateUserCache(env, id), invalidateUserCaches(env, id)]);
+			await invalidateUserCaches(env, id);
 		}
 	},
 };
@@ -483,22 +496,21 @@ async function fetchTombstoneIds(env: Env, ids: number[]): Promise<number[]> {
 	)
 		.bind(JSON.stringify(ids))
 		.all();
+	if (!r.success) throw new Error("User tombstone query failed");
 	return (r.results as { id: number }[]).map((row) => row.id);
 }
 
 // ─── Cache fan-out helper for admin user batch endpoints ────────────────────
-// docs/19 §6 rows "admin user batch-status / batch-role / batch-recalc-counters
-// / single recalc-counters": drop legacy `user:mini:<id>` AND v2 mini + both
-// viewer-bucket public variants for every affected user. Chunked so a 100-id
-// batch doesn't fan out 200 concurrent KV calls; KV failures are already
-// swallowed inside the helpers (best-effort).
+// Drop all profile variants once per affected user in bounded user batches.
+// KV failures are swallowed inside the composite helper (best-effort).
 const USER_CACHE_FAN_OUT_CHUNK = 50;
 async function invalidateUserCachesForIds(env: Env, ids: number[]): Promise<void> {
-	for (let i = 0; i < ids.length; i += USER_CACHE_FAN_OUT_CHUNK) {
-		const chunk = ids.slice(i, i + USER_CACHE_FAN_OUT_CHUNK);
-		await Promise.all(
-			chunk.flatMap((uid) => [invalidateUserCache(env, uid), invalidateUserCaches(env, uid)]),
-		);
+	const unique = [...new Set(ids)];
+	if (unique.length === 0) return;
+	await invalidateAdminEntityCache(env, "users");
+	for (let i = 0; i < unique.length; i += USER_CACHE_FAN_OUT_CHUNK) {
+		const chunk = unique.slice(i, i + USER_CACHE_FAN_OUT_CHUNK);
+		await Promise.all(chunk.map((uid) => invalidateUserCaches(env, uid)));
 	}
 }
 
@@ -551,28 +563,30 @@ async function readOnlineSnapshot(env: Env, userId: number): Promise<OnlineSnaps
 
 export const getById = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const id = parsePathSegment(request, 0);
 		if (id === null) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 		}
 
-		const row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
-			.bind(id)
-			.first<Record<string, unknown>>();
+		const row = await readAdminEntity<User | null>(env, ctx, {
+			family: "admin:entity:detail",
+			params: { entity: "users", id },
+			scope: "admin",
+		});
 		if (!row) {
 			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 		}
 
 		const online = await readOnlineSnapshot(env, id);
-		if (online) {
-			row.online_ip = online.ip;
-			row.online_page = online.page;
-			row.online_ts = online.ts;
-		}
-
-		return jsonNoStoreResponse(toUser(row), origin);
+		return jsonNoStoreResponse(
+			{
+				...row,
+				...(online ? { onlineIp: online.ip, onlinePage: online.page, onlineTs: online.ts } : {}),
+			},
+			origin,
+		);
 	},
 );
 
@@ -614,9 +628,13 @@ export const ban = withEntityAuth(
 		const deleteContent = body.deleteContent === true;
 
 		if (!deleteContent) {
-			// Simple ban — status update + audit log are independent.
+			const written = await confirmedRun(
+				env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(id),
+			);
 			await Promise.all([
-				env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(id).run(),
+				written.meta.changes > 0 && existing.status !== -1
+					? invalidateUserCachesForIds(env, [id])
+					: Promise.resolve(),
 				writeAdminLog(env, resolveActor(request, env), {
 					action: "user.ban",
 					targetType: "user",
@@ -644,10 +662,22 @@ export const ban = withEntityAuth(
 				},
 			}),
 			invalidateThreadListForForums(env, result.affectedForumIds),
+			invalidateThreadReading(env, result.affectedThreadIds, { posts: true }),
+			...result.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 			bumpForumSummaryGen(env),
 			invalidateUserCachesForIds(env, [id, ...result.collateralAuthorIds]),
 		];
+		if (result.affectedThreadIds.length > 0)
+			banDeleteOps.push(invalidateAdminEntityCache(env, "threads"));
+		if (result.affectedForumIds.length > 0)
+			banDeleteOps.push(invalidateAdminEntityCache(env, "forums"));
+		if (result.postsDeleted > 0)
+			banDeleteOps.push(
+				invalidateAdminEntityCache(env, "posts"),
+				invalidateAdminEntityCache(env, "attachments"),
+			);
 		if (result.hadDigestThread) banDeleteOps.push(bumpDigestGen(env));
+		if (result.hadGlobalThread) banDeleteOps.push(bumpThreadListGenAll(env));
 		await Promise.all(banDeleteOps);
 
 		return jsonNoStoreResponse(
@@ -701,9 +731,11 @@ export const unban = withEntityAuth(
 			);
 		}
 
-		// Status UPDATE + audit log are independent.
+		const written = await confirmedRun(
+			env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(id),
+		);
 		await Promise.all([
-			env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(id).run(),
+			written.meta.changes > 0 ? invalidateUserCachesForIds(env, [id]) : Promise.resolve(),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.unban",
 				targetType: "user",
@@ -745,6 +777,8 @@ export const nuke = withEntityAuth(
 		const nukeOps: Promise<unknown>[] = [
 			invalidateUserCachesForIds(env, [id, ...result.collateralAuthorIds]),
 			invalidateThreadListForForums(env, result.affectedForumIds),
+			invalidateThreadReading(env, result.affectedThreadIds, { posts: true }),
+			...result.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 			bumpForumSummaryGen(env),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.nuke",
@@ -756,7 +790,16 @@ export const nuke = withEntityAuth(
 				},
 			}),
 		];
+		if (result.affectedThreadIds.length > 0)
+			nukeOps.push(invalidateAdminEntityCache(env, "threads"));
+		if (result.affectedForumIds.length > 0) nukeOps.push(invalidateAdminEntityCache(env, "forums"));
+		if (result.postsDeleted > 0)
+			nukeOps.push(
+				invalidateAdminEntityCache(env, "posts"),
+				invalidateAdminEntityCache(env, "attachments"),
+			);
 		if (result.hadDigestThread) nukeOps.push(bumpDigestGen(env));
+		if (result.hadGlobalThread) nukeOps.push(bumpThreadListGenAll(env));
 		await Promise.all(nukeOps);
 
 		return jsonNoStoreResponse(
@@ -817,6 +860,7 @@ interface PurgeOwnedThread {
 	id: number;
 	forum_id: number;
 	digest: number;
+	sticky: number;
 }
 interface PurgeOwnedThreadPost {
 	id: number;
@@ -829,6 +873,7 @@ interface PurgeStandalonePost {
 }
 interface PurgeAttachment {
 	file_path: string;
+	post_id: number;
 }
 
 interface PurgeTarget {
@@ -849,6 +894,9 @@ interface PurgePreflight {
 	affectedForumIds: number[];
 	collateralAuthorDelta: Map<number, number>;
 	attachmentKeys: string[];
+	attachmentPostIds: number[];
+	hadDigestThread: boolean;
+	hadGlobalThread: boolean;
 	commentCount: number;
 	attachmentCount: number;
 	messageCount: number;
@@ -946,9 +994,9 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 	// 4 independent counting/listing queries — fan out via Promise.all.
 	// Saves 3 D1 round-trips on the user-purge admin operation.
 	const [r2KeysRes, attCountRow, commentRow, messageCountRow] = await Promise.all([
-		env.DB.prepare(`SELECT DISTINCT file_path FROM attachments WHERE ${attWhere.where}`)
+		env.DB.prepare(`SELECT DISTINCT file_path, post_id FROM attachments WHERE ${attWhere.where}`)
 			.bind(...attWhere.binds)
-			.all(),
+			.all<PurgeAttachment>(),
 		env.DB.prepare(`SELECT COUNT(DISTINCT id) as cnt FROM attachments WHERE ${attWhere.where}`)
 			.bind(...attWhere.binds)
 			.first<{ cnt: number }>(),
@@ -960,10 +1008,10 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 			.first<{ cnt: number }>(),
 	]);
 
-	const attachmentKeys = Array.from(
-		new Set(
-			(r2KeysRes.results as unknown as PurgeAttachment[]).map((a) => a.file_path).filter(Boolean),
-		),
+	if (!r2KeysRes.success) throw new Error("Purge attachment snapshot failed");
+	const attachmentKeys = [...new Set(r2KeysRes.results.map((a) => a.file_path).filter(Boolean))];
+	const attachmentPostIds = [...new Set(r2KeysRes.results.map((a) => a.post_id))].filter(
+		(postId) => Number.isSafeInteger(postId) && postId > 0,
 	);
 	const attachmentCount = attCountRow?.cnt ?? 0;
 	const commentCount = commentRow?.cnt ?? 0;
@@ -979,6 +1027,13 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 		affectedForumIds,
 		collateralAuthorDelta,
 		attachmentKeys,
+		attachmentPostIds,
+		hadDigestThread:
+			ownedThreads.some((thread) => thread.digest > 0) ||
+			posts.some((post) => (post.thread_digest ?? 0) > 0),
+		hadGlobalThread:
+			ownedThreads.some((thread) => thread.sticky === STICKY_GLOBAL) ||
+			posts.some((post) => post.thread_sticky === STICKY_GLOBAL),
 		commentCount,
 		attachmentCount,
 		messageCount,
@@ -1114,7 +1169,7 @@ export const purge = withEntityAuth(
 		const stmts = buildPurgeBatch(env, id, pre, nowSec, resolveActor(request, env));
 
 		try {
-			await env.DB.batch(stmts);
+			await confirmedBatch(env, stmts);
 		} catch (err) {
 			console.error("[purge] DB batch failed", { userId: id, err });
 			let committed = false;
@@ -1129,23 +1184,36 @@ export const purge = withEntityAuth(
 			if (!committed) return errorResponse("PURGE_DB_FAILED", 500, undefined, origin);
 		}
 
-		// Cache invalidations are all independent (different keys) — fan out.
-		// Per-forum thread-list bumps for every affected forum (we KNOW the
-		// set here, so don't fall back to bumpThreadListGenAll). If any of
-		// the user's owned threads carried a non-zero digest, also bump
-		// digest gen.
-		const purgeHadDigest = pre.ownedThreads.some((t) => t.digest > 0);
+		// Include survivors whose last-post metadata changed, and posts whose
+		// uploads were removed even though the post itself survived.
 		const purgeOps: Promise<unknown>[] = [
 			invalidateThreadListForForums(env, pre.affectedForumIds),
+			invalidateThreadReading(env, [...pre.ownedThreadIds, ...pre.survivorThreadIds], {
+				posts: true,
+			}),
+			...pre.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 			bumpForumSummaryGen(env),
 			invalidateUserCachesForIds(env, [id, ...pre.collateralAuthorDelta.keys()]),
 		];
-		if (purgeHadDigest) purgeOps.push(bumpDigestGen(env));
+		if (pre.ownedThreadIds.length > 0 || pre.survivorThreadIds.length > 0)
+			purgeOps.push(invalidateAdminEntityCache(env, "threads"));
+		if (pre.affectedForumIds.length > 0) purgeOps.push(invalidateAdminEntityCache(env, "forums"));
+		if (pre.allDeletedPostIds.length > 0) purgeOps.push(invalidateAdminEntityCache(env, "posts"));
+		if (pre.attachmentCount > 0) purgeOps.push(invalidateAdminEntityCache(env, "attachments"));
+		if (pre.hadDigestThread) purgeOps.push(bumpDigestGen(env));
+		if (pre.hadGlobalThread) purgeOps.push(bumpThreadListGenAll(env));
 		const invalidations = await Promise.allSettled(purgeOps);
 		for (const result of invalidations) {
 			if (result.status === "rejected") {
 				console.warn("[purge] Cache invalidation failed", { userId: id, err: result.reason });
 			}
+		}
+		for (let start = 0; start < pre.attachmentPostIds.length; start += 50) {
+			await Promise.all(
+				pre.attachmentPostIds
+					.slice(start, start + 50)
+					.map((postId) => bumpPostAttachmentsGen(env, postId)),
+			);
 		}
 
 		const r2Keys = Array.from(
@@ -1178,7 +1246,7 @@ const MAX_BATCH_FETCH = 100;
 
 export const batchFetch = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const url = new URL(request.url);
 		const raw = url.searchParams.get("ids");
@@ -1189,7 +1257,7 @@ export const batchFetch = withEntityAuth(
 		const ids = raw
 			.split(",")
 			.map((s) => Number.parseInt(s.trim(), 10))
-			.filter((n) => !Number.isNaN(n));
+			.filter((n) => Number.isSafeInteger(n) && n > 0);
 
 		if (ids.length === 0) {
 			return jsonNoStoreResponse([], origin);
@@ -1203,17 +1271,8 @@ export const batchFetch = withEntityAuth(
 			);
 		}
 
-		const placeholders = ids.map(() => "?").join(",");
-		const result = await env.DB.prepare(
-			`SELECT ${USER_COLUMNS} FROM users WHERE id IN (${placeholders})`,
-		)
-			.bind(...ids)
-			.all();
-
-		return jsonNoStoreResponse(
-			result.results.map((r) => toUser(r as Record<string, unknown>)),
-			origin,
-		);
+		const rows = await getAdminEntities<User>(env, ctx, "users", ids);
+		return jsonNoStoreResponse([...rows.values()], origin);
 	},
 );
 
@@ -1268,13 +1327,14 @@ export const batchStatus = withEntityAuth(
 			return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
 		}
 
-		await env.DB.prepare("UPDATE users SET status = ? WHERE id IN (SELECT value FROM json_each(?))")
-			.bind(body.status, JSON.stringify(ids))
-			.run();
+		const written = await confirmedRun(
+			env.DB.prepare(
+				"UPDATE users SET status = ? WHERE id IN (SELECT value FROM json_each(?))",
+			).bind(body.status, JSON.stringify(ids)),
+		);
 
-		// docs/19 §6: status change must drop user:mini + user:public for
-		// every affected id (legacy v1 + v2).
-		await invalidateUserCachesForIds(env, ids);
+		// docs/20 §5: confirmed status changes invalidate all scoped user snapshots.
+		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, ids);
 
 		return jsonNoStoreResponse({ updated: true, count: ids.length }, origin);
 	},
@@ -1329,13 +1389,16 @@ export const batchRole = withEntityAuth(
 			return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
 		}
 
-		await env.DB.prepare("UPDATE users SET role = ? WHERE id IN (SELECT value FROM json_each(?))")
-			.bind(body.role, JSON.stringify(ids))
-			.run();
+		const written = await confirmedRun(
+			env.DB.prepare("UPDATE users SET role = ? WHERE id IN (SELECT value FROM json_each(?))").bind(
+				body.role,
+				JSON.stringify(ids),
+			),
+		);
 
-		// docs/19 §6: role change feeds the visibility bucket and the
+		// docs/20 §5: role change feeds the visibility bucket and the
 		// public profile group_title — invalidate per id (legacy + v2).
-		await invalidateUserCachesForIds(env, ids);
+		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, ids);
 
 		return jsonNoStoreResponse({ updated: true, count: ids.length }, origin);
 	},
@@ -1383,13 +1446,16 @@ export const recalcCounters = withEntityAuth(
 		const digestPosts = digestRow?.cnt ?? 0;
 
 		// Update user counters
-		await env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?")
-			.bind(threads, posts, digestPosts, id)
-			.run();
+		const written = await confirmedRun(
+			env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?").bind(
+				threads,
+				posts,
+				digestPosts,
+				id,
+			),
+		);
 
-		// docs/19 §6: counter recalc rewrites the public profile aggregate
-		// fields — invalidate this user's caches (legacy + v2).
-		await Promise.all([invalidateUserCache(env, id), invalidateUserCaches(env, id)]);
+		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, [id]);
 
 		return jsonNoStoreResponse({ id, threads, posts, digestPosts }, origin);
 	},
@@ -1438,6 +1504,7 @@ export const batchRecalcCounters = withEntityAuth(
 			const result = await env.DB.prepare(
 				`SELECT id FROM users WHERE status >= 0 LIMIT ${MAX_BATCH_RECALC}`,
 			).all();
+			if (!result.success) throw new Error("User counter snapshot failed");
 			userIds = result.results.map((r) => (r as { id: number }).id);
 		}
 
@@ -1447,7 +1514,7 @@ export const batchRecalcCounters = withEntityAuth(
 
 		// One statement keeps the whole update atomic and avoids a 1000-ID
 		// parameter list or a 1000-statement transaction.
-		await env.DB.batch([
+		const [written] = await confirmedBatch(env, [
 			env.DB.prepare(`UPDATE users SET
 				threads = (SELECT COUNT(*) FROM threads WHERE author_id = users.id),
 				posts = (SELECT COUNT(*) FROM posts WHERE author_id = users.id),
@@ -1455,10 +1522,10 @@ export const batchRecalcCounters = withEntityAuth(
 				WHERE id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(userIds)),
 		]);
 
-		// docs/19 §6: per-id user cache invalidation (legacy + v2). Chunked
+		// docs/20 §5: per-id user cache invalidation. Chunked
 		// to avoid fan-out storms when called with the implicit "all active
 		// users" path.
-		await invalidateUserCachesForIds(env, userIds);
+		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, userIds);
 
 		return jsonNoStoreResponse({ updated: userIds.length }, origin);
 	},
@@ -1470,18 +1537,14 @@ export const batchRecalcCounters = withEntityAuth(
 
 export const listStaff = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
-		// role: 0=User, 1=Admin, 2=SuperMod, 3=Moderator
-		// Staff = role > 0
-		const result = await env.DB.prepare(
-			`SELECT ${USER_COLUMNS} FROM users WHERE role > 0 ORDER BY role ASC, username ASC`,
-		).all();
-
-		return jsonNoStoreResponse(
-			result.results.map((r) => toUser(r as Record<string, unknown>)),
-			origin,
-		);
+		const rows = await readAdminEntity<User[]>(env, ctx, {
+			family: "admin:users:staff",
+			params: {},
+			scope: "admin",
+		});
+		return jsonNoStoreResponse(rows, origin);
 	},
 );

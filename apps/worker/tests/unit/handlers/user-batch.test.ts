@@ -1,200 +1,53 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { batchGet } from "../../../src/handlers/user";
-import type { Env } from "../../../src/lib/env";
-import { createMockDb, createMockKV, makeD1UserRow, TEST_JWT_SECRET } from "../../helpers";
+import { getPublicUsers } from "../../../src/lib/cache/user-read";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
-describe("batchGet (GET /api/v1/users/batch)", () => {
-	const mockEnv: Env = {
-		API_KEY: "test-api-key",
-		DB: {} as D1Database,
-		ENVIRONMENT: "test",
-		JWT_SECRET: TEST_JWT_SECRET,
-		KV: createMockKV(),
-	};
-
-	function makeRequest(ids: string): Request {
-		return new Request(`https://example.com/api/v1/users/batch?ids=${ids}`);
-	}
-
-	it("should return public profiles for multiple users", async () => {
-		const user1 = makeD1UserRow({
-			id: 1,
-			username: "alice",
-			status: 0,
-			role: 0,
-			avatar: "a.jpg",
-			avatar_path: "avatars/a.jpg",
-			campus: "四平路校区",
-			checkin_total_days: 365,
-			checkin_month_days: 28,
-			checkin_streak_days: 90,
-			checkin_last_checkin_at: 1711612800,
-		});
-		const user2 = makeD1UserRow({
-			id: 2,
-			username: "bob",
-			status: 0,
-			role: 0,
-			avatar: "b.jpg",
-			avatar_path: "avatars/b.jpg",
-			campus: "校外人士",
-		});
-		const { db } = createMockDb({
-			allResults: {
-				"SELECT id, username, avatar": [user1, user2],
-			},
-		});
-		const env = { ...mockEnv, DB: db };
-
-		const response = await batchGet(makeRequest("1,2"), env);
-
-		expect(response.status).toBe(200);
-		const data = (await response.json()) as {
-			data: Array<{
-				id: number;
-				username: string;
-				campus: string;
-				checkin: {
-					totalDays: number;
-					level: { level: number; label: string } | null;
-				} | null;
-			}>;
-		};
-		expect(data.data).toHaveLength(2);
-		expect(data.data[0].username).toBe("alice");
-		expect(data.data[0].campus).toBe("四平路校区");
-		expect(data.data[0].checkin?.totalDays).toBe(365);
-		expect(data.data[0].checkin?.level?.level).toBe(9);
-		expect(data.data[0].checkin?.level?.label).toBe("以坛为家II");
-		expect(data.data[1].username).toBe("bob");
-		expect(data.data[1].campus).toBe("校外人士");
-		expect(data.data[1].checkin).toBeNull();
+let f: ReturnType<typeof readingFixture>;
+beforeEach(() => {
+	f = readingFixture();
+});
+afterEach(() => f.close());
+const request = (ids: string) =>
+	new Request(`https://api.example.com/api/v1/users/batch?ids=${ids}`);
+describe("batch user caches", () => {
+	it("deduplicates and omits invalid/missing/hidden users without per-ID SQL", async () => {
+		f.sqlite.exec("UPDATE users SET status=-1 WHERE id=20");
+		const result = await (await batchGet(request("10,20,999,10,-1,abc"), f.env)).json();
+		expect(result.data.map((row: { id: number }) => row.id)).toEqual([10]);
+		expect(f.calls).toHaveLength(3);
+		f.calls.length = 0;
+		await batchGet(request("10,20,999"), f.env);
+		expect(f.calls).toHaveLength(1);
 	});
-
-	it("should filter out non-public users (status < 0)", async () => {
-		const activeUser = makeD1UserRow({ id: 1, username: "alice", status: 0 });
-		const bannedUser = makeD1UserRow({ id: 2, username: "banned", status: -1 });
-		const { db } = createMockDb({
-			allResults: {
-				"SELECT id, username, avatar": [activeUser, bannedUser],
-			},
-		});
-		const env = { ...mockEnv, DB: db };
-
-		const response = await batchGet(makeRequest("1,2"), env);
-
-		const data = (await response.json()) as { data: Array<{ id: number }> };
-		expect(data.data).toHaveLength(1);
-		expect(data.data[0].id).toBe(1);
-	});
-
-	it("should return 400 when ids parameter is missing", async () => {
-		const { db } = createMockDb();
-		const env = { ...mockEnv, DB: db };
-
-		const response = await batchGet(new Request("https://example.com/api/v1/users/batch"), env);
-
-		expect(response.status).toBe(400);
-	});
-
-	it("should return empty array for invalid IDs", async () => {
-		const { db } = createMockDb();
-		const env = { ...mockEnv, DB: db };
-
-		const response = await batchGet(makeRequest("abc,def"), env);
-
-		expect(response.status).toBe(200);
-		const data = (await response.json()) as { data: unknown[] };
-		expect(data.data).toEqual([]);
-	});
-
-	it("should return 400 when too many IDs requested", async () => {
-		const { db } = createMockDb();
-		const env = { ...mockEnv, DB: db };
-
-		const ids = Array.from({ length: 101 }, (_, i) => i + 1).join(",");
-		const response = await batchGet(makeRequest(ids), env);
-
-		expect(response.status).toBe(400);
-		const data = (await response.json()) as {
-			error: { code: string; details?: { message: string } };
-		};
-		expect(data.error.code).toBe("INVALID_REQUEST");
-		expect(data.error.details?.message).toContain("max");
-	});
-
-	it("should deduplicate IDs", async () => {
-		const user1 = makeD1UserRow({ id: 1, username: "alice", status: 0 });
-		const { db, calls } = createMockDb({
-			allResults: {
-				"SELECT id, username, avatar": [user1],
-			},
-		});
-		const env = { ...mockEnv, DB: db };
-
-		await batchGet(makeRequest("1,1,1"), env);
-
-		// Should only query with 1 unique ID
-		const query = calls.find((c) => c.sql.includes("SELECT id, username, avatar"));
-		expect(query).toBeDefined();
-		expect(query?.params).toEqual([1]);
-	});
-
-	it("should not leak sensitive fields (email, password_hash, etc.)", async () => {
-		const user = makeD1UserRow({
-			id: 1,
-			username: "alice",
-			status: 0,
-			email: "secret@test.com",
-			password_hash: "hash123",
-			password_salt: "salt123",
-		});
-		const { db } = createMockDb({
-			allResults: {
-				"SELECT id, username, avatar": [user],
-			},
-		});
-		const env = { ...mockEnv, DB: db };
-
-		const response = await batchGet(makeRequest("1"), env);
-
-		const data = (await response.json()) as { data: Array<Record<string, unknown>> };
-		const result = data.data[0];
-		expect(result.email).toBeUndefined();
-		expect(result.password_hash).toBeUndefined();
-		expect(result.passwordHash).toBeUndefined();
-	});
-
-	it("should only issue 1 D1 query for N users (no N+1)", async () => {
-		const users = Array.from({ length: 10 }, (_, i) =>
-			makeD1UserRow({ id: i + 1, username: `user${i}`, status: 0 }),
+	it("never leaks credentials or public IPs", async () => {
+		f.sqlite.exec(
+			"UPDATE users SET reg_ip='secret',last_ip='secret',email='private@example.com' WHERE id=10",
 		);
-		const { db, calls } = createMockDb({
-			allResults: {
-				"SELECT id, username, avatar": users,
-			},
-		});
-		const env = { ...mockEnv, DB: db };
-
-		await batchGet(makeRequest("1,2,3,4,5,6,7,8,9,10"), env);
-
-		// Exactly 1 query regardless of how many users
-		expect(calls.length).toBe(1);
+		const response = await batchGet(request("10"), f.env);
+		const text = await response.text();
+		expect(text).not.toMatch(/password|secret|private@example|regIp|lastIp/);
 	});
-
-	it("should LEFT JOIN user_checkins to surface check-in summary", async () => {
-		const { db, calls } = createMockDb({
-			allResults: {
-				"SELECT id, username, avatar": [],
-			},
-		});
-		const env = { ...mockEnv, DB: db };
-
-		await batchGet(makeRequest("1,2"), env);
-
-		const query = calls.find((c) => c.sql.includes("FROM users"));
-		expect(query).toBeDefined();
-		expect(query?.sql).toContain("LEFT JOIN user_checkins");
-		expect(query?.sql).toContain("checkin_total_days");
+	it("validates the 100-ID endpoint bound", async () => {
+		expect((await batchGet(request(""), f.env)).status).toBe(400);
+		expect(
+			(
+				await batchGet(
+					request(Array.from({ length: 101 }, (_, i) => String(i + 1)).join(",")),
+					f.env,
+				)
+			).status,
+		).toBe(400);
+		expect((await (await batchGet(request("abc,-1,0"), f.env)).json()).data).toEqual([]);
+	});
+	it("batches 206 profiles and queries only misses for each tier", async () => {
+		const ids = Array.from({ length: 206 }, (_, i) => i + 1000);
+		for (const id of ids) f.insert("users", { id, username: `user${id}` });
+		await getPublicUsers(f.env, undefined, ids.slice(0, 100), "public");
+		f.calls.length = 0;
+		expect((await getPublicUsers(f.env, undefined, ids, "public")).size).toBe(206);
+		expect(f.calls).toHaveLength(4);
+		expect(f.calls.every((c) => c.params.every((id) => Number(id) >= 1100))).toBe(true);
+		expect(Math.max(...f.calls.map((c) => c.params.length))).toBe(80);
 	});
 });

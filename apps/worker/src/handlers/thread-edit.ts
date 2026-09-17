@@ -14,8 +14,9 @@
 // surfaces here. See reviewer freeze msg=a8ee78db.
 
 import { canEditThreadSubject } from "@ellie/types";
-import { bumpForumSummaryGen, bumpThreadListGen, bumpThreadMetaGen } from "../lib/cache/invalidate";
+import { bumpThreadMetaGen } from "../lib/cache/invalidate";
 import { applyCensorFilter } from "../lib/censor";
+import { confirmedRun } from "../lib/d1-write";
 import type { Env } from "../lib/env";
 import { parseIdFromPath } from "../lib/parseId";
 import { getForumForPermission, getUserForPermission } from "../lib/permissionHelpers";
@@ -138,20 +139,12 @@ export async function editThreadSubject(request: Request, env: Env): Promise<Res
 		return jsonResponse({ id, updated: false }, origin);
 	}
 
-	await env.DB.prepare("UPDATE threads SET subject = ? WHERE id = ?").bind(finalSubject, id).run();
+	await confirmedRun(
+		env.DB.prepare("UPDATE threads SET subject = ? WHERE id = ?").bind(finalSubject, id),
+	);
 
-	// Cache invalidation matrix:
-	//   - thread:meta:gen:<id>   — thread detail caches that include subject
-	//   - thread:list:gen:<fid>  — per-forum thread list snippets show subject
-	//   - forum:summary:gen      — `forum:summary:v2.lastThreadSubject` may
-	//                              reflect this thread when it's the visible
-	//                              last thread of its forum.
-	// All three are independent KV bumps — fan out in parallel.
-	await Promise.all([
-		bumpThreadMetaGen(env, id),
-		bumpThreadListGen(env, thread.forum_id),
-		bumpForumSummaryGen(env),
-	]);
+	// Lists, recommendations and summaries compose this entity by ID.
+	await bumpThreadMetaGen(env, id);
 
 	return jsonResponse({ id, updated: true }, origin);
 }

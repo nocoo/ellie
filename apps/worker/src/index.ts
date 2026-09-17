@@ -5,9 +5,13 @@ import { setFlushSink } from "./lib/analytics/collect";
 import { d1FlushSink } from "./lib/analytics/flushSink-d1";
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import { cleanupKvCacheMetricsMinute } from "./lib/cache/cleanup";
+import { observeD1 } from "./lib/cache/d1-observe";
+import { scheduleMetricsFlush } from "./lib/cache/metrics";
+import { CacheLoadLimitError } from "./lib/cache/wrap";
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
 import { checkAndRolloverDailyStats } from "./lib/stats-rollover";
+import { flushThreadViews } from "./lib/thread-views";
 import { trackActivity } from "./middleware/activity";
 import { validateApiKey } from "./middleware/apiKey";
 import { authMiddleware } from "./middleware/auth";
@@ -49,10 +53,14 @@ async function tryTrackAuth(request: CFRequest, env: Env, ctx: ExecutionContext)
 
 export default {
 	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: flat router if-chain is intentionally sequential
-	async fetch(request: CFRequest, env: Env, ctx: ExecutionContext): Promise<Response> {
+	async fetch(request: CFRequest, bindings: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		const origin = request.headers.get("Origin") ?? undefined;
+		const env: Env = {
+			...bindings,
+			DB: observeD1(bindings.DB, path.startsWith("/api/admin/") ? "admin" : "business"),
+		};
 
 		// Configure CORS allowed origins from env (parsed once per request)
 		configureAllowedOrigins(env.ALLOWED_ORIGINS);
@@ -140,7 +148,7 @@ export default {
 				return await (await import("./handlers/thread")).getById(request, env, ctx);
 			}
 			if (path === "/api/v1/posts" && request.method === "GET") {
-				return await (await import("./handlers/post")).list(request, env);
+				return await (await import("./handlers/post")).list(request, env, ctx);
 			}
 			// Post rating (评分) create — must be registered BEFORE the GET-by-id
 			// regex below or the "/rate" suffix would be parsed as a post id.
@@ -149,7 +157,7 @@ export default {
 			}
 			// Post rating list — same ordering constraint as /rate.
 			if (path.match(/^\/api\/v1\/posts\/\d+\/ratings$/) && request.method === "GET") {
-				return await (await import("./handlers/post-rating")).listByPost(request, env);
+				return await (await import("./handlers/post-rating")).listByPost(request, env, ctx);
 			}
 			// Post rating revoke.
 			if (
@@ -159,38 +167,38 @@ export default {
 				return await (await import("./handlers/post-rating")).revoke(request, env);
 			}
 			if (path.match(/^\/api\/v1\/posts\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/post")).getById(request, env);
+				return await (await import("./handlers/post")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/posts\/\d+\/attachments$/) && request.method === "GET") {
-				return await (await import("./handlers/attachment")).listByPost(request, env);
+				return await (await import("./handlers/attachment")).listByPost(request, env, ctx);
 			}
 			// ── Batch attachment fetch (N+1 optimization) ────
 			if (path === "/api/v1/posts/attachments/batch" && request.method === "POST") {
-				return await (await import("./handlers/attachment")).batchByPostIds(request, env);
+				return await (await import("./handlers/attachment")).batchByPostIds(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/user")).getById(request, env);
+				return await (await import("./handlers/user")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/avatar-path$/) && request.method === "GET") {
-				return await (await import("./handlers/user")).getAvatarPath(request, env);
+				return await (await import("./handlers/user")).getAvatarPath(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/threads$/) && request.method === "GET") {
-				return await (await import("./handlers/user")).listThreads(request, env);
+				return await (await import("./handlers/user")).listThreads(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/posts$/) && request.method === "GET") {
-				return await (await import("./handlers/user")).listPosts(request, env);
+				return await (await import("./handlers/user")).listPosts(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/digest$/) && request.method === "GET") {
-				return await (await import("./handlers/user")).listDigest(request, env);
+				return await (await import("./handlers/user")).listDigest(request, env, ctx);
 			}
 
 			// ── #75 User search (Key A, no JWT) ─────────────
 			if (path === "/api/v1/users/search" && request.method === "GET") {
-				return await (await import("./handlers/user")).search(request, env);
+				return await (await import("./handlers/user")).search(request, env, ctx);
 			}
 			// ── Batch user lookup (N+1 optimization) ────────
 			if (path === "/api/v1/users/batch" && request.method === "GET") {
-				return await (await import("./handlers/user")).batchGet(request, env);
+				return await (await import("./handlers/user")).batchGet(request, env, ctx);
 			}
 
 			// ── Thread search (FTS5, Key A, optional JWT) ─────
@@ -200,7 +208,7 @@ export default {
 
 			// ── Digest routes (global featured threads) ─────────
 			if (path === "/api/v1/digest" && request.method === "GET") {
-				return await (await import("./handlers/digest")).list(request, env);
+				return await (await import("./handlers/digest")).list(request, env, ctx);
 			}
 			if (path === "/api/v1/digest/stats" && request.method === "GET") {
 				return await (await import("./handlers/digest")).stats(request, env, ctx);
@@ -216,7 +224,7 @@ export default {
 
 			// ── #12c Public settings (Key A, read-only) ─────
 			if (path === "/api/v1/settings" && request.method === "GET") {
-				return await (await import("./handlers/settings")).list(request, env);
+				return await (await import("./handlers/settings")).list(request, env, ctx);
 			}
 
 			// ── Auth routes (#12-#15) ────────────────────────
@@ -233,7 +241,7 @@ export default {
 				return await (await import("./handlers/auth")).logout(request, env);
 			}
 			if (path === "/api/v1/auth/me" && request.method === "GET") {
-				return await (await import("./handlers/auth")).me(request, env);
+				return await (await import("./handlers/auth")).me(request, env, ctx);
 			}
 			if (path === "/api/v1/auth/register" && request.method === "POST") {
 				return await (await import("./handlers/auth")).register(request, env, ctx);
@@ -279,16 +287,16 @@ export default {
 
 			// ── Private messaging routes (#70-#74) ──────────
 			if (path === "/api/v1/messages" && request.method === "GET") {
-				return await (await import("./handlers/message")).list(request, env);
+				return await (await import("./handlers/message")).list(request, env, ctx);
 			}
 			if (path === "/api/v1/messages/unread-count" && request.method === "GET") {
-				return await (await import("./handlers/message")).unreadCount(request, env);
+				return await (await import("./handlers/message")).unreadCount(request, env, ctx);
 			}
 			if (path === "/api/v1/messages/mark-all-read" && request.method === "POST") {
 				return await (await import("./handlers/message")).markAllRead(request, env);
 			}
 			if (path.match(/^\/api\/v1\/messages\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/message")).getById(request, env);
+				return await (await import("./handlers/message")).getById(request, env, ctx);
 			}
 			if (path === "/api/v1/messages" && request.method === "POST") {
 				return await (await import("./handlers/message")).create(request, env);
@@ -299,10 +307,10 @@ export default {
 
 			// ── Post comments (点评) routes ──────────────────
 			if (path === "/api/v1/post-comments/batch" && request.method === "POST") {
-				return await (await import("./handlers/post-comment")).batchByPostIds(request, env);
+				return await (await import("./handlers/post-comment")).batchByPostIds(request, env, ctx);
 			}
 			if (path === "/api/v1/post-comments" && request.method === "GET") {
-				return await (await import("./handlers/post-comment")).list(request, env);
+				return await (await import("./handlers/post-comment")).list(request, env, ctx);
 			}
 			if (path === "/api/v1/post-comments" && request.method === "POST") {
 				return await (await import("./handlers/post-comment")).create(request, env);
@@ -313,12 +321,12 @@ export default {
 				return await (await import("./handlers/report")).create(request, env);
 			}
 			if (path === "/api/v1/posting-permission" && request.method === "GET") {
-				return await (await import("./handlers/report")).checkPermission(request, env);
+				return await (await import("./handlers/report")).checkPermission(request, env, ctx);
 			}
 
 			// ── Check-in (签到) routes ──────────────────────
 			if (path === "/api/v1/checkin/status" && request.method === "GET") {
-				return await (await import("./handlers/checkin")).status(request, env);
+				return await (await import("./handlers/checkin")).status(request, env, ctx);
 			}
 			if (path === "/api/v1/checkin" && request.method === "POST") {
 				return await (await import("./handlers/checkin")).perform(request, env);
@@ -462,7 +470,7 @@ export default {
 			// routes so /api/admin/forums/123/thread-types isn't shadowed by
 			// the /api/admin/forums/:id GET / PATCH / DELETE routes below.
 			if (path.match(/^\/api\/admin\/forums\/\d+\/thread-types$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/forumThreadType")).list(request, env);
+				return await (await import("./handlers/admin/forumThreadType")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/forums\/\d+\/thread-types$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/forumThreadType")).create(request, env);
@@ -486,7 +494,7 @@ export default {
 				return await (await import("./handlers/admin/forumThreadType")).remove(request, env);
 			}
 			if (path === "/api/admin/forums" && request.method === "GET") {
-				return await (await import("./handlers/admin/forum")).list(request, env);
+				return await (await import("./handlers/admin/forum")).list(request, env, ctx);
 			}
 			if (path === "/api/admin/forums" && request.method === "POST") {
 				return await (await import("./handlers/admin/forum")).create(request, env);
@@ -495,7 +503,7 @@ export default {
 				return await (await import("./handlers/admin/forum")).merge(request, env);
 			}
 			if (path.match(/^\/api\/admin\/forums\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/forum")).getById(request, env);
+				return await (await import("./handlers/admin/forum")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/forums\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/forum")).update(request, env);
@@ -512,10 +520,10 @@ export default {
 				return await (await import("./handlers/admin/thread")).batchMove(request, env);
 			}
 			if (path === "/api/admin/threads" && request.method === "GET") {
-				return await (await import("./handlers/admin/thread")).list(request, env);
+				return await (await import("./handlers/admin/thread")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/threads\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/thread")).getById(request, env);
+				return await (await import("./handlers/admin/thread")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/threads\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/thread")).update(request, env);
@@ -529,10 +537,10 @@ export default {
 				return await (await import("./handlers/admin/post")).batchDelete(request, env);
 			}
 			if (path === "/api/admin/posts" && request.method === "GET") {
-				return await (await import("./handlers/admin/post")).list(request, env);
+				return await (await import("./handlers/admin/post")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/posts\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/post")).getById(request, env);
+				return await (await import("./handlers/admin/post")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/posts\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/post")).update(request, env);
@@ -543,7 +551,7 @@ export default {
 
 			// ── D. User (Admin) #36-#43 ─────────────────────
 			if (path === "/api/admin/users/batch" && request.method === "GET") {
-				return await (await import("./handlers/admin/user")).batchFetch(request, env);
+				return await (await import("./handlers/admin/user")).batchFetch(request, env, ctx);
 			}
 			if (path === "/api/admin/users/batch-status" && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).batchStatus(request, env);
@@ -555,10 +563,10 @@ export default {
 				return await (await import("./handlers/admin/user")).batchRecalcCounters(request, env);
 			}
 			if (path === "/api/admin/users/staff" && request.method === "GET") {
-				return await (await import("./handlers/admin/user")).listStaff(request, env);
+				return await (await import("./handlers/admin/user")).listStaff(request, env, ctx);
 			}
 			if (path === "/api/admin/users" && request.method === "GET") {
-				return await (await import("./handlers/admin/user")).list(request, env);
+				return await (await import("./handlers/admin/user")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/users\/\d+\/ban$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).ban(request, env);
@@ -576,7 +584,7 @@ export default {
 				return await (await import("./handlers/admin/user")).recalcCounters(request, env);
 			}
 			if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/user")).getById(request, env);
+				return await (await import("./handlers/admin/user")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/user")).update(request, env);
@@ -682,6 +690,18 @@ export default {
 			if (path === "/api/admin/kv/get" && request.method === "GET") {
 				return await (await import("./handlers/admin/kv")).getKey(request, env, ctx);
 			}
+			if (path === "/api/admin/kv/inspect" && request.method === "GET") {
+				return await (await import("./handlers/admin/kv")).inspect(request, env, ctx);
+			}
+			if (path === "/api/admin/kv/rebuild" && request.method === "POST") {
+				return await (await import("./handlers/admin/kv")).rebuild(request, env, ctx);
+			}
+			if (path === "/api/admin/kv/delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/kv")).deleteEntry(request, env, ctx);
+			}
+			if (path === "/api/admin/kv/operations" && request.method === "GET") {
+				return await (await import("./handlers/admin/kv")).operations(request, env, ctx);
+			}
 			if (path === "/api/admin/kv/refresh" && request.method === "POST") {
 				return await (await import("./handlers/admin/kv")).refresh(request, env, ctx);
 			}
@@ -702,10 +722,10 @@ export default {
 				return await (await import("./handlers/admin/attachment")).batchDelete(request, env);
 			}
 			if (path === "/api/admin/attachments" && request.method === "GET") {
-				return await (await import("./handlers/admin/attachment")).list(request, env);
+				return await (await import("./handlers/admin/attachment")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/attachments\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/attachment")).getById(request, env);
+				return await (await import("./handlers/admin/attachment")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/attachments\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/admin/attachment")).remove(request, env);
@@ -719,13 +739,13 @@ export default {
 				return await (await import("./handlers/admin/ipBan")).batchDelete(request, env);
 			}
 			if (path === "/api/admin/ip-bans" && request.method === "GET") {
-				return await (await import("./handlers/admin/ipBan")).list(request, env);
+				return await (await import("./handlers/admin/ipBan")).list(request, env, ctx);
 			}
 			if (path === "/api/admin/ip-bans" && request.method === "POST") {
 				return await (await import("./handlers/admin/ipBan")).create(request, env);
 			}
 			if (path.match(/^\/api\/admin\/ip-bans\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/ipBan")).getById(request, env);
+				return await (await import("./handlers/admin/ipBan")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/ip-bans\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/ipBan")).update(request, env);
@@ -742,13 +762,13 @@ export default {
 				return await (await import("./handlers/admin/censorWord")).batchDelete(request, env);
 			}
 			if (path === "/api/admin/censor-words" && request.method === "GET") {
-				return await (await import("./handlers/admin/censorWord")).list(request, env);
+				return await (await import("./handlers/admin/censorWord")).list(request, env, ctx);
 			}
 			if (path === "/api/admin/censor-words" && request.method === "POST") {
 				return await (await import("./handlers/admin/censorWord")).create(request, env);
 			}
 			if (path.match(/^\/api\/admin\/censor-words\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/censorWord")).getById(request, env);
+				return await (await import("./handlers/admin/censorWord")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/censor-words\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/censorWord")).update(request, env);
@@ -759,12 +779,12 @@ export default {
 
 			// ── H. Stats (Admin) #61 ────────────────────────
 			if (path === "/api/admin/stats" && request.method === "GET") {
-				return await (await import("./handlers/admin/stats")).handleStats(request, env);
+				return await (await import("./handlers/admin/stats")).handleStats(request, env, ctx);
 			}
 
 			// ── I. Settings (Admin) #62-#63 ─────────────────
 			if (path === "/api/admin/settings" && request.method === "GET") {
-				return await (await import("./handlers/admin/settings")).list(request, env);
+				return await (await import("./handlers/admin/settings")).list(request, env, ctx);
 			}
 			if (path === "/api/admin/settings" && request.method === "PUT") {
 				return await (await import("./handlers/admin/settings")).bulkUpdate(request, env);
@@ -789,10 +809,10 @@ export default {
 				return await (await import("./handlers/admin/report")).batchDelete(request, env);
 			}
 			if (path === "/api/admin/reports" && request.method === "GET") {
-				return await (await import("./handlers/admin/report")).list(request, env);
+				return await (await import("./handlers/admin/report")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/report")).getById(request, env);
+				return await (await import("./handlers/admin/report")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/report")).update(request, env);
@@ -800,10 +820,10 @@ export default {
 
 			// ── K. Admin Logs (Admin) §7 ────────────────────
 			if (path === "/api/admin/admin-logs" && request.method === "GET") {
-				return await (await import("./handlers/admin/adminLog")).list(request, env);
+				return await (await import("./handlers/admin/adminLog")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/admin-logs\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/adminLog")).getById(request, env);
+				return await (await import("./handlers/admin/adminLog")).getById(request, env, ctx);
 			}
 
 			// ── L. Announcements (Admin) §9 ─────────────────
@@ -811,13 +831,13 @@ export default {
 				return await (await import("./handlers/admin/announcement")).batchDelete(request, env);
 			}
 			if (path === "/api/admin/announcements" && request.method === "GET") {
-				return await (await import("./handlers/admin/announcement")).list(request, env);
+				return await (await import("./handlers/admin/announcement")).list(request, env, ctx);
 			}
 			if (path === "/api/admin/announcements" && request.method === "POST") {
 				return await (await import("./handlers/admin/announcement")).create(request, env);
 			}
 			if (path.match(/^\/api\/admin\/announcements\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/announcement")).getById(request, env);
+				return await (await import("./handlers/admin/announcement")).getById(request, env, ctx);
 			}
 			if (path.match(/^\/api\/admin\/announcements\/\d+$/) && request.method === "PATCH") {
 				return await (await import("./handlers/admin/announcement")).update(request, env);
@@ -830,7 +850,7 @@ export default {
 			// User-scoped only. No global list endpoint by design — admin
 			// reaches checkin state through the user-detail page.
 			if (path.match(/^\/api\/admin\/users\/\d+\/checkins$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/checkin")).getUserCheckins(request, env);
+				return await (await import("./handlers/admin/checkin")).getUserCheckins(request, env, ctx);
 			}
 			if (
 				path.match(/^\/api\/admin\/users\/\d+\/checkins\/streak$/) &&
@@ -845,12 +865,16 @@ export default {
 			// ── 404 — Not Found ─────────────────────────────
 			return errorResponse("NOT_FOUND", 404, { path }, origin);
 		} catch (err) {
+			if (err instanceof CacheLoadLimitError)
+				return errorResponse("SERVICE_UNAVAILABLE", 503, { message: err.message }, origin);
 			return errorResponse(
 				"INTERNAL_ERROR",
 				500,
 				{ message: err instanceof Error ? err.message : String(err) },
 				origin,
 			);
+		} finally {
+			scheduleMetricsFlush(env, ctx);
 		}
 	},
 
@@ -870,6 +894,7 @@ export default {
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
 		switch (event.cron) {
 			case "*/5 * * * *":
+				ctx.waitUntil(flushThreadViews(env));
 				ctx.waitUntil(aggregateOnlineStats(env));
 				// Check for day rollover and rotate today/yesterday posts counters
 				ctx.waitUntil(

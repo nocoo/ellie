@@ -37,8 +37,23 @@
 //    mini, settings, public stats); short-lived auth/rate-limit
 //    families intentionally produce no metrics rows.
 
+import {
+	type CacheParams,
+	type CacheTier,
+	decodeGenericCursor,
+	encodeGenericCursor,
+} from "@ellie/types";
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import {
+	footprintFamilyName,
+	getMonitorMetrics,
+	getMonitorOverview,
+	listExactMetadata,
+	loadMonitorMetrics,
+	loadMonitorOverview,
+	parseMonitorMetricsQuery,
+} from "../../lib/cache/admin-monitor-read";
 import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
@@ -48,13 +63,16 @@ import {
 	bumpThreadListGenAll,
 	bumpThreadMetaGen,
 } from "../../lib/cache/invalidate";
+import { findFamily, type KvFamilySpec, resolveFamilyForKey } from "../../lib/cache/kv-registry";
 import {
-	findFamily,
-	KV_REGISTRY,
-	type KvFamilySpec,
-	resolveFamilyForKey,
-} from "../../lib/cache/kv-registry";
-import { flushPendingNow, recordDelete } from "../../lib/cache/metrics";
+	CacheManagementError,
+	canRebuildCacheFamily,
+	deleteCacheEntry,
+	inspectCacheEntry,
+	rebuildCacheEntry,
+	resolveCacheEntryKey,
+} from "../../lib/cache/manage";
+import { flushPendingNow, recordDelete, recordGauge } from "../../lib/cache/metrics";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
@@ -142,51 +160,6 @@ async function maskKeyName(key: string, family: KvFamilySpec): Promise<string> {
 // ─── KV.list pagination helpers ───────────────────────────────────
 
 /**
- * Walk `KV.list({prefix})` until `list_complete === true`, collecting
- * keys. Caller passes a per-page hard cap to avoid unbounded scans;
- * default 5000. Returns `{keys, scannedPages, truncated}` — `truncated`
- * means the cap was hit before pagination completed, in which case the
- * count is a lower bound.
- *
- * NOTE: Cloudflare KV `list` is eventually-consistent and may return
- * empty `keys` with `list_complete: false`. We MUST NOT short-circuit
- * on empty pages.
- */
-async function listAllByPrefix(
-	env: Env,
-	prefix: string,
-	hardCap = 5000,
-): Promise<{
-	keys: { name: string; expiration?: number }[];
-	truncated: boolean;
-}> {
-	const out: { name: string; expiration?: number }[] = [];
-	let cursor: string | undefined;
-	let pages = 0;
-	const PAGE_LIMIT = 1000;
-	const MAX_PAGES = Math.max(1, Math.ceil(hardCap / PAGE_LIMIT));
-	while (pages < MAX_PAGES) {
-		const result = await env.KV.list({
-			prefix,
-			cursor,
-			limit: PAGE_LIMIT,
-		});
-		for (const entry of result.keys) {
-			out.push({ name: entry.name, expiration: entry.expiration });
-			if (out.length >= hardCap) {
-				return { keys: out, truncated: !result.list_complete };
-			}
-		}
-		if (result.list_complete) {
-			return { keys: out, truncated: false };
-		}
-		cursor = result.cursor;
-		pages++;
-	}
-	return { keys: out, truncated: true };
-}
-
-/**
  * Look up the `expiration` for an exact key by paginating
  * `KV.list({prefix: key})` until either the entry shows up or
  * `list_complete === true`. Bounded by `hardCap` total scanned entries
@@ -213,30 +186,109 @@ async function probeExpirationFor(env: Env, key: string, hardCap = 1000): Promis
 	}
 }
 
-// ─── Presence classification ──────────────────────────────────────
+type CacheLifecycle =
+	| "valid"
+	| "stale-version"
+	| "logically-expired"
+	| "not-found"
+	| "not-enrolled"
+	| "read-failed"
+	| "restricted"
+	| "runtime-state"
+	| "diagnostic-snapshot";
 
-type Presence =
-	| "present"
-	| "absent"
-	| "planned"
-	| "historical"
-	| "dead-builder-reserved"
-	| "sensitive-hidden";
+const UTF8 = new TextEncoder();
+const UNAVAILABLE_GEN = "!unavailable";
 
-/**
- * Map (status, count, sensitivity) to a single presence label that the
- * UI can render directly without re-deriving the rule. `stale` is left
- * for commit B once metrics arrive.
- */
-function classifyPresence(spec: KvFamilySpec, count: number): Presence {
-	if (spec.nameSensitivity === "hide" && spec.status === "shipped") {
-		return count > 0 ? "sensitive-hidden" : "absent";
-	}
-	if (spec.status === "planned") return "planned";
-	if (spec.status === "historical") return "historical";
-	if (spec.status === "dead-builder-reserved") return "dead-builder-reserved";
-	return count > 0 ? "present" : "absent";
+function isUnavailableGen(value: string): boolean {
+	return value === UNAVAILABLE_GEN || value.includes(UNAVAILABLE_GEN);
 }
+
+function isRuntimeFamily(spec: KvFamilySpec): boolean {
+	return (
+		spec.category === "session" ||
+		spec.category === "rate-limit" ||
+		spec.category === "throttle" ||
+		spec.category === "gen" ||
+		spec.category === "sticky-stats"
+	);
+}
+
+function tierFromTtl(ttl: KvFamilySpec["ttl"]): CacheTier | null {
+	if (ttl === 60) return "SHORT";
+	if (ttl === 1800) return "MEDIUM";
+	if (ttl === 86400) return "LONG";
+	return null;
+}
+
+function familyActions(spec: KvFamilySpec): {
+	inspect: boolean;
+	rebuild: boolean;
+	deleteEntry: boolean;
+	invalidateGroup: boolean;
+	restriction: string | null;
+} {
+	const runtime = isRuntimeFamily(spec);
+	const hide = spec.nameSensitivity === "hide";
+	const shipped = spec.status === "shipped";
+	return {
+		inspect: !hide,
+		rebuild: canRebuildCacheFamily(spec.family),
+		deleteEntry: !!spec.tier && shipped && spec.valueSensitivity !== "no-read" && !hide,
+		invalidateGroup: spec.refresh.kind.startsWith("bump-"),
+		restriction: runtime
+			? "runtime-state"
+			: hide
+				? "name-hidden"
+				: spec.valueSensitivity === "no-read"
+					? "value-forbidden"
+					: shipped
+						? null
+						: spec.status,
+	};
+}
+
+function readListMetadata(entry: { metadata?: unknown }): {
+	schemaVersion: number | null;
+	family: string | null;
+	tier: CacheTier | null;
+	loadedAt: number | null;
+	expiresAt: number | null;
+	sizeBytes: number | null;
+	contentUtf8Bytes: number | null;
+} {
+	const meta = entry.metadata;
+	if (!meta || typeof meta !== "object") {
+		return {
+			schemaVersion: null,
+			family: null,
+			tier: null,
+			loadedAt: null,
+			expiresAt: null,
+			sizeBytes: null,
+			contentUtf8Bytes: null,
+		};
+	}
+	const o = meta as Record<string, unknown>;
+	const tier = o.tier === "SHORT" || o.tier === "MEDIUM" || o.tier === "LONG" ? o.tier : null;
+	const sizeBytes = typeof o.sizeBytes === "number" ? o.sizeBytes : null;
+	const contentUtf8Bytes = typeof o.contentUtf8Bytes === "number" ? o.contentUtf8Bytes : sizeBytes;
+	return {
+		schemaVersion: typeof o.schemaVersion === "number" ? o.schemaVersion : null,
+		family: typeof o.family === "string" ? o.family : null,
+		tier,
+		loadedAt: typeof o.loadedAt === "number" ? o.loadedAt : null,
+		expiresAt: typeof o.expiresAt === "number" ? o.expiresAt : null,
+		sizeBytes,
+		contentUtf8Bytes,
+	};
+}
+
+function canInspectViaManage(spec: KvFamilySpec): boolean {
+	return !!spec.tier && spec.status === "shipped" && spec.valueSensitivity !== "no-read";
+}
+
+const KV_AUDIT_ACTIONS = ["kv.bump_gen", "kv.delete_key", "kv.rebuild", "kv.invalidate_group"];
 
 // ─── Body / param parsing ─────────────────────────────────────────
 
@@ -262,96 +314,37 @@ function readQuery(request: Request, key: string): string | null {
 // a small sample of (masked) key names. Counts are bounded by the
 // per-family list cap so a runaway prefix can't blow up the response.
 
-interface OverviewRow {
-	family: string;
-	displayName: string;
-	category: string;
-	status: string;
-	pattern: string;
-	ttl: number | "sticky" | "variable";
-	nameSensitivity: string;
-	valueSensitivity: string;
-	count: number;
-	truncated: boolean;
-	presence: Presence;
-	currentGens?: { name: string; value: string | null }[];
-	sampleKeys: string[];
-}
-
-const OVERVIEW_HARD_CAP = 1000;
-const OVERVIEW_SAMPLE_SIZE = 5;
-
-/**
- * Look up the current value of a gen token WITHOUT seeding a new one.
- * `getGen` from epoch.ts has the side-effect of writing a new token
- * when missing — that would change the very state the monitor is
- * supposed to observe, so the overview reads raw KV instead.
- */
-async function readGenRaw(env: Env, name: string): Promise<string | null> {
-	try {
-		return await env.KV.get(name);
-	} catch {
-		return null;
+function recordObservedFootprint(
+	row: {
+		family: string;
+		count: number;
+		countKind: string;
+		footprint: { kind: string; bytes: number | null };
+		expiredCount?: number | null;
+		currentVersionCount?: number | null;
+	},
+	observedAt: number,
+): void {
+	if (Math.floor(observedAt / 60_000) !== Math.floor(Date.now() / 60_000)) return;
+	const family = footprintFamilyName(row.family);
+	if (row.countKind !== "unknown") recordGauge(family, "observed-keys", row.count, observedAt);
+	if (row.footprint.kind !== "unknown" && row.footprint.bytes !== null) {
+		recordGauge(family, "observed-bytes", row.footprint.bytes, observedAt);
 	}
+	if (row.countKind !== "unknown" && typeof row.expiredCount === "number")
+		recordGauge(family, "observed-expired", row.expiredCount, observedAt);
+	if (row.countKind !== "unknown" && typeof row.currentVersionCount === "number")
+		recordGauge(family, "observed-current", row.currentVersionCount, observedAt);
 }
 
 export const overview = withEntityAuth(
 	kvConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-
-		const rows: OverviewRow[] = [];
-		for (const spec of KV_REGISTRY) {
-			const baseRow: OverviewRow = {
-				family: spec.family,
-				displayName: spec.displayName,
-				category: spec.category,
-				status: spec.status,
-				pattern: spec.pattern,
-				ttl: spec.ttl,
-				nameSensitivity: spec.nameSensitivity,
-				valueSensitivity: spec.valueSensitivity,
-				count: 0,
-				truncated: false,
-				presence: "absent",
-				sampleKeys: [],
-			};
-
-			let owned: { name: string; expiration?: number }[];
-			let truncated = false;
-
-			if (spec.keyKind === "exact") {
-				// Singleton family: count is 0 or 1, owned by exact name match.
-				const single = await env.KV.get(spec.listPrefix);
-				owned = single === null ? [] : [{ name: spec.listPrefix }];
-			} else {
-				const listed = await listAllByPrefix(env, spec.listPrefix, OVERVIEW_HARD_CAP);
-				truncated = listed.truncated;
-				owned = listed.keys.filter((k) => resolveFamilyForKey(k.name)?.family === spec.family);
-			}
-
-			baseRow.count = owned.length;
-			baseRow.truncated = truncated;
-			baseRow.presence = classifyPresence(spec, owned.length);
-
-			if (spec.nameSensitivity !== "hide" && owned.length > 0) {
-				const sampleSlice = owned.slice(0, OVERVIEW_SAMPLE_SIZE);
-				baseRow.sampleKeys = await Promise.all(sampleSlice.map((k) => maskKeyName(k.name, spec)));
-			}
-
-			if (spec.genKeys && spec.genKeys.length > 0) {
-				baseRow.currentGens = await Promise.all(
-					spec.genKeys.map(async (genName) => ({
-						name: genName,
-						value: await readGenRaw(env, genName),
-					})),
-				);
-			}
-
-			rows.push(baseRow);
-		}
-
-		return jsonNoStoreResponse({ families: rows }, origin);
+		const enrolled = findFamily("monitor:overview")?.loader === "monitor";
+		const data = enrolled ? await getMonitorOverview(env, ctx) : await loadMonitorOverview(env);
+		for (const row of data.families) recordObservedFootprint(row, data.observedAt);
+		return jsonNoStoreResponse(data, origin);
 	},
 );
 
@@ -379,11 +372,11 @@ async function collectOwnedKeys(
 	limit: number,
 	startCursor: string | undefined,
 ): Promise<{
-	owned: { name: string; expiration?: number }[];
+	owned: { name: string; expiration?: number; metadata?: unknown }[];
 	cursor: string | undefined;
 	listComplete: boolean;
 }> {
-	const owned: { name: string; expiration?: number }[] = [];
+	const owned: { name: string; expiration?: number; metadata?: unknown }[] = [];
 	let nextCursor: string | undefined = startCursor;
 	let listComplete = false;
 	for (let page = 0; page < LIST_MAX_PAGES; page++) {
@@ -409,26 +402,127 @@ async function collectOwnedKeys(
 	return { owned, cursor: nextCursor, listComplete };
 }
 
+const PARAMS_QUERY_MAX = 2048;
+const PARAMS_FIELD_MAX = 32;
+const SCOPE_QUERY_MAX = 128;
+
+function parseCacheParams(raw: string | null): CacheParams | null | "invalid" {
+	if (!raw) return null;
+	if (raw.length > PARAMS_QUERY_MAX) return "invalid";
+	try {
+		const value: unknown = JSON.parse(raw);
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return "invalid";
+		const entries = Object.entries(value as Record<string, unknown>);
+		if (entries.length > PARAMS_FIELD_MAX) return "invalid";
+		if (
+			entries.some(
+				([, item]) =>
+					item !== null &&
+					typeof item !== "string" &&
+					typeof item !== "boolean" &&
+					!(typeof item === "number" && Number.isFinite(item)),
+			)
+		)
+			return "invalid";
+		return value as CacheParams;
+	} catch {
+		return "invalid";
+	}
+}
+
+function parseScopeQuery(raw: string | null): string | "invalid" {
+	if (!raw) return "public";
+	if (raw.length > SCOPE_QUERY_MAX) return "invalid";
+	return raw;
+}
+
+async function listedKeyRow(
+	spec: KvFamilySpec,
+	entry: { name: string; expiration?: number; metadata?: unknown },
+	locate?: { params: CacheParams | null; scope: string | null },
+) {
+	const meta = readListMetadata(entry);
+	return {
+		key: await maskKeyName(entry.name, spec),
+		rawKey: spec.nameSensitivity === "public" ? entry.name : null,
+		expiration: entry.expiration ?? null,
+		loadedAt: meta.loadedAt,
+		expiresAt: meta.expiresAt,
+		schemaVersion: meta.schemaVersion,
+		family: meta.family ?? spec.family,
+		tier: meta.tier ?? spec.tier ?? tierFromTtl(spec.ttl),
+		sizeBytes: meta.sizeBytes ?? meta.contentUtf8Bytes,
+		contentUtf8Bytes: meta.contentUtf8Bytes,
+		scope: locate?.scope ?? null,
+		params: locate?.params ?? null,
+	};
+}
+
+async function listExactName(
+	env: Env,
+	spec: KvFamilySpec,
+	name: string,
+	origin: string | undefined,
+	locate?: { params: CacheParams | null; scope: string | null },
+): Promise<Response> {
+	if (resolveFamilyForKey(name)?.family !== spec.family) {
+		return jsonNoStoreResponse(
+			{
+				family: spec.family,
+				keys: [],
+				cursor: null,
+				listComplete: true,
+				countKind: "observed",
+				observedAt: Date.now(),
+				actions: familyActions(spec),
+			},
+			origin,
+		);
+	}
+	const found = await listExactMetadata(env, name);
+	if (found.truncated && !found.key) {
+		return jsonNoStoreResponse(
+			{
+				family: spec.family,
+				keys: [],
+				cursor: null,
+				listComplete: false,
+				countKind: "unknown",
+				observedAt: Date.now(),
+				actions: familyActions(spec),
+			},
+			origin,
+		);
+	}
+	return jsonNoStoreResponse(
+		{
+			family: spec.family,
+			keys: found.key ? [await listedKeyRow(spec, found.key, locate)] : [],
+			cursor: null,
+			listComplete: !found.truncated,
+			countKind: "observed",
+			observedAt: Date.now(),
+			actions: familyActions(spec),
+		},
+		origin,
+	);
+}
+
+async function resolveLocatedName(
+	env: Env,
+	spec: KvFamilySpec,
+	params: CacheParams,
+	scope: string,
+): Promise<string> {
+	return resolveCacheEntryKey(env, { family: spec.family, params, scope });
+}
+
 async function listSingletonFamily(
 	env: Env,
 	spec: KvFamilySpec,
 	origin: string | undefined,
 ): Promise<Response> {
-	const single = await env.KV.get(spec.listPrefix);
-	const keys =
-		single === null
-			? []
-			: [
-					{
-						key: await maskKeyName(spec.listPrefix, spec),
-						rawKey: spec.nameSensitivity === "public" ? spec.listPrefix : null,
-						expiration: await probeExpirationFor(env, spec.listPrefix),
-					},
-				];
-	return jsonNoStoreResponse(
-		{ family: spec.family, keys, cursor: null, listComplete: true },
-		origin,
-	);
+	return listExactName(env, spec, spec.listPrefix, origin);
 }
 
 export const listFamily = withEntityAuth(
@@ -447,7 +541,36 @@ export const listFamily = withEntityAuth(
 			return errorResponse("KV_KEY_NAME_HIDDEN", 403, { family: spec.family }, origin);
 		}
 
-		// Singleton family: at most one key, no pagination needed.
+		const locateKey = readQuery(request, "key");
+		const locateParams = parseCacheParams(readQuery(request, "params"));
+		const locateScope = parseScopeQuery(readQuery(request, "scope"));
+		if (locateParams === "invalid" || locateScope === "invalid") {
+			return errorResponse("INVALID_DESCRIPTOR", 400, undefined, origin);
+		}
+		if (locateKey && locateParams) {
+			return errorResponse("UNKNOWN_KEYS", 400, { rejected: ["key", "params"] }, origin);
+		}
+		if (locateKey) {
+			return listExactName(env, spec, locateKey, origin);
+		}
+		if (locateParams) {
+			try {
+				const name = await resolveLocatedName(env, spec, locateParams, locateScope);
+				return listExactName(env, spec, name, origin, {
+					params: locateParams,
+					scope: locateScope,
+				});
+			} catch (err) {
+				if (err instanceof CacheManagementError) {
+					return errorResponse(err.code, 400, { family: spec.family }, origin);
+				}
+				if (err instanceof TypeError) {
+					return errorResponse("INVALID_DESCRIPTOR", 400, { family: spec.family }, origin);
+				}
+				throw err;
+			}
+		}
+
 		if (spec.keyKind === "exact") {
 			return listSingletonFamily(env, spec, origin);
 		}
@@ -465,13 +588,7 @@ export const listFamily = withEntityAuth(
 			listComplete,
 		} = await collectOwnedKeys(env, spec, limit, cursor);
 
-		const masked = await Promise.all(
-			owned.slice(0, limit).map(async (k) => ({
-				key: await maskKeyName(k.name, spec),
-				rawKey: spec.nameSensitivity === "public" ? k.name : null,
-				expiration: k.expiration ?? null,
-			})),
-		);
+		const masked = await Promise.all(owned.slice(0, limit).map((k) => listedKeyRow(spec, k)));
 
 		return jsonNoStoreResponse(
 			{
@@ -479,6 +596,9 @@ export const listFamily = withEntityAuth(
 				keys: masked,
 				cursor: listComplete ? null : (nextCursor ?? null),
 				listComplete,
+				countKind: listComplete ? "observed" : "at-least",
+				observedAt: Date.now(),
+				actions: familyActions(spec),
 			},
 			origin,
 		);
@@ -492,12 +612,324 @@ export const listFamily = withEntityAuth(
 // For `valueSensitivity === "mask-value"` we return only size +
 // metadata, never the raw value (protects rate-limit counters etc.).
 
+function slicePreview(
+	previewValue: unknown,
+	contentOffset: number,
+	contentLimit: number | null,
+): {
+	rendered: unknown;
+	contentTruncated: boolean;
+	contentRange?: { offset: number; length: number; total: number };
+} {
+	if (previewValue === null || contentLimit === null) {
+		return { rendered: previewValue, contentTruncated: false };
+	}
+	const text =
+		typeof previewValue === "string" ? previewValue : (JSON.stringify(previewValue, null, 2) ?? "");
+	const slice = text.slice(contentOffset, contentOffset + contentLimit);
+	return {
+		rendered: slice,
+		contentTruncated: contentOffset + slice.length < text.length || contentOffset > 0,
+		contentRange: { offset: contentOffset, length: slice.length, total: text.length },
+	};
+}
+
+function inspectLifecycle(input: {
+	found: boolean;
+	valid: boolean;
+	staleVersion: boolean;
+	restricted: boolean;
+	runtimeState: boolean;
+	readFailed: boolean;
+	enrolled: boolean;
+	hasEnvelope: boolean;
+	expiresAt: number | null;
+	observedAt: number;
+}): CacheLifecycle {
+	if (input.readFailed) return "read-failed";
+	if (input.runtimeState) return "runtime-state";
+	if (input.restricted) return "restricted";
+	if (!input.enrolled) return "not-enrolled";
+	if (!input.found) return "not-found";
+	if (input.valid) return "valid";
+	if (input.expiresAt !== null && input.expiresAt <= input.observedAt) {
+		return input.staleVersion ? "diagnostic-snapshot" : "logically-expired";
+	}
+	if (input.staleVersion) return "stale-version";
+	if (input.hasEnvelope) return "diagnostic-snapshot";
+	return "not-enrolled";
+}
+
+function mayPreviewScope(scope: string | null, restricted: boolean): boolean {
+	if (restricted) return false;
+	if (scope === "internal") return true;
+	return true;
+}
+
+interface InspectCtx {
+	maskedKey: string;
+	rawKey: string | null;
+	runtimeState: boolean;
+	restricted: boolean;
+	actions: ReturnType<typeof familyActions>;
+}
+
+function inspectReadFailed(spec: KvFamilySpec, ctx: InspectCtx): Record<string, unknown> {
+	return {
+		family: spec.family,
+		key: ctx.maskedKey,
+		rawKey: ctx.rawKey,
+		value: null,
+		valueMasked: ctx.restricted,
+		valueByteSize: 0,
+		contentUtf8Bytes: null,
+		metadata: null,
+		expiration: null,
+		physicalExpiration: null,
+		observedAt: Date.now(),
+		status: "read-failed",
+		schemaVersion: null,
+		tier: spec.tier ?? tierFromTtl(spec.ttl),
+		params: null,
+		scope: null,
+		loadedAt: null,
+		expiresAt: null,
+		remainingMs: null,
+		footprint: { kind: "unknown", bytes: null },
+		restricted: ctx.restricted,
+		contentTruncated: false,
+		actions: ctx.actions,
+		found: false,
+		valid: false,
+	};
+}
+
+async function inspectEnrolledPayload(
+	env: Env,
+	spec: KvFamilySpec,
+	key: string,
+	contentOffset: number,
+	contentLimit: number | null,
+	ctx: InspectCtx,
+): Promise<Record<string, unknown>> {
+	try {
+		const inspected = await inspectCacheEntry(env, key);
+		const envelope = inspected.envelope;
+		const expiresAt = envelope?.expiresAt ?? null;
+		const scope = envelope?.scope ?? null;
+		const previewAllowed = mayPreviewScope(scope, ctx.restricted);
+		const previewValue = previewAllowed ? (envelope ? envelope.data : inspected.raw) : null;
+		const sliced = slicePreview(previewValue, contentOffset, contentLimit);
+		const expiration = inspected.found ? await probeExpirationFor(env, key) : null;
+		const status = inspectLifecycle({
+			found: inspected.found,
+			valid: inspected.valid,
+			staleVersion: inspected.staleVersion,
+			restricted: ctx.restricted,
+			runtimeState: ctx.runtimeState,
+			readFailed: false,
+			enrolled: true,
+			hasEnvelope: envelope !== null,
+			expiresAt,
+			observedAt: inspected.observedAt,
+		});
+		const sizeBytes = inspected.found ? inspected.sizeBytes : null;
+		return {
+			family: spec.family,
+			key: ctx.maskedKey,
+			rawKey: ctx.rawKey,
+			value: sliced.rendered,
+			valueMasked: ctx.restricted,
+			valueByteSize: inspected.sizeBytes,
+			contentUtf8Bytes: sizeBytes,
+			sizeBytes,
+			metadata: envelope
+				? {
+						schemaVersion: envelope.schemaVersion,
+						family: envelope.family,
+						tier: envelope.tier,
+						loadedAt: envelope.loadedAt,
+						expiresAt: envelope.expiresAt,
+						sizeBytes,
+						contentUtf8Bytes: sizeBytes,
+					}
+				: null,
+			expiration,
+			physicalExpiration: expiration,
+			observedAt: inspected.observedAt,
+			status,
+			schemaVersion: envelope?.schemaVersion ?? null,
+			tier: envelope?.tier ?? spec.tier ?? tierFromTtl(spec.ttl),
+			params: envelope?.params ?? null,
+			scope,
+			staleVersion: inspected.staleVersion,
+			currentVersion: inspected.currentVersion,
+			adminOnlyPreview: scope === "internal",
+			loadedAt: envelope?.loadedAt ?? null,
+			expiresAt,
+			remainingMs: expiresAt === null ? null : expiresAt - inspected.observedAt,
+			footprint:
+				sizeBytes === null
+					? { kind: "unknown", bytes: null }
+					: { kind: "observed", bytes: sizeBytes },
+			restricted: ctx.restricted,
+			contentTruncated: sliced.contentTruncated,
+			contentRange: sliced.contentRange,
+			actions: ctx.actions,
+			earliestDependencyExpiresAt: expiresAt,
+			found: inspected.found,
+			valid: inspected.valid,
+		};
+	} catch (err) {
+		if (
+			err instanceof CacheManagementError &&
+			(err.code === "READ_FAILED" || err.code === "VERSION_READ_FAILED")
+		) {
+			return inspectReadFailed(spec, ctx);
+		}
+		throw err;
+	}
+}
+
+async function inspectRawPayload(
+	env: Env,
+	spec: KvFamilySpec,
+	key: string,
+	contentOffset: number,
+	contentLimit: number | null,
+	ctx: InspectCtx,
+): Promise<Record<string, unknown>> {
+	let value: string | null = null;
+	let metadata: unknown = null;
+	let readFailed = false;
+	try {
+		const got = await env.KV.getWithMetadata(key);
+		value = got.value;
+		metadata = got.metadata;
+	} catch {
+		readFailed = true;
+	}
+
+	const expiration = value === null ? null : await probeExpirationFor(env, key);
+	const contentUtf8Bytes = value === null ? null : UTF8.encode(value).byteLength;
+	let parsedValue: unknown = value;
+	if (value !== null) {
+		try {
+			parsedValue = JSON.parse(value);
+		} catch {
+			parsedValue = value;
+		}
+	}
+	const previewValue = ctx.restricted ? null : parsedValue;
+	const sliced = slicePreview(previewValue, contentOffset, contentLimit);
+	const listMeta = readListMetadata({ metadata });
+	const status = inspectLifecycle({
+		found: value !== null,
+		valid: false,
+		staleVersion: false,
+		restricted: ctx.restricted,
+		runtimeState: ctx.runtimeState,
+		readFailed,
+		enrolled: false,
+		hasEnvelope: false,
+		expiresAt: listMeta.expiresAt,
+		observedAt: Date.now(),
+	});
+
+	return {
+		family: spec.family,
+		key: ctx.maskedKey,
+		rawKey: ctx.rawKey,
+		value: sliced.rendered,
+		valueMasked: ctx.restricted,
+		valueByteSize: contentUtf8Bytes ?? 0,
+		contentUtf8Bytes,
+		sizeBytes: listMeta.sizeBytes ?? contentUtf8Bytes,
+		metadata: metadata ?? null,
+		expiration,
+		physicalExpiration: expiration,
+		observedAt: Date.now(),
+		status,
+		schemaVersion: listMeta.schemaVersion,
+		tier: listMeta.tier ?? spec.tier ?? tierFromTtl(spec.ttl),
+		params: null,
+		scope: null,
+		loadedAt: listMeta.loadedAt,
+		expiresAt: listMeta.expiresAt,
+		remainingMs: listMeta.expiresAt === null ? null : listMeta.expiresAt - Date.now(),
+		footprint:
+			contentUtf8Bytes === null
+				? { kind: "unknown", bytes: null }
+				: { kind: "observed", bytes: contentUtf8Bytes },
+		restricted: ctx.restricted,
+		contentTruncated: sliced.contentTruncated,
+		contentRange: sliced.contentRange,
+		actions: ctx.actions,
+		earliestDependencyExpiresAt: listMeta.expiresAt,
+		found: value !== null,
+		valid: false,
+	};
+}
+
+async function inspectKeyPayload(
+	env: Env,
+	spec: KvFamilySpec,
+	key: string,
+	contentOffset: number,
+	contentLimit: number | null,
+): Promise<Record<string, unknown>> {
+	const ctx: InspectCtx = {
+		maskedKey: await maskKeyName(key, spec),
+		rawKey: spec.nameSensitivity === "public" ? key : null,
+		runtimeState: isRuntimeFamily(spec),
+		restricted: spec.valueSensitivity !== "public",
+		actions: familyActions(spec),
+	};
+	if (canInspectViaManage(spec)) {
+		return inspectEnrolledPayload(env, spec, key, contentOffset, contentLimit, ctx);
+	}
+	return inspectRawPayload(env, spec, key, contentOffset, contentLimit, ctx);
+}
+
+async function resolveInspectKey(
+	env: Env,
+	request: Request,
+	origin: string | undefined,
+): Promise<{ key: string } | Response> {
+	const key = readQuery(request, "key");
+	const familyParam = readQuery(request, "family");
+	const locateParams = parseCacheParams(readQuery(request, "params"));
+	const locateScope = parseScopeQuery(readQuery(request, "scope"));
+	if (locateParams === "invalid" || locateScope === "invalid") {
+		return errorResponse("INVALID_DESCRIPTOR", 400, undefined, origin);
+	}
+	if (key && locateParams) {
+		return errorResponse("UNKNOWN_KEYS", 400, { rejected: ["key", "params"] }, origin);
+	}
+	if (key) return { key };
+	if (!familyParam || !locateParams) return errorResponse("MISSING_KEY", 400, undefined, origin);
+	const spec = findFamily(familyParam);
+	if (!spec) return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
+	try {
+		return { key: await resolveLocatedName(env, spec, locateParams, locateScope) };
+	} catch (err) {
+		if (err instanceof CacheManagementError) {
+			return errorResponse(err.code, 400, { family: spec.family }, origin);
+		}
+		if (err instanceof TypeError) {
+			return errorResponse("INVALID_DESCRIPTOR", 400, { family: spec.family }, origin);
+		}
+		throw err;
+	}
+}
+
 export const getKey = withEntityAuth(
 	kvConfig,
 	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-		const key = readQuery(request, "key");
-		if (!key) return errorResponse("MISSING_KEY", 400, undefined, origin);
+		const located = await resolveInspectKey(env, request, origin);
+		if (located instanceof Response) return located;
+		const { key } = located;
 
 		const spec = resolveFamilyForKey(key);
 		if (!spec) {
@@ -510,58 +942,33 @@ export const getKey = withEntityAuth(
 			return errorResponse("KV_KEY_VALUE_FORBIDDEN", 403, { family: spec.family }, origin);
 		}
 
-		const { value, metadata } = await env.KV.getWithMetadata(key);
-		if (value === null) {
+		let payload: Record<string, unknown>;
+		try {
+			const offset = Math.max(
+				0,
+				Number.parseInt(readQuery(request, "contentOffset") ?? "0", 10) || 0,
+			);
+			const limitRaw = readQuery(request, "contentLimit");
+			const limit = limitRaw ? Math.max(0, Number.parseInt(limitRaw, 10) || 0) : null;
+			payload = await inspectKeyPayload(env, spec, key, offset, limit === 0 ? null : limit);
+		} catch (err) {
+			if (err instanceof CacheManagementError && err.code === "NOT_ALLOWED") {
+				return errorResponse("FORBIDDEN", 403, { family: spec.family }, origin);
+			}
+			return errorResponse("INTERNAL_ERROR", 500, { family: spec.family }, origin);
+		}
+
+		if (payload.status === "read-failed" || payload.status === "not-found") {
+			return jsonNoStoreResponse(payload, origin);
+		}
+		if (payload.found !== true) {
 			return errorResponse("KV_KEY_NOT_FOUND", 404, { key }, origin);
 		}
-
-		// expiration is not on getWithMetadata — paginate list({prefix:key})
-		// for the matching entry. Best-effort; null means "unknown".
-		const expiration = await probeExpirationFor(env, key);
-
-		const valueByteSize = new TextEncoder().encode(value).byteLength;
-		const maskedKey = await maskKeyName(key, spec);
-
-		// `mask-value`: never return raw payload. Only size + metadata.
-		if (spec.valueSensitivity === "mask-value") {
-			return jsonNoStoreResponse(
-				{
-					family: spec.family,
-					key: maskedKey,
-					rawKey: spec.nameSensitivity === "public" ? key : null,
-					value: null,
-					valueMasked: true,
-					valueByteSize,
-					metadata: metadata ?? null,
-					expiration,
-				},
-				origin,
-			);
-		}
-
-		// public: try to parse value as JSON for the UI; fall back to raw string.
-		let parsedValue: unknown = value;
-		try {
-			parsedValue = JSON.parse(value);
-		} catch {
-			// value is a plain string (counter, token-id reference, …)
-		}
-
-		return jsonNoStoreResponse(
-			{
-				family: spec.family,
-				key: maskedKey,
-				rawKey: spec.nameSensitivity === "public" ? key : null,
-				value: parsedValue,
-				valueMasked: false,
-				valueByteSize,
-				metadata: metadata ?? null,
-				expiration,
-			},
-			origin,
-		);
+		return jsonNoStoreResponse(payload, origin);
 	},
 );
+
+export const inspect = getKey;
 
 // ─── POST /api/admin/kv/refresh ───────────────────────────────────
 //
@@ -609,16 +1016,15 @@ export const refresh = withEntityAuth(
 		// keep the switch below under the lint complexity budget.
 		const simpleBump = SIMPLE_BUMP_ACTIONS[spec.refresh.kind];
 		if (simpleBump) {
-			const newGen = await simpleBump.run(env);
-			await writeAdminLog(env, actor, {
-				action: "kv.bump_gen",
-				targetType: "kv_family",
-				targetId: null,
-				details: { family: spec.family, gen: simpleBump.gen, newGen },
-			});
-			// Surface the just-recorded `bump` op in this same request.
-			if (ctx) flushPendingNow(env, ctx);
-			return jsonNoStoreResponse({ ok: true, family: spec.family, newGen }, origin);
+			return finishGroupBump(
+				env,
+				actor,
+				spec,
+				simpleBump.gen,
+				await simpleBump.run(env),
+				origin,
+				ctx,
+			);
 		}
 
 		switch (spec.refresh.kind) {
@@ -638,6 +1044,73 @@ export const refresh = withEntityAuth(
 	},
 );
 
+async function finishGroupBump(
+	env: Env,
+	actor: Awaited<ReturnType<typeof resolveActor>>,
+	spec: { family: string },
+	gen: string,
+	newGen: string,
+	origin: string | undefined,
+	ctx: ExecutionContext | undefined,
+	extra: Record<string, unknown> = {},
+): Promise<Response> {
+	if (isUnavailableGen(newGen)) {
+		await writeAdminLog(env, actor, {
+			action: "kv.bump_gen",
+			targetType: "kv_family",
+			targetId:
+				typeof extra.forumId === "number"
+					? extra.forumId
+					: typeof extra.threadId === "number"
+						? extra.threadId
+						: null,
+			details: { family: spec.family, gen, newGen, outcome: "failed" },
+		});
+		return jsonNoStoreResponse(
+			{
+				ok: false,
+				family: spec.family,
+				...extra,
+				newGen,
+				outcome: "failed",
+				rebuilt: false,
+				observedAt: Date.now(),
+				error: {
+					code: "KV_INVALIDATE_UNAVAILABLE",
+					message: "generation bump was not confirmed",
+				},
+				consistencyNote: "written-not-globally-visible",
+			},
+			origin,
+		);
+	}
+	await writeAdminLog(env, actor, {
+		action: "kv.bump_gen",
+		targetType: "kv_family",
+		targetId:
+			typeof extra.forumId === "number"
+				? extra.forumId
+				: typeof extra.threadId === "number"
+					? extra.threadId
+					: null,
+		details: { family: spec.family, gen, newGen },
+	});
+	if (ctx) flushPendingNow(env, ctx);
+	return jsonNoStoreResponse(
+		{
+			ok: true,
+			family: spec.family,
+			...extra,
+			newGen,
+			outcome: "invalidated",
+			rebuilt: false,
+			observedAt: Date.now(),
+			consistencyNote: "written-not-globally-visible",
+		},
+		origin,
+	);
+}
+
 async function refreshBumpThreadListForum(
 	env: Env,
 	actor: Awaited<ReturnType<typeof resolveActor>>,
@@ -651,14 +1124,9 @@ async function refreshBumpThreadListForum(
 		return errorResponse("MISSING_FORUM_ID", 400, undefined, origin);
 	}
 	const newGen = await bumpThreadListGen(env, forumId);
-	await writeAdminLog(env, actor, {
-		action: "kv.bump_gen",
-		targetType: "kv_family",
-		targetId: forumId,
-		details: { family: spec.family, gen: `thread:list:gen:${forumId}`, newGen },
+	return finishGroupBump(env, actor, spec, `thread:list:gen:${forumId}`, newGen, origin, ctx, {
+		forumId,
 	});
-	if (ctx) flushPendingNow(env, ctx);
-	return jsonNoStoreResponse({ ok: true, family: spec.family, forumId, newGen }, origin);
 }
 
 async function refreshBumpThreadScoped(
@@ -675,18 +1143,16 @@ async function refreshBumpThreadScoped(
 	}
 	const isMeta = spec.refresh.kind === "bump-thread-meta";
 	const newGen = await (isMeta ? bumpThreadMetaGen : bumpPostListGen)(env, threadId);
-	await writeAdminLog(env, actor, {
-		action: "kv.bump_gen",
-		targetType: "kv_family",
-		targetId: threadId,
-		details: {
-			family: spec.family,
-			gen: `${isMeta ? "thread:meta" : "post:list"}:gen:${threadId}`,
-			newGen,
-		},
-	});
-	if (ctx) flushPendingNow(env, ctx);
-	return jsonNoStoreResponse({ ok: true, family: spec.family, threadId, newGen }, origin);
+	return finishGroupBump(
+		env,
+		actor,
+		spec,
+		`${isMeta ? "thread:meta" : "post:list"}:gen:${threadId}`,
+		newGen,
+		origin,
+		ctx,
+		{ threadId },
+	);
 }
 
 async function refreshDeleteLiteral(
@@ -709,7 +1175,7 @@ async function refreshDeleteLiteral(
 		return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
 	}
 	await env.KV.delete(key);
-	recordDelete(targetSpec.family);
+	recordDelete(`admin:${targetSpec.family}`);
 	const masked = await maskKeyName(key, targetSpec);
 	await writeAdminLog(env, actor, {
 		action: "kv.delete_key",
@@ -718,7 +1184,18 @@ async function refreshDeleteLiteral(
 		details: { family: spec.family, maskedKey: masked },
 	});
 	if (ctx) flushPendingNow(env, ctx);
-	return jsonNoStoreResponse({ ok: true, family: spec.family, deleted: 1 }, origin);
+	return jsonNoStoreResponse(
+		{
+			ok: true,
+			family: spec.family,
+			deleted: 1,
+			outcome: "deleted",
+			rebuilt: false,
+			observedAt: Date.now(),
+			consistencyNote: "delete-sent-not-globally-visible",
+		},
+		origin,
+	);
 }
 
 async function refreshDeleteUserMini(
@@ -748,7 +1225,19 @@ async function refreshDeleteUserMini(
 		details: { family: spec.family },
 	});
 	if (ctx) flushPendingNow(env, ctx);
-	return jsonNoStoreResponse({ ok: true, family: spec.family, userId, deleted: 1 }, origin);
+	return jsonNoStoreResponse(
+		{
+			ok: true,
+			family: spec.family,
+			userId,
+			deleted: 1,
+			outcome: "deleted",
+			rebuilt: false,
+			observedAt: Date.now(),
+			consistencyNote: "delete-sent-not-globally-visible",
+		},
+		origin,
+	);
 }
 
 // ─── GET /api/admin/kv/metrics ────────────────────────────────────
@@ -760,68 +1249,359 @@ async function refreshDeleteUserMini(
 // Query params:
 //   - `family` (optional): restrict to one registry family. When omitted
 //     the response carries all rows in the window, grouped by family.
-//   - `minutes`: window size in minutes (default 60, max 1440 = 24h).
+//   - `minutes`: window size in minutes (default 60, max 10080 = 7d).
 //
 // Response shape:
 //   { family: string | null, minutes: number,
 //     series: [{ family, tsMinute, op, count }, ...] }
 //
-// `op` is one of `read | hit | miss | write | bump | delete | error`.
-// The UI derives hit-rate as `hit / (hit + miss)` and total ops as the
-// sum across all op rows for the same (family, tsMinute).
+// `op` includes cache verbs plus optional D1 observation
+// (`d1-query | d1-rows-read | d1-rows-written | d1-duration-ms`) under
+// families `application:d1` and `admin:d1`. No extra SQL: those rows
+// already live in `kv_cache_metrics_minute` when d1-observe recorded them.
+// Hit-rate must ignore admin:* and D1 families.
 
 export const metrics = withEntityAuth(
 	kvConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-		const family = readQuery(request, "family");
-		const minutes = Math.min(
-			Math.max(Number.parseInt(readQuery(request, "minutes") ?? "60", 10) || 60, 1),
-			1440,
-		);
-		const cutoff = Math.floor(Date.now() / 60_000) - minutes;
-
+		const { family, minutes } = parseMonitorMetricsQuery({
+			family: readQuery(request, "family"),
+			minutes: readQuery(request, "minutes"),
+		});
 		try {
-			const stmt = family
-				? env.DB.prepare(
-						`SELECT family, ts_minute, op, count
-						 FROM kv_cache_metrics_minute
-						 WHERE ts_minute >= ? AND family = ?
-						 ORDER BY ts_minute ASC, op ASC`,
-					).bind(cutoff, family)
-				: env.DB.prepare(
-						`SELECT family, ts_minute, op, count
-						 FROM kv_cache_metrics_minute
-						 WHERE ts_minute >= ?
-						 ORDER BY family ASC, ts_minute ASC, op ASC`,
-					).bind(cutoff);
-			const result = await stmt.all<{
-				family: string;
-				ts_minute: number;
-				op: string;
-				count: number;
-			}>();
-			const series = result.results.map((r) => ({
-				family: r.family,
-				tsMinute: r.ts_minute,
-				op: r.op,
-				count: r.count,
-			}));
-			return jsonNoStoreResponse({ family: family ?? null, minutes, series }, origin);
+			const enrolled = findFamily("monitor:metrics:recent")?.loader === "monitor";
+			const data = enrolled
+				? await getMonitorMetrics(env, ctx, family, minutes)
+				: await loadMonitorMetrics(env, family, minutes);
+			return jsonNoStoreResponse(data, origin);
 		} catch (err) {
-			// Table may be missing on a fresh deploy before migration 0035
-			// has run. Surface that as an empty series rather than 500 so
-			// the admin page degrades gracefully.
 			console.warn("[admin/kv] metrics query failed", err);
 			return jsonNoStoreResponse(
 				{
-					family: family ?? null,
+					family,
 					minutes,
 					series: [],
 					note: "metrics table unavailable",
+					observedAt: Date.now(),
+					source: "application:kv_cache_metrics_minute",
 				},
 				origin,
 			);
+		}
+	},
+);
+
+// ─── POST /api/admin/kv/delete ────────────────────────────────────
+// Per-entry delete. Distinct from group gen bump (`refresh`). Does not
+// rebuild, does not touch D1 business rows, refuses runtime-state keys.
+
+export const deleteEntry = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const body = await parseBody(request);
+		if (!body) return errorResponse("INVALID_BODY", 400, undefined, origin);
+		const familyParam = typeof body.family === "string" ? body.family : null;
+		const key = typeof body.key === "string" ? body.key : null;
+		if (!familyParam) return errorResponse("MISSING_FAMILY", 400, undefined, origin);
+		if (!key) return errorResponse("MISSING_KEY", 400, undefined, origin);
+
+		const spec = findFamily(familyParam);
+		if (!spec) return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
+		const targetSpec = resolveFamilyForKey(key);
+		if (!targetSpec || targetSpec.family !== spec.family) {
+			return errorResponse("KV_KEY_FAMILY_MISMATCH", 400, { family: spec.family, key }, origin);
+		}
+		const actions = familyActions(spec);
+		if (!actions.deleteEntry) {
+			return jsonNoStoreResponse(
+				{
+					outcome: "not-allowed",
+					deletedKeys: [],
+					observedAt: Date.now(),
+					error: { code: "KV_ACTION_NOT_ALLOWED", message: actions.restriction ?? "not-allowed" },
+					consistencyNote: "delete-sent-not-globally-visible",
+				},
+				origin,
+			);
+		}
+
+		const actor = resolveActor(request, env);
+		const masked = await maskKeyName(key, spec);
+		try {
+			await deleteCacheEntry(env, key);
+		} catch (err) {
+			console.warn("[admin/kv] deleteEntry failed", err);
+			const code = err instanceof CacheManagementError ? err.code : "KV_DELETE_FAILED";
+			const message =
+				err instanceof CacheManagementError ? err.message : "KV delete did not confirm";
+			await writeAdminLog(env, actor, {
+				action: "kv.delete_key",
+				targetType: "kv_key",
+				targetId: null,
+				details: { family: spec.family, maskedKey: masked, outcome: "failed", code },
+			});
+			return jsonNoStoreResponse(
+				{
+					outcome: code === "NOT_ALLOWED" ? "not-allowed" : "failed",
+					deletedKeys: [],
+					observedAt: Date.now(),
+					error: { code, message },
+					consistencyNote: "delete-sent-not-globally-visible",
+				},
+				origin,
+			);
+		}
+		recordDelete(`admin:${spec.family}`);
+		await writeAdminLog(env, actor, {
+			action: "kv.delete_key",
+			targetType: "kv_key",
+			targetId: null,
+			details: { family: spec.family, maskedKey: masked, outcome: "deleted" },
+		});
+		if (ctx) flushPendingNow(env, ctx);
+		return jsonNoStoreResponse(
+			{
+				outcome: "deleted",
+				deletedKeys: [masked],
+				observedAt: Date.now(),
+				consistencyNote: "delete-sent-not-globally-visible",
+			},
+			origin,
+		);
+	},
+);
+
+function rebuildFailure(err: unknown): {
+	code: string;
+	stage: string;
+	message: string;
+	outcome: "not-rebuildable" | "partial" | "failed";
+} {
+	const code = err instanceof CacheManagementError ? err.code : "CACHE_REBUILD_FAILED";
+	const stage = err instanceof CacheManagementError ? err.stage : "load";
+	const message = err instanceof CacheManagementError ? err.message : "rebuild failed";
+	const outcome =
+		code === "NOT_REBUILDABLE" || code === "NOT_ALLOWED"
+			? "not-rebuildable"
+			: code === "WRITE_FAILED"
+				? "partial"
+				: "failed";
+	return { code, stage, message, outcome };
+}
+
+// ─── POST /api/admin/kv/rebuild ───────────────────────────────────
+// Per-entry rebuild via manage.rebuildCacheEntry. Throws on missing,
+// expired, or unsupported descriptors; this handler never treats a
+// generation bump as a successful rebuild.
+
+export const rebuild = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const body = await parseBody(request);
+		if (!body) return errorResponse("INVALID_BODY", 400, undefined, origin);
+		const familyParam = typeof body.family === "string" ? body.family : null;
+		const key = typeof body.key === "string" ? body.key : null;
+		if (!familyParam) return errorResponse("MISSING_FAMILY", 400, undefined, origin);
+		if (!key) return errorResponse("MISSING_KEY", 400, undefined, origin);
+		if (body.params !== undefined || body.scope !== undefined) {
+			return errorResponse("UNKNOWN_KEYS", 400, { rejected: ["params", "scope"] }, origin);
+		}
+		const spec = findFamily(familyParam);
+		if (!spec) return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
+		const targetSpec = resolveFamilyForKey(key);
+		if (!targetSpec || targetSpec.family !== spec.family) {
+			return errorResponse("KV_KEY_FAMILY_MISMATCH", 400, { family: spec.family, key }, origin);
+		}
+		if (!canRebuildCacheFamily(spec.family)) {
+			return jsonNoStoreResponse(
+				{
+					outcome: "not-rebuildable",
+					stage: "validate",
+					observedAt: Date.now(),
+					error: {
+						code: "KV_ACTION_NOT_ALLOWED",
+						message: familyActions(spec).restriction ?? "not-rebuildable",
+					},
+					consistencyNote: "written-not-globally-visible",
+				},
+				origin,
+			);
+		}
+
+		const actor = resolveActor(request, env);
+		const masked = await maskKeyName(key, spec);
+		try {
+			const envelope = await rebuildCacheEntry(env, ctx, key);
+			await writeAdminLog(env, actor, {
+				action: "kv.rebuild",
+				targetType: "kv_key",
+				targetId: null,
+				details: { family: spec.family, maskedKey: masked, outcome: "rebuilt" },
+			});
+			if (ctx) flushPendingNow(env, ctx);
+			return jsonNoStoreResponse(
+				{
+					outcome: "rebuilt",
+					stage: "complete",
+					observedAt: Date.now(),
+					loadedAt: envelope.loadedAt,
+					expiresAt: envelope.expiresAt,
+					tier: envelope.tier,
+					schemaVersion: envelope.schemaVersion,
+					family: envelope.family,
+					params: envelope.params,
+					scope: envelope.scope,
+					value: envelope.data,
+					consistencyNote: "written-not-globally-visible",
+				},
+				origin,
+			);
+		} catch (err) {
+			const { code, stage, message, outcome } = rebuildFailure(err);
+			await writeAdminLog(env, actor, {
+				action: "kv.rebuild",
+				targetType: "kv_key",
+				targetId: null,
+				details: { family: spec.family, maskedKey: masked, outcome, code, stage },
+			});
+			return jsonNoStoreResponse(
+				{
+					outcome,
+					stage,
+					observedAt: Date.now(),
+					error: { code, message },
+					consistencyNote: "written-not-globally-visible",
+				},
+				origin,
+			);
+		}
+	},
+);
+
+// ─── GET /api/admin/kv/operations ─────────────────────────────────
+// Existing admin_logs rows for kv.* only. Never returns cache bodies.
+
+interface OperationsCursor {
+	createdAt: number;
+	id: number;
+}
+
+interface OperationLogRow {
+	id: number;
+	admin_id: number;
+	admin_name: string;
+	action: string;
+	target_type: string;
+	target_id: number | null;
+	details: string;
+	created_at: number;
+}
+
+function isOperationsCursor(parsed: Partial<OperationsCursor>): boolean {
+	return (
+		typeof parsed.createdAt === "number" &&
+		Number.isSafeInteger(parsed.createdAt) &&
+		typeof parsed.id === "number" &&
+		Number.isSafeInteger(parsed.id) &&
+		parsed.id > 0
+	);
+}
+
+function operationsUnavailable(origin: string | undefined): Response {
+	return jsonNoStoreResponse(
+		{
+			rows: [],
+			note: "operations unavailable",
+			cursor: null,
+			listComplete: false,
+			observedAt: Date.now(),
+			source: "application:admin_logs",
+		},
+		origin,
+	);
+}
+
+function mapOperationRows(rows: OperationLogRow[]) {
+	return rows.map((r) => ({
+		id: r.id,
+		adminName: r.admin_name,
+		action: r.action,
+		targetType: r.target_type,
+		targetId: r.target_id,
+		details: r.details,
+		createdAt: r.created_at,
+	}));
+}
+
+async function queryOperations(
+	env: Env,
+	limit: number,
+	cursor: OperationsCursor | null,
+): Promise<
+	{ ok: false } | { ok: true; rows: ReturnType<typeof mapOperationRows>; nextCursor: string | null }
+> {
+	const sql = cursor
+		? `SELECT id, admin_id, admin_name, action, target_type, target_id, details, created_at
+			 FROM admin_logs
+			 WHERE action IN (?, ?, ?, ?)
+			   AND (created_at < ? OR (created_at = ? AND id < ?))
+			 ORDER BY created_at DESC, id DESC
+			 LIMIT ?`
+		: `SELECT id, admin_id, admin_name, action, target_type, target_id, details, created_at
+			 FROM admin_logs
+			 WHERE action IN (?, ?, ?, ?)
+			 ORDER BY created_at DESC, id DESC
+			 LIMIT ?`;
+	const binds = cursor
+		? [...KV_AUDIT_ACTIONS, cursor.createdAt, cursor.createdAt, cursor.id, limit + 1]
+		: [...KV_AUDIT_ACTIONS, limit + 1];
+	const result = await env.DB.prepare(sql)
+		.bind(...binds)
+		.all<OperationLogRow>();
+	if (!result.success || !Array.isArray(result.results)) return { ok: false };
+	const hasMore = result.results.length > limit;
+	const page = hasMore ? result.results.slice(0, limit) : result.results;
+	const last = page[page.length - 1];
+	const nextCursor =
+		hasMore && last
+			? encodeGenericCursor<OperationsCursor>({ createdAt: last.created_at, id: last.id })
+			: null;
+	return { ok: true, rows: mapOperationRows(page), nextCursor };
+}
+
+export const operations = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const limit = Math.min(
+			Math.max(Number.parseInt(readQuery(request, "limit") ?? "50", 10) || 50, 1),
+			100,
+		);
+		const token = readQuery(request, "cursor");
+		let cursor: OperationsCursor | null = null;
+		if (token) {
+			cursor = decodeGenericCursor<OperationsCursor>(token, isOperationsCursor);
+			if (!cursor) return errorResponse("INVALID_CURSOR", 400, undefined, origin);
+		}
+		try {
+			const page = await queryOperations(env, limit, cursor);
+			if (!page.ok) return operationsUnavailable(origin);
+			return jsonNoStoreResponse(
+				{
+					rows: page.rows,
+					cursor: page.nextCursor,
+					listComplete: page.nextCursor === null,
+					observedAt: Date.now(),
+					source: "application:admin_logs",
+				},
+				origin,
+			);
+		} catch (err) {
+			console.warn("[admin/kv] operations query failed", err);
+			return operationsUnavailable(origin);
 		}
 	},
 );

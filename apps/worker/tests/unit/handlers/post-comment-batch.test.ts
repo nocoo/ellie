@@ -58,15 +58,22 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
-				"FROM post_comments pc": [],
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
 
 		await batchByPostIds(makeRequest({ threadId: 1, postIds: [10, 10, 10] }), env);
 
-		// Comments query should be bound with deduplicated postId + threadId
-		const commentsQuery = calls.find((c) => c.sql.includes("FROM post_comments pc"));
+		// Current post gate is bound with deduplicated postId + threadId
+		const commentsQuery = calls.find((c) => c.sql.includes("FROM posts"));
 		expect(commentsQuery).toBeDefined();
 		expect(commentsQuery?.params).toEqual([10, 1]);
 	});
@@ -77,7 +84,14 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: -1, status: 1, visibility: "public" },
 			},
 			allResults: {
-				"FROM post_comments pc": [],
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -91,7 +105,14 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 0, visibility: "public" },
 			},
 			allResults: {
-				"FROM post_comments pc": [],
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -105,7 +126,14 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "members" },
 			},
 			allResults: {
-				"FROM post_comments pc": [],
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -120,7 +148,14 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
-				"FROM post_comments pc": [
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [
 					{
 						id: 1,
 						thread_id: 1,
@@ -159,7 +194,14 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
-				"FROM post_comments pc": [
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [
 					{
 						id: 5,
 						thread_id: 1,
@@ -196,8 +238,15 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
 				// Only post 10 belongs to thread 1; post 99 does not (JOIN filters it)
-				"FROM post_comments pc": [
+				"FROM post_comments WHERE post_id": [
 					{
 						id: 1,
 						thread_id: 1,
@@ -219,24 +268,32 @@ describe("batchByPostIds (post-comments)", () => {
 		expect(data.data).toHaveLength(1);
 	});
 
-	it("should only issue 2 D1 queries for N posts (no N+1)", async () => {
+	it("should only issue 3 cold D1 queries for N posts (no N+1)", async () => {
 		const postIds = [10, 20, 30, 40, 50];
 		const { db, calls } = createMockDb({
 			firstResults: {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
-				"FROM post_comments pc": [],
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
+				"FROM post_comments WHERE post_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
 
 		await batchByPostIds(makeRequest({ threadId: 1, postIds }), env);
 
-		// Exactly 2 queries regardless of how many posts (anonymous, no auth DB lookup):
-		// 1. thread+forum visibility JOIN
-		// 2. comments JOIN posts
-		expect(calls.length).toBe(2);
+		// Exactly 3 cold queries (anonymous, no auth DB lookup):
+		// 1. Current thread/forum gate
+		// 2. Current post membership gate
+		// 3. Missing comments batch
+		expect(calls.length).toBe(3);
 	});
 
 	it("should return empty array when no postIds match the thread", async () => {
@@ -245,8 +302,15 @@ describe("batchByPostIds (post-comments)", () => {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
+				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
+					id,
+					thread_id: 1,
+					invisible: 0,
+					author_id: 10,
+					anonymous: 0,
+				})),
 				// No comments returned because posts don't belong to thread
-				"FROM post_comments pc": [],
+				"FROM post_comments WHERE post_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });

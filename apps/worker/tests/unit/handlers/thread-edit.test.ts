@@ -3,7 +3,7 @@
 //   - permission: canEditThreadSubject (author/active/open OR mod-in-scope OR admin/supermod)
 //   - body strict: only `subject`, non-empty, ≤200 chars
 //   - censor: applyCensorFilter → banned ⇒ CONTENT_BANNED 403; replace ⇒ filtered value stored
-//   - cache invalidation: bumpThreadMetaGen + bumpThreadListGen + bumpForumSummaryGen
+//   - cache invalidation: thread entity; lists compose the edited entity
 //   - semantic no-op: subject unchanged ⇒ 200 without any bump
 //   - audit: NO admin_logs writes from this endpoint
 //
@@ -255,7 +255,7 @@ describe("editThreadSubject — censor", () => {
 // ─── Happy paths + cache fan-out ──────────────────────────────────
 
 describe("editThreadSubject — happy path", () => {
-	it("active author on open thread updates subject and bumps three gens", async () => {
+	it("active author on open thread updates subject and bumps only its entity", async () => {
 		const token = await createJwtForRole(0, 10);
 		const { db, calls } = createMockDb({
 			firstResults: dbRows({ authorId: 10, subject: "Old" }),
@@ -273,12 +273,11 @@ describe("editThreadSubject — happy path", () => {
 		expect(update).toBeDefined();
 		expect(update?.params).toEqual(["New title", 5]);
 
-		// Three cache bumps, each exactly once
+		// Membership and global summary survive a subject-only edit.
 		expect(mockBumpMeta).toHaveBeenCalledTimes(1);
 		expect(mockBumpMeta).toHaveBeenCalledWith(env, 5);
-		expect(mockBumpList).toHaveBeenCalledTimes(1);
-		expect(mockBumpList).toHaveBeenCalledWith(env, 1);
-		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
+		expect(mockBumpList).not.toHaveBeenCalled();
+		expect(mockBumpSummary).not.toHaveBeenCalled();
 
 		// NO admin_logs write — this endpoint is user-facing, not admin
 		// console. Freeze msg=a8ee78db, Directive 6 ("NO admin_logs").

@@ -1,33 +1,6 @@
 import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 
-// Bypass the v2 forum-meta gate: these tests focus on moderated-thread
-// visibility, not the forum cache layer.
-vi.mock("../../../src/lib/cache/forum-read", async () => {
-	const actual = await vi.importActual<Record<string, unknown>>(
-		"../../../src/lib/cache/forum-read",
-	);
-	return {
-		...actual,
-		getForumMetaV2: vi.fn(async (_env, _ctx, id: number) => ({
-			kind: "ok",
-			forum: { id, status: 1, visibility: "public", name: "F" },
-		})),
-	};
-});
-
-vi.mock("../../../src/lib/cache/thread-list-read", async () => {
-	const actual = await vi.importActual<Record<string, unknown>>(
-		"../../../src/lib/cache/thread-list-read",
-	);
-	return {
-		...actual,
-		getThreadListPageOneV2: vi.fn(
-			async (_env, _ctx, _forumId, _limit, loader: () => Promise<unknown>) => loader(),
-		),
-	};
-});
-
 import { getById } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -64,7 +37,22 @@ function createMockDbForModerated(opts: {
 			if (sql.includes("FROM threads") && sql.includes("WHERE")) {
 				return {
 					bind: vi.fn((..._args: unknown[]) => ({
-						first: vi.fn(() => Promise.resolve(opts.threadRow)),
+						first: vi.fn(() =>
+							Promise.resolve(
+								opts.threadRow === null
+									? null
+									: {
+											...(opts.threadRow as Record<string, unknown>),
+											status: 1,
+											visibility: "public",
+											moderator_ids: opts.forumModeratorIds ?? "",
+										},
+							),
+						),
+						all: vi.fn(async () => ({
+							success: true,
+							results: opts.threadRow === null ? [] : [opts.threadRow],
+						})),
 					})),
 				};
 			}
@@ -104,7 +92,7 @@ function createMockDbForModerated(opts: {
 			return {
 				bind: vi.fn((..._args: unknown[]) => ({
 					first: vi.fn(() => Promise.resolve(null)),
-					all: vi.fn(() => Promise.resolve({ results: [] })),
+					all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 					run: vi.fn(() => Promise.resolve({ success: true })),
 				})),
 			};
@@ -221,7 +209,7 @@ describe("thread detail — moderated (sticky=-2) visibility", () => {
 	});
 
 	it("normal thread (sticky=0) does NOT have moderationStatus field", async () => {
-		const normalThread = makeD1ThreadRow({ id: 42, forum_id: FORUM_ID, sticky: 0 });
+		const normalThread = makeD1ThreadRow({ id: 1169047, forum_id: FORUM_ID, sticky: 0 });
 		const db = createMockDbForModerated({ threadRow: normalThread });
 		const response = await getById(await makeRequest(), makeEnv(db), createMockCtx());
 

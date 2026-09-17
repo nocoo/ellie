@@ -1,61 +1,23 @@
-// lib/stats-counter.ts — Increment pre-computed stats counters
-// These counters are stored in settings table and KV for fast reads.
-// Manual calibration is available in admin panel.
-//
-// SEMANTIC NOTE: Counters represent HISTORICAL CUMULATIVE totals. They
-// increment on create but do NOT decrement on delete/ban/hide. This is
-// intentional — the numbers reflect "total ever created".
-
+// Historical cumulative counters are incremented atomically in D1.
+// Daily statistics are recovered from posts(created_at), with no per-post KV write.
 import type { Env } from "./env";
 
-/**
- * Increment a settings-based counter by 1.
- * Uses UPDATE SET value = CAST(value AS INTEGER) + 1 for atomic increment.
- */
-async function incrementSettingsCounter(env: Env, key: string): Promise<void> {
+async function incrementCounters(env: Env, keys: string[]): Promise<void> {
 	await env.DB.prepare(
-		"UPDATE settings SET value = CAST(value AS INTEGER) + 1, updated_at = ? WHERE key = ?",
+		`UPDATE settings SET value = CAST(value AS INTEGER) + 1, updated_at = ? WHERE key IN (${keys.map(() => "?").join(",")})`,
 	)
-		.bind(Math.floor(Date.now() / 1000), key)
+		.bind(Math.floor(Date.now() / 1000), ...keys)
 		.run();
 }
 
-/**
- * Increment the today's posts counter in KV.
- * KV get→put is not atomic, so slight undercounting is possible under high concurrency.
- * This is acceptable since admin can calibrate.
- * No TTL — rollover cron handles reset at midnight Beijing time.
- */
-async function incrementTodayPosts(env: Env): Promise<void> {
-	const current = await env.KV.get("stats:today_posts");
-	const newValue = (current ? Number.parseInt(current, 10) : 0) + 1;
-	await env.KV.put("stats:today_posts", String(newValue));
+export function incrementStatsOnThreadCreate(env: Env): Promise<void> {
+	return incrementCounters(env, ["stats.total_threads", "stats.total_posts"]);
 }
 
-/**
- * Called when a new thread is created.
- * Increments: total_threads, total_posts (first post), today_posts
- */
-export async function incrementStatsOnThreadCreate(env: Env): Promise<void> {
-	await Promise.all([
-		incrementSettingsCounter(env, "stats.total_threads"),
-		incrementSettingsCounter(env, "stats.total_posts"),
-		incrementTodayPosts(env),
-	]);
+export function incrementStatsOnPostCreate(env: Env): Promise<void> {
+	return incrementCounters(env, ["stats.total_posts"]);
 }
 
-/**
- * Called when a new reply is created (not first post).
- * Increments: total_posts, today_posts
- */
-export async function incrementStatsOnPostCreate(env: Env): Promise<void> {
-	await Promise.all([incrementSettingsCounter(env, "stats.total_posts"), incrementTodayPosts(env)]);
-}
-
-/**
- * Called when a new user registers.
- * Increments: total_members
- */
-export async function incrementStatsOnUserRegister(env: Env): Promise<void> {
-	await incrementSettingsCounter(env, "stats.total_members");
+export function incrementStatsOnUserRegister(env: Env): Promise<void> {
+	return incrementCounters(env, ["stats.total_members"]);
 }

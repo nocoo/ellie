@@ -4,7 +4,8 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import type { EntityConfig } from "../../lib/crud";
+import { adminListQuery, readAdminEntity } from "../../lib/cache/admin-entity-read";
+import type { AdminEntityList, EntityConfig } from "../../lib/crud";
 import {
 	createBatchDeleteHandler,
 	createCreateHandler,
@@ -56,7 +57,7 @@ const announcementConfig: EntityConfig = {
 	mapper: toAnnouncement,
 	notFoundCode: "ANNOUNCEMENT_NOT_FOUND",
 
-	filters: [{ param: "status", column: "status", type: "exact" }],
+	filters: [{ param: "status", column: "status", type: "exact", parse: "int" }],
 	listSort: "sticky DESC, created_at DESC",
 
 	// Create fields
@@ -224,81 +225,97 @@ const announcementConfig: EntityConfig = {
 // ─── GET /api/admin/announcements ─────────────────────────────────
 // Custom list handler: supports status filter, active-only filter.
 
+export async function loadAdminAnnouncements(env: Env, query: string): Promise<AdminEntityList> {
+	const searchParams = new URLSearchParams(query);
+	const conditions: string[] = [];
+	const params: unknown[] = [];
+
+	// Filter: status
+	const statusFilter = searchParams.get("status");
+	if (statusFilter !== null) {
+		const status = Number.parseInt(statusFilter, 10);
+		if (!Number.isNaN(status)) {
+			conditions.push("status = ?");
+			params.push(status);
+		}
+	}
+
+	// Filter: active (currently within start_at/end_at window)
+	const activeOnly = searchParams.get("active") === "1";
+	if (activeOnly) {
+		const now = Math.floor(Date.now() / 1000);
+		conditions.push("status = 1");
+		conditions.push("(start_at IS NULL OR start_at <= ?)");
+		conditions.push("(end_at IS NULL OR end_at > ?)");
+		params.push(now, now);
+	}
+
+	// Filter: forumId (check if forum_ids contains this ID)
+	const forumIdFilter = searchParams.get("forumId");
+	if (forumIdFilter) {
+		// forum_ids is stored as comma-separated string like "1,2,3" or empty for all
+		// Empty forum_ids means announcement applies to all forums
+		conditions.push(
+			"(forum_ids = '' OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids = ?)",
+		);
+		params.push(
+			`${forumIdFilter},%`, // starts with ID
+			`%,${forumIdFilter},%`, // contains ID in middle
+			`%,${forumIdFilter}`, // ends with ID
+			forumIdFilter, // exact single ID
+		);
+	}
+
+	const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+	// Pagination
+	const page = Number(searchParams.get("page"));
+	const limit = Number(searchParams.get("limit"));
+
+	const [countResult, result] = await Promise.all([
+		env.DB.prepare(`SELECT COUNT(*) as total FROM announcements ${whereClause}`)
+			.bind(...params)
+			.first<{ total: number }>(),
+		env.DB.prepare(
+			`SELECT ${ANNOUNCEMENT_COLUMNS} FROM announcements ${whereClause} ORDER BY sticky DESC, created_at DESC LIMIT ? OFFSET ?`,
+		)
+			.bind(...params, limit, (page - 1) * limit)
+			.all(),
+	]);
+	if (
+		!result.success ||
+		!countResult ||
+		!Number.isSafeInteger(countResult.total) ||
+		countResult.total < 0
+	) {
+		throw new Error("Admin announcements could not be loaded");
+	}
+	return {
+		items: result.results.map((r) => toAnnouncement(r as Record<string, unknown>)),
+		total: countResult.total,
+		page,
+		limit,
+		paginated: true,
+	};
+}
+
 export const list = withEntityAuth(
 	announcementConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-		const url = new URL(request.url);
-
-		const conditions: string[] = [];
-		const params: unknown[] = [];
-
-		// Filter: status
-		const statusFilter = url.searchParams.get("status");
-		if (statusFilter !== null) {
-			const status = Number.parseInt(statusFilter, 10);
-			if (!Number.isNaN(status)) {
-				conditions.push("status = ?");
-				params.push(status);
-			}
+		let query: string;
+		try {
+			query = adminListQuery(announcementConfig, new URL(request.url).searchParams);
+		} catch {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid pagination" }, origin);
 		}
+		const data = await readAdminEntity<AdminEntityList>(env, ctx, {
+			family: "admin:entity:list",
+			params: { entity: "announcements", query },
+			scope: "admin",
+		});
 
-		// Filter: active (currently within start_at/end_at window)
-		const activeOnly = url.searchParams.get("active") === "true";
-		if (activeOnly) {
-			const now = Math.floor(Date.now() / 1000);
-			conditions.push("status = 1");
-			conditions.push("(start_at IS NULL OR start_at <= ?)");
-			conditions.push("(end_at IS NULL OR end_at > ?)");
-			params.push(now, now);
-		}
-
-		// Filter: forumId (check if forum_ids contains this ID)
-		const forumIdFilter = url.searchParams.get("forumId");
-		if (forumIdFilter) {
-			// forum_ids is stored as comma-separated string like "1,2,3" or empty for all
-			// Empty forum_ids means announcement applies to all forums
-			conditions.push(
-				"(forum_ids = '' OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids = ?)",
-			);
-			params.push(
-				`${forumIdFilter},%`, // starts with ID
-				`%,${forumIdFilter},%`, // contains ID in middle
-				`%,${forumIdFilter}`, // ends with ID
-				forumIdFilter, // exact single ID
-			);
-		}
-
-		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-		// Pagination
-		const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
-		const limit = Math.min(
-			Math.max(Number.parseInt(url.searchParams.get("limit") ?? "20", 10), 1),
-			100,
-		);
-		if (page < 1 || Number.isNaN(page)) {
-			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
-		}
-
-		const [countResult, result] = await Promise.all([
-			env.DB.prepare(`SELECT COUNT(*) as total FROM announcements ${whereClause}`)
-				.bind(...params)
-				.first<{ total: number }>(),
-			env.DB.prepare(
-				`SELECT ${ANNOUNCEMENT_COLUMNS} FROM announcements ${whereClause} ORDER BY sticky DESC, created_at DESC LIMIT ? OFFSET ?`,
-			)
-				.bind(...params, limit, (page - 1) * limit)
-				.all(),
-		]);
-
-		return paginatedNoStoreResponse(
-			result.results.map((r) => toAnnouncement(r as Record<string, unknown>)),
-			countResult?.total ?? 0,
-			page,
-			limit,
-			origin,
-		);
+		return paginatedNoStoreResponse(data.items, data.total, data.page, data.limit, origin);
 	},
 );
 

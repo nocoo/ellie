@@ -2,12 +2,15 @@
 // Provides endpoints to fix stale data from migrations or deletions.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
 	bumpForumSummaryGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
-	invalidateUserCaches,
+	invalidateStatisticsReports,
+	invalidateThreadReading,
 } from "../../lib/cache/invalidate";
+import { cacheDelete } from "../../lib/cache/wrap";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
@@ -21,7 +24,6 @@ import {
 	type TickResult,
 	tickJob,
 } from "../../lib/stats-job";
-import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
 // Dummy config for auth — statistics endpoints require admin role
@@ -44,6 +46,12 @@ const IN_CHUNK = 90;
 // Per-batch UPDATE chunk for `env.DB.batch(...)`. 4 vars/statement × 90 = 360
 // vars per batched call, matching the per-statement aggregate ceiling.
 const BATCH_SIZE = 90;
+
+async function writeBatch(env: Env, statements: D1PreparedStatement[]): Promise<void> {
+	const result = await env.DB.batch(statements);
+	if (result.length !== statements.length || result.some((row) => !row.success))
+		throw new Error("Statistics writes were not confirmed");
+}
 
 // ─── Shared utility — parse JSON body & route TickResult ─────────────────────
 
@@ -169,6 +177,7 @@ async function fetchForumCounts(
 		const result = await env.DB.prepare(sqlForChunk(placeholders))
 			.bind(...chunk)
 			.all();
+		if (!result.success) throw new Error("Statistics source query was not confirmed");
 		for (const row of result.results as unknown as ForumCountRow[]) {
 			map.set(row.forum_id, row.cnt);
 		}
@@ -208,6 +217,7 @@ async function fetchForumLastThreads(
 		const result = await env.DB.prepare(sql)
 			.bind(...chunk)
 			.all();
+		if (!result.success) throw new Error("Statistics source query was not confirmed");
 		for (const row of result.results as unknown as ForumLastThreadRow[]) {
 			map.set(row.forum_id, row);
 		}
@@ -235,6 +245,7 @@ export const forumsTicker: StatsJobTicker = {
 		)
 			.bind(prev.cursor, batchSize)
 			.all();
+		if (!forumsResult.success) throw new Error("Statistics enumeration was not confirmed");
 		const batch = forumsResult.results as unknown as ForumBatchRow[];
 
 		// Empty batch = nothing left to do; mark done. Phase C.1 contract:
@@ -296,7 +307,7 @@ export const forumsTicker: StatsJobTicker = {
 			);
 		});
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+			await writeBatch(env, statements.slice(i, i + BATCH_SIZE));
 		}
 
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
@@ -317,12 +328,16 @@ export const forumsTicker: StatsJobTicker = {
 	},
 
 	finalize: async (env, payload) => {
-		// Cache invalidation (docs/19 §6 row "admin statistics
+		// Cache invalidation (docs/20 §5 row "admin statistics
 		// recalc-forums"): bump forum:summary:gen only when the sweep
 		// actually rewrote at least one forum row. A no-op sweep (empty
 		// forums table) has no side effects.
 		if (payload.updated > 0) {
-			await bumpForumSummaryGen(env);
+			await Promise.all([
+				bumpForumSummaryGen(env),
+				invalidateStatisticsReports(env),
+				invalidateAdminEntityCache(env, "forums"),
+			]);
 		}
 	},
 };
@@ -426,6 +441,7 @@ async function fetchReplyCounts(env: Env, threadIds: number[]): Promise<Map<numb
 		const result = await env.DB.prepare(sql)
 			.bind(...chunk)
 			.all();
+		if (!result.success) throw new Error("Statistics source query was not confirmed");
 		for (const row of result.results as unknown as ReplyCountRow[]) {
 			map.set(row.thread_id, Math.max(0, row.cnt));
 		}
@@ -461,6 +477,7 @@ async function fetchLastPosts(env: Env, threadIds: number[]): Promise<Map<number
 		const result = await env.DB.prepare(sql)
 			.bind(...chunk)
 			.all();
+		if (!result.success) throw new Error("Statistics source query was not confirmed");
 		for (const row of result.results as unknown as LastPostRow[]) {
 			map.set(row.thread_id, row);
 		}
@@ -513,6 +530,7 @@ export const threadsTicker: StatsJobTicker = {
 				.bind(prev.cursor, batchSize)
 				.all();
 		}
+		if (!threadsResult.success) throw new Error("Statistics enumeration was not confirmed");
 		const batch = threadsResult.results as ThreadBatchRow[];
 
 		// Empty batch = nothing left to do; mark done. `processed` is the
@@ -571,8 +589,13 @@ export const threadsTicker: StatsJobTicker = {
 			);
 		});
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+			await writeBatch(env, statements.slice(i, i + BATCH_SIZE));
 		}
+
+		await invalidateThreadReading(
+			env,
+			batch.map((row) => row.id),
+		);
 
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
 		const newProcessed = prev.processed + batch.length;
@@ -597,15 +620,18 @@ export const threadsTicker: StatsJobTicker = {
 	},
 
 	finalize: async (env, payload) => {
-		// Cache invalidation (docs/19 §6 row "admin statistics
+		// Cache invalidation (docs/20 §5 row "admin statistics
 		// recalc-threads"): bump forum:summary:gen (last-post / counts
 		// may have shifted as a side-effect of recalculating thread
 		// last-post). For thread:list:v2, bump per-forum gen when
 		// scoped to a single forum, else fall back to the global
 		// `thread:list:gen:all`.
+		if (payload.updated === 0) return;
 		const params = readRecalcThreadsParams(payload);
 		await Promise.all([
 			bumpForumSummaryGen(env),
+			invalidateStatisticsReports(env),
+			invalidateAdminEntityCache(env, "threads"),
 			params.forumId !== null ? bumpThreadListGen(env, params.forumId) : bumpThreadListGenAll(env),
 		]);
 	},
@@ -663,6 +689,7 @@ async function fetchUserCounts(
 		const result = await env.DB.prepare(sqlForChunk(placeholders))
 			.bind(...chunk)
 			.all();
+		if (!result.success) throw new Error("Statistics source query was not confirmed");
 		for (const row of result.results as unknown as UserCountRow[]) {
 			map.set(row.author_id, row.cnt);
 		}
@@ -672,9 +699,11 @@ async function fetchUserCounts(
 
 async function invalidateUsersChunked(env: Env, userIds: number[]): Promise<void> {
 	for (let i = 0; i < userIds.length; i += KV_CHUNK) {
-		const chunk = userIds.slice(i, i + KV_CHUNK);
 		await Promise.all(
-			chunk.flatMap((uid) => [invalidateUserCache(env, uid), invalidateUserCaches(env, uid)]),
+			userIds.slice(i, i + KV_CHUNK).map(async (id) => {
+				await cacheDelete(env, `user:stats:${id}`, "user:stats");
+				await cacheDelete(env, `user:self:${id}`, "user:self");
+			}),
 		);
 	}
 }
@@ -700,6 +729,7 @@ export const usersTicker: StatsJobTicker = {
 		)
 			.bind(prev.cursor, batchSize)
 			.all();
+		if (!usersResult.success) throw new Error("Statistics enumeration was not confirmed");
 		const batch = usersResult.results as unknown as UserBatchRow[];
 
 		// Empty batch = terminal. `processed` is the real walked count.
@@ -751,19 +781,10 @@ export const usersTicker: StatsJobTicker = {
 			),
 		);
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+			await writeBatch(env, statements.slice(i, i + BATCH_SIZE));
 		}
 
-		// (4) Per-batch cache invalidation (docs/19 §6 row "admin
-		// statistics recalc-users"): drop user:mini (v1) + user:mini:v2 +
-		// both viewer-bucket variants of user:public:v2 for every user we
-		// just touched. Per helper contracts: the v1 `invalidateUserCache`
-		// call propagates KV errors — if it throws, advance throws and
-		// tickJob marks the job `error` with cursor unchanged so the next
-		// POST retries the same batch (idempotent UPDATE). The v2
-		// `invalidateUserCaches` call is best-effort and swallows KV
-		// failures internally per cache/invalidate.ts contract; a v2 KV
-		// outage will NOT fail the tick but does log via console.warn.
+		// Each completed batch invalidates only its changed counter snapshots.
 		await invalidateUsersChunked(env, userIds);
 
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
@@ -783,10 +804,14 @@ export const usersTicker: StatsJobTicker = {
 		};
 	},
 
-	// No `finalize` for users — cache invalidation is per-batch (we lose
-	// the user-id set the moment we leave `advance`). Finalize would have
-	// no useful work to do; omitting it keeps the framework's
-	// running->done path clean.
+	finalize: async (env, payload) => {
+		if (payload.updated > 0) {
+			await Promise.all([
+				invalidateStatisticsReports(env),
+				invalidateAdminEntityCache(env, "users"),
+			]);
+		}
+	},
 };
 
 export const recalcUsers = withEntityAuth(
@@ -844,6 +869,7 @@ async function fetchThreadForums(env: Env, threadIds: number[]): Promise<Map<num
 		const result = await env.DB.prepare(sql)
 			.bind(...chunk)
 			.all();
+		if (!result.success) throw new Error("Statistics source query was not confirmed");
 		for (const row of result.results as unknown as ThreadForumRow[]) {
 			map.set(row.id, row.forum_id);
 		}
@@ -877,6 +903,7 @@ export const postForumsTicker: StatsJobTicker = {
 		)
 			.bind(prev.cursor, batchSize)
 			.all();
+		if (!postsResult.success) throw new Error("Statistics enumeration was not confirmed");
 		const batch = postsResult.results as unknown as PostBatchRow[];
 
 		// Empty batch = terminal. `processed` is the real scanned count,
@@ -898,12 +925,12 @@ export const postForumsTicker: StatsJobTicker = {
 
 		// (3) Compute mismatches in JS — posts whose thread is missing
 		//     (orphaned) are skipped (no canonical forum to copy).
-		const mismatched: { id: number; forum_id: number }[] = [];
+		const mismatched: { id: number; forum_id: number; thread_id: number }[] = [];
 		for (const post of batch) {
 			const canonical = threadForumMap.get(post.thread_id);
 			if (canonical === undefined) continue;
 			if (post.forum_id !== canonical) {
-				mismatched.push({ id: post.id, forum_id: canonical });
+				mismatched.push({ id: post.id, forum_id: canonical, thread_id: post.thread_id });
 			}
 		}
 
@@ -913,9 +940,15 @@ export const postForumsTicker: StatsJobTicker = {
 				env.DB.prepare("UPDATE posts SET forum_id = ? WHERE id = ?").bind(row.forum_id, row.id),
 			);
 			for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-				await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+				await writeBatch(env, statements.slice(i, i + BATCH_SIZE));
 			}
 		}
+
+		await invalidateThreadReading(
+			env,
+			mismatched.map((row) => row.thread_id),
+			{ posts: true },
+		);
 
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
 		const newProcessed = prev.processed + batch.length;
@@ -936,13 +969,17 @@ export const postForumsTicker: StatsJobTicker = {
 	},
 
 	finalize: async (env, payload) => {
-		// Cache invalidation (docs/19 §6 row "admin statistics
+		// Cache invalidation (docs/20 §5 row "admin statistics
 		// recalc-post-forums"): bump forum:summary:gen ONLY when the
 		// sweep actually corrected at least one post. A full sweep that
 		// found nothing wrong has no side effects — skip the bump so
 		// healthy systems don't churn the summary cache every nightly run.
 		if (payload.updated > 0) {
-			await bumpForumSummaryGen(env);
+			await Promise.all([
+				bumpForumSummaryGen(env),
+				invalidateStatisticsReports(env),
+				invalidateAdminEntityCache(env, "posts"),
+			]);
 		}
 	},
 };

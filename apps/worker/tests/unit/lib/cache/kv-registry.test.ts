@@ -93,14 +93,10 @@ describe("kv-registry — declarative invariants", () => {
 		}
 	});
 
-	it("thread:list:v2 main refresh defaults to per-forum bump (not global all-gen)", async () => {
-		// Regression guard: the global `bump-thread-list-all` sweep must
-		// stay on the dedicated `gen:thread:list:all` family. The page-1
-		// thread-list cache should default to a per-forum bump so the
-		// admin button doesn't nuke every forum's cache by accident.
+	it("thread:list:v2 main refresh is historical none", async () => {
 		const spec = KV_REGISTRY.find((s) => s.family === "thread:list:v2");
 		expect(spec).toBeTruthy();
-		expect(spec?.refresh.kind).toBe("bump-thread-list-forum");
+		expect(spec?.refresh.kind).toBe("none");
 		const allGen = KV_REGISTRY.find((s) => s.family === "gen:thread:list:all");
 		expect(allGen?.refresh.kind).toBe("bump-thread-list-all");
 	});
@@ -160,14 +156,14 @@ describe("kv-registry — declarative invariants", () => {
 		// the admin "when does it expire" answer would otherwise lie.
 		const expected: Record<string, number | "sticky" | "variable"> = {
 			"forum:tree:v2": 86_400, // FORUM_TREE_TTL
-			"forum:summary:v2": 86_400, // FORUM_SUMMARY_TTL
+			"forum:summary:v2": 60, // FORUM_SUMMARY_TTL (SHORT tier = 60s)
 			"forum:meta:v2": 86_400, // FORUM_META_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
 			"user:mini:v1": 86_400, // USER_CACHE_TTL
-			"digest:stats": 3600, // DIGEST_CACHE_TTL
-			"digest:filters": 3600, // DIGEST_CACHE_TTL
-			"settings:all": 900, // settings.ts KV_TTL
-			"public-stats": 900, // stats.ts CACHE_TTL_SECONDS
+			"digest:stats": 1800, // DIGEST_CACHE_TTL
+			"digest:filters": 1800, // DIGEST_CACHE_TTL
+			"settings:all": 86_400, // settings.ts LONG tier
+			"public-stats": 60, // stats.ts SHORT tier
 			"stats:online_count": 300, // online-stats.ts
 			"stats:online_peak": "sticky",
 			"online:user": 900, // middleware/online.ts ONLINE_TTL

@@ -495,7 +495,7 @@ describe("admin censorWord handlers", () => {
 					"SELECT id FROM censor_words WHERE find": null,
 					"SELECT * FROM censor_words WHERE id": row,
 				},
-				runResults: { "INSERT INTO censor_words": { meta: { last_row_id: 11 } } },
+				runResults: { "INSERT INTO censor_words": { success: true, meta: { last_row_id: 11 } } },
 			});
 			const env = makeEnv({ DB: db });
 			const res = await create(

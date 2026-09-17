@@ -3,6 +3,12 @@
 // Admin auth = Key B only (validated at router level). No user identity available.
 
 import { errorResponse } from "../middleware/error";
+import {
+	adminListQuery,
+	invalidateAdminEntityCache,
+	readAdminEntity,
+	registerAdminEntity,
+} from "./cache/admin-entity-read";
 import type { Env } from "./env";
 import { parseIdFromPath } from "./parseId";
 import { jsonNoStoreResponse, paginatedNoStoreResponse } from "./response";
@@ -166,8 +172,6 @@ export interface EntityConfig {
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────
-
-const MAX_PAGE_SIZE = 100;
 
 function getOrigin(request: Request): string | undefined {
 	return request.headers.get("Origin") ?? undefined;
@@ -351,90 +355,109 @@ function parseAndValidateId(
 	return id;
 }
 
-// ─── Factory: List ────────────────────────────────────────────────
+// ─── Pure administrative read loaders ─────────────────────────────
 
-export function createListHandler(config: EntityConfig) {
-	return async (request: Request, env: Env): Promise<Response> => {
-		const origin = getOrigin(request);
-		const url = new URL(request.url);
-		const { whereClause, params } = buildWhereClause(config.filters, url);
-		const defaultSort = config.listSort ?? "id DESC";
+export interface AdminEntityList {
+	items: unknown[];
+	total: number;
+	page: number;
+	limit: number;
+	paginated: boolean;
+}
 
-		// Allow client-requested sort if declared in allowedSorts
-		const sortParam = url.searchParams.get("sort");
-		const sort =
-			sortParam && config.allowedSorts?.[sortParam] ? config.allowedSorts[sortParam] : defaultSort;
-
-		// When useSubqueryWrapper is set, wrap the inner SELECT in a derived
-		// table so that WHERE/ORDER BY resolve column references against the
-		// SELECT-list aliases (e.g. correlated subquery outputs) rather than
-		// physical table columns. Without this, SQLite binds WHERE names to
-		// the base table's physical columns — which may be stale cached values
-		// that differ from the live-computed aliases in the SELECT list.
-		const fromClause = config.useSubqueryWrapper
-			? `(SELECT ${config.columns} FROM ${config.table}) AS _t`
-			: config.table;
-		const selectExpr = config.useSubqueryWrapper ? "*" : config.columns;
-
-		if (config.listPaginated === false) {
-			const result = await env.DB.prepare(
-				`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ORDER BY ${sort}`,
-			)
-				.bind(...params)
-				.all();
-			const rows = result.results as Record<string, unknown>[];
-			const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
-			return jsonNoStoreResponse(
-				enriched.map((r) => config.mapper(r)),
-				origin,
-			);
-		}
-
-		const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
-		const limit = Math.min(
-			Math.max(Number.parseInt(url.searchParams.get("limit") ?? "20", 10), 1),
-			MAX_PAGE_SIZE,
-		);
-		if (page < 1 || Number.isNaN(page)) {
-			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
-		}
-
-		const [countResult, result] = await Promise.all([
-			env.DB.prepare(`SELECT COUNT(*) as total FROM ${fromClause} ${whereClause}`)
-				.bind(...params)
-				.first<{ total: number }>(),
-			env.DB.prepare(
-				`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
-			)
-				.bind(...params, limit, (page - 1) * limit)
-				.all(),
-		]);
-
-		const rows = result.results as Record<string, unknown>[];
-		const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
-
-		return paginatedNoStoreResponse(
-			enriched.map((r) => config.mapper(r)),
-			countResult?.total ?? 0,
-			page,
-			limit,
-			origin,
-		);
+export async function loadEntityList(
+	config: EntityConfig,
+	env: Env,
+	query: string,
+): Promise<AdminEntityList> {
+	const url = new URL("https://cache.internal/");
+	url.search = query;
+	const { whereClause, params } = buildWhereClause(config.filters, url);
+	const sortParam = url.searchParams.get("sort");
+	const sort =
+		sortParam && config.allowedSorts?.[sortParam]
+			? config.allowedSorts[sortParam]
+			: (config.listSort ?? "id DESC");
+	const from = config.useSubqueryWrapper
+		? `(SELECT ${config.columns} FROM ${config.table}) AS _t`
+		: config.table;
+	const select = config.useSubqueryWrapper ? "*" : config.columns;
+	const page = Number(url.searchParams.get("page") ?? 1);
+	const limit = Number(url.searchParams.get("limit") ?? 20);
+	const paginated = config.listPaginated !== false;
+	const [count, result] = await Promise.all([
+		paginated
+			? env.DB.prepare(`SELECT COUNT(*) as total FROM ${from} ${whereClause}`)
+					.bind(...params)
+					.first<{ total: number }>()
+			: null,
+		env.DB.prepare(
+			`SELECT ${select} FROM ${from} ${whereClause} ORDER BY ${sort}${paginated ? " LIMIT ? OFFSET ?" : ""}`,
+		)
+			.bind(...params, ...(paginated ? [limit, (page - 1) * limit] : []))
+			.all<Record<string, unknown>>(),
+	]);
+	if (!result.success) throw new Error("Admin entity list could not be loaded");
+	const rows = config.enrichListRows
+		? await config.enrichListRows(result.results, env)
+		: result.results;
+	return {
+		items: rows.map((row) => config.mapper(row)),
+		total: count?.total ?? (paginated ? 0 : rows.length),
+		page,
+		limit,
+		paginated,
 	};
 }
 
-// ─── Factory: GetById ─────────────────────────────────────────────
+export async function loadEntityDetail(
+	config: EntityConfig,
+	env: Env,
+	id: number,
+): Promise<unknown> {
+	const row = await fetchRow(env, config.table, config.columns, id);
+	return row ? config.mapper(row as Record<string, unknown>) : null;
+}
+
+export function createListHandler(config: EntityConfig) {
+	const cached = registerAdminEntity(config);
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
+		const origin = getOrigin(request);
+		let query: string;
+		try {
+			query = adminListQuery(config, new URL(request.url).searchParams);
+		} catch {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
+		}
+		const descriptor = {
+			family: "admin:entity:list",
+			params: { entity: config.table, query },
+			scope: "admin",
+		};
+		const loader = () => loadEntityList(config, env, query);
+		const data = cached ? await readAdminEntity(env, ctx, descriptor, loader) : await loader();
+		return data.paginated
+			? paginatedNoStoreResponse(data.items, data.total, data.page, data.limit, origin)
+			: jsonNoStoreResponse(data.items, origin);
+	};
+}
 
 export function createGetByIdHandler(config: EntityConfig) {
-	return async (request: Request, env: Env): Promise<Response> => {
+	const cached = registerAdminEntity(config);
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = getOrigin(request);
 		const id = parseAndValidateId(request, config.entityName, origin);
 		if (id instanceof Response) return id;
-
-		const row = await fetchRow(env, config.table, config.columns, id);
-		if (!row) return errorResponse(config.notFoundCode ?? "NOT_FOUND", 404, undefined, origin);
-
-		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
+		const descriptor = {
+			family: "admin:entity:detail",
+			params: { entity: config.table, id },
+			scope: "admin",
+		};
+		const loader = () => loadEntityDetail(config, env, id);
+		const data = cached ? await readAdminEntity(env, ctx, descriptor, loader) : await loader();
+		if (data === null)
+			return errorResponse(config.notFoundCode ?? "NOT_FOUND", 404, undefined, origin);
+		return jsonNoStoreResponse(data, origin);
 	};
 }
 
@@ -466,8 +489,13 @@ export function createCreateHandler(config: EntityConfig) {
 			.bind(...Object.values(data))
 			.run();
 
+		if (!result.success) throw new Error("Entity creation was not confirmed");
+		const changes = result.meta.changes ?? 0;
 		const newId = result.meta.last_row_id;
-		if (config.afterCreate && newId) await config.afterCreate(newId, data, env, origin);
+		if (changes > 0) {
+			if (config.afterCreate && newId) await config.afterCreate(newId, data, env, origin);
+			await invalidateAdminEntityCache(env, config.table);
+		}
 
 		const row = await fetchRow(env, config.table, config.columns, newId);
 		return jsonNoStoreResponse(
@@ -477,6 +505,29 @@ export function createCreateHandler(config: EntityConfig) {
 			201,
 		);
 	};
+}
+
+async function applyEntityUpdate(
+	env: Env,
+	config: EntityConfig,
+	id: number,
+	data: Record<string, unknown>,
+	existingRecord: Record<string, unknown>,
+	origin?: string,
+): Promise<void> {
+	const setClauses = Object.keys(data).map((col) => `${col} = ?`);
+	const written = await env.DB.prepare(
+		`UPDATE ${config.table} SET ${setClauses.join(", ")} WHERE id = ?`,
+	)
+		.bind(...Object.values(data), id)
+		.run();
+	if (!written.success) throw new Error("Entity update was not confirmed");
+
+	const changes = written.meta.changes ?? 0;
+	if (changes > 0) {
+		if (config.afterUpdate) await config.afterUpdate(id, data, existingRecord, env, origin);
+		await invalidateAdminEntityCache(env, config.table);
+	}
 }
 
 // ─── Factory: Update ──────────────────────────────────────────────
@@ -510,13 +561,12 @@ export function createUpdateHandler(config: EntityConfig) {
 			if (hookResult instanceof Response) return hookResult;
 		}
 
-		const setClauses = Object.keys(data).map((col) => `${col} = ?`);
-		await env.DB.prepare(`UPDATE ${config.table} SET ${setClauses.join(", ")} WHERE id = ?`)
-			.bind(...Object.values(data), id)
-			.run();
+		const existingRecord = existing as Record<string, unknown>;
+		const hasRealChanges = Object.entries(data).some(([col, val]) => existingRecord[col] !== val);
 
-		if (config.afterUpdate)
-			await config.afterUpdate(id, data, existing as Record<string, unknown>, env, origin);
+		if (hasRealChanges) {
+			await applyEntityUpdate(env, config, id, data, existingRecord, origin);
+		}
 
 		const row = await fetchRow(env, config.table, config.columns, id);
 		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
@@ -552,11 +602,16 @@ export function createRemoveHandler(config: EntityConfig) {
 			if (hookResult instanceof Response) return hookResult;
 		}
 
-		await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
-		if (config.afterDelete)
-			await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
+		const written = await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
+		if (!written.success) throw new Error("Entity deletion was not confirmed");
+		const changes = written.meta.changes ?? 0;
+		if (changes > 0) {
+			if (config.afterDelete)
+				await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
+			await invalidateAdminEntityCache(env, config.table);
+		}
 
-		return jsonNoStoreResponse({ deleted: true, id }, origin);
+		return jsonNoStoreResponse({ deleted: changes > 0, id }, origin);
 	};
 }
 
@@ -628,13 +683,23 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 					if (hookResult instanceof Response) return 0;
 				}
 
-				await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
-				if (config.afterDelete)
-					await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
-				return 1;
+				const written = await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`)
+					.bind(id)
+					.run();
+				if (!written.success) throw new Error("Entity deletion was not confirmed");
+				const changes = written.meta.changes ?? 0;
+				if (changes > 0) {
+					if (config.afterDelete)
+						await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
+					return 1;
+				}
+				return 0;
 			}),
 		);
 		const count = results.reduce<number>((sum, n) => sum + n, 0);
+		if (count > 0) {
+			await invalidateAdminEntityCache(env, config.table);
+		}
 
 		return jsonNoStoreResponse({ deleted: true, count }, origin);
 	};

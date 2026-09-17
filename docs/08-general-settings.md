@@ -1,6 +1,6 @@
 # 08 — 通用设置
 
-> 站点全局配置的数据库设计、KV 缓存策略、API 端点、前端管理页面。
+> 站点全局配置的数据库设计、API 端点、前端管理页面。缓存目标统一见 [20 · 统一缓存模块目标设计](20-worker-kv-reference.md)，本文不再维护独立 TTL 或失效契约。
 >
 > **前置依赖**：02（数据库设计）、05（Worker API）、04c（管理后台）
 
@@ -101,47 +101,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
 
 ---
 
-## 3. 缓存策略（KV）
+## 3. 统一缓存接入目标
 
-### 3.1 架构
+### 3.1 读取与写入
 
-```
-读取路径:  getSettings(env)
-           │
-           ├─ KV.get("settings:all") → hit → 返回 parsed map
-           │
-           └─ miss → DB.prepare("SELECT * FROM settings").all()
-                      │
-                      ├─ 解析 value（number/boolean/json/string）
-                      ├─ KV.put("settings:all", JSON, { ttl: 86400 })
-                      └─ 返回 parsed map
+读取由统一缓存模块提供快照，未命中后批量查询 settings 并解析类型。公开展示设置使用 `LONG`（24 小时）；动态统计与权威权限判断按统一设计分开，避免一个大 map 混入不同更新频率和敏感范围的数据。
 
-写入路径:  upsertSettings(env, entries)
-           │
-           ├─ DB.batch([UPDATE ... WHERE key = ?])  ← 原子事务
-           └─ KV.delete("settings:all")             ← 立即失效
-```
+写入先完成数据库更新，再通过统一 helper 失效相关设置。KV 更新具有传播延迟，管理界面优先使用写接口返回的结果；不能把 `KV.delete` 解释为跨地区立即一致。
 
 ### 3.2 设计决策
 
 | 决策 | 理由 |
 |------|------|
-| **单 KV key** `settings:all` | 18 个 key payload < 2KB，1 次 GET 比 18 次便宜 |
-| **TTL 24 小时** | 兜底过期，正常流程靠写入时 delete 失效 |
-| **Read-through** | 首次访问自动回填，无需预热 |
+| **按相同权限与更新频率批量读取** | 复用设置快照，减少单 key 查询；公开返回值使用字段白名单 |
+| **缓存参数与失效来自统一登记表** | 使用三档契约及统一并发、故障和更新规则，避免独立常量漂移 |
 | **UPDATE only** | 所有 key 由 migration seed，禁止运行时新增 key |
 | **D1 batch** | 批量 UPDATE 在单一事务中执行，保证原子性 |
 
-### 3.3 缓存辅助模块
+### 3.3 设置访问入口
 
-新建 `apps/worker/src/lib/settings.ts`：
+现有 `apps/worker/src/lib/settings.ts` 的业务入口在迁移时复用，内部缓存行为改由统一模块承担：
 
 | 导出函数 | 签名 | 用途 |
 |---------|------|------|
 | `getSettings` | `(env: Env) → Promise<SettingsMap>` | 返回 typed map（number 已解析），供 handler 和公共端点使用 |
 | `getSetting` | `(env: Env, key: string, defaultValue: T) → Promise<T>` | 获取单个值，带类型默认值 |
 | `getSettingsDetailed` | `(env: Env) → Promise<SettingsDetailMap>` | 返回完整元数据（value + type + updatedAt），供管理页面 |
-| `upsertSettings` | `(env: Env, entries: Record<string, string>) → Promise<void>` | 批量 UPDATE + 删除 KV 缓存 |
+| `upsertSettings` | `(env: Env, entries: Record<string, string>) → Promise<void>` | 批量 UPDATE，完成后调用统一失效规则 |
 
 **类型定义**：
 
@@ -445,7 +431,7 @@ Step 1 → Step 2 → Step 3 → Step 4 ─┐
 - [ ] `PUT /api/admin/settings` 修改值 → 再次 GET 确认更新
 - [ ] `PUT /api/admin/settings` 包含未知 key → 400 拒绝
 - [ ] `PUT /api/admin/settings` number key 传负数 → 400 拒绝
-- [ ] KV 缓存：首次 GET 写入 KV → 第二次 GET 命中 KV → PUT 后 KV 被 delete
+- [ ] 缓存：首次 GET 装载、有效期内命中、修改后按统一规则更新；覆盖传播延迟与旧查询回填，验证结果而非仅验证 delete 调用
 - [ ] `GET /api/v1/settings` 公共端点返回 typed 值（number 已解析为数字）
 - [ ] 管理页面加载 → 4 个卡片正确显示所有字段（无 loading spinner，Server Component 直出）
 - [ ] 修改字段 → 保存 → 刷新页面 → 确认持久化

@@ -1,3 +1,5 @@
+import { getPrivateData } from "../lib/cache/private-read";
+import { cacheDelete } from "../lib/cache/wrap";
 // handlers/checkin.ts — Daily check-in (签到) endpoints
 //
 // GET  /api/v1/checkin/status  → current user's checkin state + level
@@ -14,7 +16,7 @@ import {
 	type UserCheckin,
 } from "@ellie/types";
 import { jsonResponse } from "../lib/response";
-import { withAuth, withAuthVerified } from "../lib/routeHelpers";
+import { withAuthVerified } from "../lib/routeHelpers";
 import {
 	getShanghaiParts,
 	isWithinCheckinWindow,
@@ -37,22 +39,6 @@ interface D1CheckinRow {
 	last_checkin_at: number;
 }
 
-// ─── Mapper ─────────────────────────────────────────────────
-
-function toUserCheckin(row: D1CheckinRow): UserCheckin {
-	return {
-		userId: row.user_id,
-		totalDays: row.total_days,
-		monthDays: row.month_days,
-		streakDays: row.streak_days,
-		rewardTotal: row.reward_total,
-		lastReward: row.last_reward,
-		mood: row.mood,
-		message: row.message,
-		lastCheckinAt: row.last_checkin_at,
-	};
-}
-
 // ─── Timezone-safe helpers ──────────────────────────────────
 //
 // Shanghai-local date primitives moved to `lib/shanghaiTime.ts` so the
@@ -70,15 +56,16 @@ const MAX_MESSAGE_LENGTH = 100;
 
 // ─── GET /api/v1/checkin/status ─────────────────────────────
 
-export const status = withAuth(async (request, env, user) => {
+export const status = withAuthVerified(async (request, env, user, ctx) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	const row = await env.DB.prepare("SELECT * FROM user_checkins WHERE user_id = ?")
-		.bind(user.userId)
-		.first<D1CheckinRow>();
+	const checkin = await getPrivateData<UserCheckin | null>(env, ctx, {
+		family: "user:checkin",
+		params: { userId: user.userId },
+		scope: `user:${user.userId}`,
+	});
 
 	const todayStart = shanghaiTodayStartUnix();
-	const checkin = row ? toUserCheckin(row) : null;
 	const checkedInToday = checkin ? checkin.lastCheckinAt >= todayStart : false;
 	const level = checkin ? getCheckinLevel(checkin.totalDays) : null;
 	const withinWindow = isWithinCheckinWindow();
@@ -246,6 +233,9 @@ export const perform = withAuthVerified(async (request, env, user) => {
 	).bind(user.userId, todayDateLocal, mood, message, reward, nowUnix);
 
 	const results = await env.DB.batch([checkinSql, coinsSql, historySql]);
+	if (results.length !== 3 || results.some((result) => !result.success)) {
+		throw new Error("Check-in writes were not confirmed");
+	}
 
 	// ── Concurrent duplicate guard ──────────────────────────
 	// If the conditional write was a no-op (another request already
@@ -259,6 +249,12 @@ export const perform = withAuthVerified(async (request, env, user) => {
 			origin,
 		);
 	}
+
+	await Promise.all([
+		cacheDelete(env, `user:checkin:${user.userId}`, "user:checkin"),
+		cacheDelete(env, `user:stats:${user.userId}`, "user:stats"),
+		cacheDelete(env, `user:self:${user.userId}`, "user:self"),
+	]);
 
 	// ── Build response ───────────────────────────────────────
 	const checkin: UserCheckin = {

@@ -133,6 +133,7 @@ Forum tests establish sessions through the Credentials callback; admin tests inj
 - [Documentation index](README.md): architecture, features, and historical designs.
 - [Development and deployment guide](25-development.md) (Chinese): initial configuration, runtimes, TUI, migration, and test prerequisites.
 - [API layers](api-architecture.md): browser, Next.js proxy, and Worker responsibilities.
+- [Unified cache target design](20-worker-kv-reference.md) (Chinese): proposed 60-second, 30-minute, and 24-hour tiers, cache preview and per-entry actions, application metrics and footprint estimates, and validation; not yet implemented.
 - [Discuz data migration](03-migration.md): migration process and source data requirements.
 - [Changelog](../CHANGELOG.md): release history.
 

@@ -1,5 +1,6 @@
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { canViewForumVisibility } from "@ellie/types";
+import { getPrivateData, type PostingPreview } from "../lib/cache/private-read";
 import type { Env } from "../lib/env";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
@@ -255,49 +256,14 @@ function actionToContentType(action: string | null): "thread" | "reply" | "messa
 	}
 }
 
-export const checkPermission = withAuthVerified(async (request, env, user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const action = url.searchParams.get("action");
-
-	// Check email verification first (withAuthVerified doesn't check this)
-	const emailRow = await env.DB.prepare("SELECT email_verified_at FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ email_verified_at: number }>();
-
-	if (emailRow && emailRow.email_verified_at === 0) {
-		return jsonResponse(
-			{
-				allowed: false,
-				reason: "请先验证邮箱后再进行操作",
-				code: "EMAIL_NOT_VERIFIED",
-			},
-			origin,
-		);
-	}
-
-	const contentType = actionToContentType(action);
-	const permissionResult = await checkPostingPermission(env, user, origin, contentType);
-
-	if (permissionResult.allowed) {
-		return jsonResponse({ allowed: true }, origin);
-	}
-
-	// Extract code and reason from error response
-	// Error structure: { error: { code, message, details?: { message, code } } }
-	// The Chinese reason is in details.message, the sub-code in details.code
-	const errorBody = (await permissionResult.error.clone().json()) as {
-		error?: {
-			code?: string;
-			message?: string;
-			details?: { message?: string; code?: string };
-		};
-	};
-	const reason =
-		errorBody?.error?.details?.message ?? errorBody?.error?.message ?? "您暂时无法操作";
-	const code = errorBody?.error?.details?.code ?? errorBody?.error?.code ?? "POSTING_RESTRICTION";
-
-	return jsonResponse({ allowed: false, reason, code }, origin);
+export const checkPermission = withAuthVerified(async (request, env, user, ctx) => {
+	const action = actionToContentType(new URL(request.url).searchParams.get("action"));
+	const value = await getPrivateData<PostingPreview>(env, ctx, {
+		family: "user:posting-preview",
+		params: { userId: user.userId, action },
+		scope: `user:${user.userId}`,
+	});
+	return jsonResponse(value, request.headers.get("Origin") ?? undefined);
 });
 
 // ─── OPTIONS handlers ────────────────────────────────────────

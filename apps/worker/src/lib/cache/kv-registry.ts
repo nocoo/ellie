@@ -1,5 +1,7 @@
+import { CACHE_TTL_SECONDS, type CacheTier } from "@ellie/types";
+
 // KV registry — single source of truth for every KV key family the
-// Worker writes today (or has reserved for the v2 migration). Drives
+// Worker writes today, together with recognized legacy keys. Drives
 // the admin "KV monitor" page so the UI can show:
 //   - what is declared (status: shipped / planned / historical /
 //     dead-builder-reserved)
@@ -123,6 +125,20 @@ export interface KvFamilySpec {
 	 * `remaining`).
 	 */
 	ttl: number | "sticky" | "variable";
+	/** Present only for enrolled business snapshots, never runtime state. */
+	tier?: CacheTier;
+	/** Static loader group; implementations stay outside this data-only registry. */
+	loader?:
+		| "reading"
+		| "peripheral"
+		| "forum"
+		| "ip"
+		| "admin"
+		| "catalog"
+		| "user"
+		| "private"
+		| "admin-report"
+		| "monitor";
 	nameSensitivity: KvNameSensitivity;
 	valueSensitivity: KvValueSensitivity;
 	refresh: KvRefreshAction;
@@ -133,6 +149,31 @@ export interface KvFamilySpec {
 	 */
 	genKeys?: string[];
 	description: string;
+}
+
+function businessFamily(
+	family: string,
+	displayName: string,
+	tier: CacheTier,
+	loader: NonNullable<KvFamilySpec["loader"]>,
+	description: string,
+	refresh: KvRefreshAction = { kind: "none" },
+): KvFamilySpec {
+	return {
+		family,
+		displayName,
+		category: "cache",
+		status: "shipped",
+		listPrefix: `cache:v3:${family}:`,
+		pattern: `cache:v3:${family}:<sha256>`,
+		ttl: CACHE_TTL_SECONDS[tier],
+		tier,
+		loader,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh,
+		description,
+	};
 }
 
 /**
@@ -148,6 +189,284 @@ export interface KvFamilySpec {
  * architecture-guard test does not need an extra allowlist for them.
  */
 export const KV_REGISTRY: readonly KvFamilySpec[] = [
+	businessFamily(
+		"monitor:overview",
+		"缓存运行概览",
+		"MEDIUM",
+		"monitor",
+		"Bounded KV metadata observations; unknown or partial coverage remains explicit.",
+	),
+	businessFamily(
+		"monitor:metrics:recent",
+		"近期缓存与数据库趋势",
+		"SHORT",
+		"monitor",
+		"Application minute metrics for windows up to 60 minutes; administrative traffic is separate.",
+	),
+	businessFamily(
+		"monitor:metrics:history",
+		"历史缓存与数据库趋势",
+		"MEDIUM",
+		"monitor",
+		"Application trend windows beyond 60 minutes, without remote platform queries.",
+	),
+	...["user:self", "user:checkin", "user:posting-preview", "pm:list", "pm:entity", "pm:unread"].map(
+		(family): KvFamilySpec => ({
+			...businessFamily(
+				family,
+				family,
+				"SHORT",
+				"private",
+				"Private display data scoped to the original user; fresh authentication/ownership checks before response. Preview is restricted; management never performs read/visit effects.",
+			),
+			...(["user:self", "user:checkin"].includes(family)
+				? { listPrefix: `${family}:`, pattern: `${family}:<userId>` }
+				: {}),
+			valueSensitivity: "mask-value",
+		}),
+	),
+	businessFamily(
+		"admin:display",
+		"后台查询展示",
+		"SHORT",
+		"admin-report",
+		"Static normalized administrative displays; operation checks stay authoritative.",
+	),
+	{
+		...businessFamily(
+			"admin:analytics",
+			"后台历史聚合",
+			"MEDIUM",
+			"admin-report",
+			"Date-range aggregates; invalidated once after completed recalibration.",
+		),
+		genKeys: ["stats:reports:gen"],
+	},
+	...["admin:settings", "admin:users:staff", "admin:thread-types"].map((family) =>
+		businessFamily(
+			family,
+			family,
+			"SHORT",
+			"admin",
+			"Static administrative display; writes and authorization remain authoritative.",
+		),
+	),
+	{
+		family: "gen:pm:user",
+		displayName: "Mailbox generation",
+		category: "gen",
+		status: "shipped",
+		listPrefix: "pm:user:gen:",
+		pattern: "pm:user:gen:<userId>",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "no-read",
+		refresh: { kind: "none" },
+		description: "Per-user mailbox mutations; no credential data.",
+	},
+	{
+		family: "gen:stats:reports",
+		displayName: "Report generation",
+		category: "gen",
+		status: "shipped",
+		listPrefix: "stats:reports:gen",
+		keyKind: "exact",
+		pattern: "stats:reports:gen",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "no-read",
+		refresh: { kind: "none" },
+		description: "Changed only after completed statistics recalibration.",
+	},
+	{
+		family: "gen:admin:entity",
+		displayName: "Admin entity generation",
+		category: "gen",
+		status: "shipped",
+		listPrefix: "admin:entity:gen:",
+		pattern: "admin:entity:gen:<resource>",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "no-read",
+		refresh: { kind: "none" },
+		description: "Scoped administrative resource mutation epoch.",
+	},
+
+	businessFamily(
+		"search:threads",
+		"主题搜索",
+		"SHORT",
+		"catalog",
+		"Normalized terms/cursors/limit and audience; membership only, current ACL gates before entity projection.",
+	),
+	businessFamily(
+		"digest:list",
+		"精华分页索引",
+		"MEDIUM",
+		"catalog",
+		"All valid forum/year/level/cursor combinations with shared entities.",
+	),
+	{
+		...businessFamily(
+			"user:avatar-path",
+			"头像路径映射",
+			"LONG",
+			"user",
+			"Per-user avatar mapping; invalidated after replacement.",
+		),
+		listPrefix: "user:avatar-path:",
+		pattern: "user:avatar-path:<id>",
+	},
+	businessFamily(
+		"user:threads",
+		"用户主题历史",
+		"SHORT",
+		"user",
+		"All history cursors; current thread/forum and anonymous-author gates precede composition.",
+	),
+	businessFamily(
+		"user:posts",
+		"用户回复历史",
+		"SHORT",
+		"user",
+		"Membership only; shared post/thread entities and current gates.",
+	),
+	businessFamily(
+		"user:digest",
+		"用户精华历史",
+		"SHORT",
+		"user",
+		"All history cursors with the original viewer scope.",
+	),
+	businessFamily(
+		"user:search",
+		"用户搜索",
+		"SHORT",
+		"user",
+		"Normalized prefix search; active users only.",
+	),
+	{
+		...businessFamily(
+			"user:stats",
+			"用户动态统计",
+			"SHORT",
+			"user",
+			"User counters and check-in display; actual writes validate current rows.",
+		),
+		listPrefix: "user:stats:",
+		pattern: "user:stats:<id>",
+	},
+	businessFamily(
+		"admin:entity:list",
+		"后台实体列表",
+		"SHORT",
+		"admin",
+		"Static admin entity configurations and normalized filters; Key B is checked on every request.",
+	),
+	businessFamily(
+		"admin:entity:detail",
+		"后台实体详情",
+		"SHORT",
+		"admin",
+		"Admin field projections only; credentials excluded. Writes always validate current D1 state.",
+	),
+	businessFamily(
+		"thread:entity",
+		"主题稳定字段",
+		"MEDIUM",
+		"reading",
+		"Internal raw entity; current thread/forum permission gates precede every response.",
+		{ kind: "bump-thread-meta", requires: ["threadId"] },
+	),
+	businessFamily(
+		"thread:stats",
+		"主题动态统计",
+		"SHORT",
+		"reading",
+		"Per-thread counters; ordinary views and replies use natural expiry.",
+	),
+	businessFamily(
+		"thread:list",
+		"主题分页与公告索引",
+		"SHORT",
+		"reading",
+		"All normalized page/cursor/filter combinations; global announcements are shared.",
+		{ kind: "bump-thread-list-forum", requires: ["forumId"] },
+	),
+	businessFamily(
+		"post:entity",
+		"回帖正文",
+		"MEDIUM",
+		"reading",
+		"Internal raw post entity; current deletion and ownership gates precede response.",
+	),
+	businessFamily(
+		"post:page",
+		"回帖分页索引",
+		"SHORT",
+		"reading",
+		"IDs and positions for all valid cursors and limits.",
+		{ kind: "bump-post-list", requires: ["threadId"] },
+	),
+	businessFamily(
+		"post:attachments",
+		"附件元数据",
+		"LONG",
+		"reading",
+		"Per-post attachment metadata; download authorization stays current.",
+	),
+	businessFamily(
+		"post:comments",
+		"帖子评论",
+		"SHORT",
+		"reading",
+		"Per-post rows and limit; private IP fields are never stored.",
+	),
+	businessFamily(
+		"post:ratings",
+		"评分汇总",
+		"SHORT",
+		"reading",
+		"Per-post aggregate; rating quotas use authoritative writes.",
+	),
+	businessFamily(
+		"post:rating-rows",
+		"评分明细",
+		"SHORT",
+		"reading",
+		"Per-post active rating rows; response author projection stays request-scoped.",
+	),
+	...["digest:stats", "digest:filters", "recommended:threads"].map(
+		(family): KvFamilySpec => ({
+			family: `historical:${family}`,
+			displayName: `${family} (legacy)`,
+			category: "cache",
+			status: "historical",
+			listPrefix: `${family}:`,
+			pattern: `${family}:<legacy>`,
+			ttl: "variable",
+			nameSensitivity: "public",
+			valueSensitivity: "public",
+			refresh: { kind: "none" },
+			description: "Legacy raw payload; replaced by schema 3 membership and aggregate snapshots.",
+		}),
+	),
+	...["post:entity", "post:attachments", "recommended"].map(
+		(family): KvFamilySpec => ({
+			family: `gen:${family}`,
+			displayName: `${family} generation`,
+			category: "gen",
+			status: "shipped",
+			listPrefix: `${family}:gen:`,
+			pattern: `${family}:gen:<id>`,
+			ttl: "sticky",
+			nameSensitivity: "public",
+			valueSensitivity: "no-read",
+			refresh: { kind: "none" },
+			description: "Scoped mutation epoch, never a business snapshot.",
+		}),
+	),
+
 	// ─── Business cache (gen-keyed) ────────────────────────────────
 	{
 		family: "forum:tree:v2",
@@ -156,7 +475,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "forum:tree:v2:",
 		pattern: "forum:tree:v2:<bucket>:g<forumTreeGen>",
-		ttl: 86_400,
+		ttl: 86400,
+		tier: "LONG",
+		loader: "forum",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-tree" },
@@ -170,7 +491,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "forum:summary:v2:",
 		pattern: "forum:summary:v2:<bucket>:g<forumSummaryGen>",
-		ttl: 86_400,
+		ttl: 60,
+		tier: "SHORT",
+		loader: "forum",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-summary" },
@@ -182,13 +505,13 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		family: "forum:meta:v2",
 		displayName: "Forum meta (single-forum)",
 		category: "cache",
-		status: "shipped",
+		status: "historical",
 		listPrefix: "forum:meta:v2:",
 		pattern: "forum:meta:v2:<forumId>:<bucket>:g<forumSummaryGen>",
-		ttl: 86_400,
+		ttl: 86400,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "bump-forum-summary" },
+		refresh: { kind: "none" },
 		genKeys: ["forum:summary:gen"],
 		description: "Single-forum meta read on the read-by-id miss path. Shares forum:summary:gen.",
 	},
@@ -196,13 +519,13 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		family: "thread:list:v2",
 		displayName: "Thread list (page1, two-gen)",
 		category: "cache",
-		status: "shipped",
+		status: "historical",
 		listPrefix: "thread:list:v2:",
 		pattern: "thread:list:v2:<forumId>:default:<limitBucket>:p1:gf<perForumGen>:ga<allGen>",
 		ttl: 60,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "bump-thread-list-forum", requires: ["forumId"] },
+		refresh: { kind: "none" },
 		genKeys: ["thread:list:gen:all"],
 		description:
 			"Page1 thread-list cache, gated by both per-forum and global gen. Default refresh is per-forum bump; the global all-gen sweep lives on the gen:thread:list:all family for cross-forum invalidation.",
@@ -216,6 +539,8 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		listPrefix: "user:mini:",
 		pattern: "user:mini:<userId>",
 		ttl: 86400,
+		tier: "LONG",
+		loader: "peripheral",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "delete-user-mini", requires: ["userId"] },
@@ -230,7 +555,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "ip-lookup:",
 		pattern: "ip-lookup:<ip>",
-		ttl: 86_400,
+		ttl: 86400,
+		tier: "LONG",
+		loader: "ip",
 		// Suffix is the queried IP — masked in admin UI like other ip-keyed
 		// families (login-ip / reg-ip).
 		nameSensitivity: "mask",
@@ -250,9 +577,11 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		displayName: "Digest stats (per visibility bucket)",
 		category: "cache",
 		status: "shipped",
-		listPrefix: "digest:stats:",
-		pattern: "digest:stats:<bucket>:<gen>",
-		ttl: 3600,
+		listPrefix: "cache:v3:digest:stats:",
+		pattern: "cache:v3:digest:stats:<hash>",
+		ttl: 1800,
+		tier: "MEDIUM",
+		loader: "catalog",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
@@ -265,9 +594,11 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		displayName: "Digest filters (per visibility bucket)",
 		category: "cache",
 		status: "shipped",
-		listPrefix: "digest:filters:",
-		pattern: "digest:filters:<bucket>:<gen>",
-		ttl: 3600,
+		listPrefix: "cache:v3:digest:filters:",
+		pattern: "cache:v3:digest:filters:<hash>",
+		ttl: 1800,
+		tier: "MEDIUM",
+		loader: "catalog",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
@@ -281,9 +612,11 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		displayName: "Recommended threads (per forum)",
 		category: "cache",
 		status: "shipped",
-		listPrefix: "recommended:threads:",
-		pattern: "recommended:threads:<forumId>",
-		ttl: 86_400,
+		listPrefix: "cache:v3:recommended:threads:",
+		pattern: "cache:v3:recommended:threads:<hash>",
+		ttl: 86400,
+		tier: "LONG",
+		loader: "catalog",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "delete-literal", requires: ["key"] },
@@ -298,7 +631,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "thread-types:",
 		pattern: "thread-types:<forumId>",
-		ttl: 86_400,
+		ttl: 86400,
+		tier: "LONG",
+		loader: "catalog",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "delete-literal", requires: ["key"] },
@@ -314,7 +649,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		listPrefix: "settings:all",
 		keyKind: "exact",
 		pattern: "settings:all",
-		ttl: 900,
+		ttl: 86400,
+		tier: "LONG",
+		loader: "peripheral",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "delete-literal", requires: ["key"] },
@@ -328,7 +665,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		listPrefix: "public-stats",
 		keyKind: "exact",
 		pattern: "public-stats",
-		ttl: 900,
+		ttl: 60,
+		tier: "SHORT",
+		loader: "peripheral",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "delete-literal", requires: ["key"] },
@@ -346,7 +685,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		ttl: 300,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "delete-literal", requires: ["key"] },
+		refresh: { kind: "none" },
 		description:
 			"Aggregated count of `online:*` markers, recomputed every 60s by lib/online-stats.ts.",
 	},
@@ -361,7 +700,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		ttl: "sticky",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "delete-literal", requires: ["key"] },
+		refresh: { kind: "none" },
 		description:
 			"All-time online peak. Sticky (no TTL) — only ever rewritten when new peak observed.",
 	},
@@ -369,16 +708,16 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		family: "stats:today_posts",
 		displayName: "Today's posts counter",
 		category: "stats",
-		status: "shipped",
+		status: "historical",
 		listPrefix: "stats:today_posts",
 		keyKind: "exact",
 		pattern: "stats:today_posts",
 		ttl: 86_400,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "delete-literal", requires: ["key"] },
+		refresh: { kind: "none" },
 		description:
-			"Incremented on each post/thread creation. Reset to 0 daily by cron; old value moves to settings.stats.yesterday_posts.",
+			"Legacy read-modify-write counter. Today now comes from committed indexed D1 rows.",
 	},
 	{
 		family: "stats:today_date",
@@ -391,7 +730,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		ttl: 86_400,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "delete-literal", requires: ["key"] },
+		refresh: { kind: "none" },
 		description:
 			"YYYY-MM-DD in Asia/Shanghai. Used by cron to detect day rollover for stats:today_posts.",
 	},
@@ -533,7 +872,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-tree" },
 		description:
-			"Generation token for forum:tree:v2 cache. Sticky — bumped (rewritten) by structural forum writes.",
+			"Generation token for the schema-3 forum tree. Bumped by structural forum writes; the established family name is retained.",
 	},
 	{
 		family: "gen:forum:summary",
@@ -548,7 +887,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-summary" },
 		description:
-			"Generation token for forum:summary:v2 + forum:meta:v2. Bumped by volatile writes.",
+			"Generation token for the schema-3 forum summary. Ordinary create/reply/view events rely on SHORT expiration.",
 	},
 	{
 		family: "gen:thread:list:all",
@@ -563,7 +902,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		valueSensitivity: "public",
 		refresh: { kind: "bump-thread-list-all" },
 		description:
-			"Global thread-list gen, bumped by writes that affect the cross-forum view (e.g. moderation moves).",
+			"Global thread-list generation for global-announcement changes and explicit group invalidation. Known forum changes use scoped generations.",
 	},
 	{
 		family: "gen:thread:list:per-forum",
@@ -591,34 +930,34 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
-		description:
-			"Generation token for the planned digest:* caches. Already bumped by digest-affecting writes today.",
+		description: "Generation token for digest:list membership, bumped by digest-affecting writes.",
 	},
 	{
 		family: "gen:thread:meta",
-		displayName: "Gen — thread:meta (planned)",
+		displayName: "Gen — thread:meta",
 		category: "gen",
-		status: "planned",
+		status: "shipped",
 		listPrefix: "thread:meta:gen:",
 		pattern: "thread:meta:gen:<threadId>",
 		ttl: "sticky",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-thread-meta", requires: ["threadId"] },
-		description: "Per-thread gen reserved for the planned thread:meta:v2 cache.",
+		description: "Per-thread generation for thread:entity and thread:stats snapshots.",
 	},
 	{
 		family: "gen:post:list",
-		displayName: "Gen — post:list (planned)",
+		displayName: "Gen — post:list",
 		category: "gen",
-		status: "planned",
+		status: "shipped",
 		listPrefix: "post:list:gen:",
 		pattern: "post:list:gen:<threadId>",
 		ttl: "sticky",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-post-list", requires: ["threadId"] },
-		description: "Per-thread gen reserved for the planned post:list:v2 cache.",
+		description:
+			"Per-thread generation for post:page membership, post:entity and post:attachments.",
 	},
 	// ─── Planned v2 / dead-builder-reserved ────────────────────────
 	{
@@ -636,17 +975,19 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	},
 	{
 		family: "user:public:v2",
-		displayName: "User public (v2, planned)",
+		displayName: "用户公开资料",
 		category: "cache",
-		status: "planned",
+		status: "shipped",
 		listPrefix: "user:public:v2:",
 		pattern: "user:public:v2:<userId>:<viewerBucket>",
-		ttl: 3600,
+		ttl: 1800,
+		tier: "MEDIUM",
+		loader: "user",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "none" },
 		description:
-			"Planned per-viewer-bucket public-user cache. Builder + delete helper exist; no live populator.",
+			"Schema-3 public-user projection, separated into public and staff audiences with the established key name retained.",
 	},
 	{
 		family: "settings:all:v2",
@@ -770,6 +1111,7 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"digest:gen",
 	"thread:meta:gen:",
 	"post:list:gen:",
+	"admin:entity:gen:",
 ];
 
 /**

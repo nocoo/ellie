@@ -1,5 +1,8 @@
 // @ellie/types — Shared type definitions for Ellie monorepo
 
+export type { CacheDescriptor, CacheEnvelope, CacheParams, CacheTier } from "./cache";
+export { CACHE_SCHEMA_VERSION, CACHE_TTL_SECONDS, getCacheTTL } from "./cache";
+
 // ─── Check-in (签到) ────────────────────────────────────────────
 export type {
 	CheckinHistoryEntry,

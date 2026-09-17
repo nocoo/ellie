@@ -16,28 +16,35 @@ export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
  */
 export function createMockKV(initialData: Record<string, string> = {}) {
 	const store = new Map<string, string>(Object.entries(initialData));
+	const metadata = new Map<string, unknown>();
+	const expiration = new Map<string, number>();
+	const read = (key: string, type?: string) => {
+		const raw = store.get(key) ?? null;
+		if (raw === null || type !== "json") return raw;
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return null;
+		}
+	};
 	return {
-		get: vi.fn(async (key: string, type?: string) => {
-			const raw = store.get(key) ?? null;
-			if (raw === null) return null;
-			if (type === "json") {
-				try {
-					return JSON.parse(raw);
-				} catch {
-					return null;
-				}
-			}
-			return raw;
-		}),
-		put: vi.fn(async (key: string, value: string) => {
+		get: vi.fn(async (key: string | string[], type?: string) =>
+			Array.isArray(key) ? new Map(key.map((name) => [name, read(name, type)])) : read(key, type),
+		),
+		put: vi.fn(async (key: string, value: string, options?: KVNamespacePutOptions) => {
 			store.set(key, value);
+			metadata.set(key, options?.metadata ?? null);
+			if (options?.expirationTtl)
+				expiration.set(key, Math.floor(Date.now() / 1000) + options.expirationTtl);
+			else if (options?.expiration) expiration.set(key, options.expiration);
+			else expiration.delete(key);
 		}),
 		delete: vi.fn(async (key: string) => {
 			store.delete(key);
 		}),
-		getWithMetadata: vi.fn(async (key: string) => ({
-			value: store.get(key) ?? null,
-			metadata: null,
+		getWithMetadata: vi.fn(async (key: string, type?: string) => ({
+			value: read(key, type),
+			metadata: metadata.get(key) ?? null,
 		})),
 		// Minimal `list` — returns all keys whose name starts with `prefix`,
 		// sorted by name (Cloudflare KV is byte-ordered). Pagination is
@@ -48,16 +55,16 @@ export function createMockKV(initialData: Record<string, string> = {}) {
 			const all = Array.from(store.keys())
 				.filter((k) => k.startsWith(prefix))
 				.sort();
-			const startIdx = opts.cursor
-				? Math.max(
-						0,
-						all.findIndex((k) => k > (opts.cursor as string)),
-					)
-				: 0;
+			const next = opts.cursor ? all.findIndex((k) => k > (opts.cursor as string)) : 0;
+			const startIdx = next < 0 ? all.length : next;
 			const slice = all.slice(startIdx, startIdx + limit);
 			const list_complete = startIdx + slice.length >= all.length;
 			return {
-				keys: slice.map((name) => ({ name, expiration: undefined })),
+				keys: slice.map((name) => ({
+					name,
+					expiration: expiration.get(name),
+					metadata: metadata.get(name),
+				})),
 				list_complete,
 				cursor: list_complete ? "" : slice[slice.length - 1],
 			};
@@ -311,7 +318,7 @@ export function createMockDb(config?: {
 						first: vi.fn(async () => matchFirst(sql)),
 						all: vi.fn(async () => {
 							const r = matchAll(sql);
-							return { results: r ?? [] };
+							return { success: true, results: r ?? [], meta: {} };
 						}),
 						run: vi.fn(async () => {
 							return matchRun(sql) ?? { success: true, meta: { last_row_id: 1, changes: 1 } };
@@ -326,7 +333,7 @@ export function createMockDb(config?: {
 				all: vi.fn(async () => {
 					calls.push({ sql, params: [] });
 					const r = matchAll(sql);
-					return { results: r ?? [] };
+					return { success: true, results: r ?? [], meta: {} };
 				}),
 				run: vi.fn(async () => {
 					calls.push({ sql, params: [] });

@@ -4,12 +4,12 @@
 // where the bytes are stored and what response shape the client gets.
 
 import { errorResponse } from "../middleware/error";
+import { invalidateUserCaches } from "./cache/invalidate";
 import type { Env } from "./env";
 import { sniffImageType } from "./imageMagicBytes";
 import { handlePostImageUpload } from "./postImage";
 import { jsonResponse } from "./response";
 import { UPLOAD_CONFIGS } from "./upload-config";
-import { invalidateUserCache } from "./user-cache";
 
 /**
  * Generate a GUID-based avatar path.
@@ -162,12 +162,16 @@ async function handleAvatarUpload(
 	}
 
 	// Update user record — set avatar_path and has_avatar = 1
-	await env.DB.prepare("UPDATE users SET avatar_path = ?, has_avatar = 1 WHERE id = ?")
+	const saved = await env.DB.prepare(
+		"UPDATE users SET avatar_path = ?, has_avatar = 1 WHERE id = ?",
+	)
 		.bind(key, userId)
 		.run();
 
-	// Invalidate user cache (non-blocking)
-	ctx.waitUntil(invalidateUserCache(env, userId));
+	if (!saved.success) throw new Error("Avatar mapping could not be saved");
+
+	// Invalidate user display snapshots after the confirmed mapping write
+	ctx.waitUntil(invalidateUserCaches(env, userId));
 
 	return jsonResponse(
 		{

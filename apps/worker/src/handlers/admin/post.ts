@@ -4,19 +4,30 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
+	bumpDigestGen,
 	bumpForumSummaryGen,
+	bumpPostAttachmentsGen,
+	bumpPostEntityGen,
+	bumpPostListGen,
+	bumpThreadListGenAll,
+	bumpThreadMetaGen,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
+	invalidateThreadReading,
 } from "../../lib/cache/invalidate";
 import { buildDeletePostStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
+import { confirmedBatch } from "../../lib/d1-write";
 import type { Env } from "../../lib/env";
 import { toPost } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { jsonNoStoreResponse } from "../../lib/response";
+import { STICKY_GLOBAL } from "../../lib/visibility";
 import { errorResponse } from "../../middleware/error";
+import { invalidateRecommendedCache } from "../recommended";
 
 // ─── Entity Config ───────────────────────────────────────────────
 
@@ -48,6 +59,9 @@ const postConfig: EntityConfig = {
 					: null,
 		},
 	],
+	async afterUpdate(id, data, existing, env) {
+		if (data.content !== existing.content) await bumpPostEntityGen(env, id);
+	},
 };
 
 // ─── CRUD Handlers ───────────────────────────────────────────────
@@ -150,8 +164,24 @@ export const remove = withEntityAuth(postConfig, async (request, env) => {
 			origin,
 		);
 
-	await env.DB.batch(buildDeletePostStatements(env, [existing]));
-	await invalidateForumVolatileV2(env, existing.forum_id);
+	const thread = await env.DB.prepare("SELECT sticky, digest FROM threads WHERE id = ?")
+		.bind(existing.thread_id)
+		.first<{ sticky: number; digest: number }>();
+	await confirmedBatch(env, buildDeletePostStatements(env, [existing]));
+	const invalidations: Promise<unknown>[] = [
+		...["posts", "threads", "forums", "users", "attachments"].map((resource) =>
+			invalidateAdminEntityCache(env, resource),
+		),
+		bumpPostEntityGen(env, id),
+		bumpPostAttachmentsGen(env, id),
+		bumpPostListGen(env, existing.thread_id),
+		bumpThreadMetaGen(env, existing.thread_id),
+		invalidateForumVolatileV2(env, existing.forum_id),
+		invalidateRecommendedCache(env, existing.forum_id),
+	];
+	if (thread?.digest && thread.digest > 0) invalidations.push(bumpDigestGen(env));
+	if (thread?.sticky === STICKY_GLOBAL) invalidations.push(bumpThreadListGenAll(env));
+	await Promise.all(invalidations);
 	await writeAdminLog(env, resolveActor(request, env), {
 		action: "post.delete",
 		targetType: "post",
@@ -213,6 +243,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 	)
 		.bind(...numericIds)
 		.all();
+	if (!result.success) throw new Error("Post deletion snapshot failed");
 
 	const postRows = result.results as {
 		id: number;
@@ -230,13 +261,26 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 		return jsonNoStoreResponse({ deleted: true, count: 0, skipped }, origin);
 	}
 
-	await env.DB.batch(buildDeletePostStatements(env, deletable));
 	const affectedForumIds = [...new Set(deletable.map((p) => p.forum_id))];
+	const threadIds = [...new Set(deletable.map((p) => p.thread_id))];
+	const threads = await env.DB.prepare(
+		`SELECT id, sticky, digest FROM threads WHERE id IN (${threadIds.map(() => "?").join(",")})`,
+	)
+		.bind(...threadIds)
+		.all<{ id: number; sticky: number; digest: number }>();
+	if (!threads.success) throw new Error("Post deletion thread query failed");
+	await confirmedBatch(env, buildDeletePostStatements(env, deletable));
 
 	// Invalidate the affected lists and record the committed deletion.
-	await Promise.all([
+	const invalidations: Promise<unknown>[] = [
+		...["posts", "threads", "forums", "users", "attachments"].map((resource) =>
+			invalidateAdminEntityCache(env, resource),
+		),
+		...deletable.flatMap((p) => [bumpPostEntityGen(env, p.id), bumpPostAttachmentsGen(env, p.id)]),
+		invalidateThreadReading(env, threadIds, { posts: true }),
 		invalidateThreadListForForums(env, affectedForumIds),
 		bumpForumSummaryGen(env),
+		...affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 		writeAdminLog(env, resolveActor(request, env), {
 			action: "post.batch_delete",
 			targetType: "post",
@@ -247,7 +291,11 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 				skippedFirstPostIds: skipped,
 			},
 		}),
-	]);
+	];
+	if (threads.results.some((t) => t.digest > 0)) invalidations.push(bumpDigestGen(env));
+	if (threads.results.some((t) => t.sticky === STICKY_GLOBAL))
+		invalidations.push(bumpThreadListGenAll(env));
+	await Promise.all(invalidations);
 
 	return jsonNoStoreResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });

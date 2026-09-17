@@ -1,14 +1,58 @@
-// Worker KV cache key builders (v2 schema).
+// Worker KV cache key builders, including retained legacy key names.
 //
-// Pure functions only — no IO, no env. See docs/19 §2 (key schema) and §4
-// (cache key inventory) for the canonical contract. Any change here MUST
-// land in docs/19 in the same commit.
+// No storage IO or env. See docs/20 §3.2 for the canonical dimensions
+// and §4 for the family inventory. Keep that contract in sync with changes.
+
+import type { CacheParams } from "@ellie/types";
 
 export type VisibilityBucket = "anon" | "member" | "staff" | "admin";
 export type ViewerBucket = "public" | "staff";
 export type PmBox = "inbox" | "sent";
 
 const SCHEMA = "v2";
+const hashing = new Map<string, Promise<string>>();
+
+/** Complete canonical dimensions, including audience and captured resource versions. */
+export async function dataCacheKey(
+	family: string,
+	params: CacheParams,
+	scope = "public",
+	gens: Record<string, string> = {},
+): Promise<string> {
+	const ordered = (value: Record<string, unknown>) =>
+		Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+	const input = JSON.stringify([family, ordered(params), scope, ordered(gens)]);
+	const existing = hashing.get(input);
+	if (existing) return existing;
+	const task = crypto.subtle
+		.digest("SHA-256", new TextEncoder().encode(input))
+		.then((bytes) => {
+			const digest = Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join(
+				"",
+			);
+			const bypass = Object.values(gens).includes("!unavailable") ? ":!unavailable" : "";
+			return `cache:v3:${family}:${digest}${bypass}`;
+		})
+		.finally(() => {
+			hashing.delete(input);
+		});
+	// Key derivation is shared, never completed business values. The bound
+	// also limits memory for a burst of distinct search/cursor parameters.
+	if (hashing.size < 1024) hashing.set(input, task);
+	return task;
+}
+
+export function postEntityGenKey(postId: number): string {
+	return `post:entity:gen:${postId}`;
+}
+
+export function postAttachmentsGenKey(postId: number): string {
+	return `post:attachments:gen:${postId}`;
+}
+
+export function recommendedGenKey(forumId: number): string {
+	return `recommended:gen:${forumId}`;
+}
 
 // ─── Forum domain ──────────────────────────────────────────────────
 
@@ -27,19 +71,9 @@ export function forumMetaKey(forumId: number, bucket: VisibilityBucket, gen: str
 // ─── Thread domain ─────────────────────────────────────────────────
 
 /**
- * Thread list cache key. Only `page=1` is cached; deep pagination is no-cache.
- * `limitBucket` collapses limit values to one of the canonical buckets
- * documented in docs/19 §2.5 (`20|50|100`).
- *
- * Bucket-independent: thread-list payload has no viewer-conditional fields
- * (see docs/19 §6 thread:list:v2 row). Forum-visibility gating happens
- * BEFORE cache lookup via `forum:meta:v2`, so the cached payload itself
- * is bucket-independent. If a future thread payload introduces any
- * per-viewer field, this key MUST add a viewer dimension.
- *
- * Two gens are embedded so `admin/statistics/recalc-threads` can blow
- * the entire thread-list cache via `thread:list:gen:all` without
- * scanning every per-forum gen (docs/19 §3.3.1 option (b)).
+ * Legacy v2 first-page key, retained for recognizing old entries.
+ * Live thread-list reads use dataCacheKey through threadListCacheKey;
+ * all legal pages, cursors and limits are covered (docs/20 §4).
  */
 export function threadListKey(
 	forumId: number,
@@ -138,11 +172,9 @@ export function threadListGenKey(forumId: number): string {
 }
 
 /**
- * Global thread-list generation. Used as the second component of
- * `threadListKey`; bumping it invalidates EVERY per-forum thread:list:v2
- * key in one write. Reserved for low-frequency admin operations like
- * `recalc-threads` and `purge` fallback where the affected `forumId`
- * set isn't known up-front (docs/19 §3.3.1 option (b)).
+ * Global thread-list generation for global-announcement changes and
+ * explicit group invalidation. Known forum changes use their scoped
+ * generation instead (docs/20 §5).
  */
 export function threadListGenAllKey(): string {
 	return "thread:list:gen:all";
@@ -158,4 +190,15 @@ export function postListGenKey(threadId: number): string {
 
 export function digestGenKey(): string {
 	return "digest:gen";
+}
+
+export function pmUserGenKey(userId: number): string {
+	return `pm:user:gen:${userId}`;
+}
+export function statsReportsGenKey(): string {
+	return "stats:reports:gen";
+}
+
+export function adminEntityGenKey(resource: string): string {
+	return `admin:entity:gen:${resource}`;
 }

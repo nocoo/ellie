@@ -104,7 +104,13 @@ describe("forum:summary:gen + thread:list:gen v2 parity — moderation handlers"
 		const { db } = createMockDb({
 			firstResults: {
 				...modAuthRow(1),
-				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 5 },
+				"SELECT id, forum_id, replies, sticky, digest FROM threads": {
+					id: 1,
+					forum_id: 1,
+					replies: 5,
+					sticky: 0,
+					digest: 0,
+				},
 				"SELECT id FROM forums WHERE id": { id: 2 },
 			},
 		});
@@ -118,8 +124,8 @@ describe("forum:summary:gen + thread:list:gen v2 parity — moderation handlers"
 		expect(res.status).toBe(200);
 		// Both source (1) and target (2) thread-list gens must be bumped.
 		const bumpedForumIds = mockThreadList.mock.calls.map((c) => c[1]);
-		expect(bumpedForumIds).toEqual(expect.arrayContaining([1, 2]));
-		expect(mockSummary).toHaveBeenCalled();
+		expect(bumpedForumIds.sort()).toEqual([1, 2]);
+		expect(mockSummary).toHaveBeenCalledTimes(1);
 	});
 
 	it("moderation deletePost bumps summary + per-forum thread-list", async () => {
@@ -152,12 +158,13 @@ describe("forum:summary:gen + thread:list:gen v2 parity — moderation handlers"
 		const { db } = createMockDb({
 			firstResults: {
 				...modAuthRow(1),
-				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest, sticky FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
 					replies: 2,
 					digest: 0,
+					sticky: 0,
 				},
 			},
 			allResults: {
@@ -244,9 +251,9 @@ describe("forum:summary:gen + thread:list:gen v2 parity — admin destructive ha
 	it("admin thread batchDelete bumps summary + per-forum thread-list", async () => {
 		const { db } = createMockDb({
 			allResults: {
-				"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": [
-					{ id: 1, forum_id: 1, author_id: 10, digest: 0 },
-					{ id: 2, forum_id: 1, author_id: 11, digest: 0 },
+				"SELECT id, forum_id, author_id, digest, sticky FROM threads WHERE id IN": [
+					{ id: 1, forum_id: 1, author_id: 10, digest: 0, sticky: 0 },
+					{ id: 2, forum_id: 1, author_id: 11, digest: 0, sticky: 0 },
 				],
 				"SELECT thread_id, author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [
 					{ thread_id: 1, author_id: 10, cnt: 1 },
@@ -262,10 +269,10 @@ describe("forum:summary:gen + thread:list:gen v2 parity — admin destructive ha
 		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("admin user nuke bumps summary (per-forum gens depend on affected set)", async () => {
+	it("admin user nuke bumps summary once for a successful empty cleanup", async () => {
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT * FROM users WHERE id": {
+				"SELECT id, status, role FROM users WHERE id": {
 					id: 99,
 					username: "spam",
 					role: 0,
@@ -275,19 +282,15 @@ describe("forum:summary:gen + thread:list:gen v2 parity — admin destructive ha
 				"SELECT COUNT(*) as cnt FROM threads WHERE author_id": { cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
-				"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
+				"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [],
+				"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = createAdminRequest("POST", "/api/admin/users/99/nuke");
 		const res = await adminUserNuke(req, env);
-		// We do not assert exact status — handler may early-exit on missing
-		// child rows in this minimal mock. We only care that IF the success
-		// path runs, summary fired (per-forum bumps depend on the affected
-		// set which is empty here).
-		if (res.status === 200) {
-			expect(mockSummary).toHaveBeenCalled();
-		}
+		expect(res.status).toBe(200);
+		expect(mockSummary).toHaveBeenCalledTimes(1);
+		expect(mockThreadList).not.toHaveBeenCalled();
 	});
 });

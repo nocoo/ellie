@@ -20,6 +20,25 @@ function makeD1CheckinRow(overrides: Partial<Record<string, unknown>> = {}) {
 	};
 }
 
+function checkinStatusDb(row: ReturnType<typeof makeD1CheckinRow> | null = null) {
+	return createMockDb({
+		firstResults: {
+			"SELECT role, status FROM users": { role: 0, status: 0 },
+			"SELECT user_id AS userId": row && {
+				userId: row.user_id,
+				totalDays: row.total_days,
+				monthDays: row.month_days,
+				streakDays: row.streak_days,
+				rewardTotal: row.reward_total,
+				lastReward: row.last_reward,
+				mood: row.mood,
+				message: row.message,
+				lastCheckinAt: row.last_checkin_at,
+			},
+		},
+	});
+}
+
 async function createAuthRequest(
 	method: string,
 	path: string,
@@ -62,7 +81,7 @@ function todayStartUnix(): number {
 describe("GET /api/v1/checkin/status", () => {
 	it("returns null checkin for user without checkin history", async () => {
 		mockShanghaiTime(12);
-		const { db } = createMockDb();
+		const { db } = checkinStatusDb();
 		const env = makeEnv({ DB: db });
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
@@ -82,9 +101,7 @@ describe("GET /api/v1/checkin/status", () => {
 			total_days: 50,
 			last_checkin_at: todayStartUnix() - 86400, // yesterday
 		});
-		const { db } = createMockDb({
-			firstResults: { "SELECT * FROM user_checkins": row },
-		});
+		const { db } = checkinStatusDb(row);
 		const env = makeEnv({ DB: db });
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
@@ -104,9 +121,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const row = makeD1CheckinRow({
 			last_checkin_at: todayStartUnix() + 3600, // 01:00 today
 		});
-		const { db } = createMockDb({
-			firstResults: { "SELECT * FROM user_checkins": row },
-		});
+		const { db } = checkinStatusDb(row);
 		const env = makeEnv({ DB: db });
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
@@ -117,7 +132,7 @@ describe("GET /api/v1/checkin/status", () => {
 
 	it("reports withinWindow=false outside hours", async () => {
 		mockShanghaiTime(3); // 03:00, before 04:00
-		const { db } = createMockDb();
+		const { db } = checkinStatusDb();
 		const env = makeEnv({ DB: db });
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
@@ -128,7 +143,7 @@ describe("GET /api/v1/checkin/status", () => {
 
 	it("reports withinWindow=false at 23:00 (exclusive end)", async () => {
 		mockShanghaiTime(23);
-		const { db } = createMockDb();
+		const { db } = checkinStatusDb();
 		const env = makeEnv({ DB: db });
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
@@ -139,7 +154,7 @@ describe("GET /api/v1/checkin/status", () => {
 
 	it("reports withinWindow=true at 04:00 (inclusive start)", async () => {
 		mockShanghaiTime(4);
-		const { db } = createMockDb();
+		const { db } = checkinStatusDb();
 		const env = makeEnv({ DB: db });
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 

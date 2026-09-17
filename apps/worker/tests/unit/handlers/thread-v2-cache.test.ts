@@ -1,472 +1,587 @@
-// Tests for the v2 thread-list page1 cache wired into thread.ts:list.
-// Covers reviewer-required invariants from Phase 3 design v2:
-//   - page1 cache MISS writes a `thread:list:v2:*` envelope and serves data
-//   - page1 cache HIT serves from KV without re-running the threads SELECT
-//   - deep pagination (cursor / page>1) NEVER touches `thread:list:v2:*`
-//   - non-cacheable limit buckets NEVER touch `thread:list:v2:*`
-//   - 404 / 403 from `forum:meta:v2` NEVER write `thread:list:v2:*`
-//   - response wire shape (paginated vs. listResponse) is preserved
-//   - cursor in keyset miss path is built from raw D1 row, not mapped Thread
+// Reading-cache integration: real SQLite, real cache core, current authority gates.
+import type { CacheDescriptor } from "@ellie/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as attachment from "../../../src/handlers/attachment";
+import * as post from "../../../src/handlers/post";
+import * as comment from "../../../src/handlers/post-comment";
+import * as rating from "../../../src/handlers/post-rating";
+import * as thread from "../../../src/handlers/thread";
+import { editThreadSubject } from "../../../src/handlers/thread-edit";
+import { deleteMyPost, deleteMyThread, editMyPost } from "../../../src/handlers/user-content";
+import { bumpPostAttachmentsGen, bumpPostListGen } from "../../../src/lib/cache/invalidate";
+import { readingCacheKey, rebuildThreadCache } from "../../../src/lib/cache/thread-loaders";
+import * as threadViews from "../../../src/lib/thread-views";
+import { createJwtForRole } from "../../helpers";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { list } from "../../../src/handlers/thread";
-import {
-	isCacheableLimit,
-	isPage1,
-	isThreadListPayload,
-	THREAD_LIST_LIMIT_BUCKETS,
-	THREAD_LIST_TTL,
-} from "../../../src/lib/cache/thread-list-read";
-import { createMockCtx, createMockKV, makeD1ThreadRow, makeEnv } from "../../helpers";
-
-vi.mock("../../../src/middleware/auth", () => ({
-	optionalAuthVerified: vi.fn(async () => null),
-}));
-
-import { optionalAuthVerified } from "../../../src/middleware/auth";
-
-const mockAuth = optionalAuthVerified as ReturnType<typeof vi.fn>;
-
-// ─── Helpers ────────────────────────────────────────────────────────
-
-interface ThreadCacheTestState {
-	prepareSpy: ReturnType<typeof vi.fn>;
-	threadSelectCalls: number;
-}
-
-/**
- * D1 mock tailored for thread.ts:list tests. Routes by SQL prefix:
- *   - `SELECT * FROM forums WHERE id = ?` → forum row (for forum:meta v2 miss
- *     loader)
- *   - `SELECT COUNT(*) … FROM threads …` → count for offset branch
- *   - `SELECT * FROM threads …` / `SELECT t.*, …` → the thread page rows
- *   - `SELECT … FROM users` etc. → moderator/visible-last/today-count fan-out
- *     used by `loadFullForumFromD1` on a forum:meta MISS
- *
- * `threadSelectCalls` only counts the actual thread page SELECT, which is the
- * call we expect to disappear on a page1 cache HIT.
- */
-function makeD1Mock(opts: {
-	forumRow?: Record<string, unknown> | null;
-	threadRows?: Record<string, unknown>[];
-	totalThreads?: number;
-}): { db: D1Database; state: ThreadCacheTestState } {
-	const state: ThreadCacheTestState = {
-		prepareSpy: vi.fn(),
-		threadSelectCalls: 0,
-	};
-	const forumRow =
-		opts.forumRow === undefined
-			? {
-					id: 1,
-					status: 1,
-					visibility: "public",
-					name: "F",
-					description: "",
-					icon: "",
-					display_order: 1,
-					threads: 0,
-					posts: 0,
-					type: "forum",
-					moderators: "",
-					moderator_ids: "",
-					last_thread_id: 0,
-					last_post_at: 0,
-					last_poster: "",
-					last_poster_id: 0,
-					last_thread_subject: "",
-					parent_id: 0,
-				}
-			: opts.forumRow;
-	const threadRows = opts.threadRows ?? [];
-	const totalThreads = opts.totalThreads ?? threadRows.length;
-
-	const db = {
-		prepare: vi.fn((sql: string) => {
-			state.prepareSpy(sql);
-			const isThreadPageSelect =
-				/FROM threads/i.test(sql) && /ORDER BY/i.test(sql) && /LIMIT \?/i.test(sql);
-			if (isThreadPageSelect) state.threadSelectCalls++;
-
-			const stmt = {
-				bind: vi.fn(() => stmt),
-				first: vi.fn(async () => {
-					if (/SELECT \* FROM forums WHERE id = \?/.test(sql)) return forumRow;
-					if (/SELECT COUNT\(\*\)/i.test(sql) && /FROM threads/i.test(sql))
-						return { total: totalThreads };
-					return null;
-				}),
-				all: vi.fn(async () => {
-					if (isThreadPageSelect) return { results: threadRows };
-					// Fan-outs used by loadFullForumFromD1 (visible-last-thread,
-					// moderator names, today-thread count, users join). All return
-					// empty so the snapshot builder produces a benign payload.
-					return { results: [] };
-				}),
-				run: vi.fn(async () => ({ success: true, meta: { last_row_id: 0, changes: 0 } })),
-			} as unknown as D1PreparedStatement;
-			return stmt;
-		}),
-	} as unknown as D1Database;
-	return { db, state };
-}
-
-function makeReq(qs: string): Request {
-	return new Request(`https://api.example.com/api/v1/threads?${qs}`);
-}
-
+let f: ReturnType<typeof readingFixture>;
+let viewEvent: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
-	mockAuth.mockReset();
-	mockAuth.mockResolvedValue(null);
+	vi.useFakeTimers({ toFake: ["Date"] });
+	vi.setSystemTime(new Date("2026-09-17T00:00:00Z"));
+	f = readingFixture();
+	f.thread(1, { replies: 2, views: 10, last_post_at: 3 });
+	f.post(1);
+	f.post(2, { author_id: 20, author_name: "bob" });
+	f.post(3);
+	f.insert("attachments", {
+		id: 1,
+		thread_id: 1,
+		post_id: 1,
+		author_id: 10,
+		filename: "a.png",
+		file_path: "a.png",
+	});
+	f.insert("post_comments", {
+		id: 1,
+		thread_id: 1,
+		post_id: 1,
+		author_id: 20,
+		author_name: "bob",
+		content: "Comment",
+		created_at: 1,
+		ip: "private-ip",
+	});
+	f.insert("post_ratings", {
+		id: 1,
+		thread_id: 1,
+		post_id: 1,
+		rater_id: 20,
+		rater_name: "bob",
+		dimension: 2,
+		score: 4,
+		reason: "Helpful",
+		created_at: 1,
+	});
+	viewEvent = vi
+		.spyOn(threadViews, "scheduleThreadViewIncrement")
+		.mockImplementation(() => undefined);
+});
+afterEach(async () => {
+	await Promise.all(f.ctx._waitUntilPromises);
+	f.close();
+	vi.restoreAllMocks();
+	vi.useRealTimers();
 });
 
-// ─── Pure helpers ───────────────────────────────────────────────────
+async function request(path: string, userId?: number, init: RequestInit = {}): Promise<Request> {
+	const headers = new Headers(init.headers);
+	if (userId !== undefined) {
+		const roles: Record<number, number> = { 1: 1, 2: 2, 30: 3 };
+		headers.set("Authorization", `Bearer ${await createJwtForRole(roles[userId] ?? 0, userId)}`);
+	}
+	return new Request(`https://example.com/api/v1/${path}`, { ...init, headers });
+}
+const listThreads = async (query = "forumId=1&limit=20", userId?: number) =>
+	thread.list(await request(`threads?${query}`, userId), f.env, f.ctx);
+const detail = async (userId?: number, headers?: HeadersInit) =>
+	thread.getById(await request("threads/1", userId, { headers }), f.env, f.ctx);
+const posts = async (userId?: number) =>
+	post.list(await request("posts?threadId=1&limit=20", userId), f.env, f.ctx);
+const postDetail = async (userId?: number) =>
+	post.getById(await request("posts/1", userId), f.env, f.ctx);
+const attachments = async (userId?: number) =>
+	attachment.listByPost(await request("posts/1/attachments", userId), f.env, f.ctx);
+const comments = async (userId?: number) =>
+	comment.list(await request("post-comments?postId=1", userId), f.env, f.ctx);
+const ratings = async (userId?: number) =>
+	rating.listByPost(await request("posts/1/ratings", userId), f.env, f.ctx);
+const memberIds = (body: { data: { id: number }[] }) => body.data.map((row) => row.id);
 
-describe("cache/thread-list-read — pure helpers", () => {
-	it("THREAD_LIST_LIMIT_BUCKETS locks the canonical 20|50|100 set", () => {
-		expect([...THREAD_LIST_LIMIT_BUCKETS]).toEqual([20, 50, 100]);
+async function batch(
+	kind: "attachments" | "comments",
+	threadId: number,
+	postIds: number[],
+	userId?: number,
+) {
+	const path = kind === "attachments" ? "posts/attachments/batch" : "post-comments/batch";
+	const handler = kind === "attachments" ? attachment.batchByPostIds : comment.batchByPostIds;
+	return handler(
+		await request(path, userId, { method: "POST", body: JSON.stringify({ threadId, postIds }) }),
+		f.env,
+		f.ctx,
+	);
+}
+
+function generationWrites() {
+	return vi.mocked(f.env.KV.put).mock.calls.filter(([key]) => key.includes(":gen"));
+}
+
+describe("reading cache hot paths", () => {
+	it("thread detail drops from 4 cold SELECTs to 1 current gate plus one logical view event", async () => {
+		expect((await detail()).status).toBe(200);
+		expect(f.calls).toHaveLength(4); // gate, entity, statistics, user minis
+		expect(viewEvent).toHaveBeenCalledTimes(1);
+		f.calls.length = 0;
+		expect((await detail()).status).toBe(200);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).not.toMatch(/subject|content/);
+		expect(viewEvent).toHaveBeenCalledTimes(2);
 	});
 
-	it("THREAD_LIST_TTL is 60s (short — correctness comes from gen bumps)", () => {
-		expect(THREAD_LIST_TTL).toBe(60);
+	it("metadata and rebuild reuse data while only a normal detail emits a view event", async () => {
+		await detail(undefined, { "X-Ellie-Read-Purpose": "metadata" });
+		const descriptor = f.snapshots("thread:entity")[0] as CacheDescriptor;
+		await rebuildThreadCache(f.env, undefined, descriptor);
+		expect(viewEvent).not.toHaveBeenCalled();
+		f.calls.length = 0;
+		await detail();
+		expect(f.calls).toHaveLength(1);
+		expect(viewEvent).toHaveBeenCalledTimes(1);
 	});
 
-	it("isCacheableLimit accepts only the three buckets", () => {
-		expect(isCacheableLimit(20)).toBe(true);
-		expect(isCacheableLimit(50)).toBe(true);
-		expect(isCacheableLimit(100)).toBe(true);
-		expect(isCacheableLimit(10)).toBe(false);
-		expect(isCacheableLimit(25)).toBe(false);
-		expect(isCacheableLimit(101)).toBe(false);
+	it.each(["forumId=1&limit=20", "forumId=1&page=1&limit=25", "forumId=1&page=2&limit=1"])(
+		"all thread-list shapes reuse data: %s",
+		async (query) => {
+			f.thread(2);
+			const cold = await (await listThreads(query)).json();
+			expect(f.calls).toHaveLength(8); // forum, globals, local count/page, gate, entity/stats, minis
+			const entries = f.snapshots("thread:list");
+			expect(
+				entries.every(
+					(entry) => entry.tier === "SHORT" && entry.expiresAt - entry.loadedAt === 60_000,
+				),
+			).toBe(true);
+			f.calls.length = 0;
+			const hot = await (await listThreads(query)).json();
+			expect(hot.data).toEqual(cold.data);
+			expect(f.calls).toHaveLength(2); // current forum + candidate thread/forum batch
+			expect(
+				f.calls.every((call) => !call.sql.includes("subject") && !call.sql.includes("COUNT(*)")),
+			).toBe(true);
+			expect(f.snapshots("thread:list")).toEqual(entries);
+		},
+	);
+
+	it("keyset and offset page one share membership without losing meta.total or cursors", async () => {
+		const first = await (await listThreads("forumId=1&limit=1")).json();
+		f.calls.length = 0;
+		const offset = await (await listThreads("forumId=1&limit=1&page=1")).json();
+		expect(offset.data).toEqual(first.data);
+		expect(offset.meta).toMatchObject({ total: 1, page: 1, limit: 1, pages: 1 });
+		expect(first.meta.nextCursor).toEqual(expect.any(String));
+		expect(f.calls).toHaveLength(2);
 	});
 
-	it("isPage1: keyset (no cursor) is page1", () => {
-		expect(isPage1(null, null)).toBe(true);
-		expect(isPage1("", null)).toBe(true);
-	});
-
-	it("isPage1: offset page=1 is page1, page>1 is not", () => {
-		expect(isPage1(null, "1")).toBe(true);
-		expect(isPage1(null, "2")).toBe(false);
-		expect(isPage1(null, "10")).toBe(false);
-	});
-
-	it("isPage1: any cursor is NOT page1", () => {
-		expect(isPage1("anycursor", null)).toBe(false);
-		expect(isPage1("anycursor", "1")).toBe(false);
-	});
-
-	it("isThreadListPayload accepts the canonical envelope", () => {
-		expect(isThreadListPayload({ items: [], total: 0, nextCursor: null, limit: 20 })).toBe(true);
-		expect(isThreadListPayload({ items: [], total: 5, nextCursor: "abc", limit: 50 })).toBe(true);
-	});
-
-	it("isThreadListPayload rejects schema drift (missing or wrong-typed fields)", () => {
-		expect(isThreadListPayload(null)).toBe(false);
-		expect(isThreadListPayload({})).toBe(false);
-		expect(isThreadListPayload({ items: [], limit: 20 })).toBe(false);
-		expect(isThreadListPayload({ items: "no", total: 0, nextCursor: null, limit: 20 })).toBe(false);
-		expect(isThreadListPayload({ items: [], total: "no", nextCursor: null, limit: 20 })).toBe(
-			false,
-		);
-		// Pre-9d39588 envelope where keyset miss wrote `total: null` —
-		// MUST be rejected so cache rebuilds on first read after deploy.
-		expect(isThreadListPayload({ items: [], total: null, nextCursor: "abc", limit: 50 })).toBe(
-			false,
-		);
-		expect(isThreadListPayload({ items: [], total: 0, nextCursor: 5, limit: 20 })).toBe(false);
-		expect(isThreadListPayload({ items: [], total: 0, nextCursor: null, limit: "20" })).toBe(false);
-	});
-
-	it("isThreadListPayload rejects items missing isAuthorFirstThread (stale cache)", () => {
-		// Item without isAuthorFirstThread — pre-stamp KV payload
-		const staleItem = { id: 1, forumId: 10, subject: "Test" };
-		expect(isThreadListPayload({ items: [staleItem], total: 1, nextCursor: null, limit: 20 })).toBe(
-			false,
-		);
-
-		// Item with isAuthorFirstThread but no anonymousAuthor (mig 0048
-		// pre-stamp) — still stale.
-		const preMaskItem = { ...staleItem, isAuthorFirstThread: false };
+	it.each([
+		["posts", posts, 6, 2],
+		["post detail", postDetail, 5, 2],
+		["comments", comments, 3, 1],
+		["ratings", ratings, 4, 1],
+		["attachments", attachments, 3, 2],
+	] as const)("%s drops from %i cold to %i hot SELECTs", async (_name, read, cold, hot) => {
+		expect((await read()).status).toBe(200);
+		expect(f.calls).toHaveLength(cold);
+		f.calls.length = 0;
+		expect((await read()).status).toBe(200);
+		expect(f.calls).toHaveLength(hot);
 		expect(
-			isThreadListPayload({ items: [preMaskItem], total: 1, nextCursor: null, limit: 20 }),
-		).toBe(false);
+			f.calls.every(
+				(call) =>
+					!call.sql.includes("content") &&
+					!call.sql.includes("filename") &&
+					!call.sql.includes("COUNT(*)"),
+			),
+		).toBe(true);
+		expect(viewEvent).not.toHaveBeenCalled();
+	});
 
-		// Item with both flags — valid
-		const validItem = { ...staleItem, isAuthorFirstThread: false, anonymousAuthor: 0 };
-		expect(isThreadListPayload({ items: [validItem], total: 1, nextCursor: null, limit: 20 })).toBe(
-			true,
-		);
-
-		// Item with isAuthorFirstThread=true and anonymousAuthor=1 — valid
-		const firstItem = { ...staleItem, isAuthorFirstThread: true, anonymousAuthor: 1 };
-		expect(isThreadListPayload({ items: [firstItem], total: 1, nextCursor: null, limit: 20 })).toBe(
-			true,
-		);
-
-		// Item with isAuthorFirstThread=0 (number, not boolean) — rejected
-		const numericItem = { ...staleItem, isAuthorFirstThread: 0 };
-		expect(
-			isThreadListPayload({ items: [numericItem], total: 1, nextCursor: null, limit: 20 }),
-		).toBe(false);
+	it("never persists an HTTP response, request credentials, IP, or viewer permissions", async () => {
+		await detail(1);
+		await posts(1);
+		await comments(1);
+		await ratings(1);
+		await attachments(1);
+		await listThreads("forumId=1", 1);
+		for (const [key, value] of f.values) {
+			if (!key.startsWith("cache:v3:")) continue;
+			expect(value).not.toMatch(/private-ip|Authorization|Bearer |canRevoke|password|requestId/);
+			expect(JSON.parse(value).schemaVersion).toBe(3);
+		}
 	});
 });
 
-// ─── Integration: handler + cache wiring ────────────────────────────
-
-describe("handlers/thread.list — page1 KV cache wiring", () => {
-	function getThreadListKeys(kv: KVNamespace): string[] {
-		const writes = (kv.put as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
+describe("current gates and audience projection over shared snapshots", () => {
+	it("anonymous authors/last posters are projected for anon, self, other member and each staff role", async () => {
+		f.sqlite.exec(
+			"UPDATE threads SET anonymous_author=1,anonymous_last_poster=1,last_poster_id=20 WHERE id=1; UPDATE posts SET anonymous=1 WHERE id=1",
 		);
-		return writes.filter((k) => k.startsWith("thread:list:v2:"));
-	}
+		await detail(1); // warm raw entities using an admin before other viewers
+		await posts(1);
+		for (const userId of [undefined, 10, 20, 30, 2, 1]) {
+			const data = (await (await detail(userId)).json()).data;
+			const showAuthor = userId === 10 || userId === 30 || userId === 2 || userId === 1;
+			const showLast = userId === 20 || userId === 30 || userId === 2 || userId === 1;
+			expect(data.authorId).toBe(showAuthor ? 10 : 0);
+			expect(data.authorAvatar).toBe(showAuthor ? "alice.png" : "");
+			expect(data.lastPosterId).toBe(showLast ? 20 : 0);
+			expect(data.lastPosterAvatar).toBe(showLast ? "bob.png" : "");
+			const body = await (await posts(userId)).json();
+			expect(body.data[0].authorId).toBe(showAuthor ? 10 : 0);
+			const list = await (await listThreads("forumId=1", userId)).json();
+			expect(list.data[0].authorId).toBe(showAuthor ? 10 : 0);
+		}
+		expect(f.snapshots("thread:entity")).toHaveLength(1);
+		expect(f.snapshots("post:entity")).toHaveLength(3);
+	});
 
-	function getThreadListReads(kv: KVNamespace): string[] {
-		const reads = (kv.get as ReturnType<typeof vi.fn>).mock.calls.map(
-			(c: unknown[]) => c[0] as string,
+	it("a changed anonymous/ownership flag takes effect before stale entity projection", async () => {
+		await detail();
+		await posts();
+		f.sqlite.exec(
+			"UPDATE threads SET anonymous_author=1,author_id=20,anonymous_last_poster=1 WHERE id=1; UPDATE posts SET anonymous=1,author_id=20 WHERE id=1",
 		);
-		return reads.filter((k) => k.startsWith("thread:list:v2:"));
-	}
+		expect((await (await detail(10)).json()).data.authorId).toBe(0);
+		expect((await (await detail(20)).json()).data.authorId).toBe(20);
+		expect((await (await postDetail(10)).json()).data.authorId).toBe(0);
+		expect((await (await postDetail(20)).json()).data.authorName).toBe("bob");
+	});
 
-	it("page1 keyset MISS: writes thread:list:v2 envelope with TTL 60", async () => {
-		const { db } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 }), makeD1ThreadRow({ id: 12 })],
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+	it("moderated content uses current author, exact forum moderator membership and current role", async () => {
+		await detail(1);
+		await posts(1);
+		f.sqlite.exec("UPDATE threads SET sticky=-2 WHERE id=1");
+		const readers = [detail, posts, postDetail, attachments, comments, ratings];
+		for (const userId of [undefined, 20, 10, 30, 2, 1]) {
+			for (const read of readers)
+				expect((await read(userId)).status).toBe(userId === undefined || userId === 20 ? 404 : 200);
+		}
+		f.sqlite.exec("UPDATE forums SET moderator_ids='' WHERE id=1");
+		expect((await detail(30)).status).toBe(404);
+		// JWT still claims admin, but current DB role was revoked.
+		f.sqlite.exec("UPDATE users SET role=0 WHERE id=1");
+		expect((await detail(1)).status).toBe(404);
+		const before = viewEvent.mock.calls.length;
+		await detail(10);
+		expect(viewEvent.mock.calls.length).toBe(before);
+	});
 
-		const res = await list(makeReq("forumId=1&limit=20"), env, ctx);
-		expect(res.status).toBe(200);
-		// Drain waitUntil so KV write-back lands.
-		await Promise.all(ctx._waitUntilPromises);
+	it.each([
+		["members", 1, [10, 30, 2, 1]],
+		["staff", 1, [30, 2, 1]],
+		["admin", 1, [1]],
+		["public", 3, []],
+		["public", 0, []],
+		["public", -1, []],
+		["public", 2, []],
+	] as const)(
+		"moderated reads require current forum visibility=%s and status=%i before author/staff exceptions",
+		async (visibility, status, allowed) => {
+			const readers = [detail, posts, postDetail, attachments, comments, ratings];
+			for (const read of readers) expect((await read(10)).status).toBe(200);
+			for (const kind of ["attachments", "comments"] as const) await batch(kind, 1, [1], 10);
+			f.sqlite.exec("UPDATE threads SET sticky=-2 WHERE id=1");
+			f.sqlite
+				.prepare("UPDATE forums SET visibility=?,status=? WHERE id=1")
+				.run(visibility, status);
+			for (const userId of [undefined, 20, 10, 30, 2, 1]) {
+				const expected = (allowed as readonly number[]).includes(userId ?? 0) ? 200 : 404;
+				for (const read of readers) {
+					const response = await read(userId);
+					expect(response.status).toBe(expected);
+					if (expected === 404) expect((await response.json()).data).toBeUndefined();
+				}
+				for (const kind of ["attachments", "comments"] as const)
+					expect((await batch(kind, 1, [1], userId)).status).toBe(expected);
+			}
+		},
+	);
 
-		const written = getThreadListKeys(kv);
-		expect(written.length).toBe(1);
-		expect(written[0]).toMatch(/^thread:list:v2:1:default:20:p1:gf.+:ga.+$/);
-
-		const writeArgs = (kv.put as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
-			(c[0] as string).startsWith("thread:list:v2:"),
+	it("global announcements retain the read exception while inactive forums stay hidden", async () => {
+		f.sqlite.exec(
+			"UPDATE threads SET sticky=2 WHERE id=1; UPDATE forums SET visibility='admin' WHERE id=1",
 		);
-		const opts = writeArgs?.[2] as { expirationTtl: number } | undefined;
-		expect(opts?.expirationTtl).toBe(THREAD_LIST_TTL);
+		const readers = [detail, posts, postDetail, attachments, comments, ratings];
+		for (const read of readers) expect((await read()).status).toBe(200);
+		for (const kind of ["attachments", "comments"] as const)
+			expect((await batch(kind, 1, [1])).status).toBe(200);
+		f.sqlite.exec("UPDATE forums SET status=0 WHERE id=1");
+		for (const read of readers) expect((await read(1)).status).toBe(404);
+		for (const kind of ["attachments", "comments"] as const)
+			expect((await batch(kind, 1, [1], 1)).status).toBe(404);
 	});
 
-	it("page1 keyset HIT: zero thread page SELECTs", async () => {
-		const { db, state } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 })],
+	it.each([
+		["UPDATE threads SET sticky=-1 WHERE id=1", 404],
+		["UPDATE forums SET status=2 WHERE id=1", 404],
+		["UPDATE forums SET visibility='staff' WHERE id=1", 403],
+		["UPDATE threads SET forum_id=2 WHERE id=1", 403],
+	])("warm content never bypasses %s", async (sql, status) => {
+		const readers = [detail, posts, postDetail, attachments, comments, ratings];
+		for (const read of readers) await read();
+		f.sqlite.exec(sql);
+		for (const read of readers) {
+			const response = await read();
+			expect(response.status).toBe(status);
+			expect((await response.json()).data).toBeUndefined();
+		}
+	});
+
+	it("banned former staff cannot use cached projections to enter restricted content", async () => {
+		f.sqlite.exec("UPDATE threads SET forum_id=2 WHERE id=1");
+		expect((await detail(1)).status).toBe(200);
+		f.sqlite.exec("UPDATE users SET status=-1 WHERE id=1");
+		expect((await detail(1)).status).toBe(403);
+	});
+
+	it("current rating revoke permission never comes from cached rows or a JWT role", async () => {
+		for (const [userId, canRevoke] of [
+			[1, true],
+			[2, true],
+			[30, false],
+			[20, false],
+			[undefined, false],
+		] as const) {
+			const body = await (await ratings(userId)).json();
+			expect(body.data.items).toHaveLength(1);
+			expect(body.data.items[0].canRevoke).toBe(canRevoke);
+		}
+		f.sqlite.exec("UPDATE users SET role=0 WHERE id=1");
+		expect((await (await ratings(1)).json()).data.items[0].canRevoke).toBe(false);
+		f.sqlite.exec("UPDATE posts SET anonymous=1 WHERE id=1");
+		expect((await ratings(1)).status).toBe(404);
+	});
+
+	it("a removed global announcement cannot leak its source title, identity or count", async () => {
+		f.thread(2, { forum_id: 2, sticky: 2, subject: "Private title" });
+		expect(memberIds(await (await listThreads("forumId=1&page=1&limit=20")).json())).toEqual([
+			2, 1,
+		]);
+		f.sqlite.exec("UPDATE threads SET sticky=0 WHERE id=2");
+		const body = await (await listThreads("forumId=1&page=1&limit=20")).json();
+		expect(memberIds(body)).toEqual([1]);
+		expect(body.meta.total).toBe(1);
+		expect(JSON.stringify(body)).not.toContain("Private title");
+	});
+
+	it.each(["UPDATE threads SET sticky=-1 WHERE id=2", "UPDATE threads SET forum_id=2 WHERE id=2"])(
+		"a stale local candidate is replaced after %s",
+		async (sql) => {
+			f.thread(2, { last_post_at: 5 });
+			await listThreads("forumId=1&page=1&limit=1");
+			f.sqlite.exec(sql);
+			const body = await (await listThreads("forumId=1&page=1&limit=1")).json();
+			expect(memberIds(body)).toEqual([1]);
+			expect(body.meta.total).toBe(1);
+		},
+	);
+
+	it.each(["attachments", "comments"] as const)(
+		"%s batches recheck current post ownership/deletion at the 100-ID boundary",
+		async (kind) => {
+			for (let id = 4; id <= 100; id++) f.post(id);
+			const ids = Array.from({ length: 100 }, (_, i) => i + 1);
+			expect((await batch(kind, 1, ids)).status).toBe(200);
+			expect(f.calls.every((call) => call.params.length <= 100)).toBe(true);
+			f.calls.length = 0;
+			expect((await batch(kind, 1, ids)).status).toBe(200);
+			expect(f.calls).toHaveLength(3); // thread + 99-post gate + one-post gate
+			f.thread(2, { forum_id: 2 });
+			f.post(101, { thread_id: 2, forum_id: 2 });
+			f.insert("attachments", {
+				id: 2,
+				post_id: 101,
+				thread_id: 2,
+				author_id: 10,
+				filename: "private.png",
+				file_path: "private.png",
+			});
+			f.insert("post_comments", {
+				id: 2,
+				post_id: 101,
+				thread_id: 2,
+				author_id: 10,
+				content: "private comment",
+			});
+			await batch(kind, 2, [101], 1); // authorized warming of another thread's raw cache
+			f.sqlite.exec("UPDATE posts SET invisible=1 WHERE id=1");
+			const response = await batch(kind, 1, [1, 101]);
+			expect(response.status).toBe(200);
+			expect((await response.json()).data).toEqual([]);
+		},
+	);
+});
+
+describe("writes and fixed snapshots", () => {
+	it("ordinary create/reply returns committed data and does not bump list/stat/entity generations", async () => {
+		const initialList = (await (await listThreads()).json()).data;
+		const initialPosts = (await (await posts()).json()).data;
+		const initialStats = (await (await detail()).json()).data;
+		const snapshots = f.snapshots("thread:list");
+		vi.mocked(f.env.KV.put).mockClear();
+		const created = await thread.create(
+			await request("threads", 10, {
+				method: "POST",
+				body: JSON.stringify({ forumId: 1, subject: "Fresh thread", content: "First body" }),
+			}),
+			f.env,
+		);
+		expect(created.status).toBe(201);
+		expect((await created.json()).data.subject).toBe("Fresh thread");
+		const reply = await post.create(
+			await request("posts", 10, {
+				method: "POST",
+				body: JSON.stringify({ threadId: 1, content: "Fresh reply" }),
+			}),
+			f.env,
+		);
+		expect(reply.status).toBe(201);
+		expect((await reply.json()).data.content).toBe("Fresh reply");
+		expect(generationWrites()).toHaveLength(0);
+		expect(f.snapshots("thread:list")).toEqual(snapshots);
+		vi.setSystemTime(Date.now() + 59_999);
+		expect((await (await listThreads()).json()).data).toEqual(initialList);
+		expect((await (await posts()).json()).data).toEqual(initialPosts);
+		expect((await (await detail()).json()).data.replies).toBe(initialStats.replies);
+		vi.setSystemTime(Date.now() + 1);
+		expect((await (await listThreads()).json()).data).toHaveLength(2);
+		expect((await (await posts()).json()).data).toHaveLength(4);
+		expect((await (await detail()).json()).data.replies).toBe(3);
+	});
+
+	it("subject and post edits refresh only their reusable entities", async () => {
+		await listThreads();
+		await posts();
+		const membership = f.snapshots("thread:list");
+		const page = f.snapshots("post:page");
+		vi.mocked(f.env.KV.put).mockClear();
+		expect(
+			(
+				await editThreadSubject(
+					await request("threads/1", 10, {
+						method: "PATCH",
+						body: JSON.stringify({ subject: "Edited title" }),
+					}),
+					f.env,
+				)
+			).status,
+		).toBe(200);
+		expect(
+			(
+				await editMyPost(
+					await request("me/posts/1", 10, {
+						method: "PATCH",
+						body: JSON.stringify({ content: "Edited body" }),
+					}),
+					f.env,
+				)
+			).status,
+		).toBe(200);
+		expect(
+			generationWrites()
+				.map(([key]) => key)
+				.sort(),
+		).toEqual(["post:entity:gen:1", "thread:meta:gen:1"]);
+		expect(f.snapshots("thread:list")).toEqual(membership);
+		expect(f.snapshots("post:page")).toEqual(page);
+		expect((await (await listThreads()).json()).data[0].subject).toBe("Edited title");
+		expect((await (await postDetail()).json()).data.content).toBe("Edited body");
+	});
+
+	it("post deletion invalidates body, attachments and page after recomputing current metadata", async () => {
+		f.insert("attachments", {
+			id: 2,
+			thread_id: 1,
+			post_id: 3,
+			author_id: 10,
+			filename: "remove.png",
+			file_path: "remove.png",
 		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-
-		// First request populates cache + gens.
-		const ctx1 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		await list(makeReq("forumId=1&limit=20"), env, ctx1);
-		await Promise.all(ctx1._waitUntilPromises);
-		expect(state.threadSelectCalls).toBe(1);
-
-		// Second request: gens are warm, payload is cached → handler must NOT
-		// re-run the thread page SELECT.
-		const ctx2 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		const res = await list(makeReq("forumId=1&limit=20"), env, ctx2);
-		expect(res.status).toBe(200);
-		expect(state.threadSelectCalls).toBe(1);
-
-		const body = (await res.json()) as { data?: unknown[]; nextCursor?: string | null };
-		expect(Array.isArray(body.data)).toBe(true);
+		await posts();
+		await batch("attachments", 1, [3]);
+		await detail();
+		expect(
+			(await deleteMyPost(await request("me/posts/3", 10, { method: "DELETE" }), f.env)).status,
+		).toBe(200);
+		expect(memberIds(await (await posts()).json())).toEqual([1, 2]);
+		expect((await (await detail()).json()).data.replies).toBe(1);
+		expect(
+			(await attachment.listByPost(await request("posts/3/attachments"), f.env, f.ctx)).status,
+		).toBe(404);
+		const gens = generationWrites().map(([key]) => key);
+		for (const key of [
+			"post:entity:gen:3",
+			"post:attachments:gen:3",
+			"post:list:gen:1",
+			"thread:meta:gen:1",
+			"thread:list:gen:1",
+		])
+			expect(gens).toContain(key);
 	});
 
-	it("offset page=1 MISS: writes thread:list:v2 and response stays paginatedResponse", async () => {
-		const { db } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 })],
-			totalThreads: 1,
+	it("thread deletion and restore cannot re-expose old child bodies or LONG metadata", async () => {
+		await detail();
+		await posts();
+		await attachments();
+		const before = f.snapshots("post:entity").find((entry) => entry.params.postId === 1);
+		expect(before).toBeDefined();
+		expect(
+			(await deleteMyThread(await request("me/threads/1", 10, { method: "DELETE" }), f.env)).status,
+		).toBe(200);
+		expect((await detail()).status).toBe(404);
+		expect((await postDetail()).status).toBe(404);
+		expect((await attachments()).status).toBe(404);
+		expect(memberIds(await (await listThreads()).json())).toEqual([]);
+		expect(await readingCacheKey(f.env, before)).not.toBe(before.key);
+		f.thread(1, { subject: "Restored title" });
+		f.post(1, { content: "Restored body" });
+		f.insert("attachments", {
+			id: 2,
+			thread_id: 1,
+			post_id: 1,
+			author_id: 10,
+			filename: "restored.png",
+			file_path: "restored.png",
 		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-
-		const res = await list(makeReq("forumId=1&page=1&limit=50"), env, ctx);
-		expect(res.status).toBe(200);
-		await Promise.all(ctx._waitUntilPromises);
-
-		const body = (await res.json()) as { data?: unknown[]; meta?: Record<string, unknown> };
-		// paginatedResponse shape: data + meta.{total,page,limit,pages}.
-		expect(Array.isArray(body.data)).toBe(true);
-		expect(body.meta).toMatchObject({ total: 1, page: 1, limit: 50 });
-
-		const written = getThreadListKeys(kv);
-		expect(written.length).toBe(1);
-		expect(written[0]).toMatch(/^thread:list:v2:1:default:50:p1:gf.+:ga.+$/);
+		// Mirrors the parent-owned restore mutation's one thread-scoped bump.
+		await bumpPostListGen(f.env, 1);
+		expect((await (await postDetail()).json()).data.content).toBe("Restored body");
+		expect((await (await attachments()).json()).data[0].filename).toBe("restored.png");
 	});
 
-	it("offset page>1: NEVER touches thread:list:v2", async () => {
-		const { db } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 })],
-			totalThreads: 1,
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-
-		const res = await list(makeReq("forumId=1&page=2&limit=20"), env, ctx);
-		expect(res.status).toBe(200);
-		await Promise.all(ctx._waitUntilPromises);
-
-		expect(getThreadListReads(kv)).toEqual([]);
-		expect(getThreadListKeys(kv)).toEqual([]);
+	it("attachment replace/delete invalidates just that post's metadata", async () => {
+		await attachments();
+		await posts();
+		const entity = f.snapshots("post:entity");
+		f.sqlite.exec("UPDATE attachments SET filename='changed.png' WHERE id=1");
+		await bumpPostAttachmentsGen(f.env, 1);
+		expect((await (await attachments()).json()).data[0].filename).toBe("changed.png");
+		f.sqlite.exec("DELETE FROM attachments WHERE id=1");
+		await bumpPostAttachmentsGen(f.env, 1);
+		expect((await (await attachments()).json()).data).toEqual([]);
+		expect(f.snapshots("post:entity")).toEqual(entity);
 	});
 
-	it("keyset with cursor: NEVER touches thread:list:v2", async () => {
-		const { db } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 })],
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-
-		// The cursor decoding will fail and yield null cursor → handler treats
-		// this as page1; instead we use a syntactically valid base64 but the
-		// presence of `cursor=` is enough to mark it as deep pagination per
-		// `isPage1`. We use a clearly non-empty value so isPage1 returns false.
-		const res = await list(makeReq("forumId=1&cursor=NOT_PAGE_ONE&limit=20"), env, ctx);
-		expect(res.status).toBe(200);
-		await Promise.all(ctx._waitUntilPromises);
-
-		expect(getThreadListReads(kv)).toEqual([]);
-		expect(getThreadListKeys(kv)).toEqual([]);
-	});
-
-	it("non-cacheable limit (e.g. 25): NEVER touches thread:list:v2", async () => {
-		const { db } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 })],
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-
-		const res = await list(makeReq("forumId=1&limit=25"), env, ctx);
-		expect(res.status).toBe(200);
-		await Promise.all(ctx._waitUntilPromises);
-
-		expect(getThreadListReads(kv)).toEqual([]);
-		expect(getThreadListKeys(kv)).toEqual([]);
-	});
-
-	it("forum 404 (forum:meta MISS → notFound): NEVER writes thread:list:v2", async () => {
-		const { db } = makeD1Mock({ forumRow: null });
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-
-		const res = await list(makeReq("forumId=99&limit=20"), env, ctx);
-		expect(res.status).toBe(404);
-		await Promise.all(ctx._waitUntilPromises);
-
-		expect(getThreadListKeys(kv)).toEqual([]);
-	});
-
-	it("forum 403 (visibility forbidden): NEVER writes thread:list:v2", async () => {
-		// Forum exists but is staff-only; anonymous viewer hits 403.
-		const { db } = makeD1Mock({
-			forumRow: {
-				id: 1,
-				status: 1,
-				visibility: "staff",
-				name: "F",
-				description: "",
-				icon: "",
-				display_order: 1,
-				threads: 0,
-				posts: 0,
-				type: "forum",
-				moderators: "",
-				moderator_ids: "",
-				last_thread_id: 0,
-				last_post_at: 0,
-				last_poster: "",
-				last_poster_id: 0,
-				last_thread_subject: "",
-				parent_id: 0,
-			},
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-
-		const res = await list(makeReq("forumId=1&limit=20"), env, ctx);
-		expect(res.status).toBe(403);
-		await Promise.all(ctx._waitUntilPromises);
-
-		expect(getThreadListKeys(kv)).toEqual([]);
-	});
-
-	// ─── Cross-shape page1 cache contract ───────────────────────────
-	// Both keyset (no cursor) and offset (page=1) page1 requests share the
-	// SAME `thread:list:v2` cache key. Whichever shape warms the cache
-	// first must produce a payload that the OTHER shape can read back
-	// without losing `meta.total` or `nextCursor`.
-
-	it("keyset warms → offset page=1 hit: meta.total/page/limit/pages stay correct, no extra thread SELECT", async () => {
-		const { db, state } = makeD1Mock({
-			threadRows: [makeD1ThreadRow({ id: 11 }), makeD1ThreadRow({ id: 12 })],
-			totalThreads: 2,
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-
-		// 1) Keyset request warms the cache.
-		const ctx1 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		const r1 = await list(makeReq("forumId=1&limit=20"), env, ctx1);
-		expect(r1.status).toBe(200);
-		await Promise.all(ctx1._waitUntilPromises);
-		const selectsAfterWarm = state.threadSelectCalls;
-		expect(selectsAfterWarm).toBe(1);
-
-		// 2) Offset page=1 request hits the SAME cache key.
-		const ctx2 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		const r2 = await list(makeReq("forumId=1&page=1&limit=20"), env, ctx2);
-		expect(r2.status).toBe(200);
-		const body = (await r2.json()) as { data?: unknown[]; meta?: Record<string, unknown> };
-		expect(Array.isArray(body.data)).toBe(true);
-		// total MUST come back as 2 (not 0 / null) — proves keyset-warmed
-		// payload still carries the COUNT result.
-		expect(body.meta).toMatchObject({ total: 2, page: 1, limit: 20, pages: 1 });
-		// And we must NOT have issued another thread page SELECT.
-		expect(state.threadSelectCalls).toBe(selectsAfterWarm);
-	});
-
-	it("offset page=1 warms → keyset hit: nextCursor stays non-null when limit is full", async () => {
-		// Fill exactly `limit` rows so buildNextCursor produces a real cursor.
-		const limit = 20;
-		const rows = Array.from({ length: limit }, (_, i) => makeD1ThreadRow({ id: 100 + i }));
-		const { db, state } = makeD1Mock({ threadRows: rows, totalThreads: 200 });
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-
-		// 1) Offset page=1 request warms the cache.
-		const ctx1 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		const r1 = await list(makeReq(`forumId=1&page=1&limit=${limit}`), env, ctx1);
-		expect(r1.status).toBe(200);
-		await Promise.all(ctx1._waitUntilPromises);
-		const selectsAfterWarm = state.threadSelectCalls;
-		expect(selectsAfterWarm).toBe(1);
-
-		// 2) Keyset (no cursor) request hits the SAME cache key.
-		const ctx2 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
-		const r2 = await list(makeReq(`forumId=1&limit=${limit}`), env, ctx2);
-		expect(r2.status).toBe(200);
-		const body = (await r2.json()) as {
-			data?: unknown[];
-			meta?: { nextCursor?: string | null };
-		};
-		expect(Array.isArray(body.data)).toBe(true);
-		// nextCursor MUST be a non-empty string — proves offset-warmed
-		// payload still carries the keyset cursor derived from raw rows.
-		const nc = body.meta?.nextCursor;
-		expect(typeof nc).toBe("string");
-		expect((nc as string).length).toBeGreaterThan(0);
-		// No additional thread page SELECT on the keyset hit.
-		expect(state.threadSelectCalls).toBe(selectsAfterWarm);
+	it("comment/rating writes keep public SHORT snapshots while returning fresh writer data", async () => {
+		await comments();
+		await ratings();
+		const commentResult = await comment.create(
+			await request("post-comments", 10, {
+				method: "POST",
+				body: JSON.stringify({ postId: 1, content: "New comment" }),
+			}),
+			f.env,
+		);
+		expect(commentResult.status).toBe(201);
+		expect((await commentResult.json()).data.content).toBe("New comment");
+		const ratingResult = await rating.create(
+			await request("posts/1/rate", 30, {
+				method: "POST",
+				body: JSON.stringify({
+					dimension: "credits",
+					score: 5,
+					reason: "Thanks",
+					notifyAuthor: false,
+				}),
+			}),
+			f.env,
+		);
+		expect(ratingResult.status).toBe(201);
+		expect((await ratingResult.json()).data.aggregate.total).toBe(2);
+		expect((await (await comments()).json()).data).toHaveLength(1);
+		expect((await (await ratings()).json()).data.aggregate.total).toBe(1);
+		vi.setSystemTime(Date.now() + 60_000);
+		expect((await (await comments()).json()).data).toHaveLength(2);
+		expect((await (await ratings()).json()).data.aggregate.total).toBe(2);
 	});
 });

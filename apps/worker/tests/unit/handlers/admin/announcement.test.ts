@@ -503,7 +503,7 @@ describe("admin announcement handlers", () => {
 			const row = makeAnnRow({ id: 99 });
 			const { db, calls } = createMockDb({
 				firstResults: { SELECT: row },
-				runResults: { "INSERT INTO announcements": { meta: { last_row_id: 99 } } },
+				runResults: { "INSERT INTO announcements": { success: true, meta: { last_row_id: 99 } } },
 			});
 			const env = makeEnv({ DB: db });
 			const titleText = "Important announcement!";

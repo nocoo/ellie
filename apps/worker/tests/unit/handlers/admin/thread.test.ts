@@ -679,10 +679,10 @@ describe("admin thread handlers", () => {
 				makeD1ThreadRow({ id: 1, forum_id: 5, replies: 2 }),
 				makeD1ThreadRow({ id: 2, forum_id: 5, replies: 3 }),
 			];
-			// The CRUD batchDelete fetches each thread individually via SELECT * FROM threads WHERE id = ?
+			// Batch deletion captures the selected thread rows once.
 			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM threads WHERE id": threadRows[0],
+				allResults: {
+					"SELECT id, forum_id, author_id, digest, sticky FROM threads WHERE id IN": threadRows,
 				},
 			});
 
@@ -694,7 +694,7 @@ describe("admin thread handlers", () => {
 
 			expect(res.status).toBe(200);
 			expect(body.data.deleted).toBe(true);
-			expect(body.data.count).toBeGreaterThanOrEqual(0);
+			expect(body.data.count).toBe(2);
 		});
 
 		it("should return 400 for empty ids array", async () => {
@@ -744,7 +744,7 @@ describe("admin thread handlers", () => {
 		});
 
 		it("should return count 0 when no threads found", async () => {
-			// The CRUD framework's batchDelete loops per-id: if none exist, count stays 0
+			// An empty thread snapshot has nothing to delete.
 			const { db } = createMockDb();
 
 			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {
@@ -768,7 +768,7 @@ describe("admin thread handlers", () => {
 			];
 			const { db, calls, batchCalls } = createMockDb({
 				allResults: {
-					"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": threadSnapshot,
+					"SELECT id, forum_id, author_id, digest, sticky FROM threads WHERE id IN": threadSnapshot,
 					"SELECT thread_id, author_id, COUNT": postAuthorRows,
 				},
 			});
@@ -826,7 +826,7 @@ describe("admin thread handlers", () => {
 					"SELECT id FROM forums": { id: 10 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads": threadRows,
+					"SELECT id, forum_id, replies, sticky, digest FROM threads": threadRows,
 				},
 			});
 
@@ -857,7 +857,7 @@ describe("admin thread handlers", () => {
 					"SELECT id FROM forums": { id: 10 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads": threadRows,
+					"SELECT id, forum_id, replies, sticky, digest FROM threads": threadRows,
 				},
 			});
 
@@ -984,7 +984,7 @@ describe("admin thread handlers", () => {
 					"SELECT id FROM forums": { id: 10 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads": [],
+					"SELECT id, forum_id, replies, sticky, digest FROM threads": [],
 				},
 			});
 
@@ -1011,7 +1011,7 @@ describe("admin thread handlers", () => {
 					"SELECT id FROM forums": { id: 10 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads": threadRows,
+					"SELECT id, forum_id, replies, sticky, digest FROM threads": threadRows,
 				},
 			});
 
@@ -1190,7 +1190,7 @@ describe("admin thread handlers", () => {
 			// out child purge → posts → threads in one call.
 			const { db, calls } = createMockDb({
 				allResults: {
-					"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": [
+					"SELECT id, forum_id, author_id, digest, sticky FROM threads WHERE id IN": [
 						{ id: 1, forum_id: 5, author_id: 100 },
 						{ id: 2, forum_id: 5, author_id: 101 },
 					],
@@ -1214,7 +1214,7 @@ describe("admin thread handlers", () => {
 		it("batch-delete with no existing ids does NOT write audit row", async () => {
 			const { db, calls } = createMockDb({
 				allResults: {
-					"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": [],
+					"SELECT id, forum_id, author_id, digest, sticky FROM threads WHERE id IN": [],
 				},
 			});
 			const res = await batchDelete(
@@ -1236,7 +1236,7 @@ describe("admin thread handlers", () => {
 			const { db, calls } = createMockDb({
 				firstResults: { "SELECT id FROM forums": { id: 10 } },
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads": threadRows,
+					"SELECT id, forum_id, replies, sticky, digest FROM threads": threadRows,
 				},
 			});
 			const res = await batchMove(
@@ -1261,7 +1261,7 @@ describe("admin thread handlers", () => {
 			const { db, calls } = createMockDb({
 				firstResults: { "SELECT id FROM forums": { id: 10 } },
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads": threadRows,
+					"SELECT id, forum_id, replies, sticky, digest FROM threads": threadRows,
 				},
 			});
 			const res = await batchMove(

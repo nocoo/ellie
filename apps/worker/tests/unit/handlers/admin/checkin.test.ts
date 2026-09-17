@@ -229,6 +229,8 @@ describe("admin/checkin PATCH /api/admin/users/:id/checkins/:dateLocal", () => {
 		expect(logCall?.params[2]).toBe("checkin.history_set");
 		expect(logCall?.params[3]).toBe("user");
 		expect(logCall?.params[4]).toBe(42);
+		expect(env.KV.delete).toHaveBeenCalled();
+		expect(env.KV.put).toHaveBeenCalled();
 	});
 
 	it("deletes history row when checkedIn=false and recomputes (allowEmptyReset)", async () => {
@@ -353,6 +355,8 @@ describe("admin/checkin PATCH /api/admin/users/:id/checkins/streak", () => {
 
 		const logCall = calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
 		expect(logCall?.params[2]).toBe("checkin.streak_edit");
+		expect(env.KV.delete).toHaveBeenCalled();
+		expect(env.KV.put).toHaveBeenCalled();
 	});
 
 	it("rejects non-integer / negative / oversized streakDays with 400", async () => {

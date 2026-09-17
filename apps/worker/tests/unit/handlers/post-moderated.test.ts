@@ -24,7 +24,9 @@ function createMockDb(opts: {
 				return {
 					bind: vi.fn(() => ({
 						first: vi.fn(() => Promise.resolve(opts.visRow)),
-						all: vi.fn(() => Promise.resolve({ results: opts.posts ?? [makeD1PostRow()] })),
+						all: vi.fn(() =>
+							Promise.resolve({ success: true, results: opts.posts ?? [makeD1PostRow()] }),
+						),
 					})),
 				};
 			}
@@ -51,14 +53,22 @@ function createMockDb(opts: {
 			if (sql.includes("FROM posts WHERE thread_id")) {
 				return {
 					bind: vi.fn(() => ({
-						all: vi.fn(() => Promise.resolve({ results: opts.posts ?? [makeD1PostRow()] })),
+						all: vi.fn(() =>
+							Promise.resolve({ success: true, results: opts.posts ?? [makeD1PostRow()] }),
+						),
 					})),
 				};
 			}
 			if (sql.includes("FROM posts WHERE id")) {
 				return {
 					bind: vi.fn(() => ({
-						first: vi.fn(() => Promise.resolve(opts.posts?.[0] ?? makeD1PostRow())),
+						first: vi.fn(() =>
+							Promise.resolve({
+								invisible: 0,
+								...((opts.posts?.[0] ?? makeD1PostRow()) as Record<string, unknown>),
+							}),
+						),
+						all: vi.fn(async () => ({ success: true, results: opts.posts ?? [makeD1PostRow()] })),
 					})),
 				};
 			}
@@ -66,14 +76,14 @@ function createMockDb(opts: {
 				return {
 					bind: vi.fn(() => ({
 						first: vi.fn(() => Promise.resolve(null)),
-						all: vi.fn(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 					})),
 				};
 			}
 			return {
 				bind: vi.fn(() => ({
 					first: vi.fn(() => Promise.resolve(null)),
-					all: vi.fn(() => Promise.resolve({ results: [] })),
+					all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 					run: vi.fn(() => Promise.resolve({ success: true })),
 				})),
 			};
@@ -123,8 +133,10 @@ function createCreateMockDb(): D1Database {
 			}
 			if (sql.includes("settings") || sql.includes("censor_words")) {
 				return {
-					all: vi.fn(() => Promise.resolve({ results: [] })),
-					bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })),
+					all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
+					bind: vi.fn(() => ({
+						all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
+					})),
 				};
 			}
 			if (sql.includes("FROM threads") && sql.includes("JOIN forums")) {
@@ -146,7 +158,7 @@ function createCreateMockDb(): D1Database {
 			return {
 				bind: vi.fn(() => ({
 					first: vi.fn(() => Promise.resolve(null)),
-					all: vi.fn(() => Promise.resolve({ results: [] })),
+					all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 					run: vi.fn(() => Promise.resolve({ success: true })),
 				})),
 			};
@@ -233,7 +245,7 @@ describe("post.list — moderated thread (sticky=-2) visibility", () => {
 		expect(response.status).toBe(403);
 	});
 
-	it("thread author can list posts even on staff-only forum when moderated", async () => {
+	it("thread author cannot list moderated posts in a staff-only forum", async () => {
 		const jwt = await createJwtForRole(UserRole.User, THREAD_AUTHOR_ID);
 		const db = createMockDb({
 			visRow: { ...visRow, visibility: "staff" },
@@ -243,7 +255,7 @@ describe("post.list — moderated thread (sticky=-2) visibility", () => {
 			headers: { Authorization: `Bearer ${jwt}` },
 		});
 		const response = await postHandler.list(req, makeEnv(db));
-		expect(response.status).toBe(200);
+		expect(response.status).toBe(404);
 	});
 });
 
@@ -316,7 +328,7 @@ describe("post.getById — moderated thread (sticky=-2) visibility", () => {
 		expect(response.status).toBe(403);
 	});
 
-	it("thread author can view post on staff-only forum when moderated", async () => {
+	it("thread author cannot view a moderated post in a staff-only forum", async () => {
 		const jwt = await createJwtForRole(UserRole.User, THREAD_AUTHOR_ID);
 		const db = createMockDb({
 			visRow: { ...visRow, visibility: "staff" },
@@ -327,7 +339,7 @@ describe("post.getById — moderated thread (sticky=-2) visibility", () => {
 			headers: { Authorization: `Bearer ${jwt}` },
 		});
 		const response = await postHandler.getById(req, makeEnv(db));
-		expect(response.status).toBe(200);
+		expect(response.status).toBe(404);
 	});
 });
 

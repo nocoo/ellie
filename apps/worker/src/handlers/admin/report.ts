@@ -4,6 +4,7 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { getAdminReport } from "../../lib/cache/admin-report-read";
 import type { EntityConfig } from "../../lib/crud";
 import { createBatchDeleteHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
@@ -17,42 +18,6 @@ import { errorResponse } from "../../middleware/error";
 const REPORT_COLUMNS = `
 	id, type, target_id, reporter_id, reporter_name,
 	reason, status, handler_id, handler_name, handled_at, created_at
-`
-	.replace(/\s+/g, " ")
-	.trim();
-
-// Columns for JOIN query — per-type metadata via LEFT JOINs:
-//   posts p   joined for type='post'   → thread_id
-//   threads t joined for type='thread' → t.id (= target_id)
-//   threads tp joined for the post's parent thread → subject (target title)
-//   users u   joined for type='user'   → username
-const REPORT_JOIN_COLUMNS = `
-	r.id, r.type, r.target_id, r.reporter_id, r.reporter_name,
-	r.reason, r.status, r.handler_id, r.handler_name, r.handled_at, r.created_at,
-	CASE
-		WHEN r.type = 'post'   THEN p.thread_id
-		WHEN r.type = 'thread' THEN t.id
-		ELSE NULL
-	END AS thread_id,
-	CASE
-		WHEN r.type = 'post'   THEN tp.subject
-		WHEN r.type = 'thread' THEN t.subject
-		ELSE NULL
-	END AS target_title,
-	CASE
-		WHEN r.type = 'user'   THEN u.username
-		ELSE NULL
-	END AS target_name
-`
-	.replace(/\s+/g, " ")
-	.trim();
-
-const REPORT_JOIN_FROM = `
-	FROM reports r
-	LEFT JOIN posts   p  ON r.type = 'post'   AND r.target_id = p.id
-	LEFT JOIN threads tp ON r.type = 'post'   AND p.thread_id = tp.id
-	LEFT JOIN threads t  ON r.type = 'thread' AND r.target_id = t.id
-	LEFT JOIN users   u  ON r.type = 'user'   AND r.target_id = u.id
 `
 	.replace(/\s+/g, " ")
 	.trim();
@@ -72,16 +37,6 @@ function toReport(row: Record<string, unknown>) {
 		handlerName: row.handler_name as string,
 		handledAt: row.handled_at as number | null,
 		createdAt: row.created_at as number,
-	};
-}
-
-/** Mapper for JOIN query result (per-type target metadata) */
-function toReportWithJoin(row: Record<string, unknown>) {
-	return {
-		...toReport(row),
-		threadId: (row.thread_id as number | null) ?? null,
-		targetTitle: (row.target_title as string | null) ?? null,
-		targetName: (row.target_name as string | null) ?? null,
 	};
 }
 
@@ -128,40 +83,12 @@ const reportConfig: EntityConfig = {
 
 export const list = withEntityAuth(
 	reportConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const url = new URL(request.url);
-
-		const conditions: string[] = [];
-		const params: unknown[] = [];
-
-		// Filter: status
 		const statusFilter = url.searchParams.get("status");
-		if (statusFilter && ["pending", "resolved", "dismissed"].includes(statusFilter)) {
-			conditions.push("r.status = ?");
-			params.push(statusFilter);
-		}
-
-		// Filter: type
 		const typeFilter = url.searchParams.get("type");
-		if (typeFilter && ["thread", "post", "user"].includes(typeFilter)) {
-			conditions.push("r.type = ?");
-			params.push(typeFilter);
-		}
-
-		// Filter: reporterId
-		const reporterIdFilter = url.searchParams.get("reporterId");
-		if (reporterIdFilter) {
-			const reporterId = Number.parseInt(reporterIdFilter, 10);
-			if (!Number.isNaN(reporterId)) {
-				conditions.push("r.reporter_id = ?");
-				params.push(reporterId);
-			}
-		}
-
-		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-		// Pagination
+		const reporterRaw = Number.parseInt(url.searchParams.get("reporterId") ?? "", 10);
 		const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
 		const limit = Math.min(
 			Math.max(Number.parseInt(url.searchParams.get("limit") ?? "20", 10), 1),
@@ -170,30 +97,28 @@ export const list = withEntityAuth(
 		if (page < 1 || Number.isNaN(page)) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
-
-		const [countResult, result] = await Promise.all([
-			env.DB.prepare(`SELECT COUNT(*) as total FROM reports r ${whereClause}`)
-				.bind(...params)
-				.first<{ total: number }>(),
-			// JOIN with per-type tables to get thread_id / title / username
-			env.DB.prepare(
-				`SELECT ${REPORT_JOIN_COLUMNS}
-				 ${REPORT_JOIN_FROM}
-				 ${whereClause}
-				 ORDER BY r.created_at DESC
-				 LIMIT ? OFFSET ?`,
-			)
-				.bind(...params, limit, (page - 1) * limit)
-				.all(),
-		]);
-
-		return paginatedNoStoreResponse(
-			result.results.map((r) => toReportWithJoin(r as Record<string, unknown>)),
-			countResult?.total ?? 0,
-			page,
-			limit,
-			origin,
-		);
+		const data = await getAdminReport<{
+			items: unknown[];
+			total: number;
+			page: number;
+			limit: number;
+		}>(env, ctx, {
+			family: "admin:display",
+			scope: "admin",
+			params: {
+				resource: "reports",
+				operation: "list",
+				status:
+					statusFilter && ["pending", "resolved", "dismissed"].includes(statusFilter)
+						? statusFilter
+						: null,
+				type: typeFilter && ["thread", "post", "user"].includes(typeFilter) ? typeFilter : null,
+				reporterId: Number.isSafeInteger(reporterRaw) && reporterRaw > 0 ? reporterRaw : null,
+				page,
+				limit,
+			},
+		});
+		return paginatedNoStoreResponse(data.items, data.total, data.page, data.limit, origin);
 	},
 );
 
@@ -202,27 +127,19 @@ export const list = withEntityAuth(
 
 export const getById = withEntityAuth(
 	reportConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const id = parseIdFromPath(request);
-
 		if (id === null || id <= 0) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid report ID" }, origin);
 		}
-
-		const result = await env.DB.prepare(
-			`SELECT ${REPORT_JOIN_COLUMNS}
-			 ${REPORT_JOIN_FROM}
-			 WHERE r.id = ?`,
-		)
-			.bind(id)
-			.first();
-
-		if (!result) {
-			return errorResponse("REPORT_NOT_FOUND", 404, undefined, origin);
-		}
-
-		return jsonNoStoreResponse(toReportWithJoin(result as Record<string, unknown>), origin);
+		const data = await getAdminReport<unknown>(env, ctx, {
+			family: "admin:display",
+			scope: "admin",
+			params: { resource: "reports", operation: "detail", id },
+		});
+		if (data === null) return errorResponse("REPORT_NOT_FOUND", 404, undefined, origin);
+		return jsonNoStoreResponse(data, origin);
 	},
 );
 

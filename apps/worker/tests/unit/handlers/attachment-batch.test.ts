@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { batchByPostIds } from "../../../src/handlers/attachment";
 import type { Env } from "../../../src/lib/env";
 import { createMockDb, createMockKV, makeD1AttachmentRow, TEST_JWT_SECRET } from "../../helpers";
@@ -11,6 +11,9 @@ describe("batchByPostIds", () => {
 		JWT_SECRET: TEST_JWT_SECRET,
 		KV: createMockKV(),
 	};
+	beforeEach(() => {
+		mockEnv.KV = createMockKV();
+	});
 
 	function makeRequest(body: unknown): Request {
 		return new Request("https://example.com/api/v1/posts/attachments/batch", {
@@ -27,11 +30,20 @@ describe("batchByPostIds", () => {
 
 		const { db } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 1,
+					visibility: "public",
+					moderator_ids: "",
+				},
 			},
 			allResults: {
-				"FROM attachments a": [att1, att2, att3],
+				"SELECT id, thread_id, invisible, anonymous, author_id FROM posts": [
+					10, 20, 30, 40, 50,
+				].map((id) => ({ id, thread_id: 1, invisible: 0, author_id: 10, anonymous: 0 })),
+				"FROM attachments WHERE post_id": [att1, att2, att3],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -57,20 +69,28 @@ describe("batchByPostIds", () => {
 	it("should deduplicate post IDs", async () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 1,
+					visibility: "public",
+					moderator_ids: "",
+				},
 			},
 			allResults: {
-				"FROM attachments a": [],
+				"SELECT id, thread_id, invisible, anonymous, author_id FROM posts": [
+					10, 20, 30, 40, 50,
+				].map((id) => ({ id, thread_id: 1, invisible: 0, author_id: 10, anonymous: 0 })),
+				"FROM attachments WHERE post_id": [],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
 
 		await batchByPostIds(makeRequest({ threadId: 1, postIds: [10, 10, 10] }), env);
 
-		// The combined attachments+posts JOIN should be bound with the
-		// deduplicated post ids followed by threadId.
-		const attQuery = calls.find((c) => c.sql.includes("FROM attachments a"));
+		// The current post gate receives deduplicated IDs and the thread ID.
+		const attQuery = calls.find((c) => c.sql.includes("FROM posts"));
 		expect(attQuery).toBeDefined();
 		expect(attQuery?.params).toEqual([10, 1]);
 	});
@@ -101,7 +121,7 @@ describe("batchByPostIds", () => {
 	it("should return 404 when thread is hidden (sticky < 0)", async () => {
 		const { db } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: -1, author_id: 10 },
+				"JOIN forums f": { forum_id: 1, sticky: -1, author_id: 10 },
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -114,8 +134,14 @@ describe("batchByPostIds", () => {
 	it("should return 404 when forum is inactive", async () => {
 		const { db } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-				"FROM forums WHERE id": { status: 0, visibility: "public", moderator_ids: "" },
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 0,
+					visibility: "public",
+					moderator_ids: "",
+				},
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -129,12 +155,21 @@ describe("batchByPostIds", () => {
 		const att1 = makeD1AttachmentRow({ id: 1, post_id: 10 });
 		const { db } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 1,
+					visibility: "public",
+					moderator_ids: "",
+				},
 			},
 			allResults: {
+				"SELECT id, thread_id, invisible, anonymous, author_id FROM posts": [
+					10, 20, 30, 40, 50,
+				].map((id) => ({ id, thread_id: 1, invisible: 0, author_id: 10, anonymous: 0 })),
 				// Only post 10 belongs to thread 1; post 99 does not
-				"FROM attachments a": [att1],
+				"FROM attachments WHERE post_id": [att1],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -156,11 +191,20 @@ describe("batchByPostIds", () => {
 		});
 		const { db } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 1,
+					visibility: "public",
+					moderator_ids: "",
+				},
 			},
 			allResults: {
-				"FROM attachments a": [att],
+				"SELECT id, thread_id, invisible, anonymous, author_id FROM posts": [
+					10, 20, 30, 40, 50,
+				].map((id) => ({ id, thread_id: 1, invisible: 0, author_id: 10, anonymous: 0 })),
+				"FROM attachments WHERE post_id": [att],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -180,12 +224,21 @@ describe("batchByPostIds", () => {
 		const postIds = [10, 20, 30, 40, 50];
 		const { db, calls } = createMockDb({
 			firstResults: {
-				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
-				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 1,
+					visibility: "public",
+					moderator_ids: "",
+				},
 			},
 			allResults: {
-				"SELECT id FROM posts WHERE id IN": postIds.map((id) => ({ id })),
-				"FROM attachments a": [],
+				"SELECT id, thread_id, invisible, anonymous, author_id FROM posts": [
+					10, 20, 30, 40, 50,
+				].map((id) => ({ id, thread_id: 1, invisible: 0, author_id: 10, anonymous: 0 })),
+
+				"FROM attachments WHERE post_id": [],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -193,9 +246,9 @@ describe("batchByPostIds", () => {
 		await batchByPostIds(makeRequest({ threadId: 1, postIds }), env);
 
 		// Exactly 3 queries regardless of how many posts:
-		// 1. SELECT forum_id, sticky FROM threads (thread check)
-		// 2. SELECT status, visibility FROM forums (forum check)
-		// 3. JOIN attachments x posts (combined post-validation + fetch)
+		// 1. Current thread/forum gate
+		// 2. Current post membership gate
+		// 3. One batch for missing attachment metadata
 		expect(calls.length).toBe(3);
 	});
 });

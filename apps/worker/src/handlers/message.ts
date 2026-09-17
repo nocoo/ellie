@@ -2,8 +2,17 @@
 // Ref: docs/12-private-messages.md §4
 
 import { decodeGenericCursor } from "@ellie/types";
+import { invalidateMessageUsers } from "../lib/cache/invalidate";
+import {
+	getMailbox,
+	getMessages,
+	getUnreadCount,
+	loadMessageAccess,
+	type MessageRow,
+	mayReadMessage,
+} from "../lib/cache/private-read";
 import { applyCensorFilter } from "../lib/censor";
-import { buildNextCursor, clampLimit } from "../lib/pagination";
+import { clampLimit } from "../lib/pagination";
 import { parseIdFromPath } from "../lib/parseId";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
@@ -26,23 +35,12 @@ interface MessageCursor {
 
 /** Validate message cursor payload shape */
 function isMessageCursor(p: Partial<MessageCursor>): boolean {
-	return typeof p.createdAt === "number" && typeof p.id === "number";
-}
-
-// ─── D1 row type ─────────────────────────────────────────────
-
-interface MessageRow {
-	id: number;
-	sender_id: number;
-	sender_name: string;
-	receiver_id: number;
-	receiver_name: string;
-	subject: string;
-	content: string;
-	is_read: number;
-	sender_deleted: number;
-	receiver_deleted: number;
-	created_at: number;
+	return (
+		Number.isSafeInteger(p.createdAt) &&
+		Number(p.createdAt) >= 0 &&
+		Number.isSafeInteger(p.id) &&
+		Number(p.id) > 0
+	);
 }
 
 // ─── Mapper ──────────────────────────────────────────────────
@@ -89,133 +87,90 @@ function toMessageDetail(row: MessageRow) {
  * - limit: page size (default 20, max 100)
  * - cursor: pagination cursor
  */
-export const list = withAuthVerified(async (request, env, user) => {
+export const list = withAuthVerified(async (request, env, user, ctx) => {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-
-	const box = url.searchParams.get("box") === "outbox" ? "outbox" : "inbox";
-	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
-		defaultLimit: DEFAULT_LIMIT,
-		maxLimit: MAX_LIMIT,
-	});
-
-	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeGenericCursor<MessageCursor>(cursorStr, isMessageCursor) : null;
-
-	// Build query based on box type
-	const isInbox = box === "inbox";
-	const userIdColumn = isInbox ? "receiver_id" : "sender_id";
-	const deletedColumn = isInbox ? "receiver_deleted" : "sender_deleted";
-
-	let query: string;
-	let bindings: (number | string)[];
-
-	if (cursor) {
-		query = `SELECT * FROM messages
-		         WHERE ${userIdColumn} = ? AND ${deletedColumn} = 0
-		         AND (created_at < ? OR (created_at = ? AND id < ?))
-		         ORDER BY created_at DESC, id DESC
-		         LIMIT ?`;
-		bindings = [user.userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit];
-	} else {
-		query = `SELECT * FROM messages
-		         WHERE ${userIdColumn} = ? AND ${deletedColumn} = 0
-		         ORDER BY created_at DESC, id DESC
-		         LIMIT ?`;
-		bindings = [user.userId, clampedLimit];
-	}
-
-	// Run the message page query and (for inbox) the unread-count query in
-	// parallel — they're independent, and D1 round-trip latency dominates.
-	const messagesPromise = env.DB.prepare(query)
-		.bind(...bindings)
-		.all<MessageRow>();
-
-	const unreadCountPromise = isInbox
-		? env.DB.prepare(
-				"SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = 0 AND receiver_deleted = 0",
-			)
-				.bind(user.userId)
-				.first<{ count: number }>()
-		: null;
-
-	const result = await messagesPromise;
-	const messages = result.results.map(toMessageListItem);
-
-	// Generate next cursor
-	const nextCursor = buildNextCursor<MessageRow, MessageCursor>(
-		result.results,
-		clampedLimit,
-		(last) => ({ createdAt: last.created_at, id: last.id }),
+	const query = new URL(request.url).searchParams;
+	const box = query.get("box") === "outbox" ? "outbox" : "inbox";
+	const limit =
+		clampLimit(query.get("limit"), { defaultLimit: DEFAULT_LIMIT, maxLimit: MAX_LIMIT }) ||
+		DEFAULT_LIMIT;
+	const token = query.get("cursor");
+	const cursor = token ? decodeGenericCursor<MessageCursor>(token, isMessageCursor) : null;
+	const [page, unread] = await Promise.all([
+		getMailbox(env, ctx, {
+			family: "pm:list",
+			scope: `user:${user.userId}`,
+			params: {
+				userId: user.userId,
+				box,
+				limit,
+				cursorTime: cursor?.createdAt ?? null,
+				cursorId: cursor?.id ?? null,
+			},
+		}),
+		box === "inbox" ? getUnreadCount(env, ctx, user.userId) : null,
+	]);
+	const access = await loadMessageAccess(
+		env,
+		page.items.map((item) => item.id),
 	);
-
-	let unreadCount: number | undefined;
-	if (unreadCountPromise) {
-		const countResult = await unreadCountPromise;
-		unreadCount = countResult?.count ?? 0;
-	}
-
+	const ids = page.items
+		.map((item) => item.id)
+		.filter((id) => {
+			const gate = access.get(id);
+			return (
+				mayReadMessage(gate, user.userId) &&
+				(box === "inbox" ? gate?.receiver_id : gate?.sender_id) === user.userId
+			);
+		});
+	const rows = await getMessages(env, ctx, user.userId, ids);
+	const messages = ids.flatMap((id) => {
+		const row = rows.get(id);
+		return row ? [toMessageListItem({ ...row, ...access.get(id) })] : [];
+	});
 	return jsonResponse(messages, origin, {
-		nextCursor,
-		...(unreadCount !== undefined && { unreadCount }),
+		nextCursor: page.nextCursor,
+		...(unread ? { unreadCount: unread.count } : {}),
 	});
 });
 
-/**
- * GET /api/v1/messages/unread-count - Get unread message count
- */
-export const unreadCount = withAuthVerified(async (request, env, user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
-
-	const result = await env.DB.prepare(
-		"SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = 0 AND receiver_deleted = 0",
-	)
-		.bind(user.userId)
-		.first<{ count: number }>();
-
-	return jsonResponse({ count: result?.count ?? 0 }, origin);
+export const unreadCount = withAuthVerified(async (request, env, user, ctx) => {
+	return jsonResponse(
+		await getUnreadCount(env, ctx, user.userId),
+		request.headers.get("Origin") ?? undefined,
+	);
 });
 
-/**
- * GET /api/v1/messages/:id - Get message detail
- * Also marks the message as read if the viewer is the receiver.
- */
-export const getById = withAuthVerified(async (request, env, user) => {
+/** A current ownership gate and read transition also run on a hot body snapshot. */
+export const getById = withAuthVerified(async (request, env, user, ctx) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const id = parseIdFromPath(request);
-
-	if (id === null || id <= 0) {
+	if (!id || id <= 0)
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid message ID" }, origin);
-	}
-
-	const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?")
-		.bind(id)
-		.first<MessageRow>();
-
-	if (!row) {
+	let gate = (await loadMessageAccess(env, [id])).get(id);
+	if (!mayReadMessage(gate, user.userId))
 		return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
+	const row = (await getMessages(env, ctx, user.userId, [id])).get(id);
+	if (!row || !gate) return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
+	if (gate.receiver_id === user.userId && gate.is_read === 0) {
+		const written = await env.DB.prepare(
+			"UPDATE messages SET is_read = 1 WHERE id = ? AND receiver_id = ? AND receiver_deleted = 0 AND is_read = 0",
+		)
+			.bind(id, user.userId)
+			.run();
+		if (!written.success) throw new Error("Message read state could not be saved");
+		if (written.meta.changes > 0) {
+			gate.is_read = 1;
+			await invalidateMessageUsers(env, [gate.receiver_id]);
+		} else {
+			// A concurrent reader may have completed the transition, or ownership /
+			// deletion may have changed since the first gate. Recheck before responding.
+			gate = (await loadMessageAccess(env, [id])).get(id);
+			if (!mayReadMessage(gate, user.userId))
+				return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
+		}
 	}
-
-	// Check access: must be sender or receiver, and not deleted
-	const isSender = row.sender_id === user.userId;
-	const isReceiver = row.receiver_id === user.userId;
-
-	if (!isSender && !isReceiver) {
-		return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
-	}
-
-	// Check if deleted for this user
-	if ((isSender && row.sender_deleted === 1) || (isReceiver && row.receiver_deleted === 1)) {
-		return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
-	}
-
-	// If receiver is viewing and message is unread, mark as read
-	if (isReceiver && row.is_read === 0) {
-		await env.DB.prepare("UPDATE messages SET is_read = 1 WHERE id = ?").bind(id).run();
-		row.is_read = 1;
-	}
-
-	return jsonResponse(toMessageDetail(row), origin);
+	return jsonResponse(toMessageDetail({ ...row, ...gate }), origin);
 });
 
 /**
@@ -243,7 +198,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	let content = typeof body.content === "string" ? body.content.trim() : "";
 
 	// Validation
-	if (typeof receiverId !== "number" || Number.isNaN(receiverId) || receiverId <= 0) {
+	if (typeof receiverId !== "number" || !Number.isSafeInteger(receiverId) || receiverId <= 0) {
 		return errorResponse("INVALID_BODY", 400, { message: "receiverId is required" }, origin);
 	}
 
@@ -321,7 +276,9 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(user.userId, senderName, receiverId, receiver.username, subject, content, now)
 		.run();
 
+	if (!result.success) throw new Error("Message could not be saved");
 	const messageId = result.meta.last_row_id;
+	await invalidateMessageUsers(env, [user.userId, receiverId]);
 
 	return jsonResponse(
 		{
@@ -343,12 +300,14 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 export const markAllRead = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	await env.DB.prepare(
+	const written = await env.DB.prepare(
 		"UPDATE messages SET is_read = 1 WHERE receiver_id = ? AND is_read = 0 AND receiver_deleted = 0",
 	)
 		.bind(user.userId)
 		.run();
 
+	if (!written.success) throw new Error("Message read state could not be saved");
+	if (written.meta.changes > 0) await invalidateMessageUsers(env, [user.userId]);
 	return jsonResponse({ success: true }, origin);
 });
 
@@ -385,12 +344,26 @@ export const remove = withVerifiedEmail(async (request, env, user) => {
 		return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Soft delete based on user role
+	// Only a confirmed state transition publishes a new mailbox generation.
+	let changed = false;
 	if (isSender && row.sender_deleted === 0) {
-		await env.DB.prepare("UPDATE messages SET sender_deleted = 1 WHERE id = ?").bind(id).run();
+		const saved = await env.DB.prepare(
+			"UPDATE messages SET sender_deleted = 1 WHERE id = ? AND sender_id = ? AND sender_deleted = 0",
+		)
+			.bind(id, user.userId)
+			.run();
+		if (!saved.success) throw new Error("Message deletion was not confirmed");
+		changed = saved.meta.changes > 0;
 	} else if (isReceiver && row.receiver_deleted === 0) {
-		await env.DB.prepare("UPDATE messages SET receiver_deleted = 1 WHERE id = ?").bind(id).run();
+		const saved = await env.DB.prepare(
+			"UPDATE messages SET receiver_deleted = 1 WHERE id = ? AND receiver_id = ? AND receiver_deleted = 0",
+		)
+			.bind(id, user.userId)
+			.run();
+		if (!saved.success) throw new Error("Message deletion was not confirmed");
+		changed = saved.meta.changes > 0;
 	}
 
+	if (changed) await invalidateMessageUsers(env, [user.userId]);
 	return jsonResponse({ deleted: true, id }, origin);
 });

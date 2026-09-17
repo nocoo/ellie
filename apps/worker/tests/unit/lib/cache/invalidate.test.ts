@@ -36,12 +36,12 @@ function inMemoryKV(initial: Record<string, string> = {}) {
 }
 
 describe("cache/invalidate — single-key delete helpers", () => {
-	it("deleteUserMini deletes user:mini:v2:<id>", async () => {
-		const { kv, store } = inMemoryKV({ "user:mini:v2:42": "x" });
+	it("deleteUserMini deletes user:mini:<id>", async () => {
+		const { kv, store } = inMemoryKV({ "user:mini:42": "x" });
 		const env = makeEnv({ KV: kv });
 		await deleteUserMini(env, 42);
-		expect(store.has("user:mini:v2:42")).toBe(false);
-		expect(kv.delete).toHaveBeenCalledWith("user:mini:v2:42");
+		expect(store.has("user:mini:42")).toBe(false);
+		expect(kv.delete).toHaveBeenCalledWith("user:mini:42");
 	});
 
 	it("deleteUserMini swallows KV failures", async () => {
@@ -79,14 +79,14 @@ describe("cache/invalidate — single-key delete helpers", () => {
 
 	it("invalidateUserCaches calls mini + both public variants", async () => {
 		const { kv } = inMemoryKV({
-			"user:mini:v2:5": "x",
+			"user:mini:5": "x",
 			"user:public:v2:5:public": "y",
 			"user:public:v2:5:staff": "z",
 		});
 		const env = makeEnv({ KV: kv });
 
 		await invalidateUserCaches(env, 5);
-		expect(kv.delete).toHaveBeenCalledWith("user:mini:v2:5");
+		expect(kv.delete).toHaveBeenCalledWith("user:mini:5");
 		expect(kv.delete).toHaveBeenCalledWith("user:public:v2:5:public");
 		expect(kv.delete).toHaveBeenCalledWith("user:public:v2:5:staff");
 	});

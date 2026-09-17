@@ -4,6 +4,8 @@ import type { Env } from "../lib/env";
 import type { AuthUser } from "./auth";
 
 const ONLINE_TTL = 900; // 15 minutes
+const PRESENCE_WRITE_INTERVAL_MS = 60_000;
+const lastWrites = new WeakMap<KVNamespace, Map<number, number>>();
 
 export interface OnlineUserData {
 	uid: number;
@@ -27,6 +29,17 @@ export function trackOnline(
 	ctx: ExecutionContext,
 	user: AuthUser,
 ): void {
+	let writes = lastWrites.get(env.KV);
+	if (!writes) {
+		writes = new Map();
+		lastWrites.set(env.KV, writes);
+	}
+	const now = Date.now();
+	const previous = writes.get(user.userId);
+	if (previous !== undefined && now - previous < PRESENCE_WRITE_INTERVAL_MS) return;
+	if (writes.size >= 4096 && !writes.has(user.userId))
+		writes.delete(writes.keys().next().value as number);
+	writes.set(user.userId, now);
 	const key = `online:${user.userId}`;
 	// Use the unified trusted-IP extractor so server-to-Worker BFF calls (which
 	// arrive without `CF-Connecting-IP` but with `X-Real-IP`) record the real
@@ -40,5 +53,9 @@ export function trackOnline(
 	};
 
 	// Async write, non-blocking
-	ctx.waitUntil(env.KV.put(key, JSON.stringify(data), { expirationTtl: ONLINE_TTL }));
+	ctx.waitUntil(
+		env.KV.put(key, JSON.stringify(data), { expirationTtl: ONLINE_TTL }).catch(() => {
+			if (writes.get(user.userId) === now) writes.delete(user.userId);
+		}),
+	);
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { create, getById, list } from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -14,6 +14,7 @@ import {
 	makeUnverifiedEnv,
 	unverifiedUserJwt,
 } from "../helpers/email-gate";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 describe("post handlers", () => {
 	const mockEnv: Env = {
@@ -23,407 +24,151 @@ describe("post handlers", () => {
 		JWT_SECRET: TEST_JWT_SECRET,
 		KV: createMockKV(),
 	};
-
-	describe("list", () => {
-		it("should require threadId parameter", async () => {
-			const response = await list(new Request("https://example.com/api/v1/posts"), mockEnv);
-
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
+	describe("reading", () => {
+		let f: ReturnType<typeof readingFixture>;
+		beforeEach(() => {
+			f = readingFixture();
+			f.thread(1);
 		});
-
-		it("should reject invalid threadId", async () => {
-			const response = await list(
-				new Request("https://example.com/api/v1/posts?threadId=abc"),
-				mockEnv,
-			);
-
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
+		afterEach(async () => {
+			await Promise.all(f.ctx._waitUntilPromises);
+			f.close();
 		});
+		const readList = (query = "threadId=1", headers?: HeadersInit) =>
+			list(new Request(`https://example.com/api/v1/posts?${query}`, { headers }), f.env);
+		const readDetail = (id: string | number = 1) =>
+			getById(new Request(`https://example.com/api/v1/posts/${id}`), f.env);
 
-		it("should clamp limit to [1, 100]", async () => {
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
+		it.each(["", "threadId=abc", "threadId=0", "threadId=-1", "threadId=9007199254740992"])(
+			"rejects invalid thread query %s without D1",
+			async (query) => {
+				const response = await readList(query);
+				expect(response.status).toBe(400);
+				expect((await response.json()).error.code).toBe("INVALID_REQUEST");
+				expect(f.calls).toHaveLength(0);
+			},
+		);
 
-			// Test limit > 100
-			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=200"), env);
-			const call200 = calls.find(
-				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
-			);
-			expect(call200?.params).toContain(100);
-
-			// Test limit within range
-			calls.length = 0;
-			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=100"), env);
-			const call100 = calls.find(
-				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
-			);
-			expect(call100?.params).toContain(100);
-
-			// Test limit < 1 (defaults to 100)
-			calls.length = 0;
-			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=0"), env);
-			const call0 = calls.find(
-				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
-			);
-			expect(call0?.params).toContain(100);
-		});
-
-		it("should map D1 snake_case rows to camelCase Post objects", async () => {
-			const d1Row = makeD1PostRow({ thread_id: 10, forum_id: 5, author_id: 100 });
-			const { db } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 5, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [d1Row],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(new Request("https://example.com/api/v1/posts?threadId=10"), env);
-
-			const data = await response.json();
-			const post = data.data[0];
-			// Verify camelCase mapping
-			expect(post.threadId).toBe(10);
-			expect(post.forumId).toBe(5);
-			expect(post.authorId).toBe(100);
-			expect(post.authorName).toBe("alice");
-			expect(post.createdAt).toBe(1711540800);
-			// Verify is_first INTEGER → boolean conversion
-			expect(post.isFirst).toBe(true);
-			// No snake_case leaks
-			expect(post.thread_id).toBeUndefined();
-			expect(post.author_id).toBeUndefined();
-			expect(post.is_first).toBeUndefined();
-		});
-
-		it("should convert is_first 0 to false", async () => {
-			const d1Row = makeD1PostRow({ is_first: 0 });
-			const { db } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [d1Row],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(new Request("https://example.com/api/v1/posts?threadId=10"), env);
-
-			const data = await response.json();
-			expect(data.data[0].isFirst).toBe(false);
-		});
-
-		it("should query posts without cursor on first page", async () => {
-			const d1Row = makeD1PostRow();
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [d1Row],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
-
-			const postsCall = calls.find(
-				(c) => c.sql.includes("SELECT * FROM posts") && c.sql.includes("ORDER BY position"),
-			);
-			expect(postsCall).toBeDefined();
-			expect(postsCall?.params).toEqual([1, 100]);
-		});
-
-		it("should decode and use cursor for pagination", async () => {
-			const cursor = btoa(JSON.stringify({ position: 100 }));
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			await list(
-				new Request(
-					`https://example.com/api/v1/posts?threadId=1&cursor=${encodeURIComponent(cursor)}`,
-				),
-				env,
-			);
-
-			const postsCall = calls.find(
-				(c) => c.sql.includes("SELECT * FROM posts") && c.sql.includes("position >"),
-			);
-			expect(postsCall).toBeDefined();
-			expect(postsCall?.params).toEqual([1, 100, 100]); // threadId, position, limit
-		});
-
-		it("should generate valid next cursor that roundtrips correctly", async () => {
-			const posts = Array.from({ length: 100 }, (_, i) =>
-				makeD1PostRow({ id: i + 1, position: i + 1 }),
-			);
-
-			const { db } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": posts,
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/posts?threadId=1&limit=100"),
-				env,
-			);
-
-			const data = await response.json();
-			expect(data.meta.nextCursor).toBeDefined();
-
-			// Decode and verify cursor roundtrip
-			const decoded = JSON.parse(atob(data.meta.nextCursor));
-			expect(decoded.position).toBe(100);
-		});
-
-		it("should not generate next cursor when results are less than limit", async () => {
-			const d1Row = makeD1PostRow();
-			const { db } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [d1Row],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/posts?threadId=1&limit=20"),
-				env,
-			);
-
-			const data = await response.json();
-			expect(data.meta.nextCursor).toBeNull();
-		});
-
-		it("should handle invalid cursor gracefully", async () => {
-			const invalidCursor = btoa(JSON.stringify({ wrong: "structure" }));
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			await list(
-				new Request(
-					`https://example.com/api/v1/posts?threadId=1&cursor=${encodeURIComponent(invalidCursor)}`,
-				),
-				env,
-			);
-
-			// Should fall back to first page query (no "position >" in SQL)
-			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
-			expect(postsCall).toBeDefined();
-			expect(postsCall?.sql).not.toContain("position >");
-		});
-
-		it("should handle malformed cursor (invalid base64)", async () => {
-			const malformedCursor = "not-valid-base64!!!";
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			await list(
-				new Request(
-					`https://example.com/api/v1/posts?threadId=1&cursor=${encodeURIComponent(malformedCursor)}`,
-				),
-				env,
-			);
-
-			// Should fall back to first page query (no "position >" in SQL)
-			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
-			expect(postsCall).toBeDefined();
-			expect(postsCall?.sql).not.toContain("position >");
-		});
-
-		it("should not generate next cursor when results are empty", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
-
-			const data = await response.json();
-			expect(data.meta.nextCursor).toBeNull();
-			expect(data.data).toEqual([]);
-		});
-
-		it("should use valid limit within range", async () => {
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=10"), env);
-
-			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
-			expect(postsCall?.params).toEqual([1, 10]);
-		});
-
-		it("should query posts DESC and reverse when last=1", async () => {
-			const rows = [
-				makeD1PostRow({ id: 3, position: 3 }),
-				makeD1PostRow({ id: 2, position: 2 }),
-				makeD1PostRow({ id: 1, position: 1 }),
-			];
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": rows,
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/posts?threadId=1&last=1"),
-				env,
-			);
-
-			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
-			expect(postsCall?.sql).toContain("ORDER BY position DESC");
-
-			const data = await response.json();
-			expect(data.data[0].position).toBe(1);
-			expect(data.data[2].position).toBe(3);
-			expect(data.meta.nextCursor).toBeNull();
-		});
-
-		it("should include CORS headers with origin", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-				allResults: {
-					"SELECT * FROM posts WHERE thread_id": [],
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/posts?threadId=1", {
-					headers: {
-						Origin: "http://localhost:3000",
-					},
-				}),
-				env,
-			);
-
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
-		});
-	});
-
-	describe("getById", () => {
-		it("should map D1 row to camelCase Post when found", async () => {
-			const d1Row = makeD1PostRow({
-				id: 123,
-				thread_id: 10,
-				forum_id: 5,
-				is_first: 0,
-				invisible: 0,
-			});
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM posts WHERE id": d1Row,
-					"JOIN forums f": { forum_id: 5, sticky: 0, status: 1, visibility: "public" },
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await getById(new Request("https://example.com/api/v1/posts/123"), env);
-
+		it.each([
+			["", 100],
+			["200", 100],
+			["100", 100],
+			["0", 100],
+			["-2", 100],
+			["10", 10],
+		])("normalizes limit %s to %i", async (value, limit) => {
+			for (let id = 1; id <= 110; id++) f.post(id);
+			const response = await readList(`threadId=1&limit=${value}`);
 			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data.id).toBe(123);
-			expect(data.data.threadId).toBe(10);
-			expect(data.data.forumId).toBe(5);
-			expect(data.data.isFirst).toBe(false);
-			// No snake_case leaks
-			expect(data.data.thread_id).toBeUndefined();
-			expect(data.data.is_first).toBeUndefined();
+			expect((await response.json()).data).toHaveLength(limit);
+			expect(f.calls.every((call) => call.params.length <= 100)).toBe(true);
 		});
 
-		it("should return 404 when post not found", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM posts WHERE id": null,
-				},
+		it("maps snake_case fields, isFirst booleans, current usernames and ratings", async () => {
+			f.post(1, { created_at: 1711540800 });
+			f.post(2, { is_first: 0 });
+			const body = await (await readList()).json();
+			expect(body.data[0]).toMatchObject({
+				id: 1,
+				threadId: 1,
+				forumId: 1,
+				authorId: 10,
+				authorName: "alice",
+				isFirst: true,
+				content: "Body 1",
+				createdAt: 1711540800,
 			});
-			const env = { ...mockEnv, DB: db };
+			expect(body.data[1].isFirst).toBe(false);
+			for (const field of ["thread_id", "author_id", "is_first", "ip"])
+				expect(body.data[0]).not.toHaveProperty(field);
+		});
 
-			const response = await getById(new Request("https://example.com/api/v1/posts/999"), env);
+		async function checkCachedPage(limit: number, position: number | null, last: boolean) {
+			const cursor =
+				position === null
+					? ""
+					: `&cursor=${encodeURIComponent(btoa(JSON.stringify({ position })))}`;
+			const query = `threadId=1&limit=${limit}${cursor}${last ? "&last=1" : ""}`;
+			const body = await (await readList(query)).json();
+			const start = last ? Math.max(1, 261 - limit) : (position ?? 0) + 1;
+			const ids = Array.from(
+				{ length: Math.min(limit, Math.max(0, 261 - start)) },
+				(_, i) => start + i,
+			);
+			expect(body.data.map((post: { id: number }) => post.id)).toEqual(ids);
+			if (last || ids.length < limit) expect(body.meta.nextCursor).toBeNull();
+			else expect(JSON.parse(atob(body.meta.nextCursor))).toEqual({ position: ids.at(-1) });
+			f.calls.length = 0;
+			expect((await (await readList(query)).json()).data).toEqual(body.data);
+			// Hot path: thread/forum gate, plus <=2 post membership gates.
+			expect(f.calls.length).toBe(ids.length === 0 ? 1 : ids.length > 99 ? 3 : 2);
+			expect(f.calls.some((call) => call.sql.includes("content"))).toBe(false);
+		}
 
+		it.each([1, 2, 17, 20, 25, 50, 99, 100])(
+			"caches limit=%i for first, deep cursor and last pages",
+			async (limit) => {
+				for (let id = 1; id <= 260; id++) f.post(id);
+				for (const position of [null, 0, 1, 100, 199, 260]) {
+					for (const last of [false, true]) await checkCachedPage(limit, position, last);
+				}
+			},
+		);
+
+		it.each([
+			"not-valid-base64!!!",
+			btoa(JSON.stringify({ wrong: "structure" })),
+			btoa(JSON.stringify({ position: -1 })),
+		])("invalid cursor falls back without changing response semantics: %s", async (cursor) => {
+			f.post(1);
+			const body = await (await readList(`threadId=1&cursor=${encodeURIComponent(cursor)}`)).json();
+			expect(body.data.map((post: { id: number }) => post.id)).toEqual([1]);
+			expect(body.meta.nextCursor).toBeNull();
+		});
+
+		it("empty pages preserve the response envelope and CORS", async () => {
+			const response = await readList("threadId=1", { Origin: "http://localhost:3000" });
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+			const body = await response.json();
+			expect(body.data).toEqual([]);
+			expect(body.meta.nextCursor).toBeNull();
+			expect(body.meta.timestamp).toBeGreaterThan(0);
+			expect(body.meta.requestId).toEqual(expect.any(String));
+		});
+
+		it("single detail shares the warmed body and aggregate with a list", async () => {
+			f.post(456, { is_first: 0 });
+			await readList();
+			f.calls.length = 0;
+			const response = await readDetail(456);
+			expect(response.status).toBe(200);
+			expect((await response.json()).data).toMatchObject({
+				id: 456,
+				threadId: 1,
+				forumId: 1,
+				isFirst: false,
+				content: "Body 456",
+			});
+			expect(f.calls).toHaveLength(2);
+			expect(f.calls.every((call) => !call.sql.includes("content"))).toBe(true);
+		});
+
+		it.each(["999", "abc", "0", "-1"])("missing/invalid post %s is 404", async (id) => {
+			const response = await readDetail(id);
 			expect(response.status).toBe(404);
-			const data = await response.json();
-			expect(data.error.code).toBe("POST_NOT_FOUND");
+			expect((await response.json()).error.code).toBe("POST_NOT_FOUND");
 		});
 
-		it("should parse post ID from URL", async () => {
-			const d1Row = makeD1PostRow({ id: 456, invisible: 0 });
-			const { db, calls } = createMockDb({
-				firstResults: {
-					"SELECT * FROM posts WHERE id": d1Row,
-					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
-				},
-			});
-			const env = { ...mockEnv, DB: db };
-
-			await getById(new Request("https://example.com/api/v1/posts/456"), env);
-
-			const postCall = calls.find((c) => c.sql.includes("SELECT * FROM posts WHERE id"));
-			expect(postCall?.params).toEqual([456]);
+		it("current deletion gates hide a warm post and refill the page", async () => {
+			for (let id = 1; id <= 3; id++) f.post(id);
+			await readList("threadId=1&limit=2");
+			f.sqlite.exec("UPDATE posts SET invisible=1 WHERE id=1");
+			expect((await readDetail(1)).status).toBe(404);
+			const body = await (await readList("threadId=1&limit=2")).json();
+			expect(body.data.map((post: { id: number }) => post.id)).toEqual([2, 3]);
+			expect(JSON.parse(atob(body.meta.nextCursor))).toEqual({ position: 3 });
 		});
 	});
-
 	describe("create", () => {
 		it("should require authentication", async () => {
 			const response = await create(

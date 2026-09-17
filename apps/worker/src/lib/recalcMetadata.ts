@@ -7,6 +7,7 @@
 // - Threads: sticky >= 0 (THREAD_VISIBLE)
 // - Posts: invisible = 0 (POST_VISIBLE)
 
+import { confirmedRun } from "./d1-write";
 import type { Env } from "./env";
 import { POST_VISIBLE, postVisible, THREAD_VISIBLE, threadVisible } from "./visibility";
 
@@ -93,18 +94,18 @@ export async function recalcForumMetadata(env: Env, forumId: number): Promise<vo
 			last_poster_id: number;
 		}>();
 
-	await env.DB.prepare(
-		"UPDATE forums SET last_thread_id = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, last_thread_subject = ? WHERE id = ?",
-	)
-		.bind(
+	await confirmedRun(
+		env.DB.prepare(
+			"UPDATE forums SET last_thread_id = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, last_thread_subject = ? WHERE id = ?",
+		).bind(
 			lastThread?.id ?? 0,
 			lastThread?.last_post_at ?? 0,
 			lastThread?.last_poster ?? "",
 			lastThread?.last_poster_id ?? 0,
 			lastThread?.subject ?? "",
 			forumId,
-		)
-		.run();
+		),
+	);
 }
 
 /**
@@ -131,17 +132,17 @@ export async function recalcThreadMetadata(env: Env, threadId: number): Promise<
 		}>();
 
 	if (lastPost) {
-		await env.DB.prepare(
-			"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
-		)
-			.bind(
+		await confirmedRun(
+			env.DB.prepare(
+				"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
+			).bind(
 				lastPost.created_at,
 				lastPost.author_name,
 				lastPost.author_id,
 				lastPost.anonymous === 1 ? 1 : 0,
 				threadId,
-			)
-			.run();
+			),
+		);
 	} else {
 		// No visible posts remain — fall back to thread's own creation info.
 		// `anonymous_author` already reflects the original first-post flag, so
@@ -157,17 +158,17 @@ export async function recalcThreadMetadata(env: Env, threadId: number): Promise<
 				anonymous_author: number;
 			}>();
 		if (thread) {
-			await env.DB.prepare(
-				"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
-			)
-				.bind(
+			await confirmedRun(
+				env.DB.prepare(
+					"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
+				).bind(
 					thread.created_at,
 					thread.author_name,
 					thread.author_id,
 					thread.anonymous_author === 1 ? 1 : 0,
 					threadId,
-				)
-				.run();
+				),
+			);
 		}
 	}
 }

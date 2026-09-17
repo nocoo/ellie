@@ -4,7 +4,7 @@
 import { UserRole } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { isTokenExpired, verifyJwt } from "../lib/jwt";
-import { getSetting } from "../lib/settings";
+import { getSettingsFresh } from "../lib/settings";
 import { errorResponse } from "./error";
 
 /** Paths that bypass maintenance mode */
@@ -37,13 +37,18 @@ export async function checkMaintenance(
 	}
 
 	// Check maintenance mode setting
-	const isMaintenanceMode = await getSetting(env, "features.access.maintenance_mode", false);
+	const current = await getSettingsFresh(env, [
+		"features.access.maintenance_mode",
+		"features.access.maintenance_admin_bypass",
+		"features.access.maintenance_message",
+	]);
+	const isMaintenanceMode = current["features.access.maintenance_mode"] === true;
 	if (!isMaintenanceMode) {
 		return null;
 	}
 
 	// Check if admin bypass is enabled
-	const adminBypass = await getSetting(env, "features.access.maintenance_admin_bypass", false);
+	const adminBypass = current["features.access.maintenance_admin_bypass"] === true;
 	if (adminBypass) {
 		// Check if user is a forum admin (role = 1) via JWT
 		const isForumAdmin = await checkForumAdmin(request, env);
@@ -53,11 +58,7 @@ export async function checkMaintenance(
 	}
 
 	// Get custom maintenance message
-	const message = await getSetting(
-		env,
-		"features.access.maintenance_message",
-		"系统维护中，请稍后再试...",
-	);
+	const message = current["features.access.maintenance_message"] ?? "系统维护中，请稍后再试...";
 
 	return errorResponse("MAINTENANCE_MODE", 503, { message }, origin);
 }

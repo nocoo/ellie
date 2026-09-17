@@ -43,14 +43,14 @@ function createMockDb(opts: { visRow: Record<string, unknown> | null; userRole?:
 			if (sql.includes("FROM post_comments")) {
 				return {
 					bind: vi.fn(() => ({
-						all: vi.fn(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 					})),
 				};
 			}
 			return {
 				bind: vi.fn(() => ({
 					first: vi.fn(() => Promise.resolve(null)),
-					all: vi.fn(() => Promise.resolve({ results: [] })),
+					all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 				})),
 			};
 		}),

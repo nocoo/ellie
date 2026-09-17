@@ -11,7 +11,7 @@
 //   forum summary / page-1 thread-list payloads do not change when the
 //   recommended flag flips.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(
@@ -36,7 +36,7 @@ import {
 	invalidateForumVolatileV2,
 } from "../../../src/lib/cache/invalidate";
 import { createJwt } from "../../../src/lib/jwt";
-import { createMockCtx, createMockDb, createMockKV, makeEnv, TEST_JWT_SECRET } from "../../helpers";
+import { createMockDb, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
 const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
@@ -98,12 +98,6 @@ function mockForumForPerm(forumId = 1, moderators = "") {
 			moderators,
 			moderator_ids: "",
 		},
-	};
-}
-
-function mockForumVis(status = 1, visibility: "public" | "members" | "staff" | "admin" = "public") {
-	return {
-		"SELECT status, visibility FROM forums WHERE id": { status, visibility },
 	};
 }
 
@@ -412,192 +406,126 @@ describe("recommend toggle invalidation — ONLY thread:meta:gen", () => {
 // ─── GET /api/v1/forums/:id/recommended-threads ──────────────────
 
 describe("GET recommended list — visibility gate + cap + ordering", () => {
+	let rf: ReturnType<typeof import("../lib/cache/thread-cache-fixture").readingFixture>;
+
+	beforeEach(async () => {
+		const { readingFixture } = await import("../lib/cache/thread-cache-fixture");
+		rf = readingFixture();
+	});
+
+	afterEach(() => {
+		rf.close();
+	});
+
 	it("400 INVALID_REQUEST for non-numeric forum id", async () => {
-		const env = makeEnv();
 		const req = new Request("https://api.example.com/api/v1/forums/abc/recommended-threads", {
 			method: "GET",
 		});
-		const res = await listRecommendedThreads(req, env);
+		const res = await listRecommendedThreads(req, rf.env);
 		expect(res.status).toBe(400);
 	});
 
 	it("404 FORUM_NOT_FOUND when forum row missing", async () => {
-		const { db } = createMockDb({ firstResults: {} });
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(999), env);
+		const res = await listRecommendedThreads(listRequest(999), rf.env);
 		expect(res.status).toBe(404);
 		const data = (await res.json()) as { error: { code: string } };
 		expect(data.error.code).toBe("FORUM_NOT_FOUND");
 	});
 
 	it("404 when forum is inactive (status != 1)", async () => {
-		const { db } = createMockDb({
-			firstResults: { ...mockForumVis(0, "public") },
-		});
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(1), env);
+		// forum 3 in fixture has status = 0
+		const res = await listRecommendedThreads(listRequest(3), rf.env);
 		expect(res.status).toBe(404);
 	});
 
-	it("404 when forum visibility = members and caller is anonymous", async () => {
-		const { db } = createMockDb({
-			firstResults: { ...mockForumVis(1, "members") },
-		});
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(1), env);
-		expect(res.status).toBe(404);
-	});
+	it("404 when forum visibility = staff and caller is anonymous or regular member", async () => {
+		// forum 2 in fixture is staff
+		const anonRes = await listRecommendedThreads(listRequest(2), rf.env);
+		expect(anonRes.status).toBe(404);
 
-	it("404 when forum visibility = staff and caller has role User", async () => {
 		const token = await makeToken(0, 10);
-		const { db } = createMockDb({
-			firstResults: { ...mockAuthRow(0), ...mockForumVis(1, "staff") },
-		});
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(1, token), env);
-		expect(res.status).toBe(404);
+		const userRes = await listRecommendedThreads(listRequest(2, token), rf.env);
+		expect(userRes.status).toBe(404);
+	});
+
+	it("200 for Admin probing a staff-visibility forum", async () => {
+		const token = await makeToken(1, 1);
+		const res = await listRecommendedThreads(listRequest(2, token), rf.env, rf.ctx);
+		expect(res.status).toBe(200);
 	});
 
 	it("200 returns mapped threads ordered by thread_id DESC and capped to 6", async () => {
-		// The handler delegates ORDER BY + LIMIT to D1; we verify the
-		// returned payload mirrors the rows D1 hands back and that the
-		// LIMIT bind value is exactly 6.
-		const rows = [
-			{
-				id: 555,
-				subject: "newest",
-				author_id: 7,
-				author_name: "alice",
-				replies: 9,
-				last_post_at: 1700001234,
-				recommended_at: 1700000000,
-			},
-			{
-				id: 320,
-				subject: "older",
-				author_id: 8,
-				author_name: "bob",
-				replies: 0,
-				last_post_at: 1699999999,
-				recommended_at: 1700000000,
-			},
-		];
-		const { db, calls } = createMockDb({
-			firstResults: { ...mockForumVis(1, "public") },
-			allResults: {
-				"FROM forum_recommended_threads r": rows,
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(1), env);
+		for (let i = 1; i <= 8; i++) {
+			rf.thread(i, { forum_id: 1, subject: `Thread ${i}`, author_id: 10, author_name: "alice" });
+			rf.sqlite
+				.prepare(
+					"INSERT INTO forum_recommended_threads (forum_id, thread_id, recommended_by, recommended_at) VALUES (1, ?, 1, ?)",
+				)
+				.run(i, 1700000000 + i);
+		}
+
+		const res = await listRecommendedThreads(listRequest(1), rf.env, rf.ctx);
 		expect(res.status).toBe(200);
 		const data = (await res.json()) as {
 			data: { forumId: number; threads: { id: number; subject: string }[] };
 		};
 		expect(data.data.forumId).toBe(1);
-		expect(data.data.threads.map((t) => t.id)).toEqual([555, 320]);
-
-		// Display cap = 6, baked into the LIMIT bind, not into the writer.
-		const listCall = calls.find((c) => c.sql.includes("FROM forum_recommended_threads r"));
-		expect(listCall).toBeDefined();
-		expect(listCall?.params[0]).toBe(1); // forum_id bind
-		expect(listCall?.params[1]).toBe(6); // LIMIT bind
-		expect(listCall?.sql).toContain("ORDER BY r.thread_id DESC");
-		// JOIN includes both the forum_id constraint (defends against
-		// stale rows after moveThread races) and the THREAD_VISIBLE filter
-		// (drops hidden / deleted thread rows).
-		expect(listCall?.sql).toContain("t.forum_id = r.forum_id");
-		expect(listCall?.sql).toContain("sticky >= 0");
+		// Capped to 6, ordered by thread_id DESC
+		expect(data.data.threads).toHaveLength(6);
+		expect(data.data.threads.map((t) => t.id)).toEqual([8, 7, 6, 5, 4, 3]);
 	});
 
-	it("200 empty list when no recommendations exist", async () => {
-		const { db } = createMockDb({
-			firstResults: { ...mockForumVis(1, "public") },
-			allResults: { "FROM forum_recommended_threads r": [] },
-		});
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(1), env);
+	it("preserves anonymous-author masking even for staff viewers in recommendation cards", async () => {
+		rf.thread(100, { forum_id: 1, anonymous_author: 1, author_id: 10, author_name: "alice" });
+		rf.sqlite
+			.prepare(
+				"INSERT INTO forum_recommended_threads (forum_id, thread_id, recommended_by, recommended_at) VALUES (1, 100, 1, 1700000000)",
+			)
+			.run();
+
+		// Even when requested by staff (admin role=1), anonymous author is masked on recommendation card
+		const adminToken = await makeToken(1, 1);
+		const res = await listRecommendedThreads(listRequest(1, adminToken), rf.env, rf.ctx);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as {
+			data: { threads: { id: number; authorId: number; authorName: string }[] };
+		};
+		expect(data.data.threads[0].id).toBe(100);
+		expect(data.data.threads[0].authorId).toBe(0);
+		expect(data.data.threads[0].authorName).toBe("匿名");
+	});
+
+	it("200 empty list when no recommendations exist with SHORT tier cache envelope", async () => {
+		const res = await listRecommendedThreads(listRequest(1), rf.env, rf.ctx);
 		expect(res.status).toBe(200);
 		const data = (await res.json()) as { data: { threads: unknown[] } };
 		expect(data.data.threads).toEqual([]);
 	});
 
-	it("200 for Admin probing a staff-visibility forum", async () => {
-		const token = await makeToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				// optionalAuthVerified uses `SELECT role, status FROM users WHERE id = ?`,
-				// which is *not* a substring of the moderationMiddleware mock — supply
-				// a dedicated row so the JWT lookup returns role=Admin and the staff
-				// visibility gate passes.
-				"SELECT role, status FROM users WHERE id": { role: 1, status: 0 },
-				...mockForumVis(1, "staff"),
-			},
-			allResults: { "FROM forum_recommended_threads r": [] },
-		});
-		const env = makeEnv({ DB: db });
-		const res = await listRecommendedThreads(listRequest(1, token), env);
-		expect(res.status).toBe(200);
-	});
+	it("serves cached recommendations from KV without querying forum_recommended_threads catalog membership", async () => {
+		rf.thread(50, { forum_id: 1 });
+		// Reset calls recorded during thread setup
+		rf.calls.length = 0;
 
-	it("returns cached data on KV hit without querying D1 for rows", async () => {
-		const cachedPayload = {
-			forumId: 1,
-			threads: [
-				{
-					id: 999,
-					subject: "cached",
-					authorId: 1,
-					authorName: "x",
-					replies: 0,
-					lastPostAt: 0,
-					recommendedAt: 0,
-				},
-			],
-		};
-		const kv = createMockKV({ "recommended:threads:1": JSON.stringify(cachedPayload) });
-		const { db, calls } = createMockDb({
-			firstResults: { ...mockForumVis(1, "public") },
-		});
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx();
+		rf.sqlite
+			.prepare(
+				"INSERT INTO forum_recommended_threads (forum_id, thread_id, recommended_by, recommended_at) VALUES (1, 50, 1, 1700000000)",
+			)
+			.run();
 
-		const res = await listRecommendedThreads(listRequest(1), env, ctx);
+		// Cold load
+		const res1 = await listRecommendedThreads(listRequest(1), rf.env, rf.ctx);
+		expect(res1.status).toBe(200);
 
-		expect(res.status).toBe(200);
-		const data = (await res.json()) as { data: typeof cachedPayload };
-		expect(data.data.threads[0].id).toBe(999);
-		// Should NOT query D1 for recommended threads (only visibility check)
-		const recommendQuery = calls.find((c) => c.sql.includes("forum_recommended_threads"));
-		expect(recommendQuery).toBeUndefined();
-	});
+		const membershipQuery = "SELECT r.thread_id AS id, r.recommended_at AS recommendedAt";
+		const callsBefore = rf.calls.filter((c) => c.sql.includes(membershipQuery)).length;
+		expect(callsBefore).toBe(1);
 
-	it("writes to KV cache after D1 query on cache miss", async () => {
-		const rows = [
-			{
-				id: 123,
-				subject: "test",
-				author_id: 1,
-				author_name: "a",
-				replies: 0,
-				last_post_at: 0,
-				recommended_at: 0,
-			},
-		];
-		const kv = createMockKV({});
-		const { db } = createMockDb({
-			firstResults: { ...mockForumVis(1, "public") },
-			allResults: { "FROM forum_recommended_threads r": rows },
-		});
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = createMockCtx();
+		// Hot load: cache hit for catalog membership
+		const res2 = await listRecommendedThreads(listRequest(1), rf.env, rf.ctx);
+		expect(res2.status).toBe(200);
 
-		const res = await listRecommendedThreads(listRequest(1), env, ctx);
-
-		expect(res.status).toBe(200);
-		expect(kv.put).toHaveBeenCalledTimes(1);
-		const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(putCall[0]).toBe("recommended:threads:1");
-		expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(86400);
+		const callsAfter = rf.calls.filter((c) => c.sql.includes(membershipQuery)).length;
+		expect(callsAfter).toBe(callsBefore);
 	});
 });

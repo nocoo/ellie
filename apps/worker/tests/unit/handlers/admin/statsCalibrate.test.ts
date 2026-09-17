@@ -1,14 +1,27 @@
 // admin/statsCalibrate.test.ts — Tests for stats calibration admin endpoint
 // GET/POST /api/admin/stats/calibrate
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	handleCalibrateGet,
 	handleCalibratePost,
 } from "../../../../src/handlers/admin/statsCalibrate";
-import { createAdminRequest, createMockDb, createMockKV, makeEnv } from "../../../helpers";
+import { __resetMetricsForTest } from "../../../../src/lib/cache/metrics";
+import { shanghaiDateLocal, shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
+import { readingFixture } from "../../lib/cache/thread-cache-fixture";
 
-// ─── Types ────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────
+
+function createAdminRequest(method: string, path: string, body?: Record<string, unknown>): Request {
+	return new Request(`http://localhost${path}`, {
+		method,
+		headers: {
+			"Content-Type": "application/json",
+			"X-Admin-API-Key": "test-admin-api-key",
+		},
+		body: body ? JSON.stringify(body) : undefined,
+	});
+}
 
 interface CounterRow {
 	key: string;
@@ -34,31 +47,38 @@ interface CalibratePostResponse {
 // ─── Tests ────────────────────────────────────────────────────
 
 describe("admin/statsCalibrate", () => {
+	let f: ReturnType<typeof readingFixture>;
+
 	beforeEach(() => {
-		vi.clearAllMocks();
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-05-30T10:00:00Z"));
+		__resetMetricsForTest();
+		f = readingFixture();
+		f.thread(1);
+	});
+
+	afterEach(() => {
+		f.close();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
 	});
 
 	describe("GET /api/admin/stats/calibrate", () => {
-		it("returns stored counter values", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT key, value FROM settings": [
-						{ key: "stats.total_threads", value: "100" },
-						{ key: "stats.total_posts", value: "500" },
-						{ key: "stats.total_members", value: "50" },
-						{ key: "stats.yesterday_posts", value: "25" },
-					],
-				},
-			});
-			const kv = createMockKV({
-				"stats:today_posts": "10",
-				"stats:today_date": "2026-05-30",
-			});
+		it("returns stored counter values and delegates getPublicStats(admin) for todayPosts", async () => {
+			f.sqlite.prepare("UPDATE settings SET value = '100' WHERE key = 'stats.total_threads'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '500' WHERE key = 'stats.total_posts'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '50' WHERE key = 'stats.total_members'").run();
+			f.sqlite
+				.prepare("UPDATE settings SET value = '25' WHERE key = 'stats.yesterday_posts'")
+				.run();
 
-			const env = makeEnv({ DB: db, KV: kv });
+			const todayStart = shanghaiTodayStartUnix();
+			for (let i = 0; i < 10; i++) {
+				f.post(100 + i, { created_at: todayStart + i * 10 });
+			}
+
 			const request = createAdminRequest("GET", "/api/admin/stats/calibrate");
-
-			const response = await handleCalibrateGet(request, env);
+			const response = await handleCalibrateGet(request, f.env);
 			const body = (await response.json()) as CalibrateGetResponse;
 
 			expect(response.status).toBe(200);
@@ -68,56 +88,46 @@ describe("admin/statsCalibrate", () => {
 				stored: 100,
 				real: null,
 			});
+			expect(body.data.counters[1]).toEqual({
+				key: "stats.total_posts",
+				stored: 500,
+				real: null,
+			});
 			expect(body.data.todayPosts).toBe(10);
-			expect(body.data.todayDate).toBe("2026-05-30");
+			expect(body.data.todayDate).toBe(shanghaiDateLocal());
 		});
 
-		it("handles empty settings gracefully", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT key, value FROM settings": [],
-				},
-			});
-			const kv = createMockKV({});
-
-			const env = makeEnv({ DB: db, KV: kv });
+		it("handles zero settings gracefully", async () => {
 			const request = createAdminRequest("GET", "/api/admin/stats/calibrate");
-
-			const response = await handleCalibrateGet(request, env);
+			const response = await handleCalibrateGet(request, f.env);
 			const body = (await response.json()) as CalibrateGetResponse;
 
 			expect(response.status).toBe(200);
 			expect(body.data.counters[0].stored).toBe(0);
 			expect(body.data.todayPosts).toBe(0);
-			expect(body.data.todayDate).toBe("");
+			expect(body.data.todayDate).toBe(shanghaiDateLocal());
 		});
 	});
 
 	describe("POST /api/admin/stats/calibrate action=run_stats", () => {
 		it("runs COUNT queries and returns real values", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT COUNT(*) AS cnt FROM threads": { cnt: 100 },
-					"SELECT COUNT(*) AS cnt FROM posts": { cnt: 500 },
-					"SELECT COUNT(*) AS cnt FROM users": { cnt: 50 },
-				},
-				allResults: {
-					"SELECT key, value FROM settings": [
-						{ key: "stats.total_threads", value: "90" },
-						{ key: "stats.total_posts", value: "450" },
-						{ key: "stats.total_members", value: "45" },
-						{ key: "stats.yesterday_posts", value: "20" },
-					],
-				},
-			});
-			const kv = createMockKV({});
+			f.sqlite.prepare("UPDATE settings SET value = '90' WHERE key = 'stats.total_threads'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '450' WHERE key = 'stats.total_posts'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '45' WHERE key = 'stats.total_members'").run();
+			f.sqlite
+				.prepare("UPDATE settings SET value = '20' WHERE key = 'stats.yesterday_posts'")
+				.run();
 
-			const env = makeEnv({ DB: db, KV: kv });
+			// In readingFixture, users table has 5 rows (alice, bob, mod, admin, super)
+			// threads table has 1 row (thread 1)
+			// let's add 2 more posts
+			f.post(10, { created_at: 100 });
+			f.post(11, { created_at: 200 });
+
 			const request = createAdminRequest("POST", "/api/admin/stats/calibrate", {
 				action: "run_stats",
 			});
-
-			const response = await handleCalibratePost(request, env);
+			const response = await handleCalibratePost(request, f.env);
 			const body = (await response.json()) as CalibratePostResponse;
 
 			expect(response.status).toBe(200);
@@ -126,52 +136,63 @@ describe("admin/statsCalibrate", () => {
 			expect(body.data.counters?.[0]).toEqual({
 				key: "stats.total_threads",
 				stored: 90,
-				real: 100,
+				real: 1,
 			});
 			expect(body.data.counters?.[1]).toEqual({
 				key: "stats.total_posts",
 				stored: 450,
-				real: 500,
+				real: 2,
 			});
 			expect(body.data.counters?.[2]).toEqual({
 				key: "stats.total_members",
 				stored: 45,
-				real: 50,
+				real: 5,
 			});
-			// yesterday_posts has no COUNT
+			// yesterday_posts has no real COUNT
 			expect(body.data.counters?.[3]?.real).toBeNull();
 		});
 	});
 
 	describe("POST /api/admin/stats/calibrate action=apply_real", () => {
-		it("applies real COUNT values to settings", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT COUNT(*) AS cnt FROM threads": { cnt: 100 },
-					"SELECT COUNT(*) AS cnt FROM posts": { cnt: 500 },
-					"SELECT COUNT(*) AS cnt FROM users": { cnt: 50 },
-				},
-			});
+		it("applies real COUNT values to settings and invalidates public-stats cache via cacheDelete", async () => {
+			await f.env.KV.put("public-stats", JSON.stringify({ cached: true }));
+			f.post(20, { created_at: 100 });
 
-			const env = makeEnv({ DB: db, KV: createMockKV({}) });
 			const request = createAdminRequest("POST", "/api/admin/stats/calibrate", {
 				action: "apply_real",
 			});
-
-			const response = await handleCalibratePost(request, env);
+			const response = await handleCalibratePost(request, f.env);
 			const body = (await response.json()) as CalibratePostResponse;
 
 			expect(response.status).toBe(200);
 			expect(body.data.success).toBe(true);
-			expect(db.batch).toHaveBeenCalledTimes(1);
+
+			// Check DB settings updated
+			const threads = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_threads'")
+				.get() as { value: string };
+			const posts = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_posts'")
+				.get() as { value: string };
+			const members = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_members'")
+				.get() as { value: string };
+
+			expect(threads.value).toBe("1");
+			expect(posts.value).toBe("1");
+			expect(members.value).toBe("5");
+
+			// public-stats cache deleted
+			expect(await f.env.KV.get("public-stats")).toBeNull();
 		});
 	});
 
 	describe("POST /api/admin/stats/calibrate action=apply_offsets", () => {
-		it("applies offset adjustments to counters", async () => {
-			const { db } = createMockDb({});
+		it("applies offset adjustments to counters and invalidates public-stats cache", async () => {
+			await f.env.KV.put("public-stats", JSON.stringify({ cached: true }));
+			f.sqlite.prepare("UPDATE settings SET value = '10' WHERE key = 'stats.total_threads'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '20' WHERE key = 'stats.total_posts'").run();
 
-			const env = makeEnv({ DB: db, KV: createMockKV({}) });
 			const request = createAdminRequest("POST", "/api/admin/stats/calibrate", {
 				action: "apply_offsets",
 				offsets: {
@@ -179,76 +200,71 @@ describe("admin/statsCalibrate", () => {
 					"stats.total_posts": -10,
 				},
 			});
-
-			const response = await handleCalibratePost(request, env);
+			const response = await handleCalibratePost(request, f.env);
 			const body = (await response.json()) as CalibratePostResponse;
 
 			expect(response.status).toBe(200);
 			expect(body.data.success).toBe(true);
-			expect(db.batch).toHaveBeenCalledTimes(1);
+
+			const threads = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_threads'")
+				.get() as { value: string };
+			const posts = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_posts'")
+				.get() as { value: string };
+
+			expect(Number(threads.value)).toBe(15);
+			expect(Number(posts.value)).toBe(10);
+
+			expect(await f.env.KV.get("public-stats")).toBeNull();
 		});
 
 		it("rejects invalid offsets", async () => {
-			const { db } = createMockDb({});
-
-			const env = makeEnv({ DB: db, KV: createMockKV({}) });
 			const request = createAdminRequest("POST", "/api/admin/stats/calibrate", {
 				action: "apply_offsets",
-			}); // missing offsets
-
-			const response = await handleCalibratePost(request, env);
-
+			});
+			const response = await handleCalibratePost(request, f.env);
 			expect(response.status).toBe(400);
 		});
 
-		it("skips zero offsets and does not batch", async () => {
-			const { db } = createMockDb({});
-
-			const env = makeEnv({ DB: db, KV: createMockKV({}) });
+		it("skips zero offsets and does not execute batch updates", async () => {
+			const callsBefore = f.calls.length;
 			const request = createAdminRequest("POST", "/api/admin/stats/calibrate", {
 				action: "apply_offsets",
 				offsets: {
-					"stats.total_threads": 0, // should be skipped
+					"stats.total_threads": 0,
 				},
 			});
-
-			const response = await handleCalibratePost(request, env);
+			const response = await handleCalibratePost(request, f.env);
 			const body = (await response.json()) as CalibratePostResponse;
 
 			expect(response.status).toBe(200);
 			expect(body.data.success).toBe(true);
-			// No batch call since all offsets were 0
-			expect(db.batch).not.toHaveBeenCalled();
+
+			const updateCalls = f.calls.slice(callsBefore).filter((c) => c.sql.startsWith("UPDATE"));
+			expect(updateCalls).toHaveLength(0);
 		});
 	});
 
 	describe("POST /api/admin/stats/calibrate invalid action", () => {
 		it("returns 400 for unknown action", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db, KV: createMockKV({}) });
 			const request = createAdminRequest("POST", "/api/admin/stats/calibrate", {
 				action: "unknown",
 			});
-
-			const response = await handleCalibratePost(request, env);
-
+			const response = await handleCalibratePost(request, f.env);
 			expect(response.status).toBe(400);
 		});
 
 		it("returns 400 for invalid JSON body", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db, KV: createMockKV({}) });
 			const request = new Request("http://localhost/api/admin/stats/calibrate", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					"X-API-Key": "test-admin-api-key",
+					"X-Admin-API-Key": "test-admin-api-key",
 				},
 				body: "not json",
 			});
-
-			const response = await handleCalibratePost(request, env);
-
+			const response = await handleCalibratePost(request, f.env);
 			expect(response.status).toBe(400);
 		});
 	});

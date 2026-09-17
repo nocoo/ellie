@@ -2,7 +2,7 @@
 //
 // Helpers grouped by domain (forum, user, …). Composite helpers like
 // `invalidateForumStructureV2` bundle the gen bumps documented in
-// docs/19 §6 for a given write category, so handlers call one named
+// docs/20 §5 for a given write category, so handlers call one named
 // helper instead of re-listing keys at each callsite.
 //
 // All helpers are best-effort: KV write/delete failures are swallowed so
@@ -10,35 +10,60 @@
 // invalidations falls back to TTL.
 
 import type { Env } from "../env";
+import { userMiniCacheKey } from "../user-cache";
 import { bumpGen } from "./epoch";
 import {
+	dataCacheKey,
 	digestGenKey,
 	forumSummaryGenKey,
 	forumTreeGenKey,
+	pmUserGenKey,
+	postAttachmentsGenKey,
+	postEntityGenKey,
 	postListGenKey,
+	recommendedGenKey,
+	statsReportsGenKey,
 	threadListGenAllKey,
 	threadListGenKey,
 	threadMetaGenKey,
-	userMiniKey,
 	userPublicKey,
 } from "./keys";
-import { recordBump, recordDelete } from "./metrics";
+import { recordBump, recordKvOp } from "./metrics";
+import { cacheDelete } from "./wrap";
+
+async function bumpResource(env: Env, key: string, family: string): Promise<string> {
+	try {
+		const value = await bumpGen(env, key);
+		recordBump(family);
+		return value;
+	} catch {
+		recordKvOp(family, "invalidate-error");
+		console.warn(`[cache] invalidation failed family=${family}`);
+		return "!unavailable";
+	}
+}
+
+export function bumpPostEntityGen(env: Env, postId: number): Promise<string> {
+	return bumpResource(env, postEntityGenKey(postId), "post:entity");
+}
+
+export function bumpPostAttachmentsGen(env: Env, postId: number): Promise<string> {
+	return bumpResource(env, postAttachmentsGenKey(postId), "post:attachments");
+}
+
+export function bumpRecommendedGen(env: Env, forumId: number): Promise<string> {
+	return bumpResource(env, recommendedGenKey(forumId), "recommended:threads");
+}
 
 // ─── Single-key delete helpers ─────────────────────────────────────
 
 /**
- * Delete the `user:mini:v2:<id>` cache entry. Safe even when no value
+ * Delete the `user:mini:<id>` cache entry. Safe even when no value
  * exists.
  */
 export async function deleteUserMini(env: Env, userId: number): Promise<void> {
-	const key = userMiniKey(userId);
-	try {
-		await env.KV.delete(key);
-		recordDelete("user:mini:v1");
-	} catch (err) {
-		// best-effort
-		console.warn(`[cache] delete failed key=${key}`, err);
-	}
+	const key = userMiniCacheKey(userId);
+	await cacheDelete(env, key, "user:mini:v1");
 }
 
 /**
@@ -47,79 +72,65 @@ export async function deleteUserMini(env: Env, userId: number): Promise<void> {
  * time.
  */
 export async function deleteUserPublicVariants(env: Env, userId: number): Promise<void> {
-	const publicKey = userPublicKey(userId, "public");
-	const staffKey = userPublicKey(userId, "staff");
-	await Promise.all([
-		env.KV.delete(publicKey)
-			.then(() => {
-				recordDelete("user:public:v2");
-			})
-			.catch((err) => {
-				console.warn(`[cache] delete failed key=${publicKey}`, err);
-			}),
-		env.KV.delete(staffKey)
-			.then(() => {
-				recordDelete("user:public:v2");
-			})
-			.catch((err) => {
-				console.warn(`[cache] delete failed key=${staffKey}`, err);
-			}),
-	]);
+	await Promise.all(
+		["public", "staff"].map((bucket) =>
+			cacheDelete(env, userPublicKey(userId, bucket as "public" | "staff"), "user:public:v2"),
+		),
+	);
 }
 
 /**
  * Convenience: delete every per-user cache entry that depends on the given
- * userId (mini + both public variants). Use for admin user CRUD / nuke /
+ * userId (mini, public, self, counters and posting previews). Use for admin user CRUD / nuke /
  * purge / ban / batch-status / batch-role / batch-recalc-counters / single
  * recalcCounters / `me.updateProfile` (avatar) / email verify / admin
  * statistics recalc-users.
  */
 export async function invalidateUserCaches(env: Env, userId: number): Promise<void> {
-	await Promise.all([deleteUserMini(env, userId), deleteUserPublicVariants(env, userId)]);
+	await Promise.all([
+		deleteUserMini(env, userId),
+		deleteUserPublicVariants(env, userId),
+		cacheDelete(env, `user:avatar-path:${userId}`, "user:avatar-path"),
+		cacheDelete(env, `user:stats:${userId}`, "user:stats"),
+		cacheDelete(env, `user:self:${userId}`, "user:self"),
+		cacheDelete(env, `user:checkin:${userId}`, "user:checkin"),
+		...["thread", "reply", "message"].map(async (action) =>
+			cacheDelete(
+				env,
+				await dataCacheKey("user:posting-preview", { userId, action }, `user:${userId}`),
+				"user:posting-preview",
+			),
+		),
+	]);
 }
 
-// ─── Generation bump helpers (per docs/19 §3.3) ────────────────────
+// ─── Generation bump helpers (per docs/20 §5) ──────────────────────
 
 export async function bumpForumTreeGen(env: Env): Promise<string> {
-	const v = await bumpGen(env, forumTreeGenKey());
-	recordBump("forum:tree:v2");
-	return v;
+	return bumpResource(env, forumTreeGenKey(), "forum:tree:v2");
 }
 
 export async function bumpForumSummaryGen(env: Env): Promise<string> {
-	const v = await bumpGen(env, forumSummaryGenKey());
-	recordBump("forum:summary:v2");
-	// forum:meta:v2 keys also embed `forum:summary:gen`, so the same
-	// bump invalidates both families. Reflect that in metrics so the
-	// admin monitor doesn't show meta as "never bumped".
-	recordBump("forum:meta:v2");
-	return v;
+	return bumpResource(env, forumSummaryGenKey(), "forum:summary:v2");
 }
 
 export async function bumpThreadListGen(env: Env, forumId: number): Promise<string> {
-	const v = await bumpGen(env, threadListGenKey(forumId));
-	recordBump("thread:list:v2");
-	return v;
+	return bumpResource(env, threadListGenKey(forumId), "thread:list");
 }
 
 /**
  * Bump the global thread-list generation `thread:list:gen:all`. Embedded
- * as the second gen component of every `thread:list:v2` key, so a single
+ * in every `thread:list` descriptor key, so a single
  * write here invalidates EVERY per-forum thread-list cache without
  * scanning per-forum gens.
  *
- * Reserved for low-frequency admin operations where the affected
- * `forumId` set isn't known up-front:
- *   - `admin/statistics/recalc-threads`
- *   - `admin/user/purge` fallback when affected forums can't be enumerated
+ * Used for global-announcement changes and explicit group invalidation.
  *
  * Per-forum mutations MUST use `bumpThreadListGen(env, forumId)` instead.
- * See docs/19 §3.3.1 option (b).
+ * See docs/20 §5 for the mutation matrix.
  */
 export async function bumpThreadListGenAll(env: Env): Promise<string> {
-	const v = await bumpGen(env, threadListGenAllKey());
-	recordBump("thread:list:v2");
-	return v;
+	return bumpResource(env, threadListGenAllKey(), "thread:list");
 }
 
 /**
@@ -133,32 +144,44 @@ export async function invalidateThreadListForForums(
 	forumIds: readonly number[],
 ): Promise<void> {
 	if (forumIds.length === 0) return;
-	const unique = Array.from(new Set(forumIds));
-	await Promise.all(unique.map((id) => bumpThreadListGen(env, id)));
+	const unique = [...new Set(forumIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+	for (let start = 0; start < unique.length; start += 50) {
+		await Promise.all(unique.slice(start, start + 50).map((id) => bumpThreadListGen(env, id)));
+	}
 }
 
-// NOTE: bump recording is intentionally limited to families that are
-// also read-instrumented (forum tree/summary, thread list). thread-meta
-// / post-list / digest gens have no read-side counters yet — recording
-// bumps for them would produce orphan rows in the metrics table that
-// the admin UI cannot pair with hits/misses. Once those caches grow
-// read-side instrumentation, add the matching `recordBump` calls here.
-
 export async function bumpThreadMetaGen(env: Env, threadId: number): Promise<string> {
-	return bumpGen(env, threadMetaGenKey(threadId));
+	return bumpResource(env, threadMetaGenKey(threadId), "thread:entity");
 }
 
 export async function bumpPostListGen(env: Env, threadId: number): Promise<string> {
-	return bumpGen(env, postListGenKey(threadId));
+	return bumpResource(env, postListGenKey(threadId), "post:page");
+}
+
+/** Bound KV concurrency for bulk delete, restore, merge and user-content cleanup. */
+export async function invalidateThreadReading(
+	env: Env,
+	threadIds: readonly number[],
+	options: { posts?: boolean } = {},
+): Promise<void> {
+	const ids = [...new Set(threadIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+	for (let start = 0; start < ids.length; start += 50) {
+		await Promise.all(
+			ids.slice(start, start + 50).map(async (id) => {
+				await bumpThreadMetaGen(env, id);
+				if (options.posts) await bumpPostListGen(env, id);
+			}),
+		);
+	}
 }
 
 export async function bumpDigestGen(env: Env): Promise<string> {
-	return bumpGen(env, digestGenKey());
+	return bumpResource(env, digestGenKey(), "digest:list");
 }
 
 // ─── Composite domain helpers ──────────────────────────────────────
 //
-// These bundle the bumps documented in docs/19 §6 for the most common
+// These bundle the bumps documented in docs/20 §5 for the most common
 // write categories. Handlers call a single helper instead of re-listing
 // the gen keys, so the matrix is enforced in code rather than per-call.
 
@@ -175,9 +198,9 @@ export async function invalidateForumSummaryV2(env: Env): Promise<void> {
 
 /**
  * Bump everything that depends on the forum-summary aggregates after a
- * volatile thread/post change in `forumId`: `forum:summary:gen` plus the
- * per-forum `thread:list:gen`. Mirrors the `POST /api/v1/threads` row in
- * docs/19 §6.
+ * confirmed edit/delete in `forumId`: `forum:summary:gen` plus the
+ * per-forum `thread:list:gen`. Ordinary create/reply uses natural expiry
+ * instead (docs/20 §5).
  */
 export async function invalidateForumVolatileV2(env: Env, forumId: number): Promise<void> {
 	await Promise.all([bumpForumSummaryGen(env), bumpThreadListGen(env, forumId)]);
@@ -221,7 +244,7 @@ export async function invalidateForumUpdateV2(
  *     digest visibility.
  *
  * Other columns (description, icon, moderators, display_order…) are
- * deliberately excluded — see docs/19 §6 for the rationale.
+ * deliberately excluded — see docs/20 §5 for the mutation matrix.
  */
 export const FORUM_DIGEST_AFFECTING_COLUMNS = [
 	"name",
@@ -249,4 +272,15 @@ export function affectsForumDigest(data: Record<string, unknown>): boolean {
  */
 export async function invalidateForumReorderV2(env: Env): Promise<void> {
 	await Promise.all([bumpForumTreeGen(env), bumpForumSummaryGen(env)]);
+}
+
+export async function invalidateMessageUsers(env: Env, userIds: readonly number[]): Promise<void> {
+	const ids = [...new Set(userIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+	for (let start = 0; start < ids.length; start += 50)
+		await Promise.all(
+			ids.slice(start, start + 50).map((id) => bumpResource(env, pmUserGenKey(id), "pm:list")),
+		);
+}
+export function invalidateStatisticsReports(env: Env): Promise<string> {
+	return bumpResource(env, statsReportsGenKey(), "admin:analytics");
 }

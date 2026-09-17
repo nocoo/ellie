@@ -1,5 +1,5 @@
 // Forum v2 KV cache payload contracts + bucket-aware filters + pure
-// builders / validators (docs/19 §4 / §5).
+// builders / validators (docs/20 §3 / §4).
 //
 // This module is intentionally **pure**: no IO, no env, no KV/D1 access.
 // It is consumed by the read handlers (Phase 2 commit 2) and by tests.

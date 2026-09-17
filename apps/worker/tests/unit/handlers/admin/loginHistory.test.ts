@@ -63,7 +63,8 @@ function makeMockDb(opts: {
 			all: vi.fn(async () => {
 				calls.push({ sql, binds: [...binds] });
 				const next = canned[cursor++] ?? { all: { results: [] } };
-				return (next.all ?? { results: [] }) as { results: unknown[] };
+				const payload = next.all ?? { results: [] };
+				return { success: true, results: payload.results };
 			}),
 			run: vi.fn(async () => {
 				calls.push({ sql, binds: [...binds] });
@@ -232,8 +233,8 @@ describe("loginHistory — KPI handler", () => {
 
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
-		expect(kv.get).not.toHaveBeenCalled();
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.get).toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 
 		// Pinned removal of the cache wiring constants — see test above.
 		expect(_internal as Record<string, unknown>).not.toHaveProperty("KPI_KV_KEY");
@@ -276,7 +277,7 @@ describe("loginHistory — KPI handler", () => {
 		expect(res.status).toBe(200);
 		const kpiCalls = db._calls.filter((c) => c.sql.includes("FROM login_history"));
 		expect(kpiCalls).toHaveLength(1);
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 	});
 
 	it("defaults all KPI counters to 0 when D1 returns null row", async () => {
@@ -307,7 +308,7 @@ describe("loginHistory — KPI handler", () => {
 describe("loginHistory — list handler", () => {
 	afterEach(() => vi.useRealTimers());
 
-	it("paginates with raw IPs, sets Cache-Control: no-store, private", async () => {
+	it("paginates with masked IPs, sets Cache-Control: no-store, private", async () => {
 		const nowMs = Date.UTC(2026, 0, 1, 4, 0, 0);
 		vi.useFakeTimers();
 		vi.setSystemTime(nowMs);
@@ -374,8 +375,8 @@ describe("loginHistory — list handler", () => {
 		expect(body.data.limit).toBe(20);
 		expect(body.data.total).toBe(2);
 		expect(body.data.rows).toHaveLength(2);
-		expect(body.data.rows[0].ip).toBe("1.2.3.4");
-		expect(body.data.rows[1].ip).toBe("2001:db8:cafe:1234::1");
+		expect(body.data.rows[0].ip).toBe("1.2.x.x");
+		expect(body.data.rows[1].ip).toBe("2001:db8::x");
 	});
 
 	it("binds filters ok/kind/errorCode when supplied", async () => {
@@ -481,24 +482,16 @@ describe("loginHistory — list handler", () => {
 		expect(body.data.page).toBe(1);
 	});
 
-	it("handles missing results array and null count gracefully", async () => {
+	it("rejects malformed D1 list results instead of caching an empty page", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(Date.UTC(2026, 0, 1, 4, 0, 0));
-		// `first` returns null → countRow?.total ?? 0 path; `all` returns
-		// undefined results → (listResult.results ?? []) fallback.
 		const db = makeMockDb({
-			canned: [{ first: null }, { all: { results: undefined as unknown as unknown[] } }],
+			canned: [{ first: { total: 0 } }, { all: { results: undefined as unknown as unknown[] } }],
 		});
 		const env = makeEnv({ DB: db as unknown as D1Database });
-		const res = await getTodayLoginsList(
-			createAdminRequest("GET", "/api/admin/analytics/today/logins/list"),
-			env,
-		);
-		expect(res.status).toBe(200);
-		const body = (await res.json()) as {
-			data: { total: number; rows: unknown[] };
-		};
-		expect(body.data.total).toBe(0);
-		expect(body.data.rows).toEqual([]);
+		await expect(
+			getTodayLoginsList(createAdminRequest("GET", "/api/admin/analytics/today/logins/list"), env),
+		).rejects.toThrow("Login list could not be loaded");
+		expect(env.KV.put).not.toHaveBeenCalled();
 	});
 });

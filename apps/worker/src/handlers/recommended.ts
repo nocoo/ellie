@@ -33,16 +33,8 @@
 
 import type { ForumVisibility } from "@ellie/types";
 import { canModerate } from "@ellie/types";
-import { bumpThreadMetaGen } from "../lib/cache/invalidate";
-import {
-	recordDelete,
-	recordError,
-	recordHit,
-	recordMiss,
-	recordRead,
-	recordWrite,
-	scheduleMetricsFlush,
-} from "../lib/cache/metrics";
+import { currentCatalogThreads, getCatalogPage } from "../lib/cache/catalog-read";
+import { bumpRecommendedGen, bumpThreadMetaGen } from "../lib/cache/invalidate";
 import type { Env } from "../lib/env";
 import { ANONYMOUS_AUTHOR_NAME } from "../lib/mappers";
 import { parsePathSegment } from "../lib/parseId";
@@ -52,12 +44,7 @@ import {
 	getUserForPermission,
 } from "../lib/permissionHelpers";
 import { jsonResponse } from "../lib/response";
-import {
-	buildVisibilityContext,
-	canViewForumVisibility,
-	isForumActive,
-	THREAD_VISIBLE,
-} from "../lib/visibility";
+import { buildVisibilityContext, canViewForumVisibility, isForumActive } from "../lib/visibility";
 import { moderationMiddleware, optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -80,28 +67,9 @@ export interface RecommendedThreadsResponse {
 	threads: RecommendedThreadRow[];
 }
 
-// Display cap. Per reviewer contract (msg ba15ea9f) cap belongs here,
-// not in the writer.
-const DISPLAY_LIMIT = 6;
-
-// ─── Cache constants ──────────────────────────────────────────────
-const RECOMMENDED_CACHE_TTL = 86_400; // 24h
-const METRICS_FAMILY = "recommended:threads";
-
-/** Build KV cache key for recommended threads */
-function recommendedCacheKey(forumId: number): string {
-	return `recommended:threads:${forumId}`;
-}
-
-/** Invalidate recommended threads cache for a forum */
+/** Per-forum epoch also fences an old concurrent membership fill. */
 export async function invalidateRecommendedCache(env: Env, forumId: number): Promise<void> {
-	try {
-		await env.KV.delete(recommendedCacheKey(forumId));
-		recordDelete(METRICS_FAMILY);
-	} catch (err) {
-		recordError(METRICS_FAMILY);
-		console.warn("[recommended] KV delete failed", err);
-	}
+	await bumpRecommendedGen(env, forumId);
 }
 
 // ---------------------------------------------------------------------------
@@ -138,85 +106,30 @@ export async function listRecommendedThreads(
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Try KV cache first
-	const cacheKey = recommendedCacheKey(forumId);
-	recordRead(METRICS_FAMILY);
-	try {
-		const cached = await env.KV.get(cacheKey);
-		if (cached) {
-			recordHit(METRICS_FAMILY);
-			if (ctx) scheduleMetricsFlush(env, ctx);
-			return jsonResponse(JSON.parse(cached) as RecommendedThreadsResponse, origin);
-		}
-	} catch (err) {
-		recordError(METRICS_FAMILY);
-		console.warn("[recommended] KV read failed", err);
-	}
-	recordMiss(METRICS_FAMILY);
-
-	// Display query: cap to 6 newest threads, dropping rows that point
-	// at a thread that was moved/deleted/hidden. The `t.forum_id = r.forum_id`
-	// constraint defends against a stale row where `moveThread` raced
-	// the recommend clean-up.
-	const rows = await env.DB.prepare(
-		`SELECT t.id          AS id,
-		        t.subject     AS subject,
-		        t.author_id   AS author_id,
-		        t.author_name AS author_name,
-		        t.anonymous_author AS anonymous_author,
-		        t.replies     AS replies,
-		        t.last_post_at AS last_post_at,
-		        r.recommended_at AS recommended_at
-		   FROM forum_recommended_threads r
-		   JOIN threads t
-		     ON t.id = r.thread_id
-		    AND t.forum_id = r.forum_id
-		    AND ${THREAD_VISIBLE}
-		  WHERE r.forum_id = ?
-		  ORDER BY r.thread_id DESC
-		  LIMIT ?`,
-	)
-		.bind(forumId, DISPLAY_LIMIT)
-		.all<{
-			id: number;
-			subject: string;
-			author_id: number;
-			author_name: string;
-			anonymous_author: number;
-			replies: number;
-			last_post_at: number;
-			recommended_at: number;
-		}>();
-
-	// Recommended cards are forum-bucket-shared, so mask anonymous authors
-	// the same way the forum-summary cache does. Staff still see masked here;
-	// they can click into the thread detail for the real author.
-	const threads: RecommendedThreadRow[] = rows.results.map((r) => {
-		const isAnon = r.anonymous_author === 1;
-		return {
-			id: r.id,
-			subject: r.subject,
-			authorId: isAnon ? 0 : r.author_id,
-			authorName: isAnon ? ANONYMOUS_AUTHOR_NAME : r.author_name,
-			replies: r.replies,
-			lastPostAt: r.last_post_at,
-			recommendedAt: r.recommended_at,
-		};
+	const page = await getCatalogPage(env, ctx, {
+		family: "recommended:threads",
+		params: { forumId },
+		scope: "internal",
 	});
-
-	const payload: RecommendedThreadsResponse = { forumId, threads };
-
-	// Write to KV cache
-	try {
-		await env.KV.put(cacheKey, JSON.stringify(payload), { expirationTtl: RECOMMENDED_CACHE_TTL });
-		recordWrite(METRICS_FAMILY);
-	} catch (err) {
-		recordError(METRICS_FAMILY);
-		console.warn("[recommended] KV write failed", err);
-	}
-
-	if (ctx) scheduleMetricsFlush(env, ctx);
-	return jsonResponse(payload, origin);
+	// Cards retain the established public anonymous-author projection for every viewer.
+	const rows = await currentCatalogThreads(
+		env,
+		ctx,
+		page.items.map((item) => item.id),
+		user,
+		forumId,
+	);
+	const recommendedAt = new Map(page.items.map((item) => [item.id, item.recommendedAt ?? 0]));
+	const threads: RecommendedThreadRow[] = rows.map((row) => ({
+		id: row.id,
+		subject: row.subject,
+		authorId: row.anonymousAuthor ? 0 : row.authorId,
+		authorName: row.anonymousAuthor ? ANONYMOUS_AUTHOR_NAME : row.authorName,
+		replies: row.replies,
+		lastPostAt: row.lastPostAt,
+		recommendedAt: recommendedAt.get(row.id) ?? 0,
+	}));
+	return jsonResponse({ forumId, threads } satisfies RecommendedThreadsResponse, origin);
 }
 
 // ---------------------------------------------------------------------------

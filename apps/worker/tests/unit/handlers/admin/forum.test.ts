@@ -460,7 +460,7 @@ describe("admin forum handlers", () => {
 		it("should update description field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, description: "updated" }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, description: "old" }),
 				},
 			});
 
@@ -838,8 +838,14 @@ describe("admin forum handlers", () => {
 				firstResults: {
 					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 10 }), // source
 					"SELECT id FROM forums WHERE id": { id: 20 }, // target
-					"SELECT COUNT(*) as cnt FROM threads": { cnt: 3 },
 					"SELECT COUNT(*) as cnt FROM posts": { cnt: 15 },
+				},
+				allResults: {
+					"SELECT id, sticky FROM threads WHERE forum_id": [
+						{ id: 1, sticky: 0 },
+						{ id: 2, sticky: 0 },
+						{ id: 3, sticky: 0 },
+					],
 				},
 			});
 
@@ -860,7 +866,7 @@ describe("admin forum handlers", () => {
 			expect(body.data.threadsMoved).toBe(3);
 			expect(body.data.postsMoved).toBe(15);
 
-			// Should call batch for the 4 statements
+			// Content moves and recommendation cleanup share one atomic batch.
 			expect(batchCalls).toHaveLength(1);
 		});
 
@@ -1145,7 +1151,7 @@ describe("admin forum handlers", () => {
 			const created = makeD1ForumRow({ id: 99, name: "New Forum" });
 			const { db, calls } = createMockDb({
 				firstResults: { "SELECT * FROM forums WHERE id": created },
-				runResults: { "INSERT INTO forums": { meta: { last_row_id: 99 } } },
+				runResults: { "INSERT INTO forums": { success: true, meta: { last_row_id: 99 } } },
 			});
 			const res = await create(
 				actorReq("POST", "/api/admin/forums", {
@@ -1244,8 +1250,13 @@ describe("admin forum handlers", () => {
 				firstResults: {
 					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 3 }),
 					"SELECT id FROM forums WHERE id": { id: 4 },
-					"SELECT COUNT(*) as cnt FROM threads": { cnt: 2 },
 					"SELECT COUNT(*) as cnt FROM posts": { cnt: 10 },
+				},
+				allResults: {
+					"SELECT id, sticky FROM threads WHERE forum_id": [
+						{ id: 1, sticky: 0 },
+						{ id: 2, sticky: 0 },
+					],
 				},
 			});
 			const res = await merge(

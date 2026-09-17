@@ -36,12 +36,12 @@ const PUBLIC_SAFE_PREFIXES = [
  * Security: Only returns settings with safe public prefixes.
  * Use ?prefix= to filter (must still be within safe prefixes).
  */
-export async function list(request: Request, env: Env): Promise<Response> {
+export async function list(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const requestedPrefix = url.searchParams.get("prefix");
 
-	const all = await getSettings(env);
+	const all = await getSettings(env, ctx);
 	const filtered: SettingsMap = {};
 
 	for (const [key, value] of Object.entries(all)) {

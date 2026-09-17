@@ -1,3 +1,4 @@
+import { invalidateUserCaches } from "../lib/cache/invalidate";
 // Email verification handlers — request-code (7.2) and verify (7.3).
 // Refs docs/17-email-verification.md §7.2, §7.3 (rev3).
 //
@@ -345,6 +346,8 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 			.bind(record.pendingEmail, record.pendingEmailNormalized, now, user.userId)
 			.run();
 
+		if (!result.success) throw new Error("Email change was not confirmed");
+
 		// If the guard missed (someone verified out-of-band between loadUser and
 		// here), surface the same already-verified contract.
 		const changes = (result.meta as { changes?: number } | undefined)?.changes ?? 0;
@@ -360,6 +363,7 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 		}
 		throw err;
 	}
+	await invalidateUserCaches(env, user.userId);
 	await env.KV.delete(key);
 
 	return jsonResponse({ verified: true, verified_at: now }, origin);
@@ -457,6 +461,7 @@ export const correctPendingEmail = withAuthVerified(async (request, env, user) =
 			.bind(submittedEmail, newEmailNormalized, now, user.userId)
 			.run();
 
+		if (!result.success) throw new Error("Email change was not confirmed");
 		const changes = (result.meta as { changes?: number } | undefined)?.changes ?? 0;
 		if (changes === 0) {
 			// Lost the race — re-derive a precise code from a fresh row read.
@@ -480,6 +485,7 @@ export const correctPendingEmail = withAuthVerified(async (request, env, user) =
 
 	// Drop any pending code envelope — it was HMAC-bound to the old normalized
 	// email and would only confuse the user (mismatch on next verify).
+	await invalidateUserCaches(env, user.userId);
 	await env.KV.delete(codeKvKey(user.userId));
 
 	return jsonResponse(

@@ -38,11 +38,11 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 		ADMIN_API_KEY: TEST_ADMIN_API_KEY,
 		DB: {
 			prepare: vi.fn(() => ({
-				all: vi.fn(() => Promise.resolve({ results: [] })),
+				all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 				bind: vi.fn(() => ({
 					first: vi.fn(() => Promise.resolve(null)),
-					all: vi.fn(() => Promise.resolve({ results: [] })),
-					run: vi.fn(() => Promise.resolve()),
+					all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
+					run: vi.fn(() => Promise.resolve({ success: true, results: [], meta: {} })),
 				})),
 				first: vi.fn(() => Promise.resolve(null)),
 			})),
@@ -292,11 +292,11 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					}
 					// Default: return empty results
 					return {
-						all: vi.fn(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 						bind: vi.fn(() => ({
 							first: vi.fn(() => Promise.resolve(null)),
-							all: vi.fn(() => Promise.resolve({ results: [] })),
-							run: vi.fn(() => Promise.resolve()),
+							all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
+							run: vi.fn(() => Promise.resolve({ success: true, results: [], meta: {} })),
 						})),
 						first: vi.fn(() => Promise.resolve(null)),
 					};
@@ -358,10 +358,10 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					}
 					// Default: return empty results for posts
 					return {
-						all: vi.fn(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 						bind: vi.fn(() => ({
 							first: vi.fn(() => Promise.resolve(null)),
-							all: vi.fn(() => Promise.resolve({ results: [] })),
+							all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 						})),
 					};
 				}),
@@ -648,22 +648,18 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 							})),
 						};
 					}
-					// Thread lookup query - get forum_id
-					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ forum_id: 1, sticky: 0, author_id: 99 })),
-							})),
-						};
-					}
-					// Forum visibility check query
-					if (sql.includes("FROM forums") && sql.includes("WHERE id")) {
+					// Thread lookup query with JOIN forums
+					if (sql.includes("FROM threads t") && sql.includes("JOIN forums f")) {
 						return {
 							bind: vi.fn(() => ({
 								first: vi.fn(() =>
 									Promise.resolve({
+										id: 1,
+										forum_id: 1,
+										sticky: 0,
 										status: 1,
 										visibility: "public",
+										author_id: 99,
 										moderator_ids: "",
 									}),
 								),
@@ -680,10 +676,10 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					}
 					// Default
 					return {
-						all: vi.fn(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 						bind: vi.fn(() => ({
 							first: vi.fn(() => Promise.resolve(null)),
-							all: vi.fn(() => Promise.resolve({ results: [] })),
+							all: vi.fn(() => Promise.resolve({ success: true, results: [] })),
 						})),
 					};
 				}),

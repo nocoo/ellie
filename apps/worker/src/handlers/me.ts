@@ -1,9 +1,10 @@
 // User self-service handlers for Cloudflare Worker
+
+import { invalidateUserCaches } from "../lib/cache/invalidate";
 import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
-import { invalidateUserCache } from "../lib/user-cache";
 import { errorResponse } from "../middleware/error";
 
 /** Explicit column list — never SELECT * to avoid leaking sensitive fields */
@@ -291,7 +292,7 @@ export const updateProfile = withVerifiedEmail(async (request, env, user) => {
 	// Invalidate user cache (KV) and fetch updated row (D1) in parallel — the
 	// cache invalidation doesn't gate the fetch result.
 	const [, row] = await Promise.all([
-		fields.avatar !== undefined ? invalidateUserCache(env, user.userId) : Promise.resolve(),
+		invalidateUserCaches(env, user.userId),
 		env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).bind(user.userId).first(),
 	]);
 

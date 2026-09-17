@@ -1,19 +1,23 @@
 // In-isolate KV cache op-metrics accumulator (B.1).
 //
-// Scope: business cache families only (forum tree/summary/meta, thread
-// list page1, user mini, settings, public stats). Short-lived auth /
-// rate-limit / online-presence / activity-throttle families are NOT
-// instrumented — they're high-volume and write-only enough that
-// counters would dominate D1 load without changing operator decisions.
+// Scope: enrolled business caches and version I/O, with separate sources
+// for administration, D1 observations, footprint gauges and view events.
+// Auth / rate-limit / presence / activity state is not counted as business
+// cache traffic. These observations do not represent all platform I/O.
 //
 // Op model:
-//   - Every read attempt records `read`, plus exactly one of `hit` or
-//     `miss` (or `error` if KV.get threw). This means `read = hit + miss
-//     + error_on_read` for any family/minute window.
+//   - Every read attempt records `read`. A completed lookup also records
+//     exactly one of `hit` or `miss`, so `read = hit + miss` for a window.
+//   - `error` is a separate failure counter. KV.get throws still fall
+//     through to `miss`, so `error` overlaps miss and must not be added
+//     into `read = hit + miss + error`.
 //   - Every successful write-back records `write`. KV.put failures
-//     record `error`.
+//     record `error` / `write-error`.
 //   - `bumpGen` invalidations record `bump` for the affected business
 //     family. Single-key deletes record `delete`.
+//   - Occupancy gauges (`observed-keys` / `observed-bytes`) use per-minute
+//     MAX in the isolate and on flush. They are never summed across isolates
+//     and never backfilled.
 //
 // Lifecycle:
 //   - `recordKvOp(family, op)` bumps in an in-isolate Map keyed by
@@ -23,8 +27,8 @@
 //     handlers). It defers the actual D1 write through `ctx.waitUntil`
 //     so the response is never blocked. A `flushedRecently` guard
 //     prevents flushing more than once per `FLUSH_INTERVAL_MS` per
-//     isolate, but the FIRST observation in an isolate flushes
-//     immediately so low-traffic paths still surface metrics.
+//     isolate, with no first-observation or per-fill writes. A later request
+//     triggers the flush after at least 60 seconds; cold isolates may lose samples.
 //   - The flush itself does a SWAP (lift current snapshot, replace
 //     with empty Map) BEFORE writing to D1. A write failure loses at
 //     most one window's worth of counters and never causes
@@ -33,9 +37,9 @@
 //
 // D1 contract:
 //   - Table `kv_cache_metrics_minute(family, ts_minute, op, count)`
-//     created in migration 0035. Single statement per row uses
+//     created in migration 0035. Bounded multi-row statements use
 //     `INSERT ... ON CONFLICT(family, ts_minute, op) DO UPDATE` so
-//     concurrent isolates merge cleanly.
+//     concurrent isolates merge counters and take gauge peaks.
 //   - All errors are caught and `console.warn`'d. Metrics are best-effort.
 
 import type { Env } from "../env";
@@ -45,22 +49,76 @@ import type { Env } from "../env";
  * series schema stays predictable and the D1 table doesn't grow
  * one row per ad-hoc verb.
  */
-export type KvOp = "read" | "hit" | "miss" | "write" | "bump" | "delete" | "error";
+export type KvOp =
+	| "read"
+	| "hit"
+	| "miss"
+	| "write"
+	| "bump"
+	| "delete"
+	| "error"
+	| "load"
+	| "kv-get"
+	| "kv-put"
+	| "kv-delete"
+	| "load-error"
+	| "write-error"
+	| "invalidate-error"
+	| "view-event"
+	| "view-written"
+	| "view-dropped"
+	| "d1-query"
+	| "d1-rows-read"
+	| "d1-rows-written"
+	| "d1-duration-ms"
+	| "observed-keys"
+	| "observed-bytes"
+	| "observed-expired"
+	| "observed-current";
 
-const KV_OPS: readonly KvOp[] = ["read", "hit", "miss", "write", "bump", "delete", "error"];
+const KV_OPS: readonly KvOp[] = [
+	"read",
+	"hit",
+	"miss",
+	"write",
+	"bump",
+	"delete",
+	"error",
+	"load",
+	"kv-get",
+	"kv-put",
+	"kv-delete",
+	"load-error",
+	"write-error",
+	"invalidate-error",
+	"view-event",
+	"view-written",
+	"view-dropped",
+	"d1-query",
+	"d1-rows-read",
+	"d1-rows-written",
+	"d1-duration-ms",
+	"observed-keys",
+	"observed-bytes",
+	"observed-expired",
+	"observed-current",
+];
+const GAUGE_OPS: ReadonlySet<string> = new Set([
+	"observed-keys",
+	"observed-bytes",
+	"observed-expired",
+	"observed-current",
+]);
 const KV_OP_SET: ReadonlySet<string> = new Set<string>(KV_OPS);
 
 const BUCKETS: Map<string, number> = new Map();
 
-/** Flush at most once every 30 seconds per isolate. */
-const FLUSH_INTERVAL_MS = 30_000;
-/**
- * Timestamp of the last flush. Initialized to 0; the first
- * `scheduleMetricsFlush` after observation triggers an immediate flush
- * so even low-traffic paths surface counters in the admin UI within
- * one request. Subsequent flushes are throttled by `FLUSH_INTERVAL_MS`.
- */
-let lastFlushAt = 0;
+/** No first-request flush or per-fill flush: at most one window per minute/isolate. */
+const FLUSH_INTERVAL_MS = 60_000;
+const MAX_BUCKETS = 512;
+/** Flush eligibility is tracked from the first observation; no timer is kept alive. */
+let lastFlushAt: number | null = null;
+let firstObservedAt: number | null = null;
 
 /**
  * Composite key separator. U+0001 (Start of Heading) cannot appear in
@@ -83,11 +141,27 @@ function currentMinute(now = Date.now()): number {
  * whitelist is forgotten — the call becomes a no-op until the type is
  * widened above.
  */
-export function recordKvOp(family: string, op: KvOp): void {
-	if (!KV_OP_SET.has(op)) return;
+export function recordKvOp(family: string, op: KvOp, amount = 1): void {
+	if (!KV_OP_SET.has(op) || !Number.isFinite(amount) || amount < 0) return;
+	if (GAUGE_OPS.has(op)) {
+		recordGauge(family, op, amount);
+		return;
+	}
+	firstObservedAt ??= Date.now();
 	const ts = currentMinute();
 	const key = bucketKey(family, ts, op);
-	BUCKETS.set(key, (BUCKETS.get(key) ?? 0) + 1);
+	if (!BUCKETS.has(key) && BUCKETS.size >= MAX_BUCKETS) return;
+	BUCKETS.set(key, (BUCKETS.get(key) ?? 0) + amount);
+}
+
+/** Peak observation for occupancy gauges. Never sums across isolates. */
+export function recordGauge(family: string, op: KvOp, amount: number, at = Date.now()): void {
+	if (!GAUGE_OPS.has(op) || !Number.isFinite(amount) || amount < 0) return;
+	firstObservedAt ??= at;
+	const ts = currentMinute(at);
+	const key = bucketKey(family, ts, op);
+	if (!BUCKETS.has(key) && BUCKETS.size >= MAX_BUCKETS) return;
+	BUCKETS.set(key, Math.max(BUCKETS.get(key) ?? 0, amount));
 }
 
 // ─── Legacy single-op helpers retained for callsite ergonomics ────
@@ -130,43 +204,52 @@ export function swapSnapshot(): Map<string, number> {
  * Errors are logged and swallowed — metrics writes MUST NOT throw.
  */
 export async function flushSnapshot(env: Env, snap: Map<string, number>): Promise<number> {
-	if (snap.size === 0) return 0;
-	let attempted = 0;
-	for (const [key, count] of snap.entries()) {
+	const rows: [string, number, string, number][] = [];
+	for (const [key, count] of snap) {
 		const parts = key.split(KEY_SEP);
 		if (parts.length !== 3) continue;
 		const [family, tsRaw, op] = parts;
-		const tsMinute = Number.parseInt(tsRaw, 10);
-		if (!Number.isFinite(tsMinute)) continue;
-		if (!KV_OP_SET.has(op)) continue;
-		attempted++;
-		try {
-			await env.DB.prepare(
-				`INSERT INTO kv_cache_metrics_minute (family, ts_minute, op, count)
-				 VALUES (?1, ?2, ?3, ?4)
-				 ON CONFLICT(family, ts_minute, op) DO UPDATE SET
-				   count = count + excluded.count`,
-			)
-				.bind(family, tsMinute, op, count)
-				.run();
-		} catch (err) {
-			console.warn(`[kv-metrics] flush row failed family=${family} ts=${tsMinute} op=${op}`, err);
-		}
+		const minute = Number(tsRaw);
+		if (!Number.isSafeInteger(minute) || !KV_OP_SET.has(op) || !Number.isFinite(count) || count < 0)
+			continue;
+		rows.push([family, minute, op, count]);
 	}
-	return attempted;
+	const counters = rows.filter((row) => !GAUGE_OPS.has(row[2]));
+	const gauges = rows.filter((row) => GAUGE_OPS.has(row[2]));
+	// Four bindings per row: one statement handles at most 25 rows under
+	// D1's 100-binding limit. Row writes are still measured as row writes.
+	await writeMetricBatches(env, counters, "count = count + excluded.count");
+	await writeMetricBatches(env, gauges, "count = MAX(count, excluded.count)");
+	return rows.length;
 }
 
-/**
- * Defer a flush onto `ctx.waitUntil`. Throttled at one flush per
- * `FLUSH_INTERVAL_MS` per isolate; the very first call after isolate
- * boot flushes immediately so single-request paths still surface
- * metrics. Always safe to call — no-op when nothing is pending or the
- * interval has not elapsed.
- */
+async function writeMetricBatches(
+	env: Env,
+	rows: [string, number, string, number][],
+	conflict: string,
+): Promise<void> {
+	for (let start = 0; start < rows.length; start += 25) {
+		const batch = rows.slice(start, start + 25);
+		try {
+			const result =
+				await env.DB.prepare(`INSERT INTO kv_cache_metrics_minute (family, ts_minute, op, count)
+    VALUES ${batch.map(() => "(?, ?, ?, ?)").join(",")}
+    ON CONFLICT(family, ts_minute, op) DO UPDATE SET ${conflict}`)
+					.bind(...batch.flat())
+					.run();
+			if (!result.success) throw new Error("Metrics write was not confirmed");
+		} catch {
+			console.warn("[kv-metrics] metrics batch dropped", { rows: batch.length });
+		}
+	}
+}
+
+/** Later requests flush at most once per minute/isolate, with up to 512 metric rows. */
 export function scheduleMetricsFlush(env: Env, ctx: ExecutionContext): void {
 	if (BUCKETS.size === 0) return;
 	const now = Date.now();
-	if (lastFlushAt !== 0 && now - lastFlushAt < FLUSH_INTERVAL_MS) return;
+	if (firstObservedAt === null || now - (lastFlushAt ?? firstObservedAt) < FLUSH_INTERVAL_MS)
+		return;
 	lastFlushAt = now;
 	const snap = swapSnapshot();
 	ctx.waitUntil(
@@ -176,27 +259,9 @@ export function scheduleMetricsFlush(env: Env, ctx: ExecutionContext): void {
 	);
 }
 
-/**
- * Force a flush of all pending counters NOW, bypassing the
- * `FLUSH_INTERVAL_MS` throttle. Used by:
- *   - Tail of write-back / invalidation paths so the `write` / `bump` /
- *     `delete` op recorded after `scheduleMetricsFlush` has already
- *     swapped doesn't sit in BUCKETS until the next request.
- *   - Admin manual refresh / delete handlers so the operator sees the
- *     bump/delete reflected in the metrics page immediately.
- *
- * Like `scheduleMetricsFlush`, this is best-effort: failures are logged
- * and swallowed. No-op when nothing is pending.
- */
+/** Compatibility name; explicit operations obey the same 60-second budget. */
 export function flushPendingNow(env: Env, ctx: ExecutionContext): void {
-	if (BUCKETS.size === 0) return;
-	lastFlushAt = Date.now();
-	const snap = swapSnapshot();
-	ctx.waitUntil(
-		flushSnapshot(env, snap).catch((err) => {
-			console.warn("[kv-metrics] forced flush task crashed", err);
-		}),
-	);
+	scheduleMetricsFlush(env, ctx);
 }
 
 /**
@@ -205,5 +270,6 @@ export function flushPendingNow(env: Env, ctx: ExecutionContext): void {
  */
 export function __resetMetricsForTest(): void {
 	BUCKETS.clear();
-	lastFlushAt = 0;
+	lastFlushAt = null;
+	firstObservedAt = null;
 }

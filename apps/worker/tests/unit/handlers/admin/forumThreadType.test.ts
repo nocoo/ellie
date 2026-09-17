@@ -87,6 +87,125 @@ function typeRow(o: Partial<Record<string, unknown>> = {}): Record<string, unkno
 
 const adminEnv = (db: D1Database) => makeEnv({ DB: db });
 
+describe("thread type writes must be confirmed before cache invalidation", () => {
+	it.each([
+		[
+			"create",
+			create,
+			"POST",
+			"/api/admin/forums/1/thread-types",
+			{ name: "New" },
+			"INSERT INTO forum_thread_types",
+			0,
+		],
+		[
+			"create identity rewrite",
+			create,
+			"POST",
+			"/api/admin/forums/1/thread-types",
+			{ name: "New" },
+			"UPDATE forum_thread_types SET source_typeid",
+			0,
+		],
+		[
+			"edit",
+			update,
+			"PATCH",
+			"/api/admin/forum-thread-types/100",
+			{ name: "Renamed" },
+			"UPDATE forum_thread_types SET name",
+			0,
+		],
+		[
+			"soft delete",
+			remove,
+			"DELETE",
+			"/api/admin/forum-thread-types/100",
+			undefined,
+			"UPDATE forum_thread_types SET enabled",
+			1,
+		],
+		[
+			"hard delete",
+			remove,
+			"DELETE",
+			"/api/admin/forum-thread-types/100",
+			undefined,
+			"DELETE FROM forum_thread_types",
+			0,
+		],
+		[
+			"config",
+			updateConfig,
+			"PATCH",
+			"/api/admin/forums/1/thread-types-config",
+			{ listable: true },
+			"UPDATE forums SET",
+			0,
+		],
+	] as const)(
+		"does not publish a failed %s",
+		async (_name, handler, method, path, body, failedSql, references) => {
+			const { db } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": forumGateRow(),
+					"FROM forum_thread_types": typeRow(),
+					"SELECT COUNT(*)": { cnt: references },
+				},
+				runResults: {
+					"INSERT INTO forum_thread_types": {
+						success: true,
+						meta: { changes: 1, last_row_id: 100 },
+					},
+					[failedSql]: { success: false, meta: { changes: 1, last_row_id: 100 } },
+				},
+			});
+			const env = adminEnv(db);
+			await expect(
+				handler(
+					new Request(`https://api.example.com${path}`, {
+						method,
+						headers: { "Content-Type": "application/json" },
+						body: body ? JSON.stringify(body) : undefined,
+					}),
+					env,
+				),
+			).rejects.toThrow("not confirmed");
+			expect(mockTree).not.toHaveBeenCalled();
+			expect(mockSummary).not.toHaveBeenCalled();
+			expect(mockList).not.toHaveBeenCalled();
+			expect(mockAudit).not.toHaveBeenCalled();
+			expect(env.KV.delete).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([{ results: [] }, { results: [{ success: false, results: [], meta: {} }] }])(
+		"refuses an unconfirmed reorder batch %#",
+		async ({ results }) => {
+			const { db } = createMockDb({
+				firstResults: { "FROM forums WHERE id": forumGateRow() },
+				allResults: { "FROM forum_thread_types": [{ id: 100 }] },
+			});
+			vi.spyOn(db, "batch").mockResolvedValue(results as D1Result[]);
+			const env = adminEnv(db);
+			await expect(
+				reorder(
+					new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ ids: [100] }),
+					}),
+					env,
+				),
+			).rejects.toThrow("not confirmed");
+			expect(mockTree).not.toHaveBeenCalled();
+			expect(mockList).not.toHaveBeenCalled();
+			expect(mockAudit).not.toHaveBeenCalled();
+			expect(env.KV.delete).not.toHaveBeenCalled();
+		},
+	);
+});
+
 beforeEach(() => {
 	vi.clearAllMocks();
 });

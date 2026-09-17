@@ -1,13 +1,10 @@
-// Phase 1 commit 2b — admin user batch endpoints invalidate user caches
-// (legacy `user:mini:<id>` AND v2 mini + both viewer-bucket public variants)
-// for every affected id. See docs/19 §6 rows
-//   "admin user batch-status / batch-role / batch-recalc-counters /
-//    single recalc-counters".
+// Admin user mutations invalidate every profile variant through the
+// composite helper once per affected user, without a second mini delete.
 // Behavior of the underlying handlers is covered by their existing tests;
 // this file only locks the cache fan-out so a future regression that drops
 // a hook is caught.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(
@@ -41,14 +38,18 @@ import { invalidateUserCache } from "../../../src/lib/user-cache";
 import { createAdminRequest, createMockDb, makeD1UserRow, makeEnv } from "../../helpers";
 
 const mockInvUser = invalidateUserCache as ReturnType<typeof vi.fn>;
-const mockInvUserV2 = invalidateUserCaches as ReturnType<typeof vi.fn>;
+const mockInvalidate = invalidateUserCaches as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	vi.clearAllMocks();
 });
 
+afterEach(() => {
+	expect(mockInvUser).not.toHaveBeenCalled();
+});
+
 describe("Phase 1 commit 2b — admin user batch invalidation", () => {
-	it("batchStatus invalidates per-id user caches (legacy + v2)", async () => {
+	it("batchStatus invalidates per-id user caches once per user", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id FROM users WHERE id IN": [], // tombstone check returns empty
@@ -64,15 +65,12 @@ describe("Phase 1 commit 2b — admin user batch invalidation", () => {
 		});
 		const res = await batchStatus(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledTimes(2);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 10);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 11);
-		expect(mockInvUserV2).toHaveBeenCalledTimes(2);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 10);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 11);
+		expect(mockInvalidate).toHaveBeenCalledTimes(2);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 10);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 11);
 	});
 
-	it("batchRole invalidates per-id user caches (legacy + v2)", async () => {
+	it("batchRole invalidates per-id user caches once per user", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id FROM users WHERE id IN": [],
@@ -88,13 +86,12 @@ describe("Phase 1 commit 2b — admin user batch invalidation", () => {
 		});
 		const res = await batchRole(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledTimes(2);
-		expect(mockInvUserV2).toHaveBeenCalledTimes(2);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 20);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 21);
+		expect(mockInvalidate).toHaveBeenCalledTimes(2);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 20);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 21);
 	});
 
-	it("recalcCounters invalidates the single user's caches (legacy + v2)", async () => {
+	it("recalcCounters invalidates the single user's caches once per user", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT id, status FROM users WHERE id": { id: 30, status: 0 },
@@ -110,13 +107,11 @@ describe("Phase 1 commit 2b — admin user batch invalidation", () => {
 		const req = createAdminRequest("POST", "/api/admin/users/30/recalc-counters");
 		const res = await recalcCounters(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledTimes(1);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 30);
-		expect(mockInvUserV2).toHaveBeenCalledTimes(1);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 30);
+		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 30);
 	});
 
-	it("batchRecalcCounters invalidates per-id caches (legacy + v2)", async () => {
+	it("batchRecalcCounters invalidates per-id caches once per user", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id FROM users WHERE status >= 0": [{ id: 40 }, { id: 41 }],
@@ -130,21 +125,14 @@ describe("Phase 1 commit 2b — admin user batch invalidation", () => {
 		const req = createAdminRequest("POST", "/api/admin/users/batch-recalc-counters");
 		const res = await batchRecalcCounters(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledTimes(2);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 40);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 41);
-		expect(mockInvUserV2).toHaveBeenCalledTimes(2);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 40);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 41);
+		expect(mockInvalidate).toHaveBeenCalledTimes(2);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 40);
+		expect(mockInvalidate).toHaveBeenCalledWith(env, 41);
 	});
 });
 
 describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () => {
-	// docs/19 §6 row "PATCH /api/admin/users/:id":
-	// afterUpdate must drop both legacy `user:mini:<id>` and v2 mini +
-	// public variants whenever any PublicUser-payload field or
-	// visibility-affecting field changes. `email` is intentionally NOT
-	// in the trigger set because it is not part of PublicUser.
+	// Both public and private self-profile fields must evict user caches.
 
 	function patch(id: number, body: Record<string, unknown>) {
 		const { db } = createMockDb({
@@ -157,40 +145,36 @@ describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () =
 		return { db, req: createAdminRequest("PATCH", `/api/admin/users/${id}`, body) };
 	}
 
-	it("status update invalidates legacy + v2", async () => {
+	it("status update invalidates all profile variants", async () => {
 		const { db, req } = patch(50, { status: -1 });
 		const env = makeEnv({ DB: db });
 		const res = await update(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 50);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 50);
+		expect(mockInvalidate).toHaveBeenCalledExactlyOnceWith(env, 50);
 	});
 
-	it("credits update invalidates legacy + v2", async () => {
+	it("credits update invalidates all profile variants", async () => {
 		const { db, req } = patch(51, { credits: 999 });
 		const env = makeEnv({ DB: db });
 		const res = await update(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 51);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 51);
+		expect(mockInvalidate).toHaveBeenCalledExactlyOnceWith(env, 51);
 	});
 
-	it("coins update invalidates legacy + v2", async () => {
+	it("coins update invalidates all profile variants", async () => {
 		const { db, req } = patch(52, { coins: 7 });
 		const env = makeEnv({ DB: db });
 		const res = await update(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 52);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 52);
+		expect(mockInvalidate).toHaveBeenCalledExactlyOnceWith(env, 52);
 	});
 
-	it("email-only update does NOT invalidate (email not in PublicUser)", async () => {
+	it("email-only update invalidates the private self profile", async () => {
 		const { db, req } = patch(53, { email: "new@example.com" });
 		const env = makeEnv({ DB: db });
 		const res = await update(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).not.toHaveBeenCalled();
-		expect(mockInvUserV2).not.toHaveBeenCalled();
+		expect(mockInvalidate).toHaveBeenCalledExactlyOnceWith(env, 53);
 	});
 
 	// Extended PATCH coverage — every field exposed by `toPublicUser()`
@@ -210,13 +194,12 @@ describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () =
 		["lastIp", { lastIp: "::1" }],
 		["threads", { threads: 100 }],
 		["posts", { posts: 999 }],
-	])("PublicUser field %s update invalidates legacy + v2", async (_name, body) => {
+	])("PublicUser field %s update invalidates all profile variants", async (_name, body) => {
 		const { db, req } = patch(60, body);
 		const env = makeEnv({ DB: db });
 		const res = await update(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 60);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 60);
+		expect(mockInvalidate).toHaveBeenCalledExactlyOnceWith(env, 60);
 	});
 
 	// Extended PublicUser-field coverage — regDate + remaining columns
@@ -237,12 +220,18 @@ describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () =
 		["site", { site: "https://example.com" }],
 		["campus", { campus: "校区" }],
 		["olTime", { olTime: 3600 }],
-	])("remaining PublicUser field %s update invalidates legacy + v2", async (_name, body) => {
-		const { db, req } = patch(61, body);
-		const env = makeEnv({ DB: db });
-		const res = await update(req, env);
-		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 61);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 61);
-	});
+		["emailVerifiedAt", { emailVerifiedAt: 0 }],
+		["emailChangedAt", { emailChangedAt: 1700000000 }],
+		["emailNormalized", { emailNormalized: "" }],
+		["lastLogin", { lastLogin: 1700000000 }],
+	])(
+		"remaining PublicUser field %s update invalidates all profile variants",
+		async (_name, body) => {
+			const { db, req } = patch(61, body);
+			const env = makeEnv({ DB: db });
+			const res = await update(req, env);
+			expect(res.status).toBe(200);
+			expect(mockInvalidate).toHaveBeenCalledExactlyOnceWith(env, 61);
+		},
+	);
 });

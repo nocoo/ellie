@@ -19,23 +19,18 @@
 //      - raw stringified body > 8 KiB → set `rawTruncated: true` and
 //        replace `raw` with `{}` so the cached payload stays bounded.
 //        ≤ 8 KiB → keep raw verbatim alongside normalized fields.
-//   5. Persist to KV with 24h TTL via `ctx.waitUntil(env.KV.put(...))` so
-//      the response path stays unblocked. We use manual KV get/put rather
-//      than `cacheGetOrSet` because the value envelope (`normalized` +
-//      `raw` + `rawTruncated` + `fetchedAt`) is bespoke and we want
-//      explicit control over the truncation guard before anything reaches
-//      KV.
+//   5. The unified cache module owns TTL, envelope validation, coalescing and writes.
 //
 // Auth: Key B (router-level) + `withEntityAuth` no-op identity wrapper.
 // No role gate beyond admin; the handler is read-only and the cached
 // values are PII-adjacent geo/ASN data.
 
+import type { CacheDescriptor } from "@ellie/types";
+import { cacheGetOrSet } from "../../lib/cache/wrap";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
-/** Cache TTL for ip-lookup KV entries (24h). Mirrors KV registry spec. */
-const IP_LOOKUP_TTL_SEC = 86_400;
 /** Upstream fetch timeout (ms). Matches dove client. */
 const IP_LOOKUP_TIMEOUT_MS = 5_000;
 /** Maximum bytes of raw upstream JSON we persist verbatim. */
@@ -225,21 +220,87 @@ function buildNormalized(raw: Record<string, unknown>): IpLookupCachedPayload["n
 	};
 }
 
-async function readCached(env: Env, ip: string): Promise<IpLookupCachedPayload | null> {
-	let raw: unknown;
+export function isIpLookupCacheData(
+	descriptor: CacheDescriptor,
+	raw: unknown,
+): raw is IpLookupCachedPayload {
 	try {
-		raw = await env.KV.get(`ip-lookup:${ip}`, "json");
+		ipLookupCacheKey(descriptor);
 	} catch {
-		return null;
+		return false;
 	}
-	if (!raw || typeof raw !== "object") return null;
-	const r = raw as Record<string, unknown>;
-	if (typeof r.ip !== "string") return null;
-	if (typeof r.fetchedAt !== "number") return null;
-	if (typeof r.rawTruncated !== "boolean") return null;
-	if (!r.normalized || typeof r.normalized !== "object") return null;
-	if (!r.raw || typeof r.raw !== "object") return null;
-	return r as unknown as IpLookupCachedPayload;
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+	const value = raw as Partial<IpLookupCachedPayload>;
+	if (
+		Object.keys(value).sort().join(",") !== "fetchedAt,ip,normalized,raw,rawTruncated" ||
+		value.ip !== descriptor.params.ip ||
+		!Number.isSafeInteger(value.fetchedAt) ||
+		Number(value.fetchedAt) < 0 ||
+		typeof value.rawTruncated !== "boolean" ||
+		!value.normalized ||
+		!value.raw ||
+		Array.isArray(value.raw) ||
+		typeof value.raw !== "object" ||
+		Array.isArray(value.normalized)
+	)
+		return false;
+	const fields = ["country", "countryIso2", "region", "city", "isp", "asn", "org"] as const;
+	const normalized = value.normalized;
+	return (
+		Object.keys(normalized).length === fields.length &&
+		fields.every(
+			(key) =>
+				Object.hasOwn(normalized, key) &&
+				(normalized[key] === null || typeof normalized[key] === "string"),
+		) &&
+		new TextEncoder().encode(JSON.stringify(value.raw)).byteLength <= RAW_MAX_BYTES &&
+		(!value.rawTruncated || Object.keys(value.raw).length === 0)
+	);
+}
+
+export function ipLookupCacheKey(descriptor: CacheDescriptor): string {
+	const ip = descriptor.params.ip;
+	const validated = validateIp(typeof ip === "string" ? ip : null);
+	if (
+		descriptor.family !== "ip-lookup" ||
+		descriptor.scope !== "admin" ||
+		Object.keys(descriptor.params).length !== 1 ||
+		!validated.ok ||
+		validated.ip !== ip
+	) {
+		throw new TypeError("Invalid IP cache descriptor");
+	}
+	return `ip-lookup:${ip}`;
+}
+
+class IpLookupLoadError extends Error {
+	constructor(
+		readonly code: string,
+		readonly status: number,
+		readonly details?: Record<string, unknown>,
+	) {
+		super(code);
+	}
+}
+
+export async function rebuildIpLookupCache(
+	env: Env,
+	descriptor: CacheDescriptor,
+): Promise<IpLookupCachedPayload> {
+	ipLookupCacheKey(descriptor);
+	if (!env.IP_LOOKUP_API_KEY) throw new IpLookupLoadError("IP_LOOKUP_NOT_CONFIGURED", 503);
+	const ip = descriptor.params.ip as string;
+	const upstream = await fetchUpstream(env, ip);
+	if (!upstream.ok) {
+		if (upstream.code === "INVALID_IP")
+			throw new IpLookupLoadError("INVALID_IP", 400, {
+				reason: upstream.reason ?? "upstream_invalid",
+			});
+		throw new IpLookupLoadError(upstream.code, upstream.code === "IP_LOOKUP_TIMEOUT" ? 504 : 502, {
+			upstreamStatus: upstream.status,
+		});
+	}
+	return buildPayload(ip, upstream.rawText, upstream.parsed);
 }
 
 async function fetchUpstream(
@@ -354,40 +415,31 @@ async function lookupHandler(
 		return errorResponse("IP_LOOKUP_NOT_CONFIGURED", 503, undefined, origin);
 	}
 
-	// Cache hit
-	const cached = await readCached(env, ip);
-	if (cached) {
-		return jsonNoStoreResponse({ ...cached, cached: true }, origin);
+	const descriptor = { family: "ip-lookup", scope: "admin", params: { ip } };
+	let loaded = false;
+	try {
+		const payload = await cacheGetOrSet(
+			env,
+			ctx,
+			ipLookupCacheKey(descriptor),
+			async () => {
+				loaded = true;
+				return rebuildIpLookupCache(env, descriptor);
+			},
+			{
+				...descriptor,
+				tier: "LONG",
+				validator: (value): value is IpLookupCachedPayload =>
+					isIpLookupCacheData(descriptor, value),
+				source: "admin",
+			},
+		);
+		return jsonNoStoreResponse({ ...payload, cached: !loaded }, origin);
+	} catch (error) {
+		if (error instanceof IpLookupLoadError)
+			return errorResponse(error.code, error.status, error.details, origin);
+		throw error;
 	}
-
-	// Miss → upstream
-	const upstream = await fetchUpstream(env, ip);
-	if (!upstream.ok) {
-		if (upstream.code === "INVALID_IP") {
-			return errorResponse(
-				"INVALID_IP",
-				400,
-				{ reason: upstream.reason ?? "upstream_invalid" },
-				origin,
-			);
-		}
-		const status = upstream.code === "IP_LOOKUP_TIMEOUT" ? 504 : 502;
-		return errorResponse(upstream.code, status, { upstreamStatus: upstream.status }, origin);
-	}
-
-	const payload = buildPayload(ip, upstream.rawText, upstream.parsed);
-
-	// Persist via waitUntil — never block the response on KV write.
-	const putPromise = env.KV.put(`ip-lookup:${ip}`, JSON.stringify(payload), {
-		expirationTtl: IP_LOOKUP_TTL_SEC,
-	}).catch(() => {
-		/* swallow — best-effort cache write */
-	});
-	if (ctx?.waitUntil) {
-		ctx.waitUntil(putPromise);
-	}
-
-	return jsonNoStoreResponse({ ...payload, cached: false }, origin);
 }
 
 export const lookup = lookupHandler;

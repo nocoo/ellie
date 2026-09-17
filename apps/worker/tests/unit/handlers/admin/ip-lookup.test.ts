@@ -98,14 +98,30 @@ describe("admin/ip-lookup — cache hit", () => {
 	it("returns KV cached payload with cached:true; does NOT fetch", async () => {
 		const cached = {
 			ip: "8.8.8.8",
-			normalized: { country: "US", region: null, city: null, asn: "15169", org: "Google" },
+			normalized: {
+				country: "US",
+				countryIso2: "US",
+				region: null,
+				city: null,
+				isp: null,
+				asn: "15169",
+				org: "Google",
+			},
 			raw: { country: "US" },
 			rawTruncated: false,
-			fetchedAt: 1_700_000_000,
+			fetchedAt: Date.now(),
 		};
+		const { createCacheEnvelope } = await import("../../../../src/lib/cache/wrap");
+		const envelope = createCacheEnvelope(cached, {
+			family: "ip-lookup",
+			scope: "admin",
+			params: { ip: "8.8.8.8" },
+			tier: "LONG",
+			source: "admin",
+		});
 		const env = makeEnv({
 			IP_LOOKUP_API_KEY: "k",
-			KV: createMockKV({ "ip-lookup:8.8.8.8": JSON.stringify(cached) }),
+			KV: createMockKV({ "ip-lookup:8.8.8.8": JSON.stringify(envelope) }),
 		});
 		const fetchSpy = vi.fn();
 		globalThis.fetch = fetchSpy as unknown as typeof fetch;

@@ -289,11 +289,20 @@ async function requestAction(env: ReturnType<typeof createTestEnv>, action: stri
 			headers: { "X-API-Key": env.API_KEY, Authorization: `Bearer ${token}` },
 		});
 	}
-	return workerFetch(env, `/api/admin/users/42/${action}`, {
-		method: "POST",
+	const init = {
 		headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
 		body: JSON.stringify({ confirm: "ok", deleteContent: true }),
-	});
+	};
+	switch (action) {
+		case "purge":
+			return workerFetch(env, "/api/admin/users/42/purge", { method: "POST", ...init });
+		case "ban":
+			return workerFetch(env, "/api/admin/users/42/ban", { method: "POST", ...init });
+		case "nuke":
+			return workerFetch(env, "/api/admin/users/42/nuke", { method: "POST", ...init });
+		default:
+			throw new Error(`Unknown user action: ${action}`);
+	}
 }
 
 describe("L2-fast: safe administrative batches", () => {
@@ -311,7 +320,9 @@ describe("L2-fast: safe administrative batches", () => {
 				env.DB.prepare = (sql) => {
 					if (
 						!inserted &&
-						sql.startsWith("SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id")
+						sql.includes(
+							"FROM posts p LEFT JOIN threads t ON t.id = p.thread_id WHERE p.author_id = ?",
+						)
 					) {
 						inserted = true;
 						db.transaction(() => {
@@ -525,11 +536,14 @@ describe("L2-fast: safe administrative batches", () => {
 				for (const id of [...ids, 101])
 					db.query("INSERT INTO users (id, username) VALUES (?, ?)").run(id, `batch-${id}`);
 				const value = field === "status" ? -1 : 3;
-				const response = await workerFetch(env, `/api/admin/users/batch-${field}`, {
-					method: "POST",
+				const init = {
 					headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
 					body: JSON.stringify({ ids, [field]: value }),
-				});
+				};
+				const response =
+					field === "status"
+						? await workerFetch(env, "/api/admin/users/batch-status", { method: "POST", ...init })
+						: await workerFetch(env, "/api/admin/users/batch-role", { method: "POST", ...init });
 				expect(response.status).toBe(200);
 				expect(
 					db.query(`SELECT COUNT(*) AS count FROM users WHERE ${field} = ?`).get(value),
@@ -579,23 +593,26 @@ describe("L2-fast: safe administrative batches", () => {
 });
 
 function contentAction(env: ReturnType<typeof createTestEnv>, action: string) {
-	const paths: Record<string, string> = {
-		post: "/api/admin/posts/1000",
-		thread: "/api/admin/threads/1",
-		posts: "/api/admin/posts/batch-delete",
-		threads: "/api/admin/threads/batch-delete",
-		move: "/api/admin/threads/batch-move",
-	};
-	const isSingle = action === "post" || action === "thread";
+	const headers = { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" };
 	const ids =
 		action === "posts"
 			? [...Array.from({ length: 99 }, (_, i) => 1000 + i), 900]
 			: Array.from({ length: 100 }, (_, i) => i + 1);
-	return workerFetch(env, paths[action], {
-		method: isSingle ? "DELETE" : "POST",
-		headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
-		...(isSingle ? {} : { body: JSON.stringify({ ids, forumId: 8 }) }),
-	});
+	const body = JSON.stringify({ ids, forumId: 8 });
+	switch (action) {
+		case "post":
+			return workerFetch(env, "/api/admin/posts/1000", { method: "DELETE", headers });
+		case "thread":
+			return workerFetch(env, "/api/admin/threads/1", { method: "DELETE", headers });
+		case "posts":
+			return workerFetch(env, "/api/admin/posts/batch-delete", { method: "POST", headers, body });
+		case "threads":
+			return workerFetch(env, "/api/admin/threads/batch-delete", { method: "POST", headers, body });
+		case "move":
+			return workerFetch(env, "/api/admin/threads/batch-move", { method: "POST", headers, body });
+		default:
+			throw new Error(`Unknown content action: ${action}`);
+	}
 }
 
 describe("L2-fast: atomic post and thread operations", () => {

@@ -1,118 +1,98 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	incrementStatsOnPostCreate,
 	incrementStatsOnThreadCreate,
 	incrementStatsOnUserRegister,
 } from "../../../src/lib/stats-counter";
-
-// ─── Helpers ──────────────────────────────────────────────────
-
-function makeDb() {
-	const bindCalls: unknown[][] = [];
-	return {
-		prepare: vi.fn(() => ({
-			bind: vi.fn((...args: unknown[]) => {
-				bindCalls.push(args);
-				return {
-					run: vi.fn(async () => ({ success: true })),
-				};
-			}),
-		})),
-		_bindCalls: bindCalls,
-	} as unknown as D1Database & { _bindCalls: unknown[][] };
-}
-
-function makeKv() {
-	let todayPosts = "0";
-	return {
-		get: vi.fn(async (key: string) => {
-			if (key === "stats:today_posts") return todayPosts;
-			return null;
-		}),
-		put: vi.fn(async (key: string, value: string) => {
-			if (key === "stats:today_posts") todayPosts = value;
-		}),
-	} as unknown as KVNamespace;
-}
-
-function makeEnv(overrides: Partial<{ DB: D1Database; KV: KVNamespace }> = {}) {
-	return {
-		DB: overrides.DB ?? makeDb(),
-		KV: overrides.KV ?? makeKv(),
-	} as unknown as import("../../../src/lib/env").Env;
-}
-
-// ─── Tests ────────────────────────────────────────────────────
+import { readingFixture } from "./cache/thread-cache-fixture";
 
 describe("stats-counter", () => {
+	let f: ReturnType<typeof readingFixture>;
+
+	beforeEach(() => {
+		f = readingFixture();
+	});
+
+	afterEach(() => {
+		f.close();
+		vi.restoreAllMocks();
+	});
+
 	describe("incrementStatsOnThreadCreate", () => {
-		it("increments total_threads, total_posts, and today_posts", async () => {
-			const db = makeDb();
-			const kv = makeKv();
-			const env = makeEnv({ DB: db, KV: kv });
+		it("increments total_threads and total_posts with atomic single D1 UPDATE", async () => {
+			// Initially 0 in settings
+			await incrementStatsOnThreadCreate(f.env);
 
-			await incrementStatsOnThreadCreate(env);
+			const threads = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_threads'")
+				.get() as { value: string };
+			const posts = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_posts'")
+				.get() as { value: string };
 
-			// Should call prepare twice for settings counters
-			expect(db.prepare).toHaveBeenCalledTimes(2);
+			expect(threads.value).toBe("1");
+			expect(posts.value).toBe("1");
 
-			// Check that the right keys were bound
-			const boundKeys = db._bindCalls.map((args) => args[1]);
-			expect(boundKeys).toContain("stats.total_threads");
-			expect(boundKeys).toContain("stats.total_posts");
+			// Single UPDATE query issued
+			const updateCalls = f.calls.filter((c) =>
+				c.sql.startsWith("UPDATE settings SET value = CAST(value AS INTEGER) + 1"),
+			);
+			expect(updateCalls).toHaveLength(1);
+			expect(updateCalls[0].params.slice(1)).toEqual(["stats.total_threads", "stats.total_posts"]);
 
-			// Should increment KV today_posts (no TTL)
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "1");
+			// No per-create KV writes
+			expect(f.env.KV.put).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("incrementStatsOnPostCreate", () => {
-		it("increments total_posts and today_posts", async () => {
-			const db = makeDb();
-			const kv = makeKv();
-			const env = makeEnv({ DB: db, KV: kv });
+		it("increments total_posts with atomic single D1 UPDATE", async () => {
+			await incrementStatsOnPostCreate(f.env);
 
-			await incrementStatsOnPostCreate(env);
+			const posts = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_posts'")
+				.get() as { value: string };
+			expect(posts.value).toBe("1");
 
-			// Should call prepare once for stats.total_posts
-			expect(db.prepare).toHaveBeenCalledTimes(1);
-			const boundKey = db._bindCalls[0][1];
-			expect(boundKey).toBe("stats.total_posts");
+			const updateCalls = f.calls.filter((c) =>
+				c.sql.startsWith("UPDATE settings SET value = CAST(value AS INTEGER) + 1"),
+			);
+			expect(updateCalls).toHaveLength(1);
+			expect(updateCalls[0].params.slice(1)).toEqual(["stats.total_posts"]);
 
-			// Should increment KV today_posts (no TTL)
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "1");
+			// No per-create KV writes
+			expect(f.env.KV.put).not.toHaveBeenCalled();
 		});
 
-		it("increments existing today_posts value", async () => {
-			const db = makeDb();
-			const kv = {
-				get: vi.fn(async () => "5"),
-				put: vi.fn(async () => {}),
-			} as unknown as KVNamespace;
-			const env = makeEnv({ DB: db, KV: kv });
+		it("accumulates multiple increments accurately using SQL arithmetic", async () => {
+			await incrementStatsOnPostCreate(f.env);
+			await incrementStatsOnPostCreate(f.env);
+			await incrementStatsOnPostCreate(f.env);
 
-			await incrementStatsOnPostCreate(env);
-
-			// Should increment to 6 (no TTL)
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "6");
+			const posts = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_posts'")
+				.get() as { value: string };
+			expect(posts.value).toBe("3");
 		});
 	});
 
 	describe("incrementStatsOnUserRegister", () => {
-		it("increments total_members", async () => {
-			const db = makeDb();
-			const kv = makeKv();
-			const env = makeEnv({ DB: db, KV: kv });
+		it("increments total_members with atomic single D1 UPDATE", async () => {
+			await incrementStatsOnUserRegister(f.env);
 
-			await incrementStatsOnUserRegister(env);
+			const members = f.sqlite
+				.prepare("SELECT value FROM settings WHERE key = 'stats.total_members'")
+				.get() as { value: string };
+			expect(members.value).toBe("1");
 
-			// Should call prepare once for stats.total_members
-			expect(db.prepare).toHaveBeenCalledTimes(1);
-			const boundKey = db._bindCalls[0][1];
-			expect(boundKey).toBe("stats.total_members");
+			const updateCalls = f.calls.filter((c) =>
+				c.sql.startsWith("UPDATE settings SET value = CAST(value AS INTEGER) + 1"),
+			);
+			expect(updateCalls).toHaveLength(1);
+			expect(updateCalls[0].params.slice(1)).toEqual(["stats.total_members"]);
 
-			// Should NOT touch KV today_posts
-			expect(kv.put).not.toHaveBeenCalled();
+			// No per-create KV writes
+			expect(f.env.KV.put).not.toHaveBeenCalled();
 		});
 	});
 });

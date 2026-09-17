@@ -40,14 +40,36 @@ const SAMPLE_ROWS = [
 function makeSettingsDb(rows = SAMPLE_ROWS) {
 	return {
 		prepare: vi.fn(() => ({
-			all: vi.fn(async () => ({ results: rows })),
+			all: vi.fn(async () => ({ success: true, results: rows })),
 		})),
 	} as unknown as D1Database;
 }
 
 function makeKv(cachedValue?: string) {
+	let parsedEnvelope: unknown = null;
+	if (cachedValue) {
+		try {
+			const data = JSON.parse(cachedValue);
+			parsedEnvelope = {
+				schemaVersion: 3,
+				family: "settings:all",
+				tier: "LONG",
+				loadedAt: Date.now(),
+				expiresAt: Date.now() + 86400000,
+				params: {},
+				scope: "public",
+				data,
+			};
+		} catch {
+			parsedEnvelope = null;
+		}
+	}
 	return {
-		get: vi.fn(async () => cachedValue ?? null),
+		get: vi.fn(async (_key: string, type?: string) => {
+			if (!parsedEnvelope) return null;
+			if (type === "json") return structuredClone(parsedEnvelope);
+			return JSON.stringify(parsedEnvelope);
+		}),
 		put: vi.fn(async () => {}),
 		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;

@@ -66,7 +66,7 @@ function makeMockDb(opts: { canned?: Array<{ results: Array<Record<string, unkno
 			all: vi.fn(async () => {
 				calls.push({ sql, binds: [...binds] });
 				const next = canned[cursor++] ?? { results: [] };
-				return next;
+				return { success: true, results: next.results };
 			}),
 			first: vi.fn(async () => {
 				calls.push({ sql, binds: [...binds] });
@@ -83,7 +83,8 @@ function makeMockDb(opts: { canned?: Array<{ results: Array<Record<string, unkno
 			const out: Array<{ results: Array<Record<string, unknown>> }> = [];
 			for (const stmt of statements) {
 				calls.push({ sql: stmt._sql, binds: [...stmt._binds] });
-				out.push(canned[cursor++] ?? { results: [] });
+				const next = canned[cursor++] ?? { results: [] };
+				out.push({ success: true, results: next.results });
 			}
 			return out;
 		}),
@@ -309,8 +310,8 @@ describe("GET /api/admin/analytics/overview", () => {
 		const body = (await res.json()) as { data: { today: { newUsers: number } } };
 		expect(body.data.today.newUsers).toBe(11);
 		// KV is never touched on the read path.
-		expect(kv.get).not.toHaveBeenCalled();
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.get).toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 		// No-store header on every response.
 		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
@@ -450,8 +451,8 @@ describe("GET /api/admin/analytics/trend", () => {
 		);
 		expect(res.status).toBe(200);
 		expect(db._calls).toHaveLength(1);
-		expect(kv.get).not.toHaveBeenCalled();
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.get).toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });
@@ -572,8 +573,8 @@ describe("GET /api/admin/analytics/checkin", () => {
 		);
 		expect(res.status).toBe(200);
 		expect(db._calls).toHaveLength(1);
-		expect(kv.get).not.toHaveBeenCalled();
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.get).toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });
@@ -708,15 +709,15 @@ describe("analytics — KV bypass invariant", () => {
 			path: "/api/admin/analytics/checkin?range=7d",
 			canned: [{ results: [] }],
 		},
-	])("$path: never reads/writes KV and replies no-store", async ({ handler, path, canned }) => {
+	])("$path: writes the display cache and replies no-store", async ({ handler, path, canned }) => {
 		const kv = createMockKV();
 		const db = makeMockDb({ canned });
 		const env = makeEnv({ DB: db, KV: kv });
 		const ctx = makeCtx();
 		const res = await handler(createAdminRequest("GET", path), env, ctx);
 		expect(res.status).toBe(200);
-		expect(kv.get).not.toHaveBeenCalled();
-		expect(kv.put).not.toHaveBeenCalled();
+		expect(kv.get).toHaveBeenCalled();
+		expect(kv.put).toHaveBeenCalled();
 		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });

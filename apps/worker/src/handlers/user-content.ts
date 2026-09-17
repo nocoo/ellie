@@ -3,11 +3,19 @@
 //            PATCH /api/v1/me/posts/:id
 // Users can delete/edit their own content without requiring moderator permissions.
 
-import { invalidateForumVolatileV2 } from "../lib/cache/invalidate";
+import {
+	bumpDigestGen,
+	bumpPostAttachmentsGen,
+	bumpPostEntityGen,
+	bumpPostListGen,
+	bumpThreadMetaGen,
+	invalidateForumVolatileV2,
+} from "../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
 } from "../lib/contentDelete";
+import { confirmedBatch, confirmedRun } from "../lib/d1-write";
 import type { Env } from "../lib/env";
 import { parseIdFromPath } from "../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../lib/recalcMetadata";
@@ -73,7 +81,7 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 	// Delete post (purge attachments + post_comments first — both reference
 	// posts(id) without ON DELETE CASCADE so the parent DELETE would 500),
 	// decrement thread replies and forum post count.
-	await env.DB.batch([
+	await confirmedBatch(env, [
 		...buildDeletePostChildStatements(env, [id]),
 		env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id),
 		env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(post.thread_id),
@@ -88,7 +96,13 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 	// the per-thread aggregate.
 	await recalcThreadMetadata(env, post.thread_id);
 	await recalcForumMetadata(env, post.forum_id);
-	await invalidateForumVolatileV2(env, post.forum_id);
+	await Promise.all([
+		invalidateForumVolatileV2(env, post.forum_id),
+		bumpPostEntityGen(env, id),
+		bumpPostAttachmentsGen(env, id),
+		bumpPostListGen(env, post.thread_id),
+		bumpThreadMetaGen(env, post.thread_id),
+	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
@@ -130,6 +144,7 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 	const posts = await env.DB.prepare("SELECT author_id FROM posts WHERE thread_id = ?")
 		.bind(id)
 		.all<{ author_id: number }>();
+	if (!posts.success) throw new Error("Thread deletion author query failed");
 
 	const authorCounts = new Map<number, number>();
 	for (const post of posts.results) {
@@ -141,7 +156,7 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 	// Delete thread and all posts, update forum counts. Purge child rows
 	// (attachments + post_comments) keyed on thread_id BEFORE the parent
 	// posts/threads go away — neither child column is ON DELETE CASCADE.
-	await env.DB.batch([
+	await confirmedBatch(env, [
 		...buildDeleteThreadChildStatements(env, [id]),
 		env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 		env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
@@ -160,6 +175,9 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 	await Promise.all([
 		invalidateForumVolatileV2(env, thread.forum_id),
 		invalidateRecommendedCache(env, thread.forum_id),
+		bumpThreadMetaGen(env, id),
+		bumpPostListGen(env, id),
+		bumpDigestGen(env),
 	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
@@ -208,7 +226,10 @@ export async function editMyPost(request: Request, env: Env): Promise<Response> 
 		return errorResponse("FORBIDDEN", 403, { message: "You can only edit your own posts" }, origin);
 	}
 
-	await env.DB.prepare("UPDATE posts SET content = ? WHERE id = ?").bind(content.trim(), id).run();
+	await confirmedRun(
+		env.DB.prepare("UPDATE posts SET content = ? WHERE id = ?").bind(content.trim(), id),
+	);
+	await bumpPostEntityGen(env, id);
 
 	return jsonResponse({ id, updated: true }, origin);
 }

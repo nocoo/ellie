@@ -1,15 +1,4 @@
-// Tests for the in-isolate KV cache op-metrics accumulator (B.1).
-//
-// Focus:
-//   1. recordKvOp accumulates per family per op per minute.
-//   2. swapSnapshot detaches the in-flight buckets atomically — concurrent
-//      record* calls during a flush land in the new (empty) Map.
-//   3. flushSnapshot writes one UPSERT per (family, ts_minute, op) and
-//      swallows D1 errors (best-effort).
-//   4. scheduleMetricsFlush flushes immediately on first observation,
-//      then throttles to one flush per FLUSH_INTERVAL_MS.
-
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	__resetMetricsForTest,
 	flushPendingNow,
@@ -17,6 +6,7 @@ import {
 	recordBump,
 	recordDelete,
 	recordError,
+	recordGauge,
 	recordHit,
 	recordKvOp,
 	recordMiss,
@@ -25,167 +15,118 @@ import {
 	scheduleMetricsFlush,
 	swapSnapshot,
 } from "../../../../src/lib/cache/metrics";
-import { createMockCtx, makeEnv } from "../../../helpers";
+import { createMockCtx, createMockDb, makeEnv } from "../../../helpers";
 
+beforeEach(() => {
+	__resetMetricsForTest();
+	vi.useFakeTimers();
+	vi.setSystemTime(1_700_000_000_000);
+});
 afterEach(() => {
 	__resetMetricsForTest();
 	vi.useRealTimers();
+	vi.restoreAllMocks();
 });
 
-describe("metrics — accumulator", () => {
-	it("sums per family per op in the same minute bucket", () => {
-		recordRead("forum:tree:v2");
-		recordHit("forum:tree:v2");
-		recordRead("forum:tree:v2");
-		recordHit("forum:tree:v2");
-		recordRead("forum:tree:v2");
-		recordMiss("forum:tree:v2");
-		recordWrite("forum:tree:v2");
-		recordError("user:mini:v1");
-		recordBump("thread:list:v2");
-		recordDelete("user:mini:v1");
-
-		const snap = swapSnapshot();
-		// 7 distinct (family, op) tuples in one minute.
-		expect(snap.size).toBe(7);
-		// All values are positive integers.
-		for (const v of snap.values()) {
-			expect(v).toBeGreaterThan(0);
-		}
-		// Sum across forum:tree:v2 reads should be 3.
-		const treeReadKey = [...snap.keys()].find(
-			(k) => k.startsWith("forum:tree:v2") && k.endsWith("read"),
+describe("bounded cache and D1 observation windows", () => {
+	it("keeps independent dimensions and atomically detaches a snapshot", () => {
+		recordRead("thread:entity");
+		recordRead("thread:entity");
+		recordHit("thread:entity");
+		recordMiss("thread:entity");
+		recordWrite("thread:entity");
+		recordError("thread:entity");
+		recordBump("thread:entity");
+		recordDelete("thread:entity");
+		recordKvOp("application:d1", "d1-rows-read", 37);
+		const snapshot = swapSnapshot();
+		expect(snapshot.size).toBe(8);
+		expect([...snapshot.entries()].find(([key]) => key.endsWith("\u0001read"))?.[1]).toBe(2);
+		expect([...snapshot.entries()].find(([key]) => key.includes("d1-rows-read"))?.[1]).toBe(37);
+		recordHit("thread:entity");
+		expect([...swapSnapshot().values()]).toEqual([1]);
+		expect(snapshot.size).toBe(8);
+	});
+	it("ignores unsupported operations and invalid amounts; admission holds at 512 dimensions", () => {
+		// @ts-expect-error deliberate invalid operation
+		recordKvOp("x", "invalid");
+		for (const n of [-1, NaN, Infinity]) recordKvOp("x", "hit", n);
+		expect(swapSnapshot().size).toBe(0);
+		for (let i = 0; i < 1000; i++) recordKvOp(`f${i}`, "hit");
+		recordKvOp("f0", "hit");
+		const snapshot = swapSnapshot();
+		expect(snapshot.size).toBe(512);
+		expect([...snapshot.values()].filter((n) => n === 2)).toHaveLength(1);
+	});
+	it("writes at most 25 metric rows per statement and continues after a failed batch without retry", async () => {
+		const { db } = createMockDb();
+		const env = makeEnv({ DB: db });
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		let calls = 0;
+		const binds: unknown[][] = [];
+		vi.mocked(db.prepare).mockImplementation(
+			(_sql) =>
+				({
+					bind: (...params: unknown[]) => {
+						binds.push(params);
+						return {
+							run: async () => {
+								if (++calls === 1) throw new Error("D1 unavailable");
+								return { success: true };
+							},
+						};
+					},
+				}) as D1PreparedStatement,
 		);
-		expect(treeReadKey).toBeTruthy();
-		expect(snap.get(treeReadKey as string)).toBe(3);
+		for (let i = 0; i < 61; i++) recordHit(`f${i}`);
+		const snapshot = swapSnapshot();
+		snapshot.set("corrupt", 1);
+		snapshot.set("f\u0001NaN\u0001hit", 1);
+		snapshot.set("f\u00011\u0001unknown", 1);
+		expect(await flushSnapshot(env, snapshot)).toBe(61);
+		expect(binds.map((params) => params.length)).toEqual([100, 100, 44]);
+		expect(warn).toHaveBeenCalledOnce();
+		expect(await flushSnapshot(env, new Map())).toBe(0);
 	});
-
-	it("recordKvOp ignores unknown ops", () => {
-		// @ts-expect-error — exercising the runtime guard
-		recordKvOp("forum:tree:v2", "frob");
-		const snap = swapSnapshot();
-		expect(snap.size).toBe(0);
-	});
-
-	it("swapSnapshot clears the live accumulator atomically", () => {
-		recordHit("forum:summary:v2");
-		const first = swapSnapshot();
-		expect(first.size).toBe(1);
-		// New record after swap lands in a fresh bucket map, not into `first`.
-		recordHit("forum:summary:v2");
-		const second = swapSnapshot();
-		expect(second.size).toBe(1);
-		expect(first).not.toBe(second);
-	});
-});
-
-describe("metrics — flushSnapshot D1 contract", () => {
-	it("emits one UPSERT per (family, ts, op) and swallows row-level failures", async () => {
-		const calls: { sql: string; params: unknown[] }[] = [];
-		const env = makeEnv({
-			DB: {
-				prepare: vi.fn((sql: string) => ({
-					bind: vi.fn((...params: unknown[]) => ({
-						run: vi.fn(async () => {
-							calls.push({ sql, params });
-							// First row throws; subsequent succeed — verify the
-							// flush keeps going past the failure.
-							if (calls.length === 1) throw new Error("D1 transient");
-							return { success: true };
-						}),
-					})),
-				})),
-			} as unknown as D1Database,
+	it("keeps occupancy gauges as per-minute MAX and flushes them with MAX not SUM", async () => {
+		recordGauge("footprint:thread:list", "observed-keys", 4);
+		recordGauge("footprint:thread:list", "observed-keys", 9);
+		recordGauge("footprint:thread:list", "observed-bytes", 100);
+		recordKvOp("footprint:thread:list", "observed-bytes", 40);
+		const snapshot = swapSnapshot();
+		expect([...snapshot.values()].sort((a, b) => a - b)).toEqual([9, 100]);
+		const { db } = createMockDb();
+		const env = makeEnv({ DB: db });
+		const sql: string[] = [];
+		vi.mocked(db.prepare).mockImplementation((text) => {
+			sql.push(text);
+			return { bind: () => ({ run: async () => ({ success: true }) }) } as D1PreparedStatement;
 		});
-
-		recordRead("forum:tree:v2");
-		recordHit("forum:tree:v2");
-		recordWrite("forum:summary:v2");
-		const snap = swapSnapshot();
-		const attempted = await flushSnapshot(env, snap);
-
-		expect(attempted).toBe(3);
-		expect(calls).toHaveLength(3);
-		// Each UPSERT carries the op as the third bound param (after family,
-		// ts_minute) and an integer count as the fourth.
-		for (const c of calls) {
-			expect(c.sql).toContain("kv_cache_metrics_minute");
-			expect(c.params).toHaveLength(4);
-			expect(typeof c.params[2]).toBe("string");
-			expect(typeof c.params[3]).toBe("number");
-		}
+		expect(await flushSnapshot(env, snapshot)).toBe(2);
+		expect(sql.some((text) => text.includes("MAX(count, excluded.count)"))).toBe(true);
+		expect(sql.some((text) => text.includes("count = count + excluded.count"))).toBe(false);
 	});
-
-	it("returns 0 attempted when snapshot is empty", async () => {
-		const env = makeEnv();
-		const attempted = await flushSnapshot(env, new Map());
-		expect(attempted).toBe(0);
-	});
-});
-
-describe("metrics — scheduleMetricsFlush throttle", () => {
-	it("first call flushes immediately; calls inside the throttle window are no-ops", async () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-05-11T08:00:00Z"));
-
-		const env = makeEnv();
+	it("never flushes at first observation or after fills; every window is at least 60 seconds", async () => {
+		const env = makeEnv({ DB: createMockDb().db });
 		const ctx = createMockCtx();
-		recordHit("forum:tree:v2");
-
-		// First call: flush even on the very first observation so low-traffic
-		// paths still surface metrics.
 		scheduleMetricsFlush(env, ctx);
-		expect(ctx.waitUntil).toHaveBeenCalledOnce();
-
-		// 10s later: still under the 30s interval → no second flush.
-		vi.advanceTimersByTime(10_000);
-		recordHit("forum:tree:v2");
+		flushPendingNow(env, ctx);
+		recordHit("thread:entity");
 		scheduleMetricsFlush(env, ctx);
-		expect(ctx.waitUntil).toHaveBeenCalledOnce();
-
-		// 31s later: interval elapsed → flush scheduled again.
-		vi.advanceTimersByTime(21_000);
-		recordHit("forum:tree:v2");
-		scheduleMetricsFlush(env, ctx);
-		expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
-	});
-
-	it("no-op when nothing is pending", () => {
-		const env = makeEnv();
-		const ctx = createMockCtx();
+		flushPendingNow(env, ctx);
+		vi.advanceTimersByTime(59_999);
 		scheduleMetricsFlush(env, ctx);
 		expect(ctx.waitUntil).not.toHaveBeenCalled();
-	});
-});
-
-describe("metrics — flushPendingNow bypasses the throttle", () => {
-	it("flushes again within the throttle window when a write/bump/delete arrives after a swap", () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-05-11T08:00:00Z"));
-
-		const env = makeEnv();
-		const ctx = createMockCtx();
-
-		// Simulate the read/miss part of cacheGetOrSet: schedules a flush
-		// and swaps the snapshot.
-		recordRead("forum:tree:v2");
-		recordMiss("forum:tree:v2");
+		vi.advanceTimersByTime(1);
 		scheduleMetricsFlush(env, ctx);
 		expect(ctx.waitUntil).toHaveBeenCalledOnce();
-
-		// Now an async KV.put resolves and records `write` AFTER the
-		// initial swap. Without flushPendingNow, this counter would sit
-		// in BUCKETS until the next request arrives. flushPendingNow
-		// must force a second flush even though < 30s have elapsed.
-		recordWrite("forum:tree:v2");
+		recordWrite("thread:entity");
 		flushPendingNow(env, ctx);
+		expect(ctx.waitUntil).toHaveBeenCalledOnce();
+		vi.advanceTimersByTime(60_000);
+		scheduleMetricsFlush(env, ctx);
 		expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
-	});
-
-	it("is a no-op when nothing is pending", () => {
-		const env = makeEnv();
-		const ctx = createMockCtx();
-		flushPendingNow(env, ctx);
-		expect(ctx.waitUntil).not.toHaveBeenCalled();
+		await Promise.all(ctx._waitUntilPromises);
+		expect(env.DB.prepare).toHaveBeenCalledTimes(2);
 	});
 });

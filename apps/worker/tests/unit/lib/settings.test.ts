@@ -1,12 +1,19 @@
+// apps/worker/tests/unit/lib/settings.test.ts
+
+import { CACHE_SCHEMA_VERSION, getCacheTTL } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import {
 	getSetting,
+	getSettingFresh,
 	getSettings,
 	getSettingsDetailed,
+	SETTINGS_FAMILY,
+	SETTINGS_KEY,
+	SETTINGS_TIER,
 	type SettingsMap,
 	upsertSettings,
 } from "../../../src/lib/settings";
-import { makeEnv } from "../../helpers";
+import { createMockCtx, makeEnv } from "../../helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -37,9 +44,28 @@ const JSON_ROW = {
 const BAD_NUMBER_ROW = { key: "bad.number", value: "abc", type: "number", updated_at: 1700000000 };
 const BAD_JSON_ROW = { key: "bad.json", value: "not-json", type: "json", updated_at: 1700000000 };
 
-function makeKvMock(cachedValue?: string) {
+function makeValidEnvelope(data: unknown) {
+	const now = Date.now();
 	return {
-		get: vi.fn(async () => cachedValue ?? null),
+		schemaVersion: CACHE_SCHEMA_VERSION,
+		family: SETTINGS_FAMILY,
+		tier: SETTINGS_TIER,
+		loadedAt: now,
+		expiresAt: now + getCacheTTL(SETTINGS_TIER) * 1000,
+		params: {},
+		scope: "public",
+		data,
+	};
+}
+
+function makeKvMock(cachedEnvelope?: unknown) {
+	return {
+		get: vi.fn(async (key: string, type?: string) => {
+			if (key !== SETTINGS_KEY) return null;
+			if (cachedEnvelope === undefined) return null;
+			if (type === "json") return structuredClone(cachedEnvelope);
+			return JSON.stringify(cachedEnvelope);
+		}),
 		put: vi.fn(async () => {}),
 		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;
@@ -48,8 +74,11 @@ function makeKvMock(cachedValue?: string) {
 function makeDbMock(rows: Record<string, unknown>[] = SAMPLE_ROWS) {
 	return {
 		prepare: vi.fn(() => ({
-			all: vi.fn(async () => ({ results: rows })),
+			all: vi.fn(async () => ({ success: true, results: rows })),
+			first: vi.fn(async () => rows[0] ?? null),
 			bind: vi.fn((..._params: unknown[]) => ({
+				all: vi.fn(async () => ({ success: true, results: rows })),
+				first: vi.fn(async () => rows[0] ?? null),
 				run: vi.fn(async () => ({ success: true })),
 			})),
 		})),
@@ -61,29 +90,31 @@ function makeDbMock(rows: Record<string, unknown>[] = SAMPLE_ROWS) {
 
 describe("settings cache helper", () => {
 	describe("getSettings", () => {
-		it("should return parsed map from KV cache on hit", async () => {
-			const cached: SettingsMap = {
+		it("should return parsed map from KV cache on hit with schema v3 envelope", async () => {
+			const cachedData: SettingsMap = {
 				"general.site.name": "Ellie",
 				"general.pagination.posts_per_page": 20,
 			};
-			const kv = makeKvMock(JSON.stringify(cached));
+			const envelope = makeValidEnvelope(cachedData);
+			const kv = makeKvMock(envelope);
 			const db = makeDbMock();
 			const env = makeEnv({ KV: kv, DB: db });
 
 			const result = await getSettings(env);
 
-			expect(result).toEqual(cached);
-			expect(kv.get).toHaveBeenCalledWith("settings:all");
+			expect(result).toEqual(cachedData);
+			expect(kv.get).toHaveBeenCalledWith(SETTINGS_KEY, "json");
 			// DB should NOT be called on cache hit
 			expect(db.prepare).not.toHaveBeenCalled();
 		});
 
-		it("should read from D1 and backfill KV on cache miss", async () => {
+		it("should read from D1 and write envelope back to KV on cache miss", async () => {
 			const kv = makeKvMock(); // no cached value
 			const db = makeDbMock();
 			const env = makeEnv({ KV: kv, DB: db });
+			const ctx = createMockCtx();
 
-			const result = await getSettings(env);
+			const result = await getSettings(env, ctx);
 
 			// Should parse types correctly
 			expect(result["general.site.name"]).toBe("Ellie");
@@ -93,10 +124,19 @@ describe("settings cache helper", () => {
 
 			// Should have read from DB
 			expect(db.prepare).toHaveBeenCalled();
-			// Should backfill KV with TTL (15 minutes)
-			expect(kv.put).toHaveBeenCalledWith("settings:all", expect.any(String), {
-				expirationTtl: 900,
-			});
+			// Should backfill KV with envelope and metadata
+			expect(kv.put).toHaveBeenCalledWith(
+				SETTINGS_KEY,
+				expect.any(String),
+				expect.objectContaining({
+					expirationTtl: 86400,
+					metadata: expect.objectContaining({
+						family: SETTINGS_FAMILY,
+						tier: SETTINGS_TIER,
+						schemaVersion: CACHE_SCHEMA_VERSION,
+					}),
+				}),
+			);
 		});
 
 		it("should parse boolean type correctly", async () => {
@@ -152,11 +192,11 @@ describe("settings cache helper", () => {
 
 	describe("getSetting", () => {
 		it("should return the correct value for an existing key", async () => {
-			const cached: SettingsMap = {
+			const cachedData: SettingsMap = {
 				"general.site.name": "Ellie",
 				"general.pagination.posts_per_page": 20,
 			};
-			const kv = makeKvMock(JSON.stringify(cached));
+			const kv = makeKvMock(makeValidEnvelope(cachedData));
 			const env = makeEnv({ KV: kv });
 
 			const result = await getSetting(env, "general.site.name", "default");
@@ -165,8 +205,8 @@ describe("settings cache helper", () => {
 		});
 
 		it("should return default value for missing key", async () => {
-			const cached: SettingsMap = { "general.site.name": "Ellie" };
-			const kv = makeKvMock(JSON.stringify(cached));
+			const cachedData: SettingsMap = { "general.site.name": "Ellie" };
+			const kv = makeKvMock(makeValidEnvelope(cachedData));
 			const env = makeEnv({ KV: kv });
 
 			const result = await getSetting(env, "nonexistent.key", "fallback");
@@ -175,8 +215,8 @@ describe("settings cache helper", () => {
 		});
 
 		it("should return default number value for missing key", async () => {
-			const cached: SettingsMap = {};
-			const kv = makeKvMock(JSON.stringify(cached));
+			const cachedData: SettingsMap = {};
+			const kv = makeKvMock(makeValidEnvelope(cachedData));
 			const env = makeEnv({ KV: kv });
 
 			const result = await getSetting(env, "missing.number", 42);
@@ -185,9 +225,31 @@ describe("settings cache helper", () => {
 		});
 	});
 
+	describe("getSettingFresh", () => {
+		it("should read directly from D1 bypassing KV", async () => {
+			const kv = makeKvMock(makeValidEnvelope({ "feature.enabled": false }));
+			const db = makeDbMock([BOOLEAN_ROW]);
+			const env = makeEnv({ KV: kv, DB: db });
+
+			const result = await getSettingFresh(env, "feature.enabled", false);
+
+			expect(result).toBe(true);
+			expect(db.prepare).toHaveBeenCalled();
+			expect(kv.get).not.toHaveBeenCalled();
+		});
+
+		it("should return default when key not found in D1", async () => {
+			const db = makeDbMock([]);
+			const env = makeEnv({ DB: db });
+
+			const result = await getSettingFresh(env, "nonexistent", "fallback");
+			expect(result).toBe("fallback");
+		});
+	});
+
 	describe("getSettingsDetailed", () => {
 		it("should return full metadata from D1 (bypasses KV)", async () => {
-			const kv = makeKvMock(JSON.stringify({ cached: true }));
+			const kv = makeKvMock(makeValidEnvelope({ cached: true }));
 			const db = makeDbMock();
 			const env = makeEnv({ KV: kv, DB: db });
 
@@ -220,7 +282,7 @@ describe("settings cache helper", () => {
 	});
 
 	describe("upsertSettings", () => {
-		it("should batch update settings and invalidate KV", async () => {
+		it("should batch update settings and invalidate KV using cacheDelete", async () => {
 			const kv = makeKvMock();
 			const db = makeDbMock();
 			const env = makeEnv({ KV: kv, DB: db });
@@ -232,8 +294,8 @@ describe("settings cache helper", () => {
 
 			// Should use batch for atomic update
 			expect(db.batch).toHaveBeenCalledTimes(1);
-			// Should invalidate KV cache
-			expect(kv.delete).toHaveBeenCalledWith("settings:all");
+			// Should invalidate KV cache via cacheDelete
+			expect(kv.delete).toHaveBeenCalledWith(SETTINGS_KEY);
 		});
 
 		it("should skip batch when entries is empty", async () => {
@@ -254,7 +316,8 @@ describe("settings cache helper", () => {
 			}));
 			const db = {
 				prepare: vi.fn(() => ({
-					all: vi.fn(async () => ({ results: [] })),
+					all: vi.fn(async () => ({ success: true, results: [] })),
+					first: vi.fn(async () => null),
 					bind: preparedBindMock,
 				})),
 				batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),

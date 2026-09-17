@@ -1,7 +1,5 @@
-// Asserts the cache invalidation hooks added in Phase 1 commit 2 land on
-// the right write paths (docs/19 §6). Behavior of the underlying handlers is
-// covered by their existing per-handler tests; this file only verifies the
-// invalidation fan-out so a future regression that drops a hook is caught.
+// Focused invalidation fan-out regressions; real-SQL cache reads are covered
+// by the reading and administrative mutation suites (docs/20 §5).
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -61,8 +59,8 @@ beforeEach(() => {
 	vi.clearAllMocks();
 });
 
-describe("Phase 1 commit 2 — thread/post create invalidation", () => {
-	it("POST /api/v1/threads invalidates v2 forum gens", async () => {
+describe("ordinary thread/post creation uses natural cache expiry", () => {
+	it("POST /api/v1/threads does not invalidate forum or reading generations", async () => {
 		const token = await createJwtForRole(0, 10);
 		const { db } = createMockDb({
 			firstResults: {
@@ -107,10 +105,13 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 
 		const res = await createThread(req, env);
 		expect(res.status).toBe(201);
-		expect(mockInvVolV2).toHaveBeenCalledWith(env, 1);
+		expect(mockInvVolV2).not.toHaveBeenCalled();
+		expect(mockBumpSummary).not.toHaveBeenCalled();
+		expect(mockBumpThreadMeta).not.toHaveBeenCalled();
+		expect(mockBumpPostList).not.toHaveBeenCalled();
 	});
 
-	it("POST /api/v1/posts invalidates v2 forum/thread/post gens", async () => {
+	it("POST /api/v1/posts does not invalidate forum or reading generations", async () => {
 		const token = await createJwtForRole(0, 10);
 		const { db } = createMockDb({
 			firstResults: {
@@ -150,13 +151,14 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 
 		const res = await createPost(req, env);
 		expect(res.status).toBe(201);
-		expect(mockInvVolV2).toHaveBeenCalledWith(env, 7);
-		expect(mockBumpThreadMeta).toHaveBeenCalledWith(env, 1);
-		expect(mockBumpPostList).toHaveBeenCalledWith(env, 1);
+		expect(mockInvVolV2).not.toHaveBeenCalled();
+		expect(mockBumpSummary).not.toHaveBeenCalled();
+		expect(mockBumpThreadMeta).not.toHaveBeenCalled();
+		expect(mockBumpPostList).not.toHaveBeenCalled();
 	});
 });
 
-describe("Phase 1 commit 2 — admin statistics invalidation", () => {
+describe("admin statistics invalidation", () => {
 	it("recalcForums bumps forum:summary:gen on the done transition (updated > 0)", async () => {
 		// Job-mode (msg=b7eda60a fix): cache invalidation moved into
 		// ticker.finalize, which fires when the job reaches `done` after
@@ -186,11 +188,7 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 
-	it("recalcThreads bumps forum:summary:gen on the done transition", async () => {
-		// Phase B job-mode: cache invalidation moved into ticker.finalize,
-		// which fires when the job reaches `done` (an empty batch).
-		// The test seeds COUNT(*)=0 so initialize -> total:0, and a follow-up
-		// POST returns an empty batch -> status:done -> finalize bumps cache.
+	it("recalcThreads preserves snapshots when the job has no updates", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
@@ -208,10 +206,10 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 			env,
 		);
 		expect(res.status).toBe(200);
-		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
+		expect(mockBumpSummary).not.toHaveBeenCalled();
 	});
 
-	it("recalcUsers invalidates per-id user caches (legacy + v2) on each batch", async () => {
+	it("recalcUsers invalidates only per-id statistics and self snapshots after each batch", async () => {
 		// Phase C job-mode: cache invalidation moved INSIDE advance (per
 		// batch), not finalize. We drive: initialize -> advance with 2
 		// users -> isFinal=true (2 < batchSize=1000) -> done after the
@@ -228,6 +226,7 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 			},
 		});
 		const env = makeEnv({ DB: db });
+		const deleted = vi.spyOn(env.KV, "delete");
 		// 1) Initialize.
 		await recalcUsers(createAdminRequest("POST", "/api/admin/statistics/recalc-users"), env);
 		// 2) Advance — 2-user batch, short final → status:done.
@@ -236,11 +235,13 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 			env,
 		);
 		expect(res.status).toBe(200);
-		expect(mockInvUser).toHaveBeenCalledTimes(2);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 10);
-		expect(mockInvUser).toHaveBeenCalledWith(env, 11);
-		expect(mockInvUserV2).toHaveBeenCalledTimes(2);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 10);
-		expect(mockInvUserV2).toHaveBeenCalledWith(env, 11);
+		expect(deleted.mock.calls.map(([key]) => key).sort()).toEqual([
+			"user:self:10",
+			"user:self:11",
+			"user:stats:10",
+			"user:stats:11",
+		]);
+		expect(mockInvUser).not.toHaveBeenCalled();
+		expect(mockInvUserV2).not.toHaveBeenCalled();
 	});
 });

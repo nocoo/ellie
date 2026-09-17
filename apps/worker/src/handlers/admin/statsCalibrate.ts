@@ -1,3 +1,4 @@
+import { invalidateStatisticsReports } from "../../lib/cache/invalidate";
 // Admin stats calibration handler — GET/POST /api/admin/stats/calibrate
 // Allows admin to view stored counter values, run COUNT(*) queries,
 // and apply offsets or real values to the stored counters.
@@ -8,9 +9,12 @@
 // created" rather than "currently visible".
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { getPublicStats } from "../../lib/cache/public-stats-read";
+import { cacheDelete } from "../../lib/cache/wrap";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
+import { shanghaiDateLocal } from "../../lib/shanghaiTime";
 import { errorResponse } from "../../middleware/error";
 
 // KV key for public stats cache
@@ -114,7 +118,7 @@ async function handleApplyReal(env: Env, origin?: string): Promise<Response> {
 
 	const now = Math.floor(Date.now() / 1000);
 
-	await env.DB.batch([
+	const written = await env.DB.batch([
 		env.DB.prepare("UPDATE settings SET value = ?, updated_at = ? WHERE key = ?").bind(
 			String(threadsResult?.cnt ?? 0),
 			now,
@@ -132,8 +136,11 @@ async function handleApplyReal(env: Env, origin?: string): Promise<Response> {
 		),
 	]);
 
-	// Invalidate public-stats cache so the new values appear immediately
-	await env.KV.delete(PUBLIC_STATS_CACHE_KEY).catch(() => {});
+	if (written.some((row) => !row.success)) throw new Error("Statistics writes were not confirmed");
+	await Promise.all([
+		cacheDelete(env, PUBLIC_STATS_CACHE_KEY, "public-stats"),
+		invalidateStatisticsReports(env),
+	]);
 
 	return jsonNoStoreResponse({ success: true } satisfies CalibratePostResponse, origin);
 }
@@ -152,7 +159,7 @@ async function handleApplyOffsets(
 
 	for (const [key, offset] of Object.entries(offsets)) {
 		if (!COUNTER_KEYS.includes(key as (typeof COUNTER_KEYS)[number])) continue;
-		if (typeof offset !== "number" || offset === 0) continue;
+		if (typeof offset !== "number" || !Number.isFinite(offset) || offset === 0) continue;
 
 		updates.push(
 			env.DB.prepare(
@@ -162,9 +169,13 @@ async function handleApplyOffsets(
 	}
 
 	if (updates.length > 0) {
-		await env.DB.batch(updates);
-		// Invalidate public-stats cache so the new values appear immediately
-		await env.KV.delete(PUBLIC_STATS_CACHE_KEY).catch(() => {});
+		const written = await env.DB.batch(updates);
+		if (written.some((row) => !row.success))
+			throw new Error("Statistics writes were not confirmed");
+		await Promise.all([
+			cacheDelete(env, PUBLIC_STATS_CACHE_KEY, "public-stats"),
+			invalidateStatisticsReports(env),
+		]);
 	}
 
 	return jsonNoStoreResponse({ success: true } satisfies CalibratePostResponse, origin);
@@ -192,15 +203,12 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 		real: null,
 	}));
 
-	const [todayPostsStr, todayDate] = await Promise.all([
-		env.KV.get("stats:today_posts"),
-		env.KV.get("stats:today_date"),
-	]);
+	const snapshot = await getPublicStats(env, undefined, "admin");
 
 	const response: CalibrateGetResponse = {
 		counters,
-		todayPosts: todayPostsStr ? Number.parseInt(todayPostsStr, 10) : 0,
-		todayDate: todayDate ?? "",
+		todayPosts: snapshot.todayPosts,
+		todayDate: shanghaiDateLocal(),
 	};
 
 	return jsonNoStoreResponse(response, origin);

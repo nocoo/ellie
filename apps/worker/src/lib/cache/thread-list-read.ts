@@ -1,166 +1,277 @@
-// Thread-list v2 read-path glue. Sits between `handlers/thread.ts:list` and
-// the KV cache layer.
-//
-// Responsibilities:
-//   - Detect whether the current request is page1 (the only cacheable case).
-//   - Resolve `thread:list:gen:<forumId>` and `thread:list:gen:all` once.
-//   - Drive `cacheGetOrSet` with a shape validator that hard-rejects payloads
-//     missing the contract fields.
-//   - Return the cached envelope `{items, total, nextCursor, limit}` to the
-//     handler, which then re-shapes it into the existing
-//     `paginatedResponse` / `jsonListResponse` branches. Response wire shape
-//     is preserved BIT FOR BIT — the KV envelope is internal only.
-//
-// Bucket-independent: the thread-list payload contains no viewer-conditional
-// fields (see docs/19 §6 thread:list:v2). Forum-visibility gating happens
-// BEFORE we ever look at this cache, via `forum:meta:v2`. If a future thread
-// payload introduces any per-viewer field, this cache MUST add a viewer
-// dimension and the design doc MUST be updated.
-//
-// Page1 is defined as: keyset branch with no `?cursor=`, OR offset branch
-// with `?page=1`. Deeper pagination passes through to D1 — see docs/19
-// §3.3.1.
-
-import type { Thread } from "@ellie/types";
+// Cache membership, never viewer projections or copies of thread/user entities.
+import type { CacheDescriptor } from "@ellie/types";
 import type { Env } from "../env";
+import { buildNextCursor } from "../pagination";
+import { STICKY_GLOBAL } from "../visibility";
 import { getGen } from "./epoch";
-import { threadListGenAllKey, threadListGenKey, threadListKey } from "./keys";
+import { dataCacheKey, threadListGenAllKey, threadListGenKey } from "./keys";
 import { cacheGetOrSet } from "./wrap";
 
-/**
- * Limit buckets accepted by the thread-list cache. Values outside this set
- * pass through to D1 — caching for arbitrary `?limit=` values would
- * fragment the cache without bounded benefit.
- *
- * Production callers (web default 20; admin/API up to 100) only ever
- * request these three values.
- */
-export const THREAD_LIST_LIMIT_BUCKETS = [20, 50, 100] as const;
-export type ThreadListLimitBucket = (typeof THREAD_LIST_LIMIT_BUCKETS)[number];
+export interface ThreadCursor {
+	sticky: number;
+	lastPostAt: number;
+	id: number;
+}
 
-/**
- * TTL for the page1 cache. Short — correctness comes from explicit gen
- * bumps in `lib/cache/invalidate.ts`; TTL is a safety net for missed
- * invalidations, not the primary correctness mechanism (docs/19 §1.3).
- */
-export const THREAD_LIST_TTL = 60; // 1min
-
-/**
- * KV envelope written for one page1 cache entry. Keep this MINIMAL —
- * only what `handlers/thread.ts:list` re-uses to build the response.
- *
- * Post-`9d39588`: the page1 loader is unified — keyset (no cursor) and
- * offset (page=1) requests share the SAME cache key, so the loader
- * MUST always populate BOTH `total` and `nextCursor`. Tightening
- * `total` from `number | null` to `number` lets the validator drop any
- * pre-fix payload that still has `total: null` as a cache miss.
- *
- * - `items`: the canonical Thread payload returned to clients (already
- *   bucket-independent and avatar-enriched).
- * - `total`: visible-thread total for this forum (used by the offset
- *   `paginatedResponse`). Always a number.
- * - `nextCursor`: encoded keyset cursor for the next page; `null` when
- *   the page wasn't full (no more rows).
- * - `limit`: echoed back so the response shape can be reconstructed
- *   without a second KV round-trip.
- *
- * Deep-pagination loaders (cursor / page>1) NEVER pass through the
- * cache; they may produce a transient internal payload and are not
- * subject to this contract.
- */
-export interface ThreadListPayloadV2 {
-	items: Thread[];
-	total: number;
-	nextCursor: string | null;
+export interface ThreadListQuery {
+	forumId: number;
 	limit: number;
+	page: number;
+	cursor: ThreadCursor | null;
+	typeId: number | null;
 }
 
-/**
- * Shape validator for `ThreadListPayloadV2`. Treats schema drift as a
- * miss (per `cacheGetOrSet` contract). Intentionally strict so an old
- * cache row that lacks one of the four contract fields — including a
- * pre-`9d39588` row with `total: null` — is dropped on read.
- *
- * Item-level check: if items are non-empty, every item must carry
- * `isAuthorFirstThread` (boolean). Pre-stamp payloads that lack this
- * field are treated as stale so the derived column populates on reload
- * instead of silently defaulting to false for the entire TTL window.
- */
-export function isThreadListPayload(value: unknown): value is ThreadListPayloadV2 {
+export interface ThreadListMember {
+	id: number;
+	sticky: number;
+	last_post_at: number;
+}
+
+export interface ThreadListMembership {
+	items: ThreadListMember[];
+	total: number;
+}
+
+export function isThreadCursor(value: Partial<ThreadCursor>): boolean {
+	return (
+		Number.isSafeInteger(value.sticky) &&
+		(value.sticky as number) >= 0 &&
+		(value.sticky as number) <= 4 &&
+		Number.isSafeInteger(value.lastPostAt) &&
+		(value.lastPostAt as number) >= 0 &&
+		Number.isSafeInteger(value.id) &&
+		(value.id as number) > 0
+	);
+}
+
+function isMembership(value: unknown): value is ThreadListMembership {
 	if (typeof value !== "object" || value === null) return false;
-	const v = value as Partial<ThreadListPayloadV2>;
-	if (!Array.isArray(v.items)) return false;
-	if (typeof v.limit !== "number") return false;
-	if (typeof v.total !== "number") return false;
-	if (v.nextCursor !== null && typeof v.nextCursor !== "string") return false;
-	// Reject stale payloads missing isAuthorFirstThread on items
-	if (v.items.length > 0) {
-		for (const item of v.items) {
-			if (typeof item.isAuthorFirstThread !== "boolean") return false;
-			// Anonymous masking (migration 0048): a thread missing the
-			// `anonymousAuthor` flag predates the masking work — treat as
-			// stale so the next read refills with masked values instead of
-			// keeping the unmasked author for the rest of the TTL window.
-			if (typeof item.anonymousAuthor !== "number") return false;
-		}
+	const v = value as ThreadListMembership;
+	return (
+		Number.isSafeInteger(v.total) &&
+		v.total >= 0 &&
+		Array.isArray(v.items) &&
+		v.items.every(
+			(row) =>
+				typeof row === "object" &&
+				row !== null &&
+				Number.isSafeInteger(row.id) &&
+				row.id > 0 &&
+				Number.isSafeInteger(row.sticky) &&
+				row.sticky >= 0 &&
+				Number.isSafeInteger(row.last_post_at),
+		)
+	);
+}
+
+function stickyRank(sticky: number): number {
+	return sticky === STICKY_GLOBAL ? 4 : sticky;
+}
+
+function followsCursor(row: ThreadListMember, cursor: ThreadCursor): boolean {
+	const rank = stickyRank(row.sticky);
+	return (
+		rank < cursor.sticky ||
+		(rank === cursor.sticky &&
+			(row.last_post_at < cursor.lastPostAt ||
+				(row.last_post_at === cursor.lastPostAt && row.id < cursor.id)))
+	);
+}
+
+/** Validate persisted parameters again before a management rebuild. */
+export function validateThreadListDescriptor(descriptor: CacheDescriptor): void {
+	const p = descriptor.params;
+	if (descriptor.family !== "thread:list" || descriptor.scope !== "internal") {
+		throw new Error("Unsupported thread-list cache descriptor");
 	}
-	return true;
+	if (typeof p !== "object" || p === null || Array.isArray(p))
+		throw new Error("Invalid thread-list cache parameters");
+	if (p.kind === "announcements" && Object.hasOwn(p, "kind") && Object.keys(p).length === 1) return;
+	const keys = [
+		"kind",
+		"forumId",
+		"typeId",
+		"limit",
+		"offset",
+		"cursorSticky",
+		"cursorTime",
+		"cursorId",
+	];
+	if (
+		Object.keys(p).length !== keys.length ||
+		keys.some((key) => !Object.hasOwn(p, key)) ||
+		p.kind !== "local" ||
+		!Number.isSafeInteger(p.forumId) ||
+		Number(p.forumId) <= 0 ||
+		!Number.isSafeInteger(p.limit) ||
+		Number(p.limit) < 1 ||
+		Number(p.limit) > 100 ||
+		!Number.isSafeInteger(p.offset) ||
+		Number(p.offset) < 0 ||
+		(p.typeId !== null && (!Number.isSafeInteger(p.typeId) || Number(p.typeId) <= 0))
+	) {
+		throw new Error("Invalid thread-list cache parameters");
+	}
+	if (p.cursorSticky === null && p.cursorTime === null && p.cursorId === null) return;
+	if (
+		Number(p.offset) !== 0 ||
+		!isThreadCursor({
+			sticky: p.cursorSticky as number,
+			lastPostAt: p.cursorTime as number,
+			id: p.cursorId as number,
+		})
+	)
+		throw new Error("Invalid thread-list cursor");
 }
 
-/**
- * Returns true when `limit` is one of the three canonical buckets and
- * therefore eligible for caching.
- */
-export function isCacheableLimit(limit: number): limit is ThreadListLimitBucket {
-	return (THREAD_LIST_LIMIT_BUCKETS as readonly number[]).includes(limit);
+/** The same membership validation is used by live reads and management. */
+export function isThreadListCacheData(
+	descriptor: CacheDescriptor,
+	value: unknown,
+): value is ThreadListMembership {
+	try {
+		validateThreadListDescriptor(descriptor);
+	} catch {
+		return false;
+	}
+	if (!isMembership(value) || value.items.length > value.total) return false;
+	if (new Set(value.items.map((row) => row.id)).size !== value.items.length) return false;
+	const p = descriptor.params;
+	if (p.kind === "announcements") {
+		return (
+			value.total === value.items.length && value.items.every((row) => row.sticky === STICKY_GLOBAL)
+		);
+	}
+	if (value.items.length > Number(p.limit)) return false;
+	return value.items.every(
+		(row) =>
+			(p.typeId !== null || row.sticky !== STICKY_GLOBAL) &&
+			(p.cursorId === null ||
+				followsCursor(row, {
+					sticky: p.cursorSticky as number,
+					lastPostAt: p.cursorTime as number,
+					id: p.cursorId as number,
+				})),
+	);
 }
 
-/**
- * Returns true when this request shape is page1 — the only case the
- * v2 cache covers.
- *
- * Page1 contract:
- *   - keyset branch: `cursor` absent (`page` MAY be absent).
- *   - offset branch: `cursor` absent AND (`page` absent OR `page === "1"`).
- *
- * Anything with a non-empty cursor, or `page > 1`, is deep pagination
- * and falls through to D1. Empty-string cursor is treated as absent
- * (matches the handler's existing `cursorStr ?` truthy check).
- */
-export function isPage1(
-	cursor: string | null | undefined,
-	page: string | null | undefined,
-): boolean {
-	if (cursor && cursor.length > 0) return false;
-	if (page == null || page.length === 0) return true;
-	return Number.parseInt(page, 10) === 1;
-}
-
-/**
- * Read or load the page1 thread-list cache entry. Caller MUST have
- * already gated on forum visibility via `forum:meta:v2` — visibility
- * is NOT enforced here because the cached payload is bucket-independent.
- *
- * The loader builds the same `{items, total, nextCursor, limit}`
- * envelope from D1; on miss we cache it for `THREAD_LIST_TTL` seconds.
- */
-export async function getThreadListPageOneV2(
+/** Authoritative and side-effect-free: safe for the management dispatcher. */
+export async function rebuildThreadListCache(
 	env: Env,
-	ctx: ExecutionContext,
-	forumId: number,
-	limitBucket: ThreadListLimitBucket,
-	loader: () => Promise<ThreadListPayloadV2>,
-): Promise<ThreadListPayloadV2> {
-	// Resolve both gens in parallel — independent reads.
-	const [forumGen, allGen] = await Promise.all([
-		getGen(env, threadListGenKey(forumId)),
-		getGen(env, threadListGenAllKey()),
+	_ctx: ExecutionContext | undefined,
+	descriptor: CacheDescriptor,
+): Promise<ThreadListMembership> {
+	validateThreadListDescriptor(descriptor);
+	const p = descriptor.params;
+	if (p.kind === "announcements") {
+		const result = await env.DB.prepare(
+			`SELECT t.id, t.sticky, t.last_post_at FROM threads t
+			 JOIN forums f ON f.id = t.forum_id
+			 WHERE t.sticky = ${STICKY_GLOBAL} AND f.status = 1
+			 ORDER BY t.last_post_at DESC, t.id DESC`,
+		).all<ThreadListMember>();
+		if (!result.success) throw new Error("Announcement query failed");
+		return { items: result.results, total: result.results.length };
+	}
+	// Type-filtered lists never merge announcements from other forums.
+	const where =
+		p.typeId === null
+			? `t.forum_id = ? AND t.sticky >= 0 AND t.sticky != ${STICKY_GLOBAL}`
+			: "t.forum_id = ? AND t.type_id = ? AND t.sticky >= 0";
+	const bindings = p.typeId === null ? [p.forumId] : [p.forumId, p.typeId];
+	const rank = `CASE WHEN t.sticky = ${STICKY_GLOBAL} THEN 4 ELSE t.sticky END`;
+	const cursor =
+		p.cursorId === null
+			? ""
+			: ` AND (${rank} < ? OR (${rank} = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))`;
+	const cursorBindings =
+		p.cursorId === null
+			? []
+			: [p.cursorSticky, p.cursorSticky, p.cursorTime, p.cursorTime, p.cursorId];
+	const [count, rows] = await Promise.all([
+		env.DB.prepare(`SELECT COUNT(*) as total FROM threads t WHERE ${where}`)
+			.bind(...bindings)
+			.first<{ total: number }>(),
+		env.DB.prepare(`SELECT t.id, t.sticky, t.last_post_at FROM threads t
+			WHERE ${where}${cursor}
+			ORDER BY ${rank} DESC, t.last_post_at DESC, t.id DESC LIMIT ? OFFSET ?`)
+			.bind(...bindings, ...cursorBindings, p.limit, p.offset)
+			.all<ThreadListMember>(),
 	]);
-	const key = threadListKey(forumId, limitBucket, forumGen, allGen);
+	if (!rows.success) throw new Error("Thread-list query failed");
+	return { items: rows.results, total: count?.total ?? 0 };
+}
 
-	return cacheGetOrSet(env, ctx, key, loader, {
-		ttl: THREAD_LIST_TTL,
-		validator: isThreadListPayload,
-		family: "thread:list:v2",
+/** KV-only current-version check, shared by live reads and management. */
+export async function threadListCacheKey(env: Env, descriptor: CacheDescriptor): Promise<string> {
+	validateThreadListDescriptor(descriptor);
+	const forumId = descriptor.params.forumId;
+	const [all, forum] = await Promise.all([
+		getGen(env, threadListGenAllKey()),
+		typeof forumId === "number" ? getGen(env, threadListGenKey(forumId)) : Promise.resolve("0"),
+	]);
+	return dataCacheKey(descriptor.family, descriptor.params, descriptor.scope, { all, forum });
+}
+
+async function readMembership(
+	env: Env,
+	ctx: ExecutionContext | undefined,
+	descriptor: CacheDescriptor,
+): Promise<ThreadListMembership> {
+	const key = await threadListCacheKey(env, descriptor);
+	return cacheGetOrSet(env, ctx, key, () => rebuildThreadListCache(env, ctx, descriptor), {
+		...descriptor,
+		tier: "SHORT",
+		validator: (value): value is ThreadListMembership => isThreadListCacheData(descriptor, value),
 	});
+}
+
+/** All legal limits, filters, keyset cursors and offset pages are cached. */
+export async function getThreadListPage(
+	env: Env,
+	ctx: ExecutionContext | undefined,
+	query: ThreadListQuery,
+	fresh = false,
+): Promise<ThreadListMembership & { nextCursor: string | null }> {
+	const { forumId, limit, typeId, cursor, page } = query;
+	if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger((page - 1) * limit)) {
+		throw new Error("Invalid thread-list page");
+	}
+	// Global membership is shared between forums. Nothing from this snapshot
+	// is copied into the local cache, so composition cannot renew its lifetime.
+	const read = fresh ? rebuildThreadListCache : readMembership;
+	const announcements =
+		typeId === null
+			? await read(env, ctx, {
+					family: "thread:list",
+					scope: "internal",
+					params: { kind: "announcements" },
+				})
+			: { items: [], total: 0 };
+	const offset = cursor ? 0 : (page - 1) * limit;
+	const globals = cursor
+		? announcements.items.filter((row) => followsCursor(row, cursor))
+		: announcements.items.slice(offset);
+	const descriptor: CacheDescriptor = {
+		family: "thread:list",
+		scope: "internal",
+		params: {
+			kind: "local",
+			forumId,
+			typeId,
+			limit,
+			offset: Math.max(0, offset - announcements.total),
+			cursorSticky: cursor?.sticky ?? null,
+			cursorTime: cursor?.lastPostAt ?? null,
+			cursorId: cursor?.id ?? null,
+		},
+	};
+	const local = await read(env, ctx, descriptor);
+	const items = [...globals, ...local.items].slice(0, limit);
+	const nextCursor = buildNextCursor(items, limit, (row) => ({
+		sticky: stickyRank(row.sticky),
+		lastPostAt: row.last_post_at,
+		id: row.id,
+	}));
+	return { items, total: announcements.total + local.total, nextCursor };
 }

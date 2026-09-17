@@ -4,6 +4,8 @@
 
 首次运行以 [25 · 本地开发与部署](25-development.md) 为入口。下方保留架构与功能设计；其中旧域名、远程测试步骤、CLI TOML 配置和「待实现」状态可能落后于当前代码，不作为安装依据。
 
+缓存后续实现统一以 [20 · 统一缓存模块目标设计](20-worker-kv-reference.md) 为准：60 秒、30 分钟、24 小时三档，以及覆盖范围、失效规则和测试验收。该文档是目标方案，尚未实施。
+
 ## 架构概览
 
 ```
@@ -54,14 +56,13 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 
 | 编号 | 文档 | 内容 |
 |------|------|------|
-| 08 | [通用设置](./08-general-settings.md) | settings 表设计、KV 缓存策略、管理/公共 API 端点、前端设置页面 |
-| 09 | [用户信息缓存重构](./09-user-cache-refactor.md) | 数据库规范化（ID 代替 Name）、KV 用户缓存、批量查询、缓存失效策略 |
+| 08 | [通用设置](./08-general-settings.md) | settings 表设计、统一缓存接入、管理/公共 API 端点、前端设置页面 |
 | 12 | [站内信](./12-private-messages.md) | 私信界面、权限与存储设计 |
 | 13 | [举报系统](./13-report-system.md) | 前台举报与后台处理 |
 | 15 | [头像上传](./15-avatar-upload.md) | 用户头像与存储 |
 | 16 | [帖子附件](./16-post-attachments.md) | 上传和附件访问 |
 | 17 | [邮箱验证](./17-email-verification.md) | 邮件验证码、写入限制与 Dove 配置 |
-| 20 | [Worker KV 参考](./20-worker-kv-reference.md) | 当前缓存与运行状态的用途 |
+| 20 | [统一缓存模块目标设计](./20-worker-kv-reference.md) | 三档 TTL、全站覆盖与失效、后台内容预览和单条操作、应用运行趋势与占用估算、测试验收；目标方案 |
 | 22 | [帖子评分](./22-post-rating.md) | 同钱/积分双维度评分、权限矩阵、滚动 24h 额度、撤销、ETL（packages/migrate） |
 | 24 | [删除内容的占位处理](./24-tombstone-content-blanking.md) | 历史内容与删除状态的显示约定 |
 

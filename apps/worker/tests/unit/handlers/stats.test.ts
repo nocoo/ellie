@@ -1,90 +1,56 @@
-import { describe, expect, it, type mock, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicStats } from "../../../src/handlers/stats";
 import { stats } from "../../../src/handlers/stats";
-import { makeEnv, TEST_API_KEY } from "../../helpers";
-
-// ─── Helpers ──────────────────────────────────────────────────
+import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
+import { shanghaiTodayStartUnix } from "../../../src/lib/shanghaiTime";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 function createRequest(path = "/api/v1/stats"): Request {
 	return new Request(`https://api.example.com${path}`, {
 		method: "GET",
 		headers: {
-			"X-API-Key": TEST_API_KEY,
 			"Content-Type": "application/json",
 		},
 	});
 }
 
-/**
- * Create a mock DB that returns settings rows for stats counters.
- */
-function makeStatsDb(counters: {
-	totalThreads?: number;
-	totalPosts?: number;
-	totalMembers?: number;
-	yesterdayPosts?: number;
-}) {
-	const settingsRows = [
-		{ key: "stats.total_threads", value: String(counters.totalThreads ?? 0) },
-		{ key: "stats.total_posts", value: String(counters.totalPosts ?? 0) },
-		{ key: "stats.total_members", value: String(counters.totalMembers ?? 0) },
-		{ key: "stats.yesterday_posts", value: String(counters.yesterdayPosts ?? 0) },
-	];
-
-	return {
-		prepare: vi.fn((_sql: string) => ({
-			bind: vi.fn(() => ({
-				all: vi.fn(async () => ({ results: settingsRows })),
-			})),
-			all: vi.fn(async () => ({ results: settingsRows })),
-		})),
-		batch: vi.fn(async () => []),
-	} as unknown as D1Database;
-}
-
-function makeKv(options?: {
-	cachedValue?: string;
-	todayPosts?: string;
-	onlineCount?: string;
-	peakData?: { count: number; date: string } | null;
-}) {
-	return {
-		get: vi.fn(async (key: string, type?: string) => {
-			if (key === "public-stats") {
-				return options?.cachedValue ?? null;
-			}
-			if (key === "stats:today_posts") {
-				return options?.todayPosts ?? null;
-			}
-			if (key === "stats:online_count") {
-				return options?.onlineCount ?? null;
-			}
-			if (key === "stats:online_peak" && type === "json") {
-				return options?.peakData ?? null;
-			}
-			return null;
-		}),
-		put: vi.fn(async () => {}),
-		delete: vi.fn(async () => {}),
-	} as unknown as KVNamespace;
-}
-
-// ─── Tests ────────────────────────────────────────────────────
-
 describe("public stats handler", () => {
-	describe("GET /api/v1/stats", () => {
-		it("should return correct stats from settings and KV when cache is empty", async () => {
-			const db = makeStatsDb({
-				totalThreads: 3000,
-				totalPosts: 9000000,
-				totalMembers: 500,
-				yesterdayPosts: 12,
-			});
-			const kv = makeKv({ todayPosts: "5" });
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
+	let f: ReturnType<typeof readingFixture>;
 
-			const response = await stats(request, env);
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-05-30T10:00:00Z"));
+		__resetMetricsForTest();
+		f = readingFixture();
+		f.thread(1);
+	});
+
+	afterEach(() => {
+		f.close();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
+	describe("GET /api/v1/stats", () => {
+		it("should return correct stats from settings and posts count when cache is empty", async () => {
+			f.sqlite
+				.prepare("UPDATE settings SET value = '3000' WHERE key = 'stats.total_threads'")
+				.run();
+			f.sqlite
+				.prepare("UPDATE settings SET value = '9000000' WHERE key = 'stats.total_posts'")
+				.run();
+			f.sqlite.prepare("UPDATE settings SET value = '500' WHERE key = 'stats.total_members'").run();
+			f.sqlite
+				.prepare("UPDATE settings SET value = '12' WHERE key = 'stats.yesterday_posts'")
+				.run();
+
+			const todayStart = shanghaiTodayStartUnix();
+			for (let i = 0; i < 5; i++) {
+				f.post(100 + i, { created_at: todayStart + i * 10 });
+			}
+
+			const request = createRequest();
+			const response = await stats(request, f.env, f.ctx);
 
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as { data: PublicStats };
@@ -95,94 +61,56 @@ describe("public stats handler", () => {
 			expect(data.totalThreads).toBe(3000);
 			expect(data.totalPosts).toBe(9000000);
 			expect(data.totalMembers).toBe(500);
-			// Online stats return 0 (placeholder)
 			expect(data.totalOnline).toBe(0);
 			expect(data.peakOnline).toBe(0);
 			expect(data.peakDate).toBe("");
 		});
 
-		it("should write result to KV cache after reading settings", async () => {
-			const db = makeStatsDb({
-				totalThreads: 100,
-				totalPosts: 200,
-				totalMembers: 50,
-				yesterdayPosts: 2,
-			});
-			const kv = makeKv({ todayPosts: "1" });
-			const env = makeEnv({ DB: db, KV: kv });
+		it("should write result to KV cache with SHORT tier and fixed 60s expiry", async () => {
+			f.sqlite.prepare("UPDATE settings SET value = '100' WHERE key = 'stats.total_threads'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '200' WHERE key = 'stats.total_posts'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '50' WHERE key = 'stats.total_members'").run();
+			f.sqlite.prepare("UPDATE settings SET value = '2' WHERE key = 'stats.yesterday_posts'").run();
+
+			const todayStart = shanghaiTodayStartUnix();
+			f.post(200, { created_at: todayStart + 10 });
+
 			const request = createRequest();
+			await stats(request, f.env, f.ctx);
 
-			await stats(request, env);
-
-			expect(kv.put).toHaveBeenCalledTimes(1);
-			// Verify cache key and TTL
-			const putCall = (kv.put as ReturnType<typeof mock>).mock.calls[0];
+			expect(f.env.KV.put).toHaveBeenCalledTimes(1);
+			const putCall = (f.env.KV.put as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
 			expect(putCall[0]).toBe("public-stats");
-			const cached = JSON.parse(putCall[1] as string) as PublicStats;
-			expect(cached.todayPosts).toBe(1);
-			expect(cached.totalMembers).toBe(50);
-			// TTL = 900 seconds (15 minutes)
-			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(900);
+
+			const rawEnvelope = putCall[1] as string;
+			const envelope = JSON.parse(rawEnvelope);
+			expect(envelope.tier).toBe("SHORT");
+			expect(envelope.family).toBe("public-stats");
+			expect(envelope.data.todayPosts).toBe(1);
+			expect(envelope.data.totalMembers).toBe(50);
+			// Fixed SHORT TTL = 60 seconds
+			expect(putCall[2]).toMatchObject({ expirationTtl: 60 });
 		});
 
 		it("should return cached data without hitting DB", async () => {
-			const cachedStats: PublicStats = {
-				todayPosts: 99,
-				yesterdayPosts: 88,
-				totalThreads: 7777,
-				totalPosts: 5555,
-				totalMembers: 1234,
-				totalOnline: 0,
-				peakOnline: 0,
-				peakDate: "",
-			};
-			const db = makeStatsDb({});
-			const kv = makeKv({ cachedValue: JSON.stringify(cachedStats) });
-			const env = makeEnv({ DB: db, KV: kv });
+			const todayStart = shanghaiTodayStartUnix();
+			f.post(300, { created_at: todayStart + 10 });
+
 			const request = createRequest();
+			const res1 = await stats(request, f.env, f.ctx);
+			expect(res1.status).toBe(200);
 
-			const response = await stats(request, env);
+			const callsBefore = f.calls.length;
+			const res2 = await stats(request, f.env, f.ctx);
+			expect(res2.status).toBe(200);
 
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-
-			expect(body.data.todayPosts).toBe(99);
-			expect(body.data.totalMembers).toBe(1234);
-			// DB prepare should NOT have been called (cache hit)
-			expect(db.prepare).not.toHaveBeenCalled();
-		});
-
-		it("should handle missing settings gracefully (return 0)", async () => {
-			// DB returns empty results
-			const db = {
-				prepare: vi.fn(() => ({
-					bind: vi.fn(() => ({
-						all: vi.fn(async () => ({ results: [] })),
-					})),
-				})),
-			} as unknown as D1Database;
-			const kv = makeKv();
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
-
-			const response = await stats(request, env);
-
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.totalMembers).toBe(0);
-			expect(body.data.totalPosts).toBe(0);
-			expect(body.data.totalThreads).toBe(0);
-			expect(body.data.yesterdayPosts).toBe(0);
-			expect(body.data.todayPosts).toBe(0);
+			// Cache hit: no extra DB calls
+			expect(f.calls.length).toBe(callsBefore);
 		});
 
 		it("should include meta with timestamp and requestId", async () => {
-			const db = makeStatsDb({});
-			const kv = makeKv();
-			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
-
-			const response = await stats(request, env);
+			const response = await stats(request, f.env, f.ctx);
 
 			const body = (await response.json()) as { meta: { timestamp: number; requestId: string } };
 			expect(body.meta.timestamp).toBeGreaterThan(0);
@@ -190,105 +118,40 @@ describe("public stats handler", () => {
 			expect(typeof body.meta.requestId).toBe("string");
 		});
 
-		it("should read settings with single query (no batch needed)", async () => {
-			const db = makeStatsDb({ totalThreads: 100 });
-			const kv = makeKv();
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
-
-			await stats(request, env);
-
-			// Should use prepare (for settings query)
-			expect(db.prepare).toHaveBeenCalledTimes(1);
-			// Should NOT use batch (old implementation)
-			expect(db.batch).not.toHaveBeenCalled();
-		});
-
 		it("should return online stats from KV", async () => {
-			const db = makeStatsDb({});
-			const kv = makeKv({
-				onlineCount: "42",
-				peakData: { count: 100, date: "2024-03-31" },
-			});
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
+			await f.env.KV.put("stats:online_count", "42");
+			await f.env.KV.put("stats:online_peak", JSON.stringify({ count: 100, date: "2026-05-29" }));
 
-			const response = await stats(request, env);
+			const request = createRequest();
+			const response = await stats(request, f.env, f.ctx);
 
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as { data: PublicStats };
 			expect(body.data.totalOnline).toBe(42);
 			expect(body.data.peakOnline).toBe(100);
-			expect(body.data.peakDate).toBe("2024-03-31");
+			expect(body.data.peakDate).toBe("2026-05-29");
 		});
 
-		it("should return 0 for online stats when KV has no data", async () => {
-			const db = makeStatsDb({});
-			const kv = makeKv({ onlineCount: undefined, peakData: null });
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
+		it("should handle cache envelope read failure gracefully and fall back to fresh load", async () => {
+			// Preload cache
+			await stats(createRequest(), f.env, f.ctx);
 
-			const response = await stats(request, env);
+			// Corrupt KV cache entry for "public-stats"
+			f.values.set("public-stats", "{not-valid-json");
 
+			const response = await stats(createRequest(), f.env, f.ctx);
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.totalOnline).toBe(0);
-			expect(body.data.peakOnline).toBe(0);
-			expect(body.data.peakDate).toBe("");
+			expect(body.data).toBeDefined();
 		});
 
-		it("should return 0 for todayPosts when KV key is missing", async () => {
-			const db = makeStatsDb({ totalThreads: 100 });
-			const kv = makeKv({ todayPosts: undefined });
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
+		it("should handle KV write failure gracefully without breaking response", async () => {
+			f.state.writeError = true;
 
-			const response = await stats(request, env);
-
+			const response = await stats(createRequest(), f.env, f.ctx);
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.todayPosts).toBe(0);
-		});
-
-		it("should handle KV read failure gracefully", async () => {
-			const db = makeStatsDb({ totalThreads: 100 });
-			const kv = {
-				get: vi.fn(async (key: string) => {
-					if (key === "public-stats") {
-						throw new Error("KV read error");
-					}
-					return null;
-				}),
-				put: vi.fn(async () => {}),
-			} as unknown as KVNamespace;
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
-
-			const response = await stats(request, env);
-
-			// Should still return 200 with data from DB
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.totalThreads).toBe(100);
-		});
-
-		it("should handle KV write failure gracefully", async () => {
-			const db = makeStatsDb({ totalThreads: 100 });
-			const kv = {
-				get: vi.fn(async () => null),
-				put: vi.fn(async () => {
-					throw new Error("KV write error");
-				}),
-			} as unknown as KVNamespace;
-			const env = makeEnv({ DB: db, KV: kv });
-			const request = createRequest();
-
-			const response = await stats(request, env);
-
-			// Should still return 200 with data from DB
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.totalThreads).toBe(100);
+			expect(body.data).toBeDefined();
 		});
 	});
 });

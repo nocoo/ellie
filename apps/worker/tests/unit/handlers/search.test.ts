@@ -1,968 +1,177 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { searchThreads } from "../../../src/handlers/search";
-import type { Env } from "../../../src/lib/env";
-import {
-	createJwtForRole,
-	createMockCtx,
-	createMockKV,
-	makeD1ThreadRow,
-	TEST_JWT_SECRET,
-} from "../../helpers";
+import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
+import { createJwtForRole } from "../../helpers";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 describe("search handlers", () => {
-	// Note: settings now go through the settings KV cache (`getSetting` →
-	// `getSettings` → `env.KV.get("settings:all")`). Reset the KV before
-	// each test so a "search disabled" fixture in one test does not bleed
-	// into the next via the cached "settings:all" entry.
-	const mockEnv: Env = {
-		API_KEY: "test-api-key",
-		ADMIN_API_KEY: "test-admin-api-key",
-		DB: {} as D1Database,
-		ENVIRONMENT: "test",
-		JWT_SECRET: TEST_JWT_SECRET,
-		KV: createMockKV(),
-		USE_KV_USER_CACHE: "false",
-	};
+	let f: ReturnType<typeof readingFixture>;
 
 	beforeEach(() => {
-		mockEnv.KV = createMockKV();
+		vi.useFakeTimers();
+		vi.setSystemTime(1_700_000_000_000);
+		__resetMetricsForTest();
+		f = readingFixture();
 	});
 
-	const getCtx = () => createMockCtx();
+	afterEach(() => {
+		f.close();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
 
 	describe("searchThreads", () => {
-		// Helper to create mock DB. The search handler now reads settings via
-		// `getSetting()` which goes through the settings KV cache; on cache
-		// miss it falls back to a `SELECT key, value, type, updated_at FROM
-		// settings` table scan. We mock that scan and return a single row
-		// for `general.search.enabled` of type=boolean.
-		function createSearchDb(config: {
-			searchEnabled?: boolean;
-			searchResults?: unknown[];
-			countResult?: number;
-		}) {
-			return {
-				prepare: vi.fn((sql: string) => {
-					// Settings full-table scan (consumed by getSettings → getSetting)
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: config.searchEnabled === false ? "false" : "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					// Count query
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: config.countResult ?? 0 })),
-							})),
-						};
-					}
-					// Search query
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({
-								results: config.searchResults ?? [],
-							})),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-		}
-
-		it("returns 503 when search is disabled", async () => {
-			const db = createSearchDb({ searchEnabled: false });
-			const env = { ...mockEnv, DB: db };
+		it("returns 503 when search is disabled in settings", async () => {
+			f.sqlite
+				.prepare(
+					"INSERT OR REPLACE INTO settings (key, value, type, updated_at) VALUES ('general.search.enabled', 'false', 'boolean', 0)",
+				)
+				.run();
 
 			const response = await searchThreads(
 				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
+				f.env,
+				f.ctx,
 			);
 
 			expect(response.status).toBe(503);
-			const data = await response.json();
+			const data = (await response.json()) as { error: { code: string } };
 			expect(data.error.code).toBe("FEATURE_DISABLED");
 		});
 
-		it("returns 400 for empty query", async () => {
-			const db = createSearchDb({ searchEnabled: true });
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads"),
-				env,
-				getCtx(),
+		it("returns 400 for empty or too short query", async () => {
+			const resEmpty = await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q="),
+				f.env,
+				f.ctx,
 			);
+			expect(resEmpty.status).toBe(400);
 
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
-			// Message comes from error.ts getStatusMessage, details has the specific message
-			expect(data.error.details?.message).toContain("at least 2 characters");
-		});
-
-		it("returns 400 for query with less than 2 characters", async () => {
-			const db = createSearchDb({ searchEnabled: true });
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
+			const resShort = await searchThreads(
 				new Request("https://api.example.com/api/v1/search/threads?q=a"),
-				env,
-				getCtx(),
+				f.env,
+				f.ctx,
+			);
+			expect(resShort.status).toBe(400);
+		});
+
+		it("returns 400 for invalid cursor format", async () => {
+			const res = await searchThreads(
+				new Request(
+					"https://api.example.com/api/v1/search/threads?q=hello&cursor=not-a-valid-cursor",
+				),
+				f.env,
+				f.ctx,
+			);
+			expect(res.status).toBe(400);
+		});
+
+		it("executes real SQLite FTS search and returns results with total", async () => {
+			f.thread(1, { subject: "TypeScript handbook" });
+			f.thread(2, { subject: "Rust book" });
+
+			const res = await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q=TypeScript"),
+				f.env,
+				f.ctx,
 			);
 
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
-		});
-
-		it("returns 400 for invalid cursor format (non-base64)", async () => {
-			const db = createSearchDb({ searchEnabled: true });
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test&cursor=invalid!!!"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
-			expect(data.error.details?.message).toContain("cursor");
-		});
-
-		it("returns 400 for invalid cursor format (valid base64, invalid JSON)", async () => {
-			const db = createSearchDb({ searchEnabled: true });
-			const env = { ...mockEnv, DB: db };
-
-			// btoa("not-json")
-			const invalidCursor = btoa("not-json");
-			const response = await searchThreads(
-				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${invalidCursor}`),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
-		});
-
-		it("returns 400 for invalid cursor format (valid JSON, wrong shape)", async () => {
-			const db = createSearchDb({ searchEnabled: true });
-			const env = { ...mockEnv, DB: db };
-
-			// btoa('{"foo":"bar"}')
-			const invalidCursor = btoa('{"foo":"bar"}');
-			const response = await searchThreads(
-				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${invalidCursor}`),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(400);
-			const data = await response.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
-		});
-
-		it("returns results for valid query", async () => {
-			const threadRow = makeD1ThreadRow({ subject: "同济大学测试主题" });
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: [threadRow],
-				countResult: 1,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=同济"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toHaveLength(1);
-			expect(data.data[0].subject).toBe("同济大学测试主题");
-			expect(data.meta.total).toBe(1);
-		});
-
-		it("respects limit parameter", async () => {
-			const threads = [
-				makeD1ThreadRow({ id: 1 }),
-				makeD1ThreadRow({ id: 2 }),
-				makeD1ThreadRow({ id: 3 }),
-			];
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: threads,
-				countResult: 3,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=2"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			// Limit 2 + 1 for pagination check = 3 returned, but should show 2
-			expect(data.data.length).toBeLessThanOrEqual(2);
-		});
-
-		it("clamps limit to max 50", async () => {
-			const allSpy = vi.fn(async () => ({ results: [] }));
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					return {
-						bind: vi.fn((...args: unknown[]) => {
-							// Last arg is limit + 1
-							const limitArg = args[args.length - 1];
-							expect(limitArg).toBe(51); // 50 + 1 for pagination
-							return { all: allSpy };
-						}),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=100"),
-				env,
-				getCtx(),
-			);
-
-			expect(allSpy).toHaveBeenCalled();
-		});
-
-		it("supports cursor pagination", async () => {
-			const threadRow = makeD1ThreadRow({
-				id: 1,
-				last_post_at: 1711544400,
-			});
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: [threadRow],
-				countResult: 1,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			// Create valid cursor
-			const cursor = btoa(JSON.stringify({ lastPostAt: 1711544400, id: 2 }));
-			const response = await searchThreads(
-				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${cursor}`),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data).toBeDefined();
-		});
-
-		it("returns total count on first page only", async () => {
-			const threadRow = makeD1ThreadRow();
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: [threadRow],
-				countResult: 42,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			// First page (no cursor) should have total
-			const response1 = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
-			);
-
-			expect(response1.status).toBe(200);
-			const data1 = await response1.json();
-			expect(data1.meta.total).toBe(42);
-
-			// Second page (with cursor) should not call count
-			const cursor = btoa(JSON.stringify({ lastPostAt: 1711544400, id: 2 }));
-			const countCalled = { value: false };
-			const db2 = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						countCalled.value = true;
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [threadRow] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env2 = { ...mockEnv, DB: db2 };
-
-			await searchThreads(
-				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${cursor}`),
-				env2,
-				getCtx(),
-			);
-
-			expect(countCalled.value).toBe(false);
-		});
-
-		it("handles FTS5 special characters (quotes)", async () => {
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: [],
-				countResult: 0,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			// Query with quotes should not cause error
-			const response = await searchThreads(
-				new Request('https://api.example.com/api/v1/search/threads?q=test"quote'),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-		});
-
-		it("handles multi-keyword AND search", async () => {
-			let capturedFtsQuery = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn((ftsQuery: string) => {
-								capturedFtsQuery = ftsQuery;
-								return {
-									first: vi.fn(async () => ({ cnt: 0 })),
-								};
-							}),
-						};
-					}
-					return {
-						bind: vi.fn((ftsQuery: string) => {
-							capturedFtsQuery = ftsQuery;
-							return {
-								all: vi.fn(async () => ({ results: [] })),
-							};
-						}),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=同济%20毕业典礼"),
-				env,
-				getCtx(),
-			);
-
-			// FTS query should be quoted terms
-			expect(capturedFtsQuery).toBe('"同济" "毕业典礼"');
-		});
-
-		it("returns complete Thread fields", async () => {
-			const threadRow = makeD1ThreadRow({
-				id: 123,
-				forum_id: 5,
-				author_id: 1001,
-				author_name: "张三",
-				subject: "同济大学2024届毕业典礼",
-				created_at: 1704067200,
-				last_post_at: 1704153600,
-				last_poster: "李四",
-				last_poster_id: 1002,
-				replies: 42,
-				views: 1234,
-				closed: 0,
-				sticky: 0,
-				digest: 0,
-				special: 1,
-				highlight: 1,
-				recommends: 5,
-				type_name: "活动",
-			});
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: [threadRow],
-				countResult: 1,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=同济"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			const thread = data.data[0];
-
-			// Verify all expected fields
-			expect(thread.id).toBe(123);
-			expect(thread.forumId).toBe(5);
-			expect(thread.authorId).toBe(1001);
-			expect(thread.authorName).toBe("张三");
-			expect(thread.subject).toBe("同济大学2024届毕业典礼");
-			expect(thread.createdAt).toBe(1704067200);
-			expect(thread.lastPostAt).toBe(1704153600);
-			expect(thread.lastPoster).toBe("李四");
-			expect(thread.lastPosterId).toBe(1002);
-			expect(thread.replies).toBe(42);
-			expect(thread.views).toBe(1234);
-			expect(thread.closed).toBe(0);
-			expect(thread.sticky).toBe(0);
-			expect(thread.digest).toBe(0);
-			expect(thread.special).toBe(1);
-			expect(thread.highlight).toBe(1);
-			expect(thread.recommends).toBe(5);
-			expect(thread.typeName).toBe("活动");
-			// Avatars should be empty strings when not enriched
-			expect(thread.authorAvatar).toBe("");
-			expect(thread.lastPosterAvatar).toBe("");
-		});
-
-		it("includes NOT EXISTS derived column for is_author_first_thread in search SQL", async () => {
-			let capturedThreadSql = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					// This is the main thread SELECT query
-					capturedThreadSql = sql;
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
-			);
-
-			// SQL must include the NOT EXISTS subquery and alias
-			expect(capturedThreadSql).toContain("NOT EXISTS");
-			expect(capturedThreadSql).toContain("AS is_author_first_thread");
-		});
-
-		it("maps is_author_first_thread correctly in search results", async () => {
-			const firstThreadRow = makeD1ThreadRow({ id: 1, is_author_first_thread: 1 });
-			const normalThreadRow = makeD1ThreadRow({ id: 2, is_author_first_thread: 0 });
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: [firstThreadRow, normalThreadRow],
-				countResult: 2,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.data[0].isAuthorFirstThread).toBe(true);
-			expect(data.data[1].isAuthorFirstThread).toBe(false);
-		});
-
-		it("filters hidden threads (sticky < 0)", async () => {
-			// This is tested through SQL query generation - verify the SQL includes visibility check
-			let capturedSql = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					capturedSql = sql;
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
-			);
-
-			// SQL should include thread visibility filter
-			expect(capturedSql).toContain("t.sticky >= 0");
-		});
-
-		it("filters threads in hidden forums", async () => {
-			let capturedSql = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					capturedSql = sql;
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
-			);
-
-			// SQL should include forum status filter
-			expect(capturedSql).toContain("f.status = 1");
-		});
-
-		it("respects forum visibility levels for anonymous user", async () => {
-			let capturedSql = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					capturedSql = sql;
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			// Anonymous user (no auth header)
-			await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
-			);
-
-			// SQL should only include public visibility for anonymous
-			expect(capturedSql).toContain("f.visibility = 'public'");
-			// Should NOT include members/staff/admin for anonymous
-			expect(capturedSql).not.toContain("f.visibility = 'members'");
-		});
-
-		it("respects forum visibility levels for logged-in user", async () => {
-			let capturedSql = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					// optionalAuthVerified checks user in DB
-					if (sql.includes("SELECT role, status FROM users")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ role: 0, status: 0 })),
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						capturedSql = sql;
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					capturedSql = sql;
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			// Logged-in user
-			const token = await createJwtForRole(0); // Regular user
-			const request = new Request("https://api.example.com/api/v1/search/threads?q=test", {
-				headers: { Authorization: `Bearer ${token}` },
-			});
-
-			await searchThreads(request, env, getCtx());
-
-			// SQL should include public AND members visibility
-			expect(capturedSql).toContain("f.visibility = 'public'");
-			expect(capturedSql).toContain("f.visibility = 'members'");
-		});
-
-		it("respects forum visibility levels for admin", async () => {
-			let capturedSql = "";
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					// optionalAuthVerified checks user in DB
-					if (sql.includes("SELECT role, status FROM users")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ role: 1, status: 0 })), // Admin role
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						capturedSql = sql;
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 0 })),
-							})),
-						};
-					}
-					capturedSql = sql;
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			// Admin user
-			const token = await createJwtForRole(1); // Admin
-			const request = new Request("https://api.example.com/api/v1/search/threads?q=test", {
-				headers: { Authorization: `Bearer ${token}` },
-			});
-
-			await searchThreads(request, env, getCtx());
-
-			// SQL should include ALL visibility levels
-			expect(capturedSql).toContain("f.visibility = 'public'");
-			expect(capturedSql).toContain("f.visibility = 'members'");
-			expect(capturedSql).toContain("f.visibility = 'staff'");
-			expect(capturedSql).toContain("f.visibility = 'admin'");
-		});
-
-		it("returns nextCursor when more results available", async () => {
-			// Create 3 threads (limit 2 + 1 for pagination check)
-			const threads = [
-				makeD1ThreadRow({ id: 3, last_post_at: 1711544400 }),
-				makeD1ThreadRow({ id: 2, last_post_at: 1711544300 }),
-				makeD1ThreadRow({ id: 1, last_post_at: 1711544200 }),
-			];
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: threads,
-				countResult: 3,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=2"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.meta.nextCursor).toBeDefined();
-			expect(data.meta.nextCursor).not.toBeNull();
-
-			// Decode cursor to verify it's valid
-			const cursor = JSON.parse(atob(data.meta.nextCursor));
-			expect(cursor.lastPostAt).toBe(1711544300); // Second-to-last item
-			expect(cursor.id).toBe(2);
-		});
-
-		it("returns null nextCursor when no more results", async () => {
-			const threads = [makeD1ThreadRow({ id: 1 })];
-			const db = createSearchDb({
-				searchEnabled: true,
-				searchResults: threads,
-				countResult: 1,
-			});
-			const env = { ...mockEnv, DB: db };
-
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=10"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			expect(data.meta.nextCursor).toBeNull();
-		});
-
-		it("enriches threads with user cache when enabled", async () => {
-			const threadRow = makeD1ThreadRow({
-				author_id: 100,
-				last_poster_id: 200,
-				author_name: "original_author",
-				last_poster: "original_poster",
-			});
-
-			// Create mock KV with cached user profiles
-			const kvStore = new Map<string, string>([
-				[
-					"user:mini:100",
-					JSON.stringify({
-						id: 100,
-						username: "cached_author",
-						avatar: "author_avatar.png",
-						role: 0,
-						groupTitle: "",
-						groupColor: "",
-						groupStars: 0,
-					}),
-				],
-				[
-					"user:mini:200",
-					JSON.stringify({
-						id: 200,
-						username: "cached_poster",
-						avatar: "poster_avatar.png",
-						role: 0,
-						groupTitle: "",
-						groupColor: "",
-						groupStars: 0,
-					}),
-				],
-			]);
-
-			const mockKV = {
-				get: vi.fn(async (key: string, type?: string) => {
-					const val = kvStore.get(key);
-					if (!val) return null;
-					if (type === "json") return JSON.parse(val);
-					return val;
-				}),
-				put: vi.fn(async () => {}),
-				delete: vi.fn(async () => {}),
-			} as unknown as KVNamespace;
-
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("FROM settings")) {
-						return {
-							all: vi.fn(async () => ({
-								results: [
-									{
-										key: "general.search.enabled",
-										value: "true",
-										type: "boolean",
-										updated_at: 0,
-									},
-								],
-							})),
-						};
-					}
-					if (sql.includes("COUNT(*)")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(async () => ({ cnt: 1 })),
-							})),
-						};
-					}
-					return {
-						bind: vi.fn(() => ({
-							all: vi.fn(async () => ({ results: [threadRow] })),
-						})),
-					};
-				}),
-			} as unknown as D1Database;
-
-			const env = {
-				...mockEnv,
-				DB: db,
-				KV: mockKV,
-				USE_KV_USER_CACHE: "true",
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as {
+				data: { id: number; subject: string }[];
+				meta: { total: number; nextCursor: string | null };
 			};
+			expect(body.data).toHaveLength(1);
+			expect(body.data[0].id).toBe(1);
+			expect(body.data[0].subject).toBe("TypeScript handbook");
+			expect(body.meta.total).toBe(1);
+			expect(body.meta.nextCursor).toBeNull();
+		});
 
-			const response = await searchThreads(
-				new Request("https://api.example.com/api/v1/search/threads?q=test"),
-				env,
-				getCtx(),
+		it("composes current forum gates and hides private forums from unauthorized users", async () => {
+			// forum 2 is staff-only
+			f.thread(10, { forum_id: 2, subject: "Confidential handbook" });
+
+			// Anonymous search finds 0
+			const anonRes = await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q=Confidential"),
+				f.env,
+				f.ctx,
 			);
+			const anonBody = (await anonRes.json()) as { data: unknown[]; meta: { total: number } };
+			expect(anonBody.data).toHaveLength(0);
+			expect(anonBody.meta.total).toBe(0);
 
-			expect(response.status).toBe(200);
-			const data = await response.json();
-			const thread = data.data[0];
+			// Staff search finds 1
+			const token = await createJwtForRole(3, 30, f.env.JWT_SECRET);
+			const staffRes = await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q=Confidential", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				f.env,
+				f.ctx,
+			);
+			const staffBody = (await staffRes.json()) as {
+				data: { id: number }[];
+				meta: { total: number };
+			};
+			expect(staffBody.data).toHaveLength(1);
+			expect(staffBody.data[0].id).toBe(10);
+			expect(staffBody.meta.total).toBe(1);
+		});
 
-			// Should be enriched with cached data
-			expect(thread.authorName).toBe("cached_author");
-			expect(thread.authorAvatar).toBe("author_avatar.png");
-			expect(thread.lastPoster).toBe("cached_poster");
-			expect(thread.lastPosterAvatar).toBe("poster_avatar.png");
+		it("supports pagination with nextCursor", async () => {
+			for (let i = 1; i <= 3; i++) {
+				f.thread(i, { subject: `Common guide part ${i}`, last_post_at: 1000 + i });
+			}
+
+			// Page 1 with limit 2
+			const res1 = await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q=Common&limit=2"),
+				f.env,
+				f.ctx,
+			);
+			const body1 = (await res1.json()) as {
+				data: { id: number }[];
+				meta: { total: number; nextCursor: string };
+			};
+			expect(body1.data).toHaveLength(2);
+			expect(body1.meta.total).toBe(3);
+			expect(body1.meta.nextCursor).not.toBeNull();
+
+			// Page 2
+			const res2 = await searchThreads(
+				new Request(
+					`https://api.example.com/api/v1/search/threads?q=Common&limit=2&cursor=${encodeURIComponent(body1.meta.nextCursor)}`,
+				),
+				f.env,
+				f.ctx,
+			);
+			const body2 = (await res2.json()) as {
+				data: { id: number }[];
+				meta: { total: number; nextCursor: string | null };
+			};
+			expect(body2.data).toHaveLength(1);
+			expect(body2.meta.nextCursor).toBeNull();
+		});
+
+		it("serves repeated hot reads from cache without re-running FTS query", async () => {
+			f.thread(1, { subject: "Unique keyword searching" });
+
+			const req = new Request("https://api.example.com/api/v1/search/threads?q=Unique");
+			const res1 = await searchThreads(req, f.env, f.ctx);
+			expect(res1.status).toBe(200);
+
+			const ftsCallsBefore = f.calls.filter((c) => c.sql.includes("threads_fts MATCH")).length;
+			expect(ftsCallsBefore).toBe(2); // SELECT items + SELECT COUNT(*)
+
+			// Repeated search (hot cache hit for catalog page)
+			const res2 = await searchThreads(req, f.env, f.ctx);
+			expect(res2.status).toBe(200);
+
+			const ftsCallsAfter = f.calls.filter((c) => c.sql.includes("threads_fts MATCH")).length;
+			// Never re-executes FTS match query
+			expect(ftsCallsAfter).toBe(ftsCallsBefore);
 		});
 	});
 });

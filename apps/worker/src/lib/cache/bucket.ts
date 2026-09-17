@@ -1,6 +1,6 @@
 // Bucket builders for cache keys.
 //
-// See docs/19 §2.2 (visibility bucket) and §2.3 (viewer bucket).
+// See docs/20 §3.2 for audience scope and current permission checks.
 //
 // CRITICAL: `UserRole` is non-monotonic (`User=0, Admin=1, SuperMod=2,
 // Mod=3`). All comparisons MUST be `===` enumerations, never `<=`. `admin`

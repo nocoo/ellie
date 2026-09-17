@@ -2,6 +2,12 @@
 
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { canViewForumVisibility } from "@ellie/types";
+import {
+	getPostComments,
+	loadPostAccessBatch,
+	threadAccessStatus,
+	validReadingId,
+} from "../lib/cache/thread-loaders";
 import { applyCensorFilter } from "../lib/censor";
 import { extractTrustedClientIp } from "../lib/clientIp";
 import type { Env } from "../lib/env";
@@ -9,13 +15,8 @@ import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import {
-	buildVisibilityContext,
-	canReadThreadContent,
-	canViewModeratedThread,
-	isForumActive,
-	STICKY_MODERATED,
-} from "../lib/visibility";
+import { getUserProfiles } from "../lib/user-cache";
+import { isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -38,7 +39,7 @@ function toPostComment(row: Record<string, unknown>) {
 }
 
 /** GET /api/v1/post-comments - List comments for a post */
-export async function list(request: Request, env: Env): Promise<Response> {
+export async function list(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const postId = url.searchParams.get("postId");
@@ -49,7 +50,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	}
 
 	const postIdNum = Number.parseInt(postId, 10);
-	if (Number.isNaN(postIdNum)) {
+	if (!validReadingId(postIdNum)) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid postId" }, origin);
 	}
 
@@ -75,55 +76,33 @@ export async function list(request: Request, env: Env): Promise<Response> {
 			moderator_ids: string;
 		}>();
 
-	if (!row || (row.sticky < 0 && row.sticky !== STICKY_MODERATED)) {
+	const access = threadAccessStatus(row, await userPromise);
+	if (access === 404) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
-
-	if (!isForumActive(row)) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	const user = await userPromise;
-
-	if (row.sticky === STICKY_MODERATED) {
-		if (
-			!canViewModeratedThread({
-				authorId: row.author_id,
-				forumModeratorIds: row.moderator_ids ?? "",
-				user,
-			})
-		) {
-			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-		}
-	} else {
-		const visCtx = buildVisibilityContext(user);
-
-		if (
-			!canReadThreadContent({
-				sticky: row.sticky,
-				forumVisibility: row.visibility as ForumVisibility,
-				visCtx,
-			})
-		) {
-			return errorResponse(
-				"FORBIDDEN",
-				403,
-				{ message: "You don't have access to this content" },
-				origin,
-			);
-		}
+	if (access === 403) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
 	}
 
 	// Clamp limit
 	const clampedLimit = clampLimit(limitParam, { defaultLimit: 50, maxLimit: 100 });
 
-	const result = await env.DB.prepare(
-		"SELECT * FROM post_comments WHERE post_id = ? ORDER BY created_at ASC LIMIT ?",
-	)
-		.bind(postIdNum, clampedLimit)
-		.all();
-
-	const comments = result.results.map((row) => toPostComment(row as Record<string, unknown>));
+	if (!Number.isSafeInteger(clampedLimit))
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid limit" }, origin);
+	const rows = await getPostComments(env, ctx, [postIdNum], clampedLimit);
+	const comments = (rows.get(postIdNum) ?? []).map(toPostComment);
+	const profiles = await getUserProfiles(
+		env,
+		ctx,
+		comments.map((comment) => comment.authorId),
+	);
+	for (const comment of comments)
+		comment.authorName = profiles.get(comment.authorId)?.username ?? comment.authorName;
 
 	return jsonResponse(comments, origin);
 }
@@ -139,7 +118,11 @@ export async function list(request: Request, env: Env): Promise<Response> {
  *
  * Designed to eliminate N+1 per-post comment fetches in thread detail pages.
  */
-export async function batchByPostIds(request: Request, env: Env): Promise<Response> {
+export async function batchByPostIds(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	let body: Record<string, unknown>;
@@ -151,12 +134,10 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 
 	const threadId = typeof body.threadId === "number" ? body.threadId : undefined;
 	const postIds = Array.isArray(body.postIds)
-		? (body.postIds as unknown[]).filter(
-				(id): id is number => typeof id === "number" && !Number.isNaN(id) && id > 0,
-			)
+		? (body.postIds as unknown[]).filter(validReadingId)
 		: undefined;
 
-	if (typeof threadId !== "number" || Number.isNaN(threadId) || threadId <= 0) {
+	if (!validReadingId(threadId)) {
 		return errorResponse(
 			"INVALID_BODY",
 			400,
@@ -181,10 +162,9 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 		);
 	}
 
-	// Auth + visibility + comments: fire all in parallel (speculative).
-	// Discard comments data if the visibility check denies.
-	const placeholders = uniquePostIds.map(() => "?").join(",");
-	const [user, visRow, commentsResult] = await Promise.all([
+	// Authorize before reading cached comments; the post gate below also
+	// validates current ownership and deletion with at most 100 bindings.
+	const [user, visRow] = await Promise.all([
 		optionalAuthVerified(request, env),
 		env.DB.prepare(
 			`SELECT t.forum_id, t.sticky, t.author_id, f.status, f.visibility, f.moderator_ids
@@ -201,55 +181,39 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 				visibility: string;
 				moderator_ids: string;
 			}>(),
-		env.DB.prepare(
-			`SELECT pc.*
-			 FROM post_comments pc
-			 INNER JOIN posts p ON p.id = pc.post_id
-			 WHERE pc.post_id IN (${placeholders}) AND p.thread_id = ? AND p.invisible = 0
-			 ORDER BY pc.post_id, pc.created_at`,
-		)
-			.bind(...uniquePostIds, threadId)
-			.all(),
 	]);
 
-	if (!visRow || (visRow.sticky < 0 && visRow.sticky !== STICKY_MODERATED)) {
+	const access = threadAccessStatus(visRow, user);
+	if (access === 404) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
-
-	if (!isForumActive(visRow)) {
-		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	if (access === 403) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
 	}
 
-	if (visRow.sticky === STICKY_MODERATED) {
-		if (
-			!canViewModeratedThread({
-				authorId: visRow.author_id,
-				forumModeratorIds: visRow.moderator_ids ?? "",
-				user,
-			})
-		) {
-			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
-		}
-	} else {
-		const visCtx = buildVisibilityContext(user);
-
-		if (
-			!canReadThreadContent({
-				sticky: visRow.sticky,
-				forumVisibility: visRow.visibility as ForumVisibility,
-				visCtx,
-			})
-		) {
-			return errorResponse(
-				"FORBIDDEN",
-				403,
-				{ message: "You don't have access to this content" },
-				origin,
-			);
-		}
-	}
-
-	const comments = commentsResult.results.map((r) => toPostComment(r as Record<string, unknown>));
+	const current = await loadPostAccessBatch(env, uniquePostIds, threadId);
+	const rows = await getPostComments(env, ctx, [...current.keys()], null);
+	const comments = [...rows.values()]
+		.flat()
+		.sort(
+			(a, b) =>
+				Number(a.post_id) - Number(b.post_id) ||
+				Number(a.created_at) - Number(b.created_at) ||
+				Number(a.id) - Number(b.id),
+		)
+		.map(toPostComment);
+	const profiles = await getUserProfiles(
+		env,
+		ctx,
+		comments.map((comment) => comment.authorId),
+	);
+	for (const comment of comments)
+		comment.authorName = profiles.get(comment.authorId)?.username ?? comment.authorName;
 
 	return jsonResponse(comments, origin);
 }
@@ -366,6 +330,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(row.thread_id, postId, user.userId, authorName, content, ip, now)
 		.run();
 
+	if (!insertResult.success) throw new Error("Comment creation was not confirmed");
 	const commentId = insertResult.meta.last_row_id;
 
 	// Fetch created comment

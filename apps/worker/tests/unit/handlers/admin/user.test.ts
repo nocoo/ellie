@@ -18,9 +18,45 @@ import {
 	createMockDb,
 	createMockKV,
 	createMockR2,
-	makeD1UserRow,
+	makeD1UserRow as makeBaseD1UserRow,
 	makeEnv,
 } from "../../../helpers";
+
+// Admin reads validate the complete projected DTO, including defaulted D1 columns.
+function makeD1UserRow(overrides?: Record<string, unknown>) {
+	return makeBaseD1UserRow({
+		coins: 0,
+		signature: "",
+		group_title: "",
+		group_stars: 0,
+		group_color: "",
+		custom_title: "",
+		digest_posts: 0,
+		ol_time: 0,
+		gender: 0,
+		birth_year: 0,
+		birth_month: 0,
+		birth_day: 0,
+		reside_province: "",
+		reside_city: "",
+		graduate_school: "",
+		bio: "",
+		interest: "",
+		qq: "",
+		site: "",
+		campus: "",
+		last_activity: 0,
+		has_avatar: 0,
+		email_verified_at: 0,
+		email_normalized: "",
+		email_changed_at: 0,
+		reg_ip: "",
+		last_ip: "",
+		purged_at: 0,
+		purged_by: 0,
+		...overrides,
+	});
+}
 
 describe("admin user handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -1243,8 +1279,8 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": Array.from(
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": threadRows,
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": Array.from(
 						{ length: 8 },
 						(_, i) => ({ id: i + 1, thread_id: i < 6 ? 10 : 20, forum_id: 1, author_id: 42 }),
 					),
@@ -1326,11 +1362,10 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id":
-						standalonePostIdRows,
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": standalonePostIdRows,
 				},
 			});
 
@@ -1394,8 +1429,8 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": Array.from(
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": threadRows,
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": Array.from(
 						{ length: 6 },
 						(_, i) => ({ id: i + 1, thread_id: i < 3 ? 10 : 20, forum_id: 1, author_id: 42 }),
 					),
@@ -1435,7 +1470,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
 				},
@@ -1617,15 +1652,17 @@ describe("admin user handlers", () => {
 						null,
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
+						{ id: 100, forum_id: 7 },
+					],
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [
 						{ id: 150, thread_id: 100, forum_id: 7, author_id: 42 },
 						{ id: 151, thread_id: 100, forum_id: 7, author_id: 99 },
 						{ id: 201, thread_id: 300, forum_id: 8, author_id: 42 },
 					],
-					"SELECT DISTINCT file_path FROM attachments": [
-						{ file_path: "att/a.png" },
-						{ file_path: "att/b.png" },
+					"SELECT DISTINCT file_path, post_id FROM attachments": [
+						{ file_path: "att/a.png", post_id: 150 },
+						{ file_path: "att/b.png", post_id: 201 },
 					],
 				},
 			});
@@ -1670,7 +1707,8 @@ describe("admin user handlers", () => {
 
 			// Schema column-name sanity:
 			expect(allSqls).toMatch(/threads WHERE author_id/);
-			expect(allSqls).toMatch(/posts WHERE author_id/);
+			expect(allSqls).toMatch(/FROM posts p LEFT JOIN threads t/);
+			expect(allSqls).toMatch(/WHERE p.author_id = \?/);
 			expect(allSqls).toMatch(/messages WHERE sender_id = \? OR receiver_id = \?/);
 			expect(allSqls).toMatch(/attachments/);
 			expect(allSqls).toMatch(/file_path/);
@@ -1710,13 +1748,16 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
-					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
-					"SELECT DISTINCT file_path FROM attachments": [],
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [],
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [],
+					"SELECT DISTINCT file_path, post_id FROM attachments": [],
 				},
 			});
 			(db.batch as ReturnType<typeof import("vitest").vi.fn>)
-				.mockResolvedValueOnce([{ results: [] }, { results: [] }])
+				.mockResolvedValueOnce([
+					{ success: true, results: [], meta: {} },
+					{ success: true, results: [], meta: {} },
+				])
 				.mockRejectedValueOnce(new Error("d1 batch boom"));
 			const r2 = createMockR2();
 			const { purge } = await import("../../../../src/handlers/admin/user");
@@ -1735,9 +1776,9 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
-					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
-					"SELECT DISTINCT file_path FROM attachments": [],
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [],
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [],
+					"SELECT DISTINCT file_path, post_id FROM attachments": [],
 				},
 			});
 			const r2 = createMockR2();
@@ -1764,9 +1805,9 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
-					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
-					"SELECT DISTINCT file_path FROM attachments": [],
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [],
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [],
+					"SELECT DISTINCT file_path, post_id FROM attachments": [],
 				},
 			});
 			const r2 = createMockR2();
@@ -1800,11 +1841,13 @@ describe("admin user handlers", () => {
 					"SELECT created_at, author_name, author_id, anonymous_author FROM threads WHERE id": null,
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
+						{ id: 100, forum_id: 7 },
+					],
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [
 						{ id: 201, thread_id: 300, forum_id: 8, author_id: 42 },
 					],
-					"SELECT DISTINCT file_path FROM attachments": [],
+					"SELECT DISTINCT file_path, post_id FROM attachments": [],
 				},
 			});
 			const r2 = createMockR2();
@@ -2252,7 +2295,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [
@@ -2607,10 +2650,10 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [
 						{ id: 10, thread_id: 10, forum_id: 1, author_id: 42 },
 					],
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
 						{ id: 10, forum_id: 1, replies: 3 },
 					],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 2 }],
@@ -2651,10 +2694,10 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, thread_id, forum_id, author_id FROM posts WHERE author_id": [
+					"SELECT p.id, p.thread_id, p.forum_id, p.author_id": [
 						{ id: 10, thread_id: 10, forum_id: 1, author_id: 42 },
 					],
-					"SELECT id, forum_id, digest FROM threads WHERE author_id": [
+					"SELECT id, forum_id, digest, sticky FROM threads WHERE author_id": [
 						{ id: 10, forum_id: 1, replies: 2 },
 					],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 3 }],

@@ -1,6 +1,7 @@
 // User counter helpers — decrement thread/post counts after admin deletions.
 // Uses MAX(0, ...) to prevent negative values from stale data.
 
+import { confirmedBatch, confirmedRun } from "./d1-write";
 import type { Env } from "./env";
 
 /** A single bound statement, suitable for the same transaction as content deletion. */
@@ -28,16 +29,19 @@ export function buildUserCounterDecrementStatements(
 
 /** Decrement a user's thread count by the specified amount. */
 export async function decrementUserThreads(env: Env, userId: number, count = 1): Promise<void> {
-	await env.DB.prepare("UPDATE users SET threads = MAX(0, threads - ?) WHERE id = ?")
-		.bind(count, userId)
-		.run();
+	await confirmedRun(
+		env.DB.prepare("UPDATE users SET threads = MAX(0, threads - ?) WHERE id = ?").bind(
+			count,
+			userId,
+		),
+	);
 }
 
 /** Decrement a user's post count by the specified amount. */
 export async function decrementUserPosts(env: Env, userId: number, count = 1): Promise<void> {
-	await env.DB.prepare("UPDATE users SET posts = MAX(0, posts - ?) WHERE id = ?")
-		.bind(count, userId)
-		.run();
+	await confirmedRun(
+		env.DB.prepare("UPDATE users SET posts = MAX(0, posts - ?) WHERE id = ?").bind(count, userId),
+	);
 }
 
 /**
@@ -51,5 +55,5 @@ export async function batchDecrementUserPosts(
 ): Promise<void> {
 	if (authorCounts.size === 0) return;
 
-	await env.DB.batch(buildUserCounterDecrementStatements(env, authorCounts));
+	await confirmedBatch(env, buildUserCounterDecrementStatements(env, authorCounts));
 }

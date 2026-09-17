@@ -27,6 +27,8 @@
 import type { CheckinHistoryEntry, UserCheckin } from "@ellie/types";
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { getAdminReport } from "../../lib/cache/admin-report-read";
+import { invalidateStatisticsReports, invalidateUserCaches } from "../../lib/cache/invalidate";
 import { recomputeFromHistory } from "../../lib/checkinRecompute";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
@@ -73,54 +75,6 @@ function parseCheckinPath(request: Request): CheckinPath | null {
 	return { userId, tail: m[2] ?? "" };
 }
 
-// ─── Row shapes ──────────────────────────────────────────────────
-
-interface AggregateRow {
-	user_id: number;
-	total_days: number;
-	month_days: number;
-	streak_days: number;
-	reward_total: number;
-	last_reward: number;
-	mood: string;
-	message: string;
-	last_checkin_at: number;
-}
-
-interface HistoryRow {
-	user_id: number;
-	date_local: string;
-	mood: string;
-	message: string;
-	reward: number;
-	created_at: number;
-}
-
-function toUserCheckin(row: AggregateRow): UserCheckin {
-	return {
-		userId: row.user_id,
-		totalDays: row.total_days,
-		monthDays: row.month_days,
-		streakDays: row.streak_days,
-		rewardTotal: row.reward_total,
-		lastReward: row.last_reward,
-		mood: row.mood,
-		message: row.message,
-		lastCheckinAt: row.last_checkin_at,
-	};
-}
-
-function toHistoryEntry(row: HistoryRow): CheckinHistoryEntry {
-	return {
-		userId: row.user_id,
-		dateLocal: row.date_local,
-		mood: row.mood,
-		message: row.message,
-		reward: row.reward,
-		createdAt: row.created_at,
-	};
-}
-
 // ─── Common user existence guard ─────────────────────────────────
 
 interface UserGuardOk {
@@ -153,11 +107,10 @@ async function ensureUser(
 // ─── GET /api/admin/users/:id/checkins ───────────────────────────
 
 const DEFAULT_RANGE_DAYS = 90;
-const MAX_HISTORY_ROWS = 1000; // hard cap so a wide range can't OOM the response
 
 export const getUserCheckins = withEntityAuth(
 	checkinConfig,
-	async (request, env): Promise<Response> => {
+	async (request, env, ctx): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const parsed = parseCheckinPath(request);
 		if (parsed?.tail !== "") {
@@ -171,8 +124,6 @@ export const getUserCheckins = withEntityAuth(
 		const url = new URL(request.url);
 		const fromParam = url.searchParams.get("from");
 		const toParam = url.searchParams.get("to");
-
-		// Default range: last DEFAULT_RANGE_DAYS days through today (Shanghai).
 		const today = shanghaiDateLocal();
 		const from =
 			fromParam ??
@@ -195,34 +146,20 @@ export const getUserCheckins = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "from must be <= to" }, origin);
 		}
 
-		const [aggregate, history] = await Promise.all([
-			env.DB.prepare("SELECT * FROM user_checkins WHERE user_id = ?")
-				.bind(userId)
-				.first<AggregateRow>(),
-			env.DB.prepare(
-				`SELECT user_id, date_local, mood, message, reward, created_at
-				 FROM checkin_history
-				 WHERE user_id = ? AND date_local >= ? AND date_local <= ?
-				 ORDER BY date_local DESC
-				 LIMIT ?`,
-			)
-				.bind(userId, from, to, MAX_HISTORY_ROWS)
-				.all<HistoryRow>(),
-		]);
-
-		const historyRows = history.results ?? [];
-
-		return jsonNoStoreResponse(
-			{
-				userId,
-				username: guard.username,
-				checkin: aggregate ? toUserCheckin(aggregate) : null,
-				history: historyRows.map(toHistoryEntry),
-				range: { from, to },
-				truncated: historyRows.length === MAX_HISTORY_ROWS,
-			},
-			origin,
-		);
+		const data = await getAdminReport<{
+			userId: number;
+			username: string;
+			checkin: UserCheckin | null;
+			history: CheckinHistoryEntry[];
+			range: { from: string; to: string };
+			truncated: boolean;
+		} | null>(env, ctx, {
+			family: "admin:display",
+			scope: "admin",
+			params: { resource: "checkins", operation: "user", userId, from, to },
+		});
+		if (data === null) return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		return jsonNoStoreResponse({ ...data, username: guard.username }, origin);
 	},
 );
 
@@ -316,6 +253,7 @@ export const setCheckinDay = withEntityAuth(
 				resultingStreakDays: result.streakDays,
 			},
 		});
+		await Promise.all([invalidateUserCaches(env, userId), invalidateStatisticsReports(env)]);
 
 		return jsonNoStoreResponse(
 			{
@@ -398,6 +336,7 @@ export const setStreak = withEntityAuth(checkinConfig, async (request, env): Pro
 			streakDays,
 		},
 	});
+	await Promise.all([invalidateUserCaches(env, userId), invalidateStatisticsReports(env)]);
 
 	return jsonNoStoreResponse(
 		{

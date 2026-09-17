@@ -1,3 +1,4 @@
+import { invalidateAdminEntityCache, readAdminEntity } from "../../lib/cache/admin-entity-read";
 // Admin handlers for `forum_thread_types` (主题分类) — Phase 2 / F.
 //
 // Surface (mounted in src/index.ts):
@@ -56,6 +57,25 @@ import {
 	bumpThreadListGen,
 } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
+import { confirmedBatch, confirmedRun } from "../../lib/d1-write";
+
+function hasConfirmedChanges(result: D1Result | D1Result[]): boolean {
+	const rows = Array.isArray(result) ? result : [result];
+	return rows.some((row) => (row.meta?.changes ?? 0) > 0);
+}
+
+function adminCatalogEpochs(
+	env: Env,
+	result: D1Result | D1Result[],
+	extra: string[] = [],
+	enabled = true,
+): Promise<void>[] {
+	if (!enabled || !hasConfirmedChanges(result)) return [];
+	return ["forum_thread_types", ...extra].map((resource) =>
+		invalidateAdminEntityCache(env, resource),
+	);
+}
+
 import type { Env } from "../../lib/env";
 import { parsePathSegment } from "../../lib/parseId";
 import { jsonNoStoreResponse } from "../../lib/response";
@@ -176,9 +196,34 @@ async function loadTypeRow(env: Env, id: number): Promise<ThreadTypeRow | null> 
  * debug/recovery). Public endpoint stays in handlers/forum.ts and
  * suppresses tombstones + sourceTypeid.
  */
+export async function loadAdminThreadTypes(env: Env, forumId: number) {
+	const forum = await loadForumGate(env, forumId);
+	if (!forum) return null;
+	const rows = await env.DB.prepare(
+		`SELECT id, forum_id, source_typeid, name, display_order, icon, enabled, moderator_only
+			 FROM forum_thread_types
+			 WHERE forum_id = ?
+			 ORDER BY display_order ASC, id ASC`,
+	)
+		.bind(forumId)
+		.all<ThreadTypeRow>();
+
+	if (!rows.success) throw new Error("Admin thread types could not be loaded");
+	return {
+		forumId,
+		config: {
+			enabled: forum.thread_types_enabled === 1,
+			required: forum.thread_types_required === 1,
+			listable: forum.thread_types_listable === 1,
+			prefix: forum.thread_types_prefix === 1,
+		},
+		types: rows.results.map(rowToDto),
+	};
+}
+
 export const list = withEntityAuth(
 	threadTypeAuthConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		const forumId = parsePathSegment(request, 1);
@@ -186,33 +231,13 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
 		}
 
-		const forum = await loadForumGate(env, forumId);
-		if (!forum) {
-			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-		}
-
-		const rows = await env.DB.prepare(
-			`SELECT id, forum_id, source_typeid, name, display_order, icon, enabled, moderator_only
-			 FROM forum_thread_types
-			 WHERE forum_id = ?
-			 ORDER BY display_order ASC, id ASC`,
-		)
-			.bind(forumId)
-			.all<ThreadTypeRow>();
-
-		return jsonNoStoreResponse(
-			{
-				forumId,
-				config: {
-					enabled: forum.thread_types_enabled === 1,
-					required: forum.thread_types_required === 1,
-					listable: forum.thread_types_listable === 1,
-					prefix: forum.thread_types_prefix === 1,
-				},
-				types: (rows.results ?? []).map(rowToDto),
-			},
-			origin,
-		);
+		const data = await readAdminEntity<Awaited<ReturnType<typeof loadAdminThreadTypes>>>(env, ctx, {
+			family: "admin:thread-types",
+			params: { forumId },
+			scope: "admin",
+		});
+		if (!data) return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+		return jsonNoStoreResponse(data, origin);
 	},
 );
 
@@ -371,13 +396,13 @@ export const create = withEntityAuth(
 		// source_typeid, never 0 (forumfield typeid=0 is filtered out
 		// upstream — see 0039 header), so the placeholder-0 transient
 		// row in step 1 cannot collide with a migrated row.
-		const insertRes = await env.DB.prepare(
-			`INSERT INTO forum_thread_types
+		const insertRes = await confirmedRun(
+			env.DB.prepare(
+				`INSERT INTO forum_thread_types
 			   (forum_id, source_typeid, name, display_order, icon, enabled, moderator_only)
 			 VALUES (?, ?, ?, ?, ?, 1, ?)`,
-		)
-			.bind(forumId, sourceTypeid, body.name, displayOrder, icon, moderatorOnly ? 1 : 0)
-			.run();
+			).bind(forumId, sourceTypeid, body.name, displayOrder, icon, moderatorOnly ? 1 : 0),
+		);
 
 		const newId = insertRes.meta?.last_row_id;
 		if (!newId || typeof newId !== "number") {
@@ -393,9 +418,12 @@ export const create = withEntityAuth(
 		// synthetic id so the (forum_id, source_typeid) pair stays unique
 		// across future inserts.
 		if (sourceTypeid === 0) {
-			await env.DB.prepare("UPDATE forum_thread_types SET source_typeid = ? WHERE id = ?")
-				.bind(newId, newId)
-				.run();
+			await confirmedRun(
+				env.DB.prepare("UPDATE forum_thread_types SET source_typeid = ? WHERE id = ?").bind(
+					newId,
+					newId,
+				),
+			);
 		}
 
 		// Same-commit invalidation: enabled-set changed for this forum.
@@ -407,6 +435,7 @@ export const create = withEntityAuth(
 			bumpForumTreeGen(env),
 			bumpThreadListGen(env, forumId),
 			invalidateThreadTypesCache(env, forumId),
+			...adminCatalogEpochs(env, insertRes),
 		]);
 
 		const created = await loadTypeRow(env, newId);
@@ -607,9 +636,11 @@ export const update = withEntityAuth(
 		}
 
 		binds.push(id);
-		await env.DB.prepare(`UPDATE forum_thread_types SET ${sets.join(", ")} WHERE id = ?`)
-			.bind(...binds)
-			.run();
+		const written = await confirmedRun(
+			env.DB.prepare(`UPDATE forum_thread_types SET ${sets.join(", ")} WHERE id = ?`).bind(
+				...binds,
+			),
+		);
 
 		// Invalidate when anything that affects the public picker changed:
 		// enabled set, display order, or display name. Pure icon /
@@ -621,6 +652,7 @@ export const update = withEntityAuth(
 			bumpForumTreeGen(env),
 			invalidateThreadTypesCache(env, existing.forum_id),
 		];
+		ops.push(...adminCatalogEpochs(env, written));
 		if (enabledSetChanged || displayOrderOrNameChanged) {
 			ops.push(bumpThreadListGen(env, existing.forum_id));
 		}
@@ -719,13 +751,14 @@ export const remove = withEntityAuth(
 			// removes it from the picker.
 			const wasEnabled = existing.enabled === 1;
 			if (wasEnabled) {
-				await env.DB.prepare("UPDATE forum_thread_types SET enabled = 0 WHERE id = ?")
-					.bind(id)
-					.run();
+				const written = await confirmedRun(
+					env.DB.prepare("UPDATE forum_thread_types SET enabled = 0 WHERE id = ?").bind(id),
+				);
 				await Promise.all([
 					bumpForumTreeGen(env),
 					bumpThreadListGen(env, existing.forum_id),
 					invalidateThreadTypesCache(env, existing.forum_id),
+					...adminCatalogEpochs(env, written),
 				]);
 			}
 			// Audit even the no-op case (already-disabled with refs) so the
@@ -755,11 +788,14 @@ export const remove = withEntityAuth(
 			);
 		}
 
-		await env.DB.prepare("DELETE FROM forum_thread_types WHERE id = ?").bind(id).run();
+		const written = await confirmedRun(
+			env.DB.prepare("DELETE FROM forum_thread_types WHERE id = ?").bind(id),
+		);
 		await Promise.all([
 			bumpForumTreeGen(env),
 			bumpThreadListGen(env, existing.forum_id),
 			invalidateThreadTypesCache(env, existing.forum_id),
+			...adminCatalogEpochs(env, written),
 		]);
 
 		await writeAdminLog(env, resolveActor(request, env), {
@@ -850,10 +886,16 @@ export const reorder = withEntityAuth(
 		// Pull the canonical id set for this forum and require the
 		// request to match it EXACTLY (no missing, no extra). Partial
 		// reorder is rejected so display_order stays dense.
-		const owned = await env.DB.prepare("SELECT id FROM forum_thread_types WHERE forum_id = ?")
+		const owned = await env.DB.prepare(
+			"SELECT id, display_order FROM forum_thread_types WHERE forum_id = ?",
+		)
 			.bind(forumId)
-			.all<{ id: number }>();
-		const ownedSet = new Set<number>((owned.results ?? []).map((r) => r.id));
+			.all<{ id: number; display_order: number }>();
+		if (!owned.success) throw new Error("Thread types could not be loaded");
+		const ownedRows = owned.results ?? [];
+		const ownedSet = new Set<number>(ownedRows.map((r) => r.id));
+		const orderById = new Map(ownedRows.map((r) => [r.id, r.display_order]));
+		const orderUnchanged = orderedIds.every((id, idx) => orderById.get(id) === idx);
 
 		if (orderedIds.length !== ownedSet.size) {
 			return errorResponse(
@@ -878,12 +920,13 @@ export const reorder = withEntityAuth(
 		const stmts = orderedIds.map((id, idx) =>
 			env.DB.prepare("UPDATE forum_thread_types SET display_order = ? WHERE id = ?").bind(idx, id),
 		);
-		await env.DB.batch(stmts);
+		const batch = await confirmedBatch(env, stmts);
 
 		await Promise.all([
 			bumpForumTreeGen(env),
 			bumpThreadListGen(env, forumId),
 			invalidateThreadTypesCache(env, forumId),
+			...adminCatalogEpochs(env, batch, [], !orderUnchanged),
 		]);
 
 		await writeAdminLog(env, resolveActor(request, env), {
@@ -1045,9 +1088,9 @@ export const updateConfig = withEntityAuth(
 
 		if (changed) {
 			binds.push(forumId);
-			await env.DB.prepare(`UPDATE forums SET ${sets.join(", ")} WHERE id = ?`)
-				.bind(...binds)
-				.run();
+			const written = await confirmedRun(
+				env.DB.prepare(`UPDATE forums SET ${sets.join(", ")} WHERE id = ?`).bind(...binds),
+			);
 			// Forum.threadTypes config lives in forum:tree:v2; meta keys
 			// embed `forum:summary:gen` so bumping summary rolls meta too
 			// (see comment on bumpForumSummaryGen). The per-forum
@@ -1059,6 +1102,7 @@ export const updateConfig = withEntityAuth(
 				bumpForumSummaryGen(env),
 				bumpThreadListGen(env, forumId),
 				invalidateThreadTypesCache(env, forumId),
+				...adminCatalogEpochs(env, written, ["forums"]),
 			]);
 		}
 

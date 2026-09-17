@@ -25,9 +25,92 @@
 //     `{ error: { code, ... } }` from `middleware/error.ts:errorResponse`.
 
 import { describe, expect, test } from "bun:test";
-import { adminGet, adminPost } from "../setup";
+import { adminGet, adminPost, workerFetch } from "../setup";
 
 describe("L2: Worker Admin KV Monitor", () => {
+	test("inspects, rebuilds and deletes one real snapshot with an audit trail", async () => {
+		const warm = await workerFetch("/api/v1/settings");
+		expect(warm.status).toBe(200);
+		await warm.json();
+
+		const beforeResponse = await adminGet("/api/admin/kv/inspect?key=settings%3Aall");
+		expect(beforeResponse.status).toBe(200);
+		expect(beforeResponse.headers.get("Cache-Control")).toContain("no-store");
+		const before = (await beforeResponse.json()) as {
+			data: { status: string; tier: string; loadedAt: number; expiresAt: number; value: unknown };
+		};
+		expect(before.data.status).toBe("valid");
+		expect(before.data.tier).toBe("LONG");
+		expect(before.data.expiresAt - before.data.loadedAt).toBe(86_400_000);
+
+		const again = await adminGet("/api/admin/kv/inspect?key=settings%3Aall");
+		const inspectedAgain = (await again.json()) as {
+			data: { loadedAt: number; expiresAt: number };
+		};
+		expect(inspectedAgain.data.loadedAt).toBe(before.data.loadedAt);
+		expect(inspectedAgain.data.expiresAt).toBe(before.data.expiresAt);
+
+		const rebuild = await adminPost("/api/admin/kv/rebuild", {
+			family: "settings:all",
+			key: "settings:all",
+		});
+		expect(rebuild.status).toBe(200);
+		const rebuilt = (await rebuild.json()) as {
+			data: {
+				outcome: string;
+				stage: string;
+				tier: string;
+				loadedAt: number;
+				expiresAt: number;
+				value: unknown;
+				consistencyNote: string;
+			};
+		};
+		expect(rebuilt.data.outcome).toBe("rebuilt");
+		expect(rebuilt.data.stage).toBe("complete");
+		expect(rebuilt.data.tier).toBe("LONG");
+		expect(rebuilt.data.expiresAt - rebuilt.data.loadedAt).toBe(86_400_000);
+		expect(rebuilt.data.value).toEqual(before.data.value);
+		expect(rebuilt.data.consistencyNote).toBe("written-not-globally-visible");
+
+		const deletion = await adminPost("/api/admin/kv/delete", {
+			family: "settings:all",
+			key: "settings:all",
+		});
+		expect(deletion.status).toBe(200);
+		const deleted = (await deletion.json()) as { data: { outcome: string; deletedKeys: string[] } };
+		expect(deleted.data.outcome).toBe("deleted");
+		expect(deleted.data.deletedKeys).toEqual(["settings:all"]);
+		const missing = await adminGet("/api/admin/kv/inspect?key=settings%3Aall");
+		expect(((await missing.json()) as { data: { status: string } }).data.status).toBe("not-found");
+
+		const audit = await adminGet("/api/admin/kv/operations?limit=10");
+		expect(audit.status).toBe(200);
+		const operations = (await audit.json()) as {
+			data: { rows: { action: string; details: string }[] };
+		};
+		expect(operations.data.rows.map((row) => row.action)).toContain("kv.rebuild");
+		expect(operations.data.rows.map((row) => row.action)).toContain("kv.delete_key");
+		for (const row of operations.data.rows)
+			expect(JSON.parse(row.details)).not.toHaveProperty("value");
+		// Normal traffic may refill after deletion; underlying settings still exist.
+		expect((await workerFetch("/api/v1/settings")).status).toBe(200);
+	});
+
+	test("new management routes keep runtime state and API-key boundaries", async () => {
+		expect((await adminGet("/api/admin/kv/inspect?key=refresh%3Afake-token")).status).toBe(403);
+		const deletion = await adminPost("/api/admin/kv/delete", {
+			family: "gen:thread:list:all",
+			key: "thread:list:gen:all",
+		});
+		expect(((await deletion.json()) as { data: { outcome: string } }).data.outcome).toBe(
+			"not-allowed",
+		);
+		expect([401, 403]).toContain(
+			(await workerFetch("/api/admin/kv/inspect?key=settings%3Aall")).status,
+		);
+	});
+
 	describe("GET /api/admin/kv/overview", () => {
 		test("returns 200 with registry-derived family rows", async () => {
 			const res = await adminGet("/api/admin/kv/overview");
