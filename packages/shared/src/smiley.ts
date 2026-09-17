@@ -18,8 +18,6 @@
 //   - {:3_NN:} for NN ∉ [149..172] (no historical hits)
 //   - grapeman tokens (format unknown, no historical hits)
 
-import { getSmileyUrl } from "./cdn";
-
 // ---------------------------------------------------------------------------
 // Default-pack named smileys (closed whitelist).
 //
@@ -243,7 +241,7 @@ function escapeAttr(s: string): string {
  * is the raw matched text and is HTML-escaped before insertion into `alt`.
  */
 function smileyImg(dir: string, file: string, code: string): string {
-	const url = getSmileyUrl(dir, file);
+	const url = getSmileyImageUrl(dir, file);
 	return `<img src="${url}" alt="${escapeAttr(code)}" class="smiley" />`;
 }
 
@@ -331,7 +329,7 @@ function nextRawState(rawTextTag: string | null, tagText: string): string | null
  * passed through unchanged.
  *
  * This is deliberately a small character-level scanner rather than a full
- * HTML parser: post HTML has already been DOMPurify-sanitized upstream, so
+ * HTML parser: post HTML has already been sanitized upstream, so
  * we can trust well-formedness for the constructs we care about. The goal
  * is just to avoid corrupting tag/attribute syntax — if a malformed input
  * sneaks through (e.g. unclosed `<`), we fall back to treating the rest as
@@ -451,5 +449,5 @@ export const SMILEY_PACKS: Record<string, SmileyItem[]> = {
 };
 
 export function getSmileyImageUrl(pack: string, file: string): string {
-	return getSmileyUrl(pack, file);
+	return `https://t.no.mt/static/image/smiley/${pack}/${file}`;
 }

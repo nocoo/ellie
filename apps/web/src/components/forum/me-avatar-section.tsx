@@ -47,7 +47,7 @@ export function MeAvatarSection({ userId }: MeAvatarSectionProps) {
 				</h2>
 			</div>
 			<p className="mb-4 text-xs text-muted-foreground leading-relaxed">
-				上传一张便于识别的头像。支持 JPG、PNG，最大 200 KB。
+				上传一张便于识别的头像，上传后会自动压缩。
 			</p>
 			<AvatarUpload currentUrl={avatarUrl} onUploadComplete={handleAvatarUploadComplete} />
 		</div>

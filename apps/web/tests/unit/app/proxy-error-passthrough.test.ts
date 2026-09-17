@@ -198,16 +198,14 @@ describe("PATCH /api/v1/users/me", () => {
 // ─── POST /api/v1/upload (raw fetch path) ────────────────────────────────
 
 function makeMultipartRequest(opts: { origin?: string | null } = {}): Request {
-	const headers: Record<string, string> = {
-		"Content-Type": "multipart/form-data; boundary=----test",
-	};
+	const headers: Record<string, string> = {};
 	if (opts.origin !== null) {
 		headers.Origin = opts.origin ?? "https://web.example.com";
 	}
 	return new Request("https://web.example.com/api/v1/upload", {
 		method: "POST",
 		headers,
-		body: "----test--\r\n",
+		body: new FormData(),
 	});
 }
 

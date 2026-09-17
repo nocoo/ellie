@@ -1,8 +1,10 @@
 // Proxy route: POST /api/v1/upload (multipart/form-data)
-// Forwards avatar uploads to Worker with JWT authentication
+// Compresses avatars before forwarding uploads to Worker with JWT authentication
 import "server-only";
 
 import { NextResponse } from "next/server";
+import sharp from "sharp";
+import { AVATAR_ALLOWED_TYPES, AVATAR_MAX_UPLOAD_MB } from "@/lib/avatar";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
@@ -18,6 +20,49 @@ function getApiKey(): string {
 	const key = process.env.FORUM_API_KEY;
 	if (!key) throw new Error("FORUM_API_KEY environment variable is not set");
 	return key;
+}
+
+async function compressAvatar(formData: FormData): Promise<Response | null> {
+	const file = formData.get("file");
+	if (!file || typeof file === "string") {
+		return NextResponse.json(
+			{ error: { code: "NO_FILE", message: "请选择头像图片" } },
+			{ status: 400 },
+		);
+	}
+	if (file.size > AVATAR_MAX_UPLOAD_MB * 1024 * 1024) {
+		return NextResponse.json(
+			{ error: { code: "FILE_TOO_LARGE", message: `文件大小不能超过 ${AVATAR_MAX_UPLOAD_MB} MB` } },
+			{ status: 413 },
+		);
+	}
+	if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
+		return NextResponse.json(
+			{ error: { code: "INVALID_FORMAT", message: "仅支持 JPG 和 PNG 格式" } },
+			{ status: 415 },
+		);
+	}
+
+	try {
+		const image = sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: 40_000_000 });
+		const { format } = await image.metadata();
+		if (format !== "jpeg" && format !== "png") throw new Error("Unsupported avatar format");
+
+		// Largest forum avatar is 80 CSS px; 360 px leaves room for high-DPI displays.
+		const jpeg = await image
+			.rotate()
+			.resize({ width: 360, height: 360, fit: "inside", withoutEnlargement: true })
+			.flatten({ background: "#ffffff" })
+			.jpeg({ quality: 80 })
+			.toBuffer();
+		formData.set("file", new Blob([new Uint8Array(jpeg)], { type: "image/jpeg" }), "avatar.jpg");
+		return null;
+	} catch {
+		return NextResponse.json(
+			{ error: { code: "INVALID_FORMAT", message: "请上传有效的 JPG 或 PNG 图片" } },
+			{ status: 415 },
+		);
+	}
 }
 
 export async function POST(request: Request) {
@@ -48,8 +93,6 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		// Get the raw body as ArrayBuffer to preserve multipart boundary
-		const body = await request.arrayBuffer();
 		const contentType = request.headers.get("Content-Type");
 
 		if (!contentType?.includes("multipart/form-data")) {
@@ -59,6 +102,20 @@ export async function POST(request: Request) {
 			);
 		}
 
+		let formData: FormData;
+		try {
+			formData = await request.formData();
+		} catch {
+			return NextResponse.json(
+				{ error: { code: "INVALID_REQUEST", message: "Invalid multipart form data" } },
+				{ status: 400 },
+			);
+		}
+		if (formData.get("purpose") === "avatar") {
+			const error = await compressAvatar(formData);
+			if (error) return error;
+		}
+
 		// Forward to Worker with correct headers
 		const workerUrl = `${getWorkerUrl()}/api/v1/upload`;
 		const res = await fetch(workerUrl, {
@@ -66,9 +123,9 @@ export async function POST(request: Request) {
 			headers: {
 				"X-API-Key": getApiKey(),
 				Authorization: `Bearer ${jwt}`,
-				"Content-Type": contentType, // Must include boundary
 			},
-			body,
+			// fetch generates the Content-Type boundary for the updated FormData.
+			body: formData,
 		});
 
 		// Parse Worker response

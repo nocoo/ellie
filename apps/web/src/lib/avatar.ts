@@ -1,4 +1,7 @@
-// Avatar URL helper — proxied through Next.js API to hide CDN and handle fallback
+// Avatar upload limits and URLs for the forum.
+
+export const AVATAR_MAX_UPLOAD_MB = 5;
+export const AVATAR_ALLOWED_TYPES = ["image/jpeg", "image/png"];
 
 export type AvatarSize = "big" | "middle" | "small";
 
@@ -29,7 +32,7 @@ export function getAvatarUrl(
 		return `${CDN_BASE}/${avatarPath}${params}`;
 	}
 
-	// Fall back to proxy for legacy UID-based paths
-	const params = cacheBust ? `?v=${cacheBust}` : "";
-	return `/api/avatar/${uid}${params}`;
+	// The stable marker bypasses old, week-long cached UID responses.
+	// The mutable proxy URL now revalidates; GUID URLs above remain cacheable.
+	return `/api/avatar/${uid}?v=${cacheBust ?? "current"}`;
 }

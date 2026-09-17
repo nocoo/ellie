@@ -1,5 +1,6 @@
 "use client";
 
+import { contentToText } from "@ellie/shared/content";
 import {
 	Button,
 	Input,
@@ -237,7 +238,7 @@ function RecentPageInner() {
 			setConfirmDialog({
 				open: true,
 				title: "删除主题",
-				description: `删除主题「${subject}」及其所有回复？此操作不可撤销。`,
+				description: `删除主题「${contentToText(subject)}」及其所有回复？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);

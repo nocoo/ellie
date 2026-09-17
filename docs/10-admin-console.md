@@ -79,6 +79,13 @@ Browser → Next.js Admin Layout
 
 ### 2. Content Management Module ✅ Complete
 
+Content display is shared with the public forum through `@ellie/shared/content`:
+
+- `contentToText` produces plain text for recent replies, thread tables, user-detail lists, titles and tooltips. It decodes entities, handles legacy markup and preserves paragraph boundaries; excerpts are truncated after cleaning.
+- `renderContent` renders thread-detail post bodies using the forum's HTML allowlist, CETagParser/BBCode handling and smileys. Sanitization runs after transformations, on both the server and in the browser.
+- Both apps import `@ellie/shared/content.css` for legacy quotes, font sizes, smileys and notices. Admin theme colors are mapped inside `.forum-content`.
+- Cleaning is display-only. Edit dialogs and save requests retain the original subject and post content.
+
 | Page | Path | Status | Features |
 |------|------|--------|----------|
 | **Users** | `/admin/users` | ✅ | List/search/filter (status/role), edit, ban/unban, ban+delete content, nuke, batch ban/activate |

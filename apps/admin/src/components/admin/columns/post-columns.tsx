@@ -8,6 +8,7 @@
 // definitions live in one place from day one.
 
 import { formatDate } from "@ellie/shared";
+import { contentToText } from "@ellie/shared/content";
 import Link from "next/link";
 import type { ColumnDef } from "@/components/admin/admin-data-table";
 import type { Post } from "@/viewmodels/admin/posts";
@@ -32,9 +33,7 @@ export function buildPostColumns(_opts: BuildPostColumnsOpts = {}): ColumnDef<Po
 			header: "内容",
 			cell: (row) => (
 				<div className="min-w-56 max-w-xl whitespace-normal">
-					<span className="line-clamp-2 text-sm">
-						{(row.content ?? "").replace(/\[.*?\]/g, "").slice(0, 120)}
-					</span>
+					<span className="line-clamp-2 text-sm">{contentToText(row.content).slice(0, 120)}</span>
 					<span className="text-[11px] text-basalt-muted-foreground">
 						#{row.id} · {row.isFirst ? "主题首帖" : `第 ${row.position} 楼`}
 					</span>

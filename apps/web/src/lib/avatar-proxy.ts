@@ -2,6 +2,8 @@
 
 export const CDN_BASE = "https://t.no.mt";
 export const FALLBACK_URL = "https://t.no.mt/static/image/common/tavatar.gif";
+// A UID's image can change after any upload. Only GUID image URLs are immutable.
+export const AVATAR_PROXY_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
 /**
  * Compute the legacy CDN path for an avatar given a user ID.
@@ -33,28 +35,4 @@ export function computeAvatarCdnPath(uid: number, avatarPath?: string): string {
 		return `${CDN_BASE}/${avatarPath}`;
 	}
 	return computeLegacyAvatarCdnPath(uid);
-}
-
-/**
- * Get cache control header based on request and response state.
- *
- * Cache strategy:
- * - ?v= present (fresh upload): no-cache to force revalidation
- * - Fallback response (no avatar): cache 1 day
- * - Normal avatar: cache 7 days
- *
- * Key insight: when ?v= is present and CDN returns 404, we must NOT cache
- * the fallback GIF, otherwise the user sees stale fallback until it expires.
- */
-export function getCacheControl(hasVersionParam: boolean, isFallback: boolean): string {
-	if (hasVersionParam) {
-		// Fresh upload request — never cache, always revalidate
-		return "public, max-age=0, must-revalidate";
-	}
-	if (isFallback) {
-		// Normal fallback — cache for 1 day
-		return "public, max-age=86400";
-	}
-	// Normal avatar — cache for 7 days
-	return "public, max-age=604800";
 }

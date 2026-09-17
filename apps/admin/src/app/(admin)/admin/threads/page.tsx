@@ -1,5 +1,6 @@
 "use client";
 
+import { contentToText } from "@ellie/shared/content";
 import { Button, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
@@ -328,7 +329,7 @@ function ThreadsPageInner() {
 			setConfirmDialog({
 				open: true,
 				title: "删除主题",
-				description: `删除主题「${thread.subject}」及其所有回复？此操作不可撤销。`,
+				description: `删除主题「${contentToText(thread.subject)}」及其所有回复？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -357,7 +358,10 @@ function ThreadsPageInner() {
 				fetchData(pagination.page);
 				setPageMessage({
 					type: "success",
-					text: next === 1 ? `已锁定「${thread.subject}」` : `已解锁「${thread.subject}」`,
+					text:
+						next === 1
+							? `已锁定「${contentToText(thread.subject)}」`
+							: `已解锁「${contentToText(thread.subject)}」`,
 				});
 			} catch (err) {
 				setPageMessage({
@@ -451,40 +455,43 @@ function ThreadsPageInner() {
 		{
 			key: "actions",
 			header: "",
-			cell: (row) => (
-				<div className="flex items-center justify-end gap-1">
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8"
-						aria-label={`编辑主题「${row.subject}」`}
-						title={`编辑主题「${row.subject}」`}
-						onClick={() => setEditThread(row)}
-					>
-						<Pencil className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8"
-						aria-label={row.closed ? `解锁主题「${row.subject}」` : `锁定主题「${row.subject}」`}
-						title={row.closed ? `解锁主题「${row.subject}」` : `锁定主题「${row.subject}」`}
-						onClick={() => handleToggleClose(row)}
-					>
-						{row.closed ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8 text-basalt-destructive hover:text-basalt-destructive focus-visible:text-basalt-destructive"
-						aria-label={`删除主题「${row.subject}」`}
-						title={`删除主题「${row.subject}」`}
-						onClick={() => handleDelete(row)}
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
-				</div>
-			),
+			cell: (row) => {
+				const subject = contentToText(row.subject);
+				return (
+					<div className="flex items-center justify-end gap-1">
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={`编辑主题「${subject}」`}
+							title={`编辑主题「${subject}」`}
+							onClick={() => setEditThread(row)}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={row.closed ? `解锁主题「${subject}」` : `锁定主题「${subject}」`}
+							title={row.closed ? `解锁主题「${subject}」` : `锁定主题「${subject}」`}
+							onClick={() => handleToggleClose(row)}
+						>
+							{row.closed ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8 text-basalt-destructive hover:text-basalt-destructive focus-visible:text-basalt-destructive"
+							aria-label={`删除主题「${subject}」`}
+							title={`删除主题「${subject}」`}
+							onClick={() => handleDelete(row)}
+						>
+							<Trash2 className="h-4 w-4" />
+						</Button>
+					</div>
+				);
+			},
 			className: "w-auto whitespace-nowrap",
 		},
 	];

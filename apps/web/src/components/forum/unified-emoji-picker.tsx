@@ -3,6 +3,7 @@
 // Unified emoji picker combining Unicode emojis and forum smileys
 // Features: Tab switching, search, recent usage tracking with localStorage
 
+import { getSmileyImageUrl, SMILEY_PACKS } from "@ellie/shared/smiley";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { Clock3, MessageCircle, Search, Smile } from "lucide-react";
@@ -10,7 +11,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getSmileyImageUrl, SMILEY_PACKS } from "@/lib/smiley";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------

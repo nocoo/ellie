@@ -1,12 +1,9 @@
 // Zero-dependency HTML sanitizer for forum announcement payloads.
 //
-// Why a custom sanitizer instead of DOMPurify?
-// - The Worker runtime has no DOM. `apps/web/src/lib/content-filter.ts`
-//   wires DOMPurify against `linkedom` which the existing code already
-//   warns is a silent no-op on certain element shapes
-//   (see content-filter.ts:257 — "We do NOT use DOMPurify here because
-//   the linkedom-backed DOMPurify in this file is a silent no-op …").
-//   We don't want that risk on the **write path** for moderator content.
+// Why a dedicated announcement sanitizer?
+// - Announcement writes use the same small allowlist in Workers and
+//   backfill scripts. The broader display renderer in
+//   `packages/shared/src/content.ts` serves a separate purpose.
 // - The forum announcement allowlist is small and stable
 //   (welcome line + link index + 版规 markup), so a hand-rolled
 //   whitelist tokenizer is both simpler and easier to audit than a

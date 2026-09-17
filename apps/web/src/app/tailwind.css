@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@ellie/shared/content.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -247,104 +248,6 @@
 	:root[data-width-mode="full"] .width-container {
 		padding-inline: 2rem;
 	}
-}
-
-/* ==========================================================================
-   Discuz Legacy Styles
-   ========================================================================== */
-
-/* Inline smileys */
-img.smiley {
-	display: inline;
-	height: 1.2em;
-	width: auto;
-	vertical-align: text-bottom;
-	margin: 0 1px;
-}
-
-/* Migrated quote content */
-div.quote {
-	overflow: hidden;
-	margin: 0.75rem 0;
-	padding: 0.75rem 1rem;
-	background: hsl(var(--muted));
-	border-left: 3px solid hsl(var(--primary) / 0.5);
-	border-radius: 0 var(--radius) var(--radius) 0;
-}
-div.quote blockquote {
-	margin: 0;
-	padding: 0;
-	padding-right: 24px;
-	border: none;
-	background: transparent;
-	font-size: 0.8125rem;
-	line-height: 1.6;
-	color: hsl(var(--muted-foreground));
-}
-/* Quote header - author name and time */
-div.quote .quote-header {
-	display: block;
-	margin-bottom: 0.5rem;
-	font-size: 0.8125rem;
-	color: #3b82f6;
-}
-div.quote .quote-header a {
-	color: #3b82f6;
-	text-decoration: none;
-}
-div.quote .quote-header a:hover {
-	text-decoration: underline;
-}
-
-/* Edit notices & hidden content */
-.dz-edit-notice {
-	text-align: center;
-	font-size: 0.75rem;
-	color: hsl(var(--muted-foreground));
-	margin-bottom: 0.75rem;
-	font-style: italic;
-}
-.dz-hidden-content {
-	text-align: center;
-	font-size: 0.8125rem;
-	color: hsl(var(--muted-foreground));
-	background: hsl(var(--muted));
-	padding: 0.5rem 1rem;
-	border-radius: 4px;
-	margin: 0.5rem 0;
-}
-
-/* Legacy Discuz <font size=N> — map HTML font-size attribute (1..7) to
-   Tailwind text-* tokens so prose typography doesn't override them.
-   `:where(.prose)` keeps specificity at (0,1,1) so user content wins over
-   the typography plugin's default `font` reset. */
-:where(.prose) font[size="1"] {
-	font-size: var(--text-xs);
-	line-height: 1rem;
-}
-:where(.prose) font[size="2"] {
-	font-size: var(--text-sm);
-	line-height: 1.25rem;
-}
-:where(.prose) font[size="3"] {
-	font-size: var(--text-base);
-	line-height: 1.5rem;
-}
-:where(.prose) font[size="4"] {
-	font-size: var(--text-lg);
-	line-height: 1.75rem;
-}
-:where(.prose) font[size="5"] {
-	font-size: var(--text-xl);
-	line-height: 1.75rem;
-}
-:where(.prose) font[size="6"] {
-	font-size: var(--text-2xl);
-	line-height: 2rem;
-}
-:where(.prose) font[size="7"] {
-	font-size: var(--text-3xl);
-	line-height: 2.25rem;
 }
 
 /* ==========================================================================

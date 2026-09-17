@@ -1,6 +1,7 @@
 "use client";
 
 import { formatNumber } from "@ellie/shared";
+import { renderContent } from "@ellie/shared/content";
 import {
 	Badge,
 	Button,
@@ -153,9 +154,11 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 				{/* Post content */}
 				<div className="min-w-0 flex-1 p-4">
-					<div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap [overflow-wrap:anywhere]">
-						{post.content}
-					</div>
+					<div
+						className="forum-content prose prose-sm dark:prose-invert max-w-none text-[15px] leading-7 whitespace-pre-line min-h-[80px] break-words [overflow-wrap:anywhere] [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&>*:first-child]:mt-0"
+						// biome-ignore lint/security/noDangerouslySetInnerHtml: shared forum renderer sanitizes the final HTML
+						dangerouslySetInnerHTML={{ __html: renderContent(post.content) }}
+					/>
 				</div>
 			</div>
 		</LayerCard>

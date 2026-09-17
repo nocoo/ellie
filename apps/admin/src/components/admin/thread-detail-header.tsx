@@ -17,6 +17,7 @@
 // is purely presentational + receives stable callbacks.
 
 import { formatNumber } from "@ellie/shared";
+import { contentToText } from "@ellie/shared/content";
 import { Badge, Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { Eye, Files, MessageSquare, Pencil, ThumbsUp, Trash2 } from "lucide-react";
@@ -67,7 +68,7 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 				title={
 					<span className="flex items-start gap-2">
 						<Files aria-hidden="true" className="mt-1 h-5 w-5 shrink-0 text-basalt-primary" />
-						<span className="wrap-anywhere">{thread.subject}</span>
+						<span className="wrap-anywhere">{contentToText(thread.subject)}</span>
 					</span>
 				}
 				description={`主题 #${thread.id}`}

@@ -85,7 +85,7 @@ describe("AvatarUpload toast integration", () => {
 		cleanup();
 	});
 
-	it("shows success toast on avatar upload", async () => {
+	it("accepts an original larger than 200 KB and shows success toast", async () => {
 		mockFetch.mockResolvedValueOnce(
 			jsonResponse({ data: { url: "/avatars/new.png", size: 1024 } }, 200),
 		);
@@ -99,7 +99,9 @@ describe("AvatarUpload toast integration", () => {
 		const input = getFileInput();
 
 		await act(async () => {
-			fireEvent.change(input, { target: { files: [createFile()] } });
+			fireEvent.change(input, {
+				target: { files: [createFile("avatar.png", "image/png", 300 * 1024)] },
+			});
 		});
 
 		await waitFor(() => {
@@ -132,8 +134,9 @@ describe("AvatarUpload toast integration", () => {
 		renderUpload();
 		const input = getFileInput();
 
-		// 300 KB > 200 KB limit
-		const largeFile = createFile("avatar.png", "image/png", 300 * 1024);
+		const largeFile = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "avatar.png", {
+			type: "image/png",
+		});
 
 		await act(async () => {
 			fireEvent.change(input, { target: { files: [largeFile] } });
@@ -141,7 +144,7 @@ describe("AvatarUpload toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("文件大小不能超过 200 KB"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("文件大小不能超过 5 MB"));
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("头像上传失败");
 		});

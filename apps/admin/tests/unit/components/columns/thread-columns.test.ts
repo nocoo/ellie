@@ -1,8 +1,21 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { buildThreadColumns } from "@/components/admin/columns/thread-columns";
 import type { Thread } from "@/viewmodels/admin/threads";
 
 describe("buildThreadColumns", () => {
+	it.each(["full", "compact"] as const)(
+		"cleans both subject and tooltip in %s tables",
+		(variant) => {
+			const row = { id: 7, subject: "<b>标题</b> &amp; [备注]" } as Thread;
+			const cell = buildThreadColumns({ variant }).find((column) => column.key === "subject");
+			const html = renderToStaticMarkup(cell?.cell(row));
+			expect(html).toContain('title="标题 &amp; [备注]"');
+			expect(html).toContain(">标题 &amp; [备注]</a>");
+			expect(html).not.toMatch(/&lt;|<b>/);
+		},
+	);
+
 	it("full variant emits the 8 main-page columns", () => {
 		const cols = buildThreadColumns({ variant: "full", forumNameById: () => "版块A" });
 		expect(cols.map((c) => c.key)).toEqual([

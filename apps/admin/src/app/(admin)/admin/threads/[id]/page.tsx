@@ -1,5 +1,6 @@
 "use client";
 
+import { contentToText } from "@ellie/shared/content";
 import { Button, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { ArrowLeft, MessagesSquare } from "lucide-react";
@@ -60,7 +61,7 @@ export default function ThreadDetailPage() {
 	const [confirmError, setConfirmError] = useState<string | null>(null);
 
 	// Dynamic breadcrumb
-	useBreadcrumbOverride(data?.thread.subject ?? null);
+	useBreadcrumbOverride(data ? contentToText(data.thread.subject) : null);
 
 	const fetchData = useCallback(
 		async (page = 1) => {
@@ -130,7 +131,7 @@ export default function ThreadDetailPage() {
 		setConfirmDialog({
 			open: true,
 			title: "删除主题",
-			description: `删除主题「${data.thread.subject}」及其所有帖子？此操作不可撤销。`,
+			description: `删除主题「${contentToText(data.thread.subject)}」及其所有帖子？此操作不可撤销。`,
 			variant: "destructive",
 			onConfirm: async () => {
 				setConfirmLoading(true);

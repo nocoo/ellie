@@ -8,7 +8,7 @@
 //   <img onmouseover="img_onmouseoverfunc(this)">
 //
 // In the new ellie web app these throw `Uncaught ReferenceError` on every
-// thread/forum render. The DOMPurify pipeline in `content-filter.ts` strips
+// thread/forum render. The shared `renderContent` pipeline strips
 // these on the post-display path, but other surfaces (search snippets,
 // cached signatures, server-rendered fields written before sanitization)
 // can still bypass it. Rewriting the dataset is impractical given the

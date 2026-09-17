@@ -99,6 +99,7 @@ describe("useProfileEdit hook", () => {
 		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: true }), {
 			wrapper,
 		});
+		act(() => result.current.actions.setField("bio", "First edit"));
 		let pending!: Promise<void>;
 		await act(async () => {
 			pending = result.current.actions.handleSave();
@@ -109,6 +110,7 @@ describe("useProfileEdit hook", () => {
 			resolve({ data: {} });
 			await pending;
 		});
+		act(() => result.current.actions.setField("bio", "Second edit"));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -116,10 +118,10 @@ describe("useProfileEdit hook", () => {
 	});
 
 	it("clearError clears error state", async () => {
-		const { result } = renderHook(
-			() => useProfileEdit({ initialData: { ...defaultData, birthYear: 1800 }, open: false }),
-			{ wrapper },
-		);
+		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: true }), {
+			wrapper,
+		});
+		act(() => result.current.actions.setField("birthYear", 1800));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -144,10 +146,10 @@ describe("useProfileEdit hook", () => {
 	});
 
 	it("handleSave validates birth date and shows error", async () => {
-		const { result } = renderHook(
-			() => useProfileEdit({ initialData: { ...defaultData, birthYear: 1800 }, open: false }),
-			{ wrapper },
-		);
+		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: true }), {
+			wrapper,
+		});
+		act(() => result.current.actions.setField("birthYear", 1800));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -161,6 +163,7 @@ describe("useProfileEdit hook", () => {
 			() => useProfileEdit({ initialData: defaultData, open: false, onSuccess }),
 			{ wrapper },
 		);
+		act(() => result.current.actions.setField("bio", "Saved introduction"));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -174,6 +177,7 @@ describe("useProfileEdit hook", () => {
 		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: false }), {
 			wrapper,
 		});
+		act(() => result.current.actions.setField("bio", "Unsaved introduction"));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -189,6 +193,7 @@ describe("useProfileEdit hook", () => {
 		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: false }), {
 			wrapper,
 		});
+		act(() => result.current.actions.setField("bio", "Saved introduction"));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -201,6 +206,7 @@ describe("useProfileEdit hook", () => {
 		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: false }), {
 			wrapper,
 		});
+		act(() => result.current.actions.setField("bio", "Unsaved introduction"));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
@@ -211,15 +217,50 @@ describe("useProfileEdit hook", () => {
 	});
 
 	it("does not show toast on local birth date validation failure", async () => {
-		const { result } = renderHook(
-			() => useProfileEdit({ initialData: { ...defaultData, birthYear: 1800 }, open: false }),
-			{ wrapper },
-		);
+		const { result } = renderHook(() => useProfileEdit({ initialData: defaultData, open: true }), {
+			wrapper,
+		});
+		act(() => result.current.actions.setField("birthYear", 1800));
 		await act(async () => {
 			await result.current.actions.handleSave();
 		});
 		expect(result.current.state.error).toContain("1900-2100");
 		const alert = screen.queryByRole("alert");
 		expect(alert).toBeNull();
+	});
+
+	it("closes an avatar-only edit without resubmitting an invalid legacy site", async () => {
+		const onSuccess = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useProfileEdit({
+					initialData: { ...defaultData, site: "example.test" },
+					open: true,
+					onSuccess,
+				}),
+			{ wrapper },
+		);
+		await act(async () => result.current.actions.handleSave());
+		expect(mockPatch).not.toHaveBeenCalled();
+		expect(onSuccess).toHaveBeenCalledOnce();
+		expect(result.current.state.error).toBeNull();
+		expect(screen.queryByRole("alert")).toBeNull();
+	});
+
+	it("saves edits against the opening snapshot after an avatar refresh", async () => {
+		const initial = { ...defaultData, site: "example.test" };
+		const { result, rerender } = renderHook(
+			({ initialData }) => useProfileEdit({ initialData, open: true }),
+			{ wrapper, initialProps: { initialData: initial } },
+		);
+		act(() => result.current.actions.setField("bio", "My new introduction"));
+		// A refresh can deliver other profile changes while this draft stays open.
+		rerender({ initialData: { ...initial, signature: "Updated elsewhere" } });
+		await act(async () => result.current.actions.handleSave());
+		expect(mockPatch).toHaveBeenCalledExactlyOnceWith("/api/v1/users/me", {
+			bio: "My new introduction",
+		});
+		await act(async () => result.current.actions.handleSave());
+		expect(mockPatch).toHaveBeenCalledTimes(1);
 	});
 });

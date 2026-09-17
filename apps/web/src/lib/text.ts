@@ -1,7 +1,7 @@
 // lib/text.ts — Plain-text extraction utilities
 //
 // Lightweight regex-based HTML stripping for text snippets and previews.
-// NOT a sanitizer — use content-filter.ts / DOMPurify for security-critical HTML.
+// NOT a sanitizer — use renderContent from @ellie/shared/content for rendered HTML.
 
 /**
  * Strip all HTML tags from a string, returning plain text.

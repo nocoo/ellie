@@ -133,7 +133,7 @@ describe("buildProfilePayload", () => {
 			signature: "Test sig",
 		};
 
-		const payload = buildProfilePayload(form);
+		const payload = buildProfilePayload(form, createDefaultFormData());
 
 		expect(payload.gender).toBe(2);
 		expect(payload.birthYear).toBe(1995);
@@ -150,33 +150,35 @@ describe("buildProfilePayload", () => {
 		expect(payload.signature).toBe("Test sig");
 	});
 
-	it("converts falsy birth values to 0", () => {
-		const form = {
-			gender: 0,
-			birthYear: 0,
-			birthMonth: 0,
-			birthDay: 0,
-			resideProvince: "",
-			resideCity: "",
-			graduateSchool: "",
-			campus: "",
-			bio: "",
-			interest: "",
-			qq: "",
-			site: "",
-			signature: "",
-		};
+	it("omits unchanged legacy URLs and empty birthdays when another field changes", () => {
+		const initial = { ...createDefaultFormData(), site: "example.test" };
+		expect(buildProfilePayload({ ...initial, bio: "New bio" }, initial)).toEqual({
+			bio: "New bio",
+		});
+	});
 
-		const payload = buildProfilePayload(form);
+	it("has no profile changes when only an avatar was uploaded", () => {
+		const initial = { ...createDefaultFormData(), site: "example.test" };
+		expect(buildProfilePayload({ ...initial }, initial)).toEqual({});
+	});
 
-		expect(payload.birthYear).toBe(0);
-		expect(payload.birthMonth).toBe(0);
-		expect(payload.birthDay).toBe(0);
+	it("sends the complete birthday when only one component changes", () => {
+		const initial = { ...createDefaultFormData(), birthYear: 1990, birthMonth: 5, birthDay: 15 };
+		expect(buildProfilePayload({ ...initial, birthDay: 16 }, initial)).toEqual({
+			birthYear: 1990,
+			birthMonth: 5,
+			birthDay: 16,
+		});
+	});
+
+	it("includes an explicitly cleared text field", () => {
+		const initial = { ...createDefaultFormData(), site: "example.test" };
+		expect(buildProfilePayload({ ...initial, site: "" }, initial)).toEqual({ site: "" });
 	});
 
 	it("never includes email in payload (req 1c — email only via verification page)", () => {
-		const form = createDefaultFormData();
-		const payload = buildProfilePayload(form) as Record<string, unknown>;
+		const form = { ...createDefaultFormData(), email: "changed@example.test" };
+		const payload = buildProfilePayload(form, createDefaultFormData());
 		expect("email" in payload).toBe(false);
 	});
 });
@@ -354,25 +356,8 @@ describe("submitProfileUpdate", () => {
 		);
 	});
 
-	it("builds payload using buildProfilePayload", async () => {
-		const form = {
-			gender: 2,
-			birthYear: 1990,
-			birthMonth: 5,
-			birthDay: 15,
-			resideProvince: "北京",
-			resideCity: "朝阳",
-			graduateSchool: "PKU",
-			campus: "燕园",
-			bio: "hi",
-			interest: "code",
-			qq: "123",
-			site: "https://x.com",
-			signature: "—",
-		};
-
-		await submitProfileUpdate(form);
-
-		expect((apiClient as any).patch).toHaveBeenCalledWith("/api/v1/users/me", form);
+	it("preserves a partial PATCH without adding unchanged fields", async () => {
+		await submitProfileUpdate({ bio: "Updated bio" });
+		expect(apiClient.patch).toHaveBeenLastCalledWith("/api/v1/users/me", { bio: "Updated bio" });
 	});
 });

@@ -6,6 +6,7 @@
 import { Loader2, Upload } from "lucide-react";
 import { type DragEvent, useCallback, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
+import { AVATAR_ALLOWED_TYPES, AVATAR_MAX_UPLOAD_MB } from "@/lib/avatar";
 import { uploadAvatar } from "@/lib/forum-browser-api";
 import { cn } from "@/lib/utils";
 import { invalidateWriteGateCache } from "@/viewmodels/forum/write-gate";
@@ -16,9 +17,6 @@ interface AvatarUploadProps {
 	disabled?: boolean;
 }
 
-const MAX_SIZE_KB = 200;
-const ALLOWED_TYPES = ["image/jpeg", "image/png"];
-
 export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarUploadProps) {
 	const toast = useForumToast();
 	const [isDragging, setIsDragging] = useState(false);
@@ -27,11 +25,11 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 	const [previewUrl, setPreviewUrl] = useState(currentUrl);
 
 	const validateFile = useCallback((file: File): string | null => {
-		if (!ALLOWED_TYPES.includes(file.type)) {
+		if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
 			return "仅支持 JPG 和 PNG 格式";
 		}
-		if (file.size > MAX_SIZE_KB * 1024) {
-			return `文件大小不能超过 ${MAX_SIZE_KB} KB`;
+		if (file.size > AVATAR_MAX_UPLOAD_MB * 1024 * 1024) {
+			return `文件大小不能超过 ${AVATAR_MAX_UPLOAD_MB} MB`;
 		}
 		return null;
 	}, []);
@@ -144,7 +142,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 							<span>拖拽图片到此处，或点击上传</span>
 						</div>
 						<p className="text-xs text-muted-foreground/70 mt-1">
-							JPG / PNG，最大 {MAX_SIZE_KB} KB
+							JPG / PNG，最大 {AVATAR_MAX_UPLOAD_MB} MB，上传后自动压缩并立即生效
 						</p>
 					</div>
 				</div>
@@ -152,7 +150,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 				{/* Invisible file input */}
 				<input
 					type="file"
-					accept={ALLOWED_TYPES.join(",")}
+					accept={AVATAR_ALLOWED_TYPES.join(",")}
 					className="absolute inset-0 cursor-pointer opacity-0"
 					onChange={handleFileChange}
 					disabled={isDisabled}

@@ -4,7 +4,6 @@ import {
 	computeAvatarCdnPath,
 	computeLegacyAvatarCdnPath,
 	FALLBACK_URL,
-	getCacheControl,
 } from "@/lib/avatar-proxy";
 
 describe("avatar-proxy", () => {
@@ -61,42 +60,6 @@ describe("avatar-proxy", () => {
 			expect(computeAvatarCdnPath(12345)).toBe(
 				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
 			);
-		});
-	});
-
-	describe("getCacheControl", () => {
-		describe("with version param (fresh upload)", () => {
-			it("returns no-cache for normal avatar", () => {
-				expect(getCacheControl(true, false)).toBe("public, max-age=0, must-revalidate");
-			});
-
-			it("returns no-cache for fallback (critical: prevents caching stale fallback)", () => {
-				// This is the key fix: when ?v= is present but CDN hasn't propagated,
-				// we must NOT cache the fallback GIF
-				expect(getCacheControl(true, true)).toBe("public, max-age=0, must-revalidate");
-			});
-		});
-
-		describe("without version param (normal request)", () => {
-			it("returns 7-day cache for normal avatar", () => {
-				expect(getCacheControl(false, false)).toBe("public, max-age=604800");
-			});
-
-			it("returns 1-day cache for fallback", () => {
-				expect(getCacheControl(false, true)).toBe("public, max-age=86400");
-			});
-		});
-
-		describe("cache duration values", () => {
-			it("7-day cache equals 604800 seconds", () => {
-				// 7 * 24 * 60 * 60 = 604800
-				expect(7 * 24 * 60 * 60).toBe(604800);
-			});
-
-			it("1-day cache equals 86400 seconds", () => {
-				// 24 * 60 * 60 = 86400
-				expect(24 * 60 * 60).toBe(86400);
-			});
 		});
 	});
 });

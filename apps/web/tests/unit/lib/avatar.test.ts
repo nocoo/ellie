@@ -3,22 +3,22 @@ import { getAvatarUrl } from "@/lib/avatar";
 
 describe("getAvatarUrl", () => {
 	it("returns proxy URL for UID without avatarPath", () => {
-		expect(getAvatarUrl(12345, "big")).toBe("/api/avatar/12345");
+		expect(getAvatarUrl(12345, "big")).toBe("/api/avatar/12345?v=current");
 	});
 
-	it("returns proxy URL without params when size is big (default)", () => {
-		expect(getAvatarUrl(1, "big")).toBe("/api/avatar/1");
+	it("bypasses previously cached UID URLs after a full page reload", () => {
+		expect(getAvatarUrl(1, "big")).toBe("/api/avatar/1?v=current");
 	});
 
 	it("size param is deprecated and ignored - always returns same URL", () => {
 		// Size param kept for backward compatibility but ignored
-		expect(getAvatarUrl(42, "big")).toBe("/api/avatar/42");
-		expect(getAvatarUrl(42, "middle")).toBe("/api/avatar/42");
-		expect(getAvatarUrl(42, "small")).toBe("/api/avatar/42");
+		expect(getAvatarUrl(42, "big")).toBe("/api/avatar/42?v=current");
+		expect(getAvatarUrl(42, "middle")).toBe("/api/avatar/42?v=current");
+		expect(getAvatarUrl(42, "small")).toBe("/api/avatar/42?v=current");
 	});
 
 	it("default size is 'big'", () => {
-		expect(getAvatarUrl(12345)).toBe("/api/avatar/12345");
+		expect(getAvatarUrl(12345)).toBe("/api/avatar/12345?v=current");
 	});
 
 	it("returns direct CDN URL when avatarPath is provided", () => {
@@ -53,11 +53,11 @@ describe("getAvatarUrl", () => {
 		expect(getAvatarUrl(99, "middle", undefined, timestamp)).toBe("/api/avatar/99?v=1234567890");
 	});
 
-	it("no params when cacheBust is undefined", () => {
-		expect(getAvatarUrl(42, "big", undefined, undefined)).toBe("/api/avatar/42");
+	it("uses the revalidating URL when the in-memory upload version is absent", () => {
+		expect(getAvatarUrl(42, "big", undefined, undefined)).toBe("/api/avatar/42?v=current");
 	});
 
 	it("empty avatarPath falls back to proxy", () => {
-		expect(getAvatarUrl(42, "big", "")).toBe("/api/avatar/42");
+		expect(getAvatarUrl(42, "big", "")).toBe("/api/avatar/42?v=current");
 	});
 });

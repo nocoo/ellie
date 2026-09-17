@@ -5,6 +5,7 @@
 // will immediately update to show the new image.
 
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { getAvatarUrl } from "@/lib/avatar";
 
 interface AvatarVersionMap {
 	[uid: number]: number; // uid -> timestamp for cache busting
@@ -55,6 +56,5 @@ export function useAvatarVersion() {
 export function useAvatarUrl(uid: number): string {
 	const { getVersion } = useAvatarVersion();
 	const version = getVersion(uid);
-	const params = version ? `?v=${version}` : "";
-	return `/api/avatar/${uid}${params}`;
+	return getAvatarUrl(uid, "big", undefined, version);
 }

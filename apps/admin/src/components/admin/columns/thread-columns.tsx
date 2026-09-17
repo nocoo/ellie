@@ -12,7 +12,7 @@
 // emitted here (each caller splices its own).
 
 import { formatDate, formatNumber } from "@ellie/shared";
-
+import { contentToText } from "@ellie/shared/content";
 import { Badge } from "@nocoo/basalt";
 import Link from "next/link";
 import type { ColumnDef } from "@/components/admin/admin-data-table";
@@ -51,22 +51,25 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 	const subjectCell: ColumnDef<Thread> = {
 		key: "subject",
 		header: "标题",
-		cell: (row) => (
-			<div className="flex max-w-[min(28vw,26rem)] min-w-48 flex-col gap-0.5">
-				<Link
-					href={`/admin/threads/${row.id}`}
-					className="truncate font-medium text-basalt-foreground hover:underline"
-					title={row.subject}
-				>
-					{row.subject}
-				</Link>
-				<span className="truncate text-[11px] text-basalt-muted-foreground">
-					#{row.id}
-					{row.typeName ? ` · ${row.typeName}` : ""}
-					{row.isAuthorFirstThread ? " · 首次发帖" : ""}
-				</span>
-			</div>
-		),
+		cell: (row) => {
+			const subject = contentToText(row.subject);
+			return (
+				<div className="flex max-w-[min(28vw,26rem)] min-w-48 flex-col gap-0.5">
+					<Link
+						href={`/admin/threads/${row.id}`}
+						className="truncate font-medium text-basalt-foreground hover:underline"
+						title={subject}
+					>
+						{subject}
+					</Link>
+					<span className="truncate text-[11px] text-basalt-muted-foreground">
+						#{row.id}
+						{row.typeName ? ` · ${row.typeName}` : ""}
+						{row.isAuthorFirstThread ? " · 首次发帖" : ""}
+					</span>
+				</div>
+			);
+		},
 	};
 
 	const forumCell: ColumnDef<Thread> = {

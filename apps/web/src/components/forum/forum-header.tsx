@@ -112,7 +112,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 		<div className="width-container overflow-x-hidden">
 			<nav
 				aria-label="论坛导航"
-				className="flex items-center gap-1 overflow-x-auto border-b border-border py-1 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				className="flex items-center gap-1 overflow-x-auto py-1 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 				data-testid="forum-nav-bar"
 			>
 				{vm.navTabs.map((tab) => {

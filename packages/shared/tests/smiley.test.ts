@@ -9,7 +9,7 @@ import {
 	numberedFilename,
 	replaceSmileyCodesWithImages,
 	SMILEY_PACKS,
-} from "@/lib/smiley";
+} from "../src/smiley";
 
 const CDN = "https://t.no.mt/static/image/smiley";
 

@@ -75,8 +75,15 @@ Next.js routes act as **proxies** that:
 |---------------|---------------|-------------------|
 | `/api/v1/settings` | `app/api/v1/settings/route.ts` | `/api/v1/settings` |
 | `/api/v1/users/me` | `app/api/v1/users/me/route.ts` | `/api/v1/users/me` |
+| `/api/v1/upload` | `app/api/v1/upload/route.ts` | `/api/v1/upload` |
 | `/api/admin/*` | `app/api/admin/*/route.ts` | `/api/admin/*` |
 | `/api/auth/*` | NextAuth handlers | N/A (NextAuth) |
+
+Avatar uploads from the forum accept JPG/PNG originals up to 5 MB. Before forwarding to the Worker, the Next.js upload route decodes the image, applies EXIF orientation, fits it inside 360×360 without upscaling or cropping, flattens transparency onto white, and encodes JPEG at quality 80. The Worker validates the resulting file against its 200 KB limit, stores it in R2 under a unique `.jpg` path with `image/jpeg`, updates `avatar_path` / `has_avatar`, and invalidates the user cache. Post images retain their original bytes; existing stored avatars are unchanged.
+
+An avatar upload saves immediately. The profile dialog sends only fields edited since it opened to `PATCH /api/v1/users/me`; an avatar-only change closes without a profile PATCH. This avoids revalidating unrelated legacy values. When a birthday component changes, all three components are included as required by the Worker.
+
+Mutable `/api/avatar/:uid` responses, including fallbacks, use `public, max-age=0, must-revalidate`. The shared URL helper uses `?v=current` outside the immediate upload flow to bypass older week-long browser caches even after the in-memory upload timestamp is lost on reload. Direct GUID image URLs retain their CDN caching.
 
 ### Layer 3: Server Components (Direct Worker Access)
 

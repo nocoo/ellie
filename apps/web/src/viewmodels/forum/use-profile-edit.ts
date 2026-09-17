@@ -145,25 +145,25 @@ export function createFormDataFromUser(user: ProfileFormData): ProfileFormData {
 }
 
 /**
- * Build the API payload from form data.
+ * Build a PATCH containing only edits made in this dialog.
+ * Unchanged legacy values may not pass today's validation rules.
  * Pure function for testability.
  */
-export function buildProfilePayload(form: ProfileFormData): ProfileFormData {
-	return {
-		gender: form.gender,
-		birthYear: form.birthYear || 0,
-		birthMonth: form.birthMonth || 0,
-		birthDay: form.birthDay || 0,
-		resideProvince: form.resideProvince,
-		resideCity: form.resideCity,
-		graduateSchool: form.graduateSchool,
-		campus: form.campus,
-		bio: form.bio,
-		interest: form.interest,
-		qq: form.qq,
-		site: form.site,
-		signature: form.signature,
-	};
+export function buildProfilePayload(
+	form: ProfileFormData,
+	initialData: ProfileFormData,
+): Partial<ProfileFormData> {
+	const payload: Partial<ProfileFormData> = createFormDataFromUser(form);
+	for (const key of Object.keys(payload) as (keyof ProfileFormData)[]) {
+		if (form[key] === initialData[key]) delete payload[key];
+	}
+	// The Worker validates birthdays as a complete group.
+	if ("birthYear" in payload || "birthMonth" in payload || "birthDay" in payload) {
+		payload.birthYear = form.birthYear;
+		payload.birthMonth = form.birthMonth;
+		payload.birthDay = form.birthDay;
+	}
+	return payload;
 }
 
 /**
@@ -207,8 +207,7 @@ export function validateBirthDate(
  * Submit profile update to API.
  * Extracted for testability.
  */
-export async function submitProfileUpdate(form: ProfileFormData): Promise<void> {
-	const payload = buildProfilePayload(form);
+export async function submitProfileUpdate(payload: Partial<ProfileFormData>): Promise<void> {
 	await apiClient.patch<User>("/api/v1/users/me", payload);
 }
 
@@ -247,6 +246,7 @@ export function useProfileEdit({
 
 	// State
 	const [form, setForm] = useState<ProfileFormData>(() => createFormDataFromUser(initialData));
+	const initialForm = useRef(createFormDataFromUser(initialData));
 	const [submitting, setSubmitting] = useState(false);
 	const submittingRef = useRef(false);
 	const wasOpen = useRef(false);
@@ -254,7 +254,8 @@ export function useProfileEdit({
 
 	useEffect(() => {
 		if (open && !wasOpen.current) {
-			setForm(createFormDataFromUser(initialData));
+			initialForm.current = createFormDataFromUser(initialData);
+			setForm(initialForm.current);
 			setError(null);
 		}
 		wasOpen.current = open;
@@ -273,18 +274,27 @@ export function useProfileEdit({
 	}, []);
 
 	const resetForm = useCallback(() => {
-		setForm(createFormDataFromUser(initialData));
+		initialForm.current = createFormDataFromUser(initialData);
+		setForm(initialForm.current);
 		setError(null);
 	}, [initialData]);
 
 	const handleSave = useCallback(async () => {
 		if (submittingRef.current) return;
 
-		// Validate birth date
-		const birthValidation = validateBirthDate(form.birthYear, form.birthMonth, form.birthDay);
-		if (!birthValidation.valid) {
-			setError(birthValidation.error ?? "生日格式有误");
+		const payload = buildProfilePayload(form, initialForm.current);
+		// Avatar uploads are already saved by their own endpoint.
+		if (Object.keys(payload).length === 0) {
+			setError(null);
+			onSuccess?.();
 			return;
+		}
+		if ("birthYear" in payload) {
+			const birthValidation = validateBirthDate(form.birthYear, form.birthMonth, form.birthDay);
+			if (!birthValidation.valid) {
+				setError(birthValidation.error ?? "生日格式有误");
+				return;
+			}
 		}
 
 		submittingRef.current = true;
@@ -292,7 +302,8 @@ export function useProfileEdit({
 		setError(null);
 
 		try {
-			await submitProfileUpdate(form);
+			await submitProfileUpdate(payload);
+			initialForm.current = createFormDataFromUser(form);
 
 			if (onSuccess) {
 				onSuccess();

@@ -7,7 +7,7 @@
 // 2. Otherwise fallback to legacy UID-based path: CDN_BASE/avatar/{dir structure}
 
 import { type NextRequest, NextResponse } from "next/server";
-import { computeAvatarCdnPath, FALLBACK_URL, getCacheControl } from "@/lib/avatar-proxy";
+import { AVATAR_PROXY_CACHE_CONTROL, computeAvatarCdnPath, FALLBACK_URL } from "@/lib/avatar-proxy";
 
 function getWorkerUrl(): string {
 	const url = process.env.WORKER_API_URL;
@@ -57,7 +57,7 @@ async function getUserAvatarPath(uid: number): Promise<AvatarPathResult> {
 }
 
 export async function GET(
-	request: NextRequest,
+	_request: NextRequest,
 	{ params }: { params: Promise<{ uid: string }> },
 ): Promise<NextResponse> {
 	const { uid: uidParam } = await params;
@@ -67,13 +67,10 @@ export async function GET(
 		return NextResponse.redirect(FALLBACK_URL);
 	}
 
-	// Check for cache-bust parameter
-	const hasVersionParam = request.nextUrl.searchParams.has("v");
-
 	// Get user's avatar_path from Worker API
 	const result = await getUserAvatarPath(uid);
 
-	// If API error, return fallback with short cache (5 min) to avoid caching errors for a day
+	// Retry avatar resolution on the next request if the Worker is unavailable.
 	if (result.status === "error") {
 		try {
 			const fallbackResponse = await fetch(FALLBACK_URL);
@@ -82,8 +79,7 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					// Short cache for errors — retry in 5 minutes
-					"Cache-Control": "public, max-age=300",
+					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
 				},
 			});
 		} catch {
@@ -91,7 +87,7 @@ export async function GET(
 		}
 	}
 
-	// If user not found, return fallback with normal cache
+	// Missing avatars must also revalidate after an upload.
 	if (result.status === "not_found") {
 		try {
 			const fallbackResponse = await fetch(FALLBACK_URL);
@@ -100,7 +96,7 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					"Cache-Control": getCacheControl(hasVersionParam, true),
+					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
 				},
 			});
 		} catch {
@@ -126,7 +122,7 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					"Cache-Control": getCacheControl(hasVersionParam, true),
+					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
 				},
 			});
 		}
@@ -138,11 +134,11 @@ export async function GET(
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
-				"Cache-Control": getCacheControl(hasVersionParam, false),
+				"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
 			},
 		});
 	} catch {
-		// Network error, return fallback with short cache
+		// Network errors must not leave the fallback cached after recovery.
 		try {
 			const fallbackResponse = await fetch(FALLBACK_URL);
 			const fallbackData = await fallbackResponse.arrayBuffer();
@@ -150,8 +146,7 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					// Short cache for network errors
-					"Cache-Control": "public, max-age=300",
+					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
 				},
 			});
 		} catch {

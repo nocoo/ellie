@@ -1,6 +1,7 @@
 // viewmodels/forum/thread-detail.ts — Thread detail ViewModel
 // Ref: 04d §主题详情 — enriched posts, attachment grouping, permissions
 
+import { renderContent } from "@ellie/shared/content";
 import type { User } from "@ellie/types";
 import {
 	type Attachment,
@@ -20,7 +21,6 @@ import {
 	UserRole,
 	UserStatus,
 } from "@ellie/types";
-import { filterContent } from "@/lib/content-filter";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -195,8 +195,8 @@ export function enrichPosts(
 		const comments = commentMap === undefined ? undefined : (commentMap.get(post.id) ?? []);
 		return {
 			...post,
-			content: filterContent(post.content),
-			author: author ? { ...author, signature: filterContent(author.signature ?? "") } : null,
+			content: renderContent(post.content),
+			author: author ? { ...author, signature: renderContent(author.signature ?? "") } : null,
 			attachments: attachmentMap.get(post.id) ?? [],
 			comments,
 			canDelete: canDeletePost(currentUser, post, forum),

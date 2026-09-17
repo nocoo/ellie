@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Avatar uploads accept JPG/PNG originals up to 5 MB and compress them before forwarding to the Worker. Mutable avatar URLs revalidate after uploads, and profile edits submit only changed fields so unrelated legacy values do not block saving.
+- Forum and Admin content use shared legacy-markup rendering, HTML sanitization, smileys and styles. Titles and excerpts display cleaned text while editing retains the original content.
+
 ## [1.11.4] - 2026-09-18
 
 ### Changed

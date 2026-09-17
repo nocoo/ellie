@@ -670,6 +670,7 @@ export function decodeHighlight(highlight: number): HighlightStyle | null {
 ```
 
 **安全保障**：
+- 展示时由 `@ellie/shared/content` 的 `renderContent` 统一处理旧帖标签、实体编码和表情，最后通过 `sanitize-html` 白名单清洗；管理后台主题预览复用同一函数与 `@ellie/shared/content.css` 样式。
 - 内容在写入 D1 前已经过 sanitize（迁移阶段和运行时写入都执行同一套规则）
 - Sanitize 规则详见 04a §Sanitize 规则（以 `bbcode.ts` 现有实现为 source of truth）
 - URL 协议白名单：`http:`, `https:`, `ftp:`, `mailto:` + 相对路径

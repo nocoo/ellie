@@ -36,6 +36,7 @@
 // matches the original single-page version.
 
 import { formatNumber } from "@ellie/shared";
+import { contentToText } from "@ellie/shared/content";
 import {
 	Badge,
 	Button,
@@ -725,15 +726,18 @@ const threadColumns: ColumnDef<Thread>[] = [
 	{
 		key: "subject",
 		header: "标题",
-		cell: (t) => (
-			<Link
-				href={`/admin/threads/${t.id}`}
-				className="block max-w-xl truncate font-medium hover:underline"
-				title={t.subject}
-			>
-				{t.subject}
-			</Link>
-		),
+		cell: (t) => {
+			const subject = contentToText(t.subject);
+			return (
+				<Link
+					href={`/admin/threads/${t.id}`}
+					className="block max-w-xl truncate font-medium hover:underline"
+					title={subject}
+				>
+					{subject}
+				</Link>
+			);
+		},
 	},
 	{
 		key: "replies",
@@ -758,27 +762,33 @@ const postColumns: ColumnDef<UserDetailPost>[] = [
 	{
 		key: "thread",
 		header: "所在主题",
-		cell: (p) => (
-			<Link
-				href={`/admin/threads/${p.threadId}`}
-				className="block max-w-72 truncate hover:underline"
-				title={p.threadSubject ?? `#${p.threadId}`}
-			>
-				{p.threadSubject ?? `#${p.threadId}`}
-			</Link>
-		),
+		cell: (p) => {
+			const subject = contentToText(p.threadSubject) || `#${p.threadId}`;
+			return (
+				<Link
+					href={`/admin/threads/${p.threadId}`}
+					className="block max-w-72 truncate hover:underline"
+					title={subject}
+				>
+					{subject}
+				</Link>
+			);
+		},
 	},
 	{
 		key: "content",
 		header: "内容",
-		cell: (p) => (
-			<span
-				className="line-clamp-2 min-w-48 max-w-xl whitespace-normal break-words text-sm"
-				title={p.content}
-			>
-				{p.content}
-			</span>
-		),
+		cell: (p) => {
+			const content = contentToText(p.content);
+			return (
+				<span
+					className="line-clamp-2 min-w-48 max-w-xl whitespace-normal break-words text-sm"
+					title={content}
+				>
+					{content}
+				</span>
+			);
+		},
 	},
 	{
 		key: "isFirst",

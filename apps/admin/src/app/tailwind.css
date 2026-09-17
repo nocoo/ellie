@@ -2,6 +2,7 @@
 @source "../../node_modules/@nocoo/basalt/dist/**/*.{js,jsx,ts,tsx}";
 @import "@nocoo/basalt/styles/tailwind";
 @import "tailwindcss";
+@import "@ellie/shared/content.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -64,71 +65,10 @@
 	}
 }
 
-/* Rendered forum content retains its legacy markup. */
-/* Inline smileys */
-img.smiley {
-	display: inline;
-	height: 1.2em;
-	width: auto;
-	vertical-align: text-bottom;
-	margin: 0 1px;
-}
-
-/* Quote blocks */
-div.quote {
-	border: 1px solid hsl(var(--basalt-border));
-	background: hsl(var(--basalt-muted));
-	padding: 0.75rem;
-	margin: 0.75rem 0;
-	border-radius: var(--basalt-radius);
-}
-div.quote :where(blockquote) {
-	margin: 0;
-	padding: 0;
-	border: none;
-	background: transparent;
-	font-size: 0.8125rem;
-	line-height: 1.6;
-	color: hsl(var(--basalt-muted-foreground));
-}
-div.quote::before {
-	content: url("https://t.no.mt/static/image/common/quote.gif");
-	display: block;
-	margin-bottom: 0.5rem;
-	height: 16px;
-}
-
-/* Edit notices & hidden content */
-.dz-edit-notice {
-	text-align: center;
-	font-size: 0.75rem;
-	color: hsl(var(--basalt-muted-foreground));
-	margin-bottom: 0.75rem;
-	font-style: italic;
-}
-.dz-hidden-content {
-	text-align: center;
-	font-size: 0.8125rem;
-	color: hsl(var(--basalt-muted-foreground));
-	background: hsl(var(--basalt-muted));
-	padding: 0.5rem 1rem;
-	border-radius: 4px;
-	margin: 0.5rem 0;
-}
-
-.forum-quote {
-	position: relative;
-	margin: 1rem 0;
-	padding: 0.75rem 0.75rem 0.75rem 1rem;
-	background: hsl(var(--basalt-muted) / 0.5);
-	border-left: 4px solid hsl(var(--basalt-primary) / 0.6);
-	border-radius: 0 var(--basalt-radius) var(--basalt-radius) 0;
-}
-.forum-quote .quote-header {
-	font-size: 0.8125rem;
-	color: hsl(var(--basalt-muted-foreground));
-	margin-bottom: 0.5rem;
-}
-.forum-quote .quote-header strong {
-	color: hsl(var(--basalt-foreground));
+/* Use the forum's content styles with the admin theme tokens. */
+.forum-content {
+	--muted: var(--basalt-muted);
+	--muted-foreground: var(--basalt-muted-foreground);
+	--primary: var(--basalt-primary);
+	--radius: var(--basalt-radius);
 }
