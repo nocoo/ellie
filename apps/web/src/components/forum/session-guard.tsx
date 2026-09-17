@@ -14,9 +14,16 @@
 
 import { signOut, useSession } from "next-auth/react";
 import { useEffect } from "react";
+import { setWriteGateScope } from "@/viewmodels/forum/write-gate";
 
 export function SessionGuard() {
-	const { data: session } = useSession();
+	const { data: session, status } = useSession();
+	const scope = session?.user
+		? `${session.user.provider}:${session.user.id}:${session.user.role ?? "unknown"}:${session.error ?? "ok"}`
+		: status;
+	useEffect(() => {
+		setWriteGateScope(scope);
+	}, [scope]);
 
 	useEffect(() => {
 		if (session?.error === "RefreshTokenExpired") {

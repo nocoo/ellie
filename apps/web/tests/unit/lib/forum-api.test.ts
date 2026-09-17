@@ -162,21 +162,24 @@ describe("forumApi request construction", () => {
 		expect(opts.cache).toBe("no-store");
 	});
 
-	it("uses next.revalidate when GetOptions.revalidate is provided", async () => {
-		await forumApi.get("/api/v1/settings", undefined, { revalidate: 60 });
+	it("marks metadata reads without adding another cache lifetime", async () => {
+		await forumApi.get("/api/v1/threads/1", undefined, { readPurpose: "metadata" });
 
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-		expect(opts.cache).toBeUndefined();
-		expect((opts as Record<string, unknown>).next).toEqual({ revalidate: 60 });
+		expect(opts.cache).toBe("no-store");
+		expect((opts as Record<string, unknown>).next).toBeUndefined();
+		expect((opts.headers as Record<string, string>)["X-Ellie-Read-Purpose"]).toBe("metadata");
 	});
 
 	it("passes searchParams and options as separate arguments", async () => {
-		await forumApi.get("/api/v1/settings", { key: "test" }, { revalidate: 30 });
+		await forumApi.get("/api/v1/settings", { key: "test" }, { readPurpose: "prefetch" });
 
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		const parsed = new URL(url);
 		expect(parsed.searchParams.get("key")).toBe("test");
-		expect((opts as Record<string, unknown>).next).toEqual({ revalidate: 30 });
+		expect(opts.cache).toBe("no-store");
+		expect((opts as Record<string, unknown>).next).toBeUndefined();
+		expect((opts.headers as Record<string, string>)["X-Ellie-Read-Purpose"]).toBe("prefetch");
 	});
 
 	it("treats plain object without revalidate key as searchParams", async () => {

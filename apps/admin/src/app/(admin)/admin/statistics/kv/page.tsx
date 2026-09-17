@@ -1,35 +1,5 @@
 "use client";
 
-// Admin KV monitor page (`/admin/statistics/kv`).
-//
-// Backed by the Worker's `/api/admin/kv/{overview,list,get,refresh,metrics}`
-// endpoints declared in `apps/worker/src/handlers/admin/kv.ts`. All keys
-// are filtered server-side by the kv-registry, so this page never sees
-// raw refresh tokens / verification codes / auth keys.
-//
-// Reviewer guardrails (B.2 + C.1, msg aac70f4e / 42d487ee):
-//   1. The metrics chart consumes the op-dimension wire shape:
-//      `series: { family, tsMinute, op, count }[]`. We never reconstruct
-//      the legacy `{hits, misses, errors}` wide row.
-//   2. Per-key hit counts do NOT exist — metrics live at family
-//      granularity. The detail panel for a key only shows family
-//      identity + count + TTL + value (when permitted), never per-key
-//      counters.
-//   3. Sensitivity gates are server-side; we honor them here:
-//      - `nameSensitivity === "hide"` family rows: list/get hidden, no
-//        expand action.
-//      - `nameSensitivity === "mask"`: key column rendered masked.
-//      - `valueSensitivity === "no-read"`: value never returned by the
-//        Worker; the get response is a 403 we surface as "敏感，不可读".
-//      - `valueSensitivity === "mask-value"`: value omitted, only size /
-//        metadata / expiration shown.
-//   4. The "Refresh" action on a family row is enabled only when a
-//      no-arg bump action exists for that family (`defaultActionFor`
-//      returns non-null). Scoped operations (per-forum / per-thread /
-//      per-user / per-key) live entirely in the expanded key list, so
-//      the operator never gets a button that immediately tells them
-//      "needs more input".
-
 import {
 	Badge,
 	Button,
@@ -37,6 +7,7 @@ import {
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
+	Input,
 	LayerCard,
 	Tabs,
 	TabsContent,
@@ -58,6 +29,7 @@ import {
 	Activity,
 	ChevronDown,
 	ChevronRight,
+	Copy,
 	Database,
 	Eye,
 	Gauge,
@@ -78,14 +50,39 @@ import {
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
 import { type KvMetric, KvMetricsChart } from "@/components/admin/kv-metrics-chart";
 import { extractErrorMessage } from "@/lib/admin-error";
-import { readAdminKvJson } from "@/lib/admin-kv-fetch";
-import { apiClient } from "@/lib/api-client";
-
-// ---------------------------------------------------------------------------
-// Wire types — mirrored from `apps/worker/src/handlers/admin/kv.ts`.
-// Kept narrow on purpose so a Worker-side schema drift surfaces as a TS
-// error here rather than a silent UI-rendering bug.
-// ---------------------------------------------------------------------------
+import {
+	type CacheLifecycle,
+	type CacheTier,
+	COUNTDOWN_TICK_MS,
+	cacheMutationError,
+	canPreviewValue,
+	type Footprint,
+	formatBytes,
+	formatCount,
+	formatFootprint,
+	formatRemaining,
+	formatScope,
+	formatTimestamp,
+	formatTtl,
+	hitRateLabel,
+	LIFECYCLE_LABEL,
+	METRICS_WINDOWS,
+	type MetricsWindowMinutes,
+	MONITOR_POLL_MS,
+	mergeOccupancySnapshot,
+	mutationNotice,
+	type OccupancyPoint,
+	occupancyFromMetrics,
+	occupancyFromOverview,
+	physicalExpirationMs,
+	remainingMs,
+	sensitiveValueLabel,
+	summarizeD1Observation,
+	summarizeFamilyOps,
+	tierFromTtl,
+	totalsFromSummaries,
+} from "@/lib/admin-kv-cache";
+import { readAdminKvJson, writeAdminKvJson } from "@/lib/admin-kv-fetch";
 
 type Presence =
 	| "present"
@@ -95,6 +92,14 @@ type Presence =
 	| "dead-builder-reserved"
 	| "sensitive-hidden";
 
+interface FamilyActions {
+	inspect: boolean;
+	rebuild: boolean;
+	deleteEntry: boolean;
+	invalidateGroup: boolean;
+	restriction: string | null;
+}
+
 interface OverviewRow {
 	family: string;
 	displayName: string;
@@ -102,19 +107,31 @@ interface OverviewRow {
 	status: string;
 	pattern: string;
 	ttl: number | "sticky" | "variable";
+	tier?: CacheTier | null;
 	nameSensitivity: "public" | "mask" | "hide";
 	valueSensitivity: "public" | "mask-value" | "no-read";
 	count: number;
+	countKind?: "observed" | "at-least" | "unknown";
 	truncated: boolean;
 	presence: Presence;
 	currentGens?: { name: string; value: string | null }[];
 	sampleKeys: string[];
+	footprint?: Footprint;
+	actions?: FamilyActions;
 }
 
 interface KeyRow {
 	key: string;
 	rawKey: string | null;
 	expiration: number | null;
+	loadedAt?: number | null;
+	expiresAt?: number | null;
+	schemaVersion?: number | null;
+	tier?: CacheTier | null;
+	contentUtf8Bytes?: number | null;
+	sizeBytes?: number | null;
+	scope?: string | null;
+	params?: Record<string, string | number | boolean | null> | null;
 }
 
 interface ListResponse {
@@ -122,6 +139,8 @@ interface ListResponse {
 	keys: KeyRow[];
 	cursor: string | null;
 	listComplete: boolean;
+	countKind?: "observed" | "at-least" | "unknown";
+	actions?: FamilyActions;
 }
 
 interface GetResponse {
@@ -131,15 +150,41 @@ interface GetResponse {
 	value: unknown;
 	valueMasked: boolean;
 	valueByteSize: number;
+	contentUtf8Bytes?: number | null;
 	metadata: unknown;
 	expiration: number | null;
+	physicalExpiration?: number | null;
+	observedAt?: number;
+	status?: CacheLifecycle;
+	schemaVersion?: number | null;
+	tier?: CacheTier | null;
+	params?: Record<string, string | number | boolean | null> | null;
+	scope?: string | null;
+	valid?: boolean;
+	staleVersion?: boolean;
+	currentVersion?: string | null;
+	adminOnlyPreview?: boolean;
+	loadedAt?: number | null;
+	expiresAt?: number | null;
+	remainingMs?: number | null;
+	footprint?: Footprint;
+	restricted?: boolean;
+	contentTruncated?: boolean;
+	contentRange?: { offset: number; length: number; total: number };
+	actions?: FamilyActions;
+}
+
+interface OperationRow {
+	id: number;
+	adminName: string;
+	action: string;
+	targetType: string;
+	targetId: number | null;
+	details: string;
+	createdAt: number;
 }
 
 type MetricsRow = KvMetric;
-
-// ---------------------------------------------------------------------------
-// Presentation helpers
-// ---------------------------------------------------------------------------
 
 const PRESENCE_LABEL: Record<Presence, string> = {
 	present: "在用",
@@ -159,105 +204,25 @@ const PRESENCE_VARIANT: Record<Presence, "default" | "secondary" | "destructive"
 	"sensitive-hidden": "secondary",
 };
 
-function formatTtl(ttl: OverviewRow["ttl"]): string {
-	if (typeof ttl === "string") return ttl === "sticky" ? "持续保留" : "按业务设置";
-	if (ttl >= 86400) return `${Math.round(ttl / 86400)}d`;
-	if (ttl >= 3600) return `${Math.round(ttl / 3600)}h`;
-	if (ttl >= 60) return `${Math.round(ttl / 60)}m`;
-	return `${ttl}s`;
+function rowActions(row: OverviewRow): FamilyActions {
+	if (row.actions) return row.actions;
+	return {
+		inspect: row.nameSensitivity !== "hide",
+		rebuild: false,
+		deleteEntry:
+			row.family === "settings:all" ||
+			row.family === "public-stats" ||
+			row.family === "user:mini:v1",
+		invalidateGroup:
+			row.family === "forum:tree:v2" ||
+			row.family === "forum:summary:v2" ||
+			row.family === "gen:thread:list:all" ||
+			row.family === "gen:digest",
+		restriction: null,
+	};
 }
 
-/** Format an absolute unix-second `expiration` as "HH:mm:ss · 还剩 Xm". */
-function formatExpiration(expiration: number | null, now: number): string {
-	if (expiration === null) return "未知";
-	const date = new Date(expiration * 1000);
-	const remainingSec = expiration - Math.floor(now / 1000);
-	const stamp = date.toLocaleString();
-	if (remainingSec <= 0) return `${stamp}（已过期）`;
-	let rest: string;
-	if (remainingSec >= 86400) rest = `${Math.round(remainingSec / 86400)}d`;
-	else if (remainingSec >= 3600) rest = `${Math.round(remainingSec / 3600)}h`;
-	else if (remainingSec >= 60) rest = `${Math.round(remainingSec / 60)}m`;
-	else rest = `${remainingSec}s`;
-	return `${stamp} · 还剩 ${rest}`;
-}
-
-function formatBytes(n: number): string {
-	if (n < 1024) return `${n} B`;
-	if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
-	return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-// ---------------------------------------------------------------------------
-// Metrics aggregation — group rows by (family, tsMinute) into op buckets.
-// We never widen to a legacy `{hits, misses, errors}` shape (see file
-// header guardrail #1). Hit-rate is derived as `hit / (hit + miss)`.
-// ---------------------------------------------------------------------------
-
-interface FamilySummary {
-	family: string;
-	read: number;
-	hit: number;
-	miss: number;
-	write: number;
-	bump: number;
-	delete: number;
-	error: number;
-}
-
-function summarize(series: MetricsRow[]): FamilySummary[] {
-	const byFamily = new Map<string, FamilySummary>();
-	for (const r of series) {
-		let s = byFamily.get(r.family);
-		if (!s) {
-			s = {
-				family: r.family,
-				read: 0,
-				hit: 0,
-				miss: 0,
-				write: 0,
-				bump: 0,
-				delete: 0,
-				error: 0,
-			};
-			byFamily.set(r.family, s);
-		}
-		s[r.op] += r.count;
-	}
-	return [...byFamily.values()].sort((a, b) => b.read - a.read || a.family.localeCompare(b.family));
-}
-
-function hitRate(s: FamilySummary): string {
-	const denom = s.hit + s.miss;
-	if (denom === 0) return "—";
-	return `${((s.hit / denom) * 100).toFixed(1)}%`;
-}
-
-// ---------------------------------------------------------------------------
-// Refresh helpers — typed action shape mirrors `KvRefreshAction` on the
-// Worker side. We only construct actions whose `kind` matches the
-// family's declared `refresh.kind`; the Worker rejects mismatches with
-// `KV_ACTION_MISMATCH` (the registry is the single source of truth).
-// ---------------------------------------------------------------------------
-
-interface RefreshAction {
-	kind: string;
-	forumId?: number;
-	threadId?: number;
-	userId?: number;
-	key?: string;
-}
-
-async function callRefresh(family: string, action: RefreshAction): Promise<void> {
-	await apiClient.post("/api/admin/kv/refresh", { family, action });
-}
-
-// Map a family + presence row to the refresh action it accepts WITHOUT
-// extra input. Returns `null` for families that need additional input
-// (forumId / threadId / userId / literal key) — those scoped actions
-// live in the expanded per-key view, so the family-row Refresh button
-// is never enabled in a state where it can't actually act.
-function defaultActionFor(row: OverviewRow): RefreshAction | null {
+function groupInvalidateAction(row: OverviewRow): { kind: string } | null {
 	switch (row.family) {
 		case "forum:tree:v2":
 			return { kind: "bump-forum-tree" };
@@ -272,37 +237,10 @@ function defaultActionFor(row: OverviewRow): RefreshAction | null {
 	}
 }
 
-/**
- * Per-key delete action for a literal raw key. Returns null when the
- * family has no per-key delete path (gen-keyed families bump rather
- * than delete; hide families never expose keys).
- */
-function deleteActionForKey(row: OverviewRow, rawKey: string): RefreshAction | null {
-	if (row.family === "user:mini:v1") {
-		const userId = parseUserMiniId(rawKey);
-		if (userId === null) return null;
-		return { kind: "delete-user-mini", userId };
-	}
-	// Singleton TTL caches (settings:all, public-stats, …) and other
-	// families whose registry entry declares delete-literal.
-	const ALLOW_LITERAL = new Set(["settings:all", "public-stats"]);
-	if (ALLOW_LITERAL.has(row.family)) {
-		return { kind: "delete-literal", key: rawKey };
-	}
-	return null;
+function countKindOf(row: OverviewRow): "observed" | "at-least" | "unknown" {
+	if (row.countKind) return row.countKind;
+	return row.truncated ? "at-least" : "observed";
 }
-
-function parseUserMiniId(rawKey: string): number | null {
-	// live v1 family: literal key `user:mini:<id>`
-	const m = /^user:mini:(\d+)$/.exec(rawKey);
-	if (!m) return null;
-	const id = Number.parseInt(m[1], 10);
-	return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-// ---------------------------------------------------------------------------
-// Per-family expanded key list
-// ---------------------------------------------------------------------------
 
 interface KeyListState {
 	rows: KeyRow[];
@@ -328,6 +266,7 @@ function ExpandedKeyList({
 	onLoadMore,
 	onView,
 	onDelete,
+	onRebuild,
 }: {
 	row: OverviewRow;
 	state: KeyListState;
@@ -336,11 +275,13 @@ function ExpandedKeyList({
 	onLoadMore: () => void;
 	onView: (rawKey: string) => void;
 	onDelete: (rawKey: string) => void;
+	onRebuild: (rawKey: string) => void;
 }) {
+	const actions = rowActions(row);
 	if (row.nameSensitivity === "hide") {
 		return (
 			<div className="px-4 py-3 text-xs text-basalt-muted-foreground">
-				敏感家族（{row.family}）按策略隐藏 key 名称，仅展示总数 / TTL。
+				敏感家族（{row.family}）按策略隐藏 key 名称，仅展示总数 / TTL。运行状态不会开放原文或清理。
 			</div>
 		);
 	}
@@ -357,7 +298,9 @@ function ExpandedKeyList({
 	}
 	if (state.rows.length === 0) {
 		return (
-			<div className="px-4 py-3 text-xs text-basalt-muted-foreground">该家族当前没有 key。</div>
+			<div className="px-4 py-3 text-xs text-basalt-muted-foreground">
+				该类型当前没有已发现的条目。没有常驻 key 只表示尚未访问，不是缓存故障。
+			</div>
 		);
 	}
 	return (
@@ -365,24 +308,49 @@ function ExpandedKeyList({
 			<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
 				<TableHeader>
 					<TableRow>
-						<TableHead>Key</TableHead>
-						<TableHead>过期</TableHead>
-						<TableHead className="w-40 text-right">操作</TableHead>
+						<TableHead>资源 / 参数</TableHead>
+						<TableHead>范围</TableHead>
+						<TableHead>装载</TableHead>
+						<TableHead>逻辑到期</TableHead>
+						<TableHead>物理到期</TableHead>
+						<TableHead>大小</TableHead>
+						<TableHead className="w-64 text-right">操作</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
 					{state.rows.map((k) => {
-						const canView = row.valueSensitivity !== "no-read" && k.rawKey !== null;
-						const deleteAction = k.rawKey ? deleteActionForKey(row, k.rawKey) : null;
+						const canView = canPreviewValue({
+							nameSensitivity: row.nameSensitivity,
+							valueSensitivity: row.valueSensitivity,
+							rawKey: k.rawKey,
+						});
+						const expiresAt = k.expiresAt ?? physicalExpirationMs(k.expiration);
 						return (
 							<TableRow key={k.key + (k.rawKey ?? "")}>
 								<TableCell className="font-mono text-xs">
 									<span className="block max-w-96 truncate" title={k.key}>
 										{k.key}
 									</span>
+									{k.params ? (
+										<div className="text-basalt-muted-foreground">{JSON.stringify(k.params)}</div>
+									) : null}
 								</TableCell>
 								<TableCell className="text-xs text-basalt-muted-foreground">
-									{formatExpiration(k.expiration, now)}
+									{formatScope(k.scope)}
+								</TableCell>
+								<TableCell className="text-xs text-basalt-muted-foreground">
+									{k.loadedAt ? new Date(k.loadedAt).toLocaleString() : "未知"}
+								</TableCell>
+								<TableCell className="text-xs text-basalt-muted-foreground">
+									{formatRemaining(remainingMs(expiresAt, now))}
+								</TableCell>
+								<TableCell className="text-xs text-basalt-muted-foreground">
+									{k.expiration === null
+										? "未知"
+										: formatTimestamp(physicalExpirationMs(k.expiration), now)}
+								</TableCell>
+								<TableCell className="text-xs">
+									{k.contentUtf8Bytes == null ? "未知" : formatBytes(k.contentUtf8Bytes)}
 								</TableCell>
 								<TableCell className="text-right">
 									<Button
@@ -397,12 +365,21 @@ function ExpandedKeyList({
 									<Button
 										size="sm"
 										variant="ghost"
+										disabled={busy || !actions.rebuild || !k.rawKey}
+										onClick={() => k.rawKey && onRebuild(k.rawKey)}
+									>
+										<RefreshCw className="mr-1 h-3 w-3" />
+										刷新此条缓存
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
 										className="text-basalt-destructive hover:text-basalt-destructive"
-										disabled={busy || deleteAction === null}
+										disabled={busy || !actions.deleteEntry || !k.rawKey}
 										onClick={() => k.rawKey && onDelete(k.rawKey)}
 									>
 										<Trash2 className="mr-1 h-3 w-3" />
-										过期
+										删除此条缓存
 									</Button>
 								</TableCell>
 							</TableRow>
@@ -412,7 +389,9 @@ function ExpandedKeyList({
 			</Table>
 			<div className="flex items-center justify-between text-xs text-basalt-muted-foreground">
 				<span>
-					共 {state.rows.length} 条{state.listComplete ? "（已到底）" : "（仍有更多）"}
+					{state.listComplete
+						? formatCount(state.rows.length, "observed")
+						: `${formatCount(state.rows.length, "at-least")}（仍有更多）`}
 				</span>
 				{!state.listComplete && (
 					<Button size="sm" variant="outline" disabled={state.loading} onClick={onLoadMore}>
@@ -431,10 +410,6 @@ function ExpandedKeyList({
 	);
 }
 
-// ---------------------------------------------------------------------------
-// Overview table (with expandable per-family key list)
-// ---------------------------------------------------------------------------
-
 function OverviewTable({
 	rows,
 	loading,
@@ -446,7 +421,8 @@ function OverviewTable({
 	onLoadMore,
 	onView,
 	onDelete,
-	onRefreshFamily,
+	onRebuild,
+	onInvalidateGroup,
 }: {
 	rows: OverviewRow[];
 	loading: boolean;
@@ -458,7 +434,8 @@ function OverviewTable({
 	onLoadMore: (row: OverviewRow) => void;
 	onView: (row: OverviewRow, rawKey: string) => void;
 	onDelete: (row: OverviewRow, rawKey: string) => void;
-	onRefreshFamily: (row: OverviewRow) => void;
+	onRebuild: (row: OverviewRow, rawKey: string) => void;
+	onInvalidateGroup: (row: OverviewRow) => void;
 }) {
 	if (loading) {
 		return (
@@ -469,19 +446,18 @@ function OverviewTable({
 		);
 	}
 	if (rows.length === 0) {
-		return <div className="py-12 text-center text-basalt-muted-foreground">无 KV 家族数据</div>;
+		return <div className="py-12 text-center text-basalt-muted-foreground">无缓存类型数据</div>;
 	}
 	return (
 		<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-8" />
-					<TableHead>家族</TableHead>
-					<TableHead>分类</TableHead>
+					<TableHead>名称</TableHead>
+					<TableHead>档位</TableHead>
 					<TableHead>状态</TableHead>
-					<TableHead className="text-right">键数量</TableHead>
-					<TableHead>TTL</TableHead>
-					<TableHead>敏感度</TableHead>
+					<TableHead className="text-right">已观察条目</TableHead>
+					<TableHead>占用</TableHead>
 					<TableHead>操作</TableHead>
 				</TableRow>
 			</TableHeader>
@@ -489,13 +465,10 @@ function OverviewTable({
 				{rows.map((row) => {
 					const isExpanded = expanded.has(row.family);
 					const canExpand = row.nameSensitivity !== "hide";
-					// Family-row refresh is gated on (a) the registry having a
-					// no-arg bump for this family AND (b) the row being shipped+
-					// present. Scoped operations (per-forum/thread/user/key) are
-					// in the expanded list — never on the family row.
-					const refreshAction = defaultActionFor(row);
-					const refreshable =
-						refreshAction !== null && row.status === "shipped" && row.presence === "present";
+					const actions = rowActions(row);
+					const groupAction = groupInvalidateAction(row);
+					const invalidate =
+						actions.invalidateGroup && groupAction !== null && row.status === "shipped";
 					return (
 						<Fragment key={row.family}>
 							<TableRow>
@@ -519,47 +492,43 @@ function OverviewTable({
 								<TableCell className="font-mono text-xs">
 									<div className="font-sans font-semibold">{row.displayName}</div>
 									<div className="text-basalt-muted-foreground">{row.family}</div>
-									<div
-										className="max-w-80 truncate text-basalt-muted-foreground"
-										title={row.pattern}
-									>
-										{row.pattern}
+								</TableCell>
+								<TableCell className="text-xs">
+									{formatTtl(row.ttl)}
+									<div className="text-basalt-muted-foreground">
+										{row.tier ?? tierFromTtl(row.ttl) ?? "未接入三档"}
 									</div>
 								</TableCell>
-								<TableCell className="text-xs">{row.category}</TableCell>
 								<TableCell>
 									<Badge variant={PRESENCE_VARIANT[row.presence]}>
 										{PRESENCE_LABEL[row.presence]}
 									</Badge>
 								</TableCell>
 								<TableCell className="text-right font-mono text-xs">
-									{row.count}
-									{row.truncated ? "+" : ""}
+									{formatCount(row.count, countKindOf(row))}
 								</TableCell>
-								<TableCell className="text-xs">{formatTtl(row.ttl)}</TableCell>
 								<TableCell className="text-xs">
-									<div>名称: {row.nameSensitivity}</div>
-									<div className="text-basalt-muted-foreground">值: {row.valueSensitivity}</div>
+									{formatFootprint(row.footprint ?? { kind: "unknown" })}
 								</TableCell>
 								<TableCell>
 									<Button
 										size="sm"
 										variant="outline"
-										disabled={!refreshable || busyFamily !== null}
-										onClick={() => onRefreshFamily(row)}
+										disabled={!invalidate || busyFamily !== null}
+										onClick={() => onInvalidateGroup(row)}
 									>
 										{busyFamily === row.family ? (
 											<Loader className="mr-1 h-3 w-3" />
 										) : (
 											<RefreshCw className="mr-1 h-3 w-3" />
 										)}
-										刷新
+										使一组缓存失效
 									</Button>
 								</TableCell>
 							</TableRow>
 							{isExpanded && (
 								<TableRow>
-									<TableCell colSpan={8} className="!p-0">
+									<TableCell colSpan={7} className="!p-0">
 										<ExpandedKeyList
 											row={row}
 											state={keyLists[row.family] ?? EMPTY_KEY_LIST}
@@ -568,6 +537,7 @@ function OverviewTable({
 											onLoadMore={() => onLoadMore(row)}
 											onView={(rawKey) => onView(row, rawKey)}
 											onDelete={(rawKey) => onDelete(row, rawKey)}
+											onRebuild={(rawKey) => onRebuild(row, rawKey)}
 										/>
 									</TableCell>
 								</TableRow>
@@ -580,73 +550,6 @@ function OverviewTable({
 	);
 }
 
-// ---------------------------------------------------------------------------
-// Metrics summary table — family-level only (guardrail #2: no per-key
-// hit counts).
-// ---------------------------------------------------------------------------
-
-function MetricsTable({
-	summaries,
-	minutes,
-	loading,
-}: {
-	summaries: FamilySummary[];
-	minutes: number;
-	loading: boolean;
-}) {
-	if (loading) {
-		return (
-			<div className="flex items-center justify-center py-12 text-basalt-muted-foreground">
-				<Loader className="mr-2 h-4 w-4" />
-				加载中…
-			</div>
-		);
-	}
-	if (summaries.length === 0) {
-		return (
-			<div className="py-12 text-center text-basalt-muted-foreground">
-				最近 {minutes} 分钟暂无指标
-			</div>
-		);
-	}
-	return (
-		<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
-			<TableHeader>
-				<TableRow>
-					<TableHead>家族</TableHead>
-					<TableHead className="text-right">read</TableHead>
-					<TableHead className="text-right">hit</TableHead>
-					<TableHead className="text-right">miss</TableHead>
-					<TableHead className="text-right">命中率</TableHead>
-					<TableHead className="text-right">write</TableHead>
-					<TableHead className="text-right">bump</TableHead>
-					<TableHead className="text-right">delete</TableHead>
-					<TableHead className="text-right">error</TableHead>
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{summaries.map((s) => (
-					<TableRow key={s.family}>
-						<TableCell className="font-mono text-xs">{s.family}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.read}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.hit}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.miss}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{hitRate(s)}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.write}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.bump}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.delete}</TableCell>
-						<TableCell className="text-right font-mono text-xs">{s.error}</TableCell>
-					</TableRow>
-				))}
-			</TableBody>
-		</Table>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Key detail dialog — pulls fresh value via /api/admin/kv/get on open.
-// ---------------------------------------------------------------------------
-
 interface KeyDetailState {
 	open: boolean;
 	loading: boolean;
@@ -654,25 +557,59 @@ interface KeyDetailState {
 	family: string | null;
 	data: GetResponse | null;
 	error: string | null;
+	expanded: boolean;
+}
+
+function isDiagnosticSnapshot(data: GetResponse | null, now: number): boolean {
+	if (!data) return false;
+	if (data.status === "logically-expired" || data.status === "diagnostic-snapshot") return true;
+	return data.expiresAt != null && data.expiresAt <= now;
+}
+
+function previewValue(value: unknown, expanded: boolean): { display: unknown; large: boolean } {
+	const large =
+		typeof value === "string" ? value.length > 4000 : JSON.stringify(value ?? "").length > 4000;
+	if (expanded || !large) return { display: value, large };
+	if (typeof value === "string") return { display: `${value.slice(0, 4000)}…`, large };
+	return { display: JSON.parse(JSON.stringify(value)), large };
 }
 
 function KeyDetailDialog({
 	state,
 	now,
+	busy,
 	onOpenChange,
+	onCopy,
+	onExpand,
+	onRebuild,
+	onDelete,
 }: {
 	state: KeyDetailState;
 	now: number;
+	busy: boolean;
 	onOpenChange: (open: boolean) => void;
+	onCopy: () => void;
+	onExpand: () => void;
+	onRebuild: () => void;
+	onDelete: () => void;
 }) {
+	const status = state.data?.status;
+	const showAsSnapshot = isDiagnosticSnapshot(state.data, now);
+	const value = state.data?.value;
+	const { display: displayValue, large } = previewValue(value, state.expanded);
 	return (
 		<Dialog open={state.open} onOpenChange={onOpenChange}>
 			<AdminDialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
 				<DialogHeader className="min-w-0 pr-8">
 					<DialogTitle className="break-all font-mono text-sm">
-						{state.rawKey ?? "Key 详情"}
+						{state.rawKey ?? "缓存详情"}
 					</DialogTitle>
-					<DialogDescription className="text-xs">家族 {state.family ?? "—"}</DialogDescription>
+					<DialogDescription className="text-xs">
+						{state.family ?? "—"}
+						{status ? ` · ${LIFECYCLE_LABEL[status]}` : ""}
+						{state.data?.adminOnlyPreview ? " · 仅后台可预览" : ""}
+						{showAsSnapshot ? " · 仅作诊断快照，不是当前有效内容" : ""}
+					</DialogDescription>
 				</DialogHeader>
 				{state.loading && (
 					<div className="flex items-center justify-center py-6 text-xs text-basalt-muted-foreground">
@@ -687,28 +624,91 @@ function KeyDetailDialog({
 					<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-3 text-xs`}>
 						<dl className="grid gap-3 rounded-lg border border-basalt-border p-3 sm:grid-cols-2">
 							<div>
-								<dt className="text-basalt-muted-foreground">到期时间</dt>
+								<dt className="text-basalt-muted-foreground">装载时间</dt>
 								<dd className="mt-1 tabular-nums">
-									{formatExpiration(state.data.expiration, now)}
+									{state.data.loadedAt ? new Date(state.data.loadedAt).toLocaleString() : "未知"}
 								</dd>
 							</div>
 							<div>
-								<dt className="text-basalt-muted-foreground">内容大小</dt>
-								<dd className="mt-1 tabular-nums">{formatBytes(state.data.valueByteSize)}</dd>
+								<dt className="text-basalt-muted-foreground">逻辑到期</dt>
+								<dd className="mt-1 tabular-nums">
+									{formatTimestamp(state.data.expiresAt ?? null, now)}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-basalt-muted-foreground">物理到期</dt>
+								<dd className="mt-1 tabular-nums">
+									{formatTimestamp(
+										physicalExpirationMs(state.data.physicalExpiration ?? state.data.expiration),
+										now,
+									)}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-basalt-muted-foreground">内容 UTF-8 字节</dt>
+								<dd className="mt-1 tabular-nums">
+									{formatFootprint(
+										state.data.footprint ??
+											(state.data.contentUtf8Bytes == null
+												? { kind: "unknown" }
+												: { kind: "observed", bytes: state.data.contentUtf8Bytes }),
+									)}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-basalt-muted-foreground">schema / 档位</dt>
+								<dd className="mt-1">
+									{state.data.schemaVersion ?? "—"} · {state.data.tier ?? "—"}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-basalt-muted-foreground">范围 / 参数</dt>
+								<dd className="mt-1">
+									{formatScope(state.data.scope)}{" "}
+									{state.data.params ? JSON.stringify(state.data.params) : ""}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-basalt-muted-foreground">当前版本 key</dt>
+								<dd className="mt-1 break-all font-mono">
+									{state.data.currentVersion ?? "未知"}
+									{state.data.staleVersion ? " · 旧版本" : ""}
+								</dd>
 							</div>
 						</dl>
-						{state.data.metadata !== null && (
-							<div className="min-w-0">
-								<span className="text-basalt-muted-foreground">Metadata：</span>
-								<JsonCodeBlock value={state.data.metadata} maxHeightClassName="max-h-32" />
-							</div>
-						)}
+						<div className="flex flex-wrap gap-2">
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={onCopy}
+								disabled={state.data.valueMasked}
+							>
+								<Copy className="mr-1 h-3 w-3" />
+								复制
+							</Button>
+							{large && (
+								<Button size="sm" variant="outline" onClick={onExpand}>
+									{state.expanded ? "收起" : "展开全部"}
+									{state.data.contentRange
+										? `（已加载 ${state.data.contentRange.offset}-${state.data.contentRange.offset + state.data.contentRange.length} / ${state.data.contentRange.total}）`
+										: ""}
+								</Button>
+							)}
+							<Button size="sm" variant="outline" disabled={busy} onClick={onRebuild}>
+								刷新此条缓存
+							</Button>
+							<Button size="sm" variant="outline" disabled={busy} onClick={onDelete}>
+								删除此条缓存
+							</Button>
+						</div>
 						<div className="min-w-0">
-							<span className="text-basalt-muted-foreground">Value：</span>
+							<span className="text-basalt-muted-foreground">已授权内容：</span>
 							{state.data.valueMasked ? (
-								<span className="ml-1 text-basalt-muted-foreground italic">敏感，已遮蔽</span>
+								<span className="ml-1 text-basalt-muted-foreground italic">
+									{sensitiveValueLabel("mask-value")}
+								</span>
 							) : (
-								<JsonCodeBlock value={state.data.value} maxHeightClassName="max-h-[60vh]" />
+								<JsonCodeBlock value={displayValue} maxHeightClassName="max-h-[60vh]" />
 							)}
 						</div>
 					</div>
@@ -718,34 +718,151 @@ function KeyDetailDialog({
 	);
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-const METRICS_MINUTES = 60;
 const KEY_PAGE_LIMIT = 50;
+
+type ConfirmKind = "delete" | "rebuild" | "invalidate";
 
 interface ConfirmState {
 	open: boolean;
+	kind: ConfirmKind | null;
 	row: OverviewRow | null;
 	rawKey: string | null;
-	action: RefreshAction | null;
 }
 
-const CLOSED_CONFIRM: ConfirmState = { open: false, row: null, rawKey: null, action: null };
+const CLOSED_CONFIRM: ConfirmState = { open: false, kind: null, row: null, rawKey: null };
+
+async function executeConfirm(
+	kind: ConfirmKind,
+	row: OverviewRow,
+	rawKey: string | null,
+): Promise<{ error?: string; notice?: { type: "success" | "error"; text: string } }> {
+	if (kind === "invalidate") {
+		const action = groupInvalidateAction(row);
+		if (!action) return {};
+		const data = await writeAdminKvJson<{
+			outcome?: string;
+			error?: { message?: string; code?: string };
+		}>("/api/admin/kv/refresh", { family: row.family, action });
+		if (data.outcome !== "invalidated") {
+			return { error: data.error?.message ?? data.error?.code ?? "成组失效未确认成功" };
+		}
+		return {
+			notice: mutationNotice({
+				outcome: "invalidated",
+				label: ` ${row.displayName}`,
+				consistencyNote: "x",
+			}),
+		};
+	}
+	if (kind === "delete" && rawKey) {
+		const data = await writeAdminKvJson<{
+			outcome: "deleted" | "failed" | "not-allowed" | "not-found";
+			error?: { message?: string };
+		}>("/api/admin/kv/delete", { family: row.family, key: rawKey });
+		if (data.outcome !== "deleted") return { error: cacheMutationError(data.error) };
+		return {
+			notice: mutationNotice({
+				outcome: "deleted",
+				label: ` ${row.family}: ${rawKey}`,
+				consistencyNote: "x",
+			}),
+		};
+	}
+	if (kind === "rebuild" && rawKey) {
+		const data = await writeAdminKvJson<{
+			outcome: string;
+			stage?: string;
+			error?: { message?: string; code?: string };
+		}>("/api/admin/kv/rebuild", { family: row.family, key: rawKey });
+		if (data.outcome !== "rebuilt") return { error: cacheMutationError(data.error, data.stage) };
+		return {
+			notice: mutationNotice({
+				outcome: "rebuilt",
+				label: ` ${row.family}: ${rawKey}`,
+				consistencyNote: "x",
+			}),
+		};
+	}
+	return {};
+}
+
+function filterOverviewRows(
+	rows: OverviewRow[],
+	categoryFilter: string,
+	statusFilter: string,
+	tierFilter: string,
+): OverviewRow[] {
+	return rows.filter((row) => {
+		if (categoryFilter && row.category !== categoryFilter) return false;
+		if (statusFilter && row.status !== statusFilter && row.presence !== statusFilter) return false;
+		if (tierFilter && (row.tier ?? tierFromTtl(row.ttl) ?? "") !== tierFilter) return false;
+		return true;
+	});
+}
+
+function LocateBar({
+	keyQuery,
+	scopeQuery,
+	onKeyQuery,
+	onScopeQuery,
+	onLocate,
+}: {
+	keyQuery: string;
+	scopeQuery: string;
+	onKeyQuery: (value: string) => void;
+	onScopeQuery: (value: string) => void;
+	onLocate: () => void;
+}) {
+	return (
+		<>
+			<Input
+				placeholder="完整 key 或参数 JSON"
+				value={keyQuery}
+				onChange={(e) => onKeyQuery(e.target.value)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") onLocate();
+				}}
+				className="w-64"
+				aria-label="定位完整 key 或参数 JSON"
+			/>
+			<Input
+				placeholder="范围"
+				value={scopeQuery}
+				onChange={(e) => onScopeQuery(e.target.value)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") onLocate();
+				}}
+				className="w-28"
+				aria-label="定位可见性范围"
+			/>
+			<Button size="sm" variant="outline" onClick={onLocate}>
+				定位
+			</Button>
+		</>
+	);
+}
 
 export default function KvMonitorPage() {
 	const [overviewRows, setOverviewRows] = useState<OverviewRow[]>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
+	const [overviewObservedAt, setOverviewObservedAt] = useState<number | null>(null);
 	const [metricsRows, setMetricsRows] = useState<MetricsRow[]>([]);
 	const [metricsLoading, setMetricsLoading] = useState(true);
 	const [metricsError, setMetricsError] = useState<string | null>(null);
+	const [metricsMinutes, setMetricsMinutes] = useState<MetricsWindowMinutes>(60);
+	const [operations, setOperations] = useState<OperationRow[]>([]);
+	const [operationsError, setOperationsError] = useState<string | null>(null);
 	const [busyFamily, setBusyFamily] = useState<string | null>(null);
 	const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [keyLists, setKeyLists] = useState<Record<string, KeyListState | undefined>>({});
+	const [categoryFilter, setCategoryFilter] = useState("");
+	const [tierFilter, setTierFilter] = useState("");
+	const [statusFilter, setStatusFilter] = useState("");
+	const [keyQuery, setKeyQuery] = useState("");
+	const [scopeQuery, setScopeQuery] = useState("public");
 
 	const [detail, setDetail] = useState<KeyDetailState>({
 		open: false,
@@ -754,35 +871,47 @@ export default function KvMonitorPage() {
 		family: null,
 		data: null,
 		error: null,
+		expanded: false,
 	});
 	const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
 	const [confirmError, setConfirmError] = useState<string | null>(null);
-
-	// Tick once a minute so "还剩 Xm" doesn't go stale while the user
-	// stares at the page.
 	const [now, setNow] = useState<number>(() => Date.now());
-	const [activeView, setActiveView] = useState<"overview" | "metrics">("overview");
+	const [visible, setVisible] = useState(true);
+	const [activeView, setActiveView] = useState<"overview" | "entries" | "trends" | "operations">(
+		"overview",
+	);
+	const [occupancy, setOccupancy] = useState<OccupancyPoint[]>([]);
+
 	useEffect(() => {
-		const id = setInterval(() => setNow(Date.now()), 30_000);
+		const id = setInterval(() => setNow(Date.now()), COUNTDOWN_TICK_MS);
 		return () => clearInterval(id);
+	}, []);
+
+	useEffect(() => {
+		const onVis = () => setVisible(document.visibilityState === "visible");
+		onVis();
+		document.addEventListener("visibilitychange", onVis);
+		return () => document.removeEventListener("visibilitychange", onVis);
 	}, []);
 
 	const loadOverview = useCallback(async () => {
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
-			// Worker design contract: even when local KV has zero keys, the
-			// overview endpoint returns the full KV_REGISTRY with count=0
-			// rows. An empty `families` array is therefore an anomaly, not a
-			// valid empty state — surface it as an error instead of letting
-			// the table render the misleading "无 KV 家族数据" placeholder.
-			const data = await readAdminKvJson<{ families: OverviewRow[] }>("/api/admin/kv/overview");
+			const data = await readAdminKvJson<{ families: OverviewRow[]; observedAt?: number }>(
+				"/api/admin/kv/overview",
+			);
 			if (data.families.length === 0) {
 				setOverviewRows([]);
 				setOverviewError("未能获取缓存目录，请稍后重新加载。");
 				return;
 			}
 			setOverviewRows(data.families);
+			const observedAt = data.observedAt ?? Date.now();
+			setOverviewObservedAt(observedAt);
+			setOccupancy((prev) =>
+				mergeOccupancySnapshot(prev, occupancyFromOverview(data.families, observedAt)),
+			);
 		} catch (err) {
 			setOverviewRows([]);
 			setOverviewError(extractErrorMessage(err, "加载 KV 总览失败"));
@@ -795,28 +924,60 @@ export default function KvMonitorPage() {
 		setMetricsLoading(true);
 		setMetricsError(null);
 		try {
-			const data = await readAdminKvJson<{ series: MetricsRow[]; note?: string }>(
-				`/api/admin/kv/metrics?minutes=${METRICS_MINUTES}`,
-			);
-			// Empty `series` is a valid state (no metrics in the window) —
-			// don't promote it to an error. The MetricsTable's own empty
-			// state ("最近 N 分钟暂无指标") handles this correctly.
+			const data = await readAdminKvJson<{
+				series: MetricsRow[];
+				note?: string;
+				source?: string;
+				truncated?: boolean;
+				coverage?: "complete" | "partial";
+			}>(`/api/admin/kv/metrics?minutes=${metricsMinutes}`);
 			setMetricsRows(data.series);
+			setOccupancy((prev) => {
+				let next = prev;
+				for (const point of occupancyFromMetrics(data.series))
+					next = mergeOccupancySnapshot(next, point);
+				return next;
+			});
 			if (data.note) setMetricsError("指标暂不可用，请稍后重新加载。");
+			else if (data.truncated || data.coverage === "partial")
+				setMetricsError("指标仅部分覆盖，结果已截断。");
 		} catch (err) {
 			setMetricsRows([]);
 			setMetricsError(extractErrorMessage(err, "加载 KV 命中指标失败"));
 		} finally {
 			setMetricsLoading(false);
 		}
+	}, [metricsMinutes]);
+
+	const loadOperations = useCallback(async () => {
+		try {
+			const data = await readAdminKvJson<{ rows?: OperationRow[]; note?: string }>(
+				"/api/admin/kv/operations",
+			);
+			setOperations(data.rows ?? []);
+			setOperationsError(data.note ? "操作记录暂不可用" : null);
+		} catch (err) {
+			setOperations([]);
+			setOperationsError(extractErrorMessage(err, "加载操作记录失败"));
+		}
 	}, []);
 
-	useEffect(() => {
+	const refreshMonitor = useCallback(() => {
 		void loadOverview();
 		void loadMetrics();
-	}, [loadOverview, loadMetrics]);
+		void loadOperations();
+	}, [loadOverview, loadMetrics, loadOperations]);
 
-	// ── per-family list loading (paginated via cursor) ──────────────
+	useEffect(() => {
+		refreshMonitor();
+	}, [refreshMonitor]);
+
+	useEffect(() => {
+		if (!visible) return;
+		const id = window.setInterval(refreshMonitor, MONITOR_POLL_MS);
+		return () => window.clearInterval(id);
+	}, [visible, refreshMonitor]);
+
 	const fetchKeyPage = useCallback(
 		async (family: string, cursor: string | null, append: boolean) => {
 			setKeyLists((prev) => ({
@@ -829,27 +990,24 @@ export default function KvMonitorPage() {
 				},
 			}));
 			try {
-				const params = new URLSearchParams({
-					family,
-					limit: String(KEY_PAGE_LIMIT),
-				});
+				const params = new URLSearchParams({ family, limit: String(KEY_PAGE_LIMIT) });
 				if (cursor) params.set("cursor", cursor);
-				const res = await fetch(`/api/admin/kv/list?${params.toString()}`);
-				if (!res.ok) {
-					const errBody = (await res.json().catch(() => null)) as {
-						error?: { code?: string };
-					} | null;
-					throw new Error(errBody?.error?.code ?? `HTTP ${res.status}`);
+				const locator = keyQuery.trim();
+				if (locator.startsWith("{")) {
+					params.set("params", locator);
+					params.set("scope", scopeQuery.trim() || "public");
+				} else if (locator) {
+					params.set("key", locator);
 				}
-				const json = (await res.json()) as { data: ListResponse };
+				const json = await readAdminKvJson<ListResponse>(`/api/admin/kv/list?${params.toString()}`);
 				setKeyLists((prev) => {
 					const prior = prev[family] ?? EMPTY_KEY_LIST;
 					return {
 						...prev,
 						[family]: {
-							rows: append ? [...prior.rows, ...json.data.keys] : json.data.keys,
-							cursor: json.data.cursor,
-							listComplete: json.data.listComplete,
+							rows: append ? [...prior.rows, ...json.keys] : json.keys,
+							cursor: json.cursor,
+							listComplete: json.listComplete,
 							loading: false,
 							error: null,
 						},
@@ -866,27 +1024,27 @@ export default function KvMonitorPage() {
 				}));
 			}
 		},
-		[],
+		[keyQuery, scopeQuery],
 	);
 
 	const handleToggle = useCallback(
 		(row: OverviewRow) => {
 			setExpanded((prev) => {
 				const next = new Set(prev);
-				if (next.has(row.family)) {
-					next.delete(row.family);
-				} else {
+				if (next.has(row.family)) next.delete(row.family);
+				else {
 					next.add(row.family);
-					// First-time expand: load the first page.
-					if (!keyLists[row.family]) {
-						void fetchKeyPage(row.family, null, false);
-					}
+					if (!keyLists[row.family]) void fetchKeyPage(row.family, null, false);
 				}
 				return next;
 			});
 		},
 		[keyLists, fetchKeyPage],
 	);
+
+	const locateExpanded = useCallback(() => {
+		for (const family of expanded) void fetchKeyPage(family, null, false);
+	}, [expanded, fetchKeyPage]);
 
 	const handleLoadMore = useCallback(
 		(row: OverviewRow) => {
@@ -905,84 +1063,407 @@ export default function KvMonitorPage() {
 			family: row.family,
 			data: null,
 			error: null,
+			expanded: false,
 		});
 		try {
-			const res = await fetch(`/api/admin/kv/get?key=${encodeURIComponent(rawKey)}`);
-			if (!res.ok) {
-				const errBody = (await res.json().catch(() => null)) as {
-					error?: { code?: string };
-				} | null;
-				const code = errBody?.error?.code ?? `HTTP ${res.status}`;
-				const message =
-					code === "KV_KEY_VALUE_FORBIDDEN"
-						? "敏感家族，不允许读取 value"
-						: code === "KV_KEY_NAME_HIDDEN"
-							? "敏感家族，key 名隐藏，不允许查看"
-							: code;
-				setDetail((d) => ({ ...d, loading: false, error: message }));
-				return;
-			}
-			const json = (await res.json()) as { data: GetResponse };
-			setDetail((d) => ({ ...d, loading: false, data: json.data }));
+			const data = await readAdminKvJson<GetResponse>(
+				`/api/admin/kv/inspect?key=${encodeURIComponent(rawKey)}`,
+			);
+			setDetail((d) => ({ ...d, loading: false, data }));
 		} catch (err) {
-			setDetail((d) => ({
-				...d,
-				loading: false,
-				error: err instanceof Error ? err.message : String(err),
-			}));
+			const message = extractErrorMessage(err, "加载失败");
+			const mapped = message.includes("KV_KEY_VALUE_FORBIDDEN")
+				? "敏感家族，不允许读取 value"
+				: message.includes("KV_KEY_NAME_HIDDEN")
+					? "敏感家族，key 名隐藏，不允许查看"
+					: message;
+			setDetail((d) => ({ ...d, loading: false, error: mapped }));
 		}
 	}, []);
 
-	const handleAskDelete = useCallback(
-		(row: OverviewRow, rawKey: string) => {
-			const action = deleteActionForKey(row, rawKey);
-			if (!action || busyFamily !== null) return;
-			setConfirmError(null);
-			setConfirm({ open: true, row, rawKey, action });
-		},
-		[busyFamily],
-	);
-
-	const handleConfirmDelete = useCallback(async () => {
-		if (!confirm.row || !confirm.action || busyFamily !== null) return;
-		const row = confirm.row;
-		setBusyFamily(row.family);
-		setNotice(null);
-		setConfirmError(null);
-		try {
-			await callRefresh(row.family, confirm.action);
-			setNotice({ type: "success", text: `已过期 ${row.family}: ${confirm.rawKey}` });
-			setConfirm(CLOSED_CONFIRM);
-			await Promise.all([loadOverview(), loadMetrics(), fetchKeyPage(row.family, null, false)]);
-		} catch (error) {
-			setConfirmError(extractErrorMessage(error, "过期操作失败，请重试"));
-		} finally {
-			setBusyFamily(null);
-		}
-	}, [confirm, busyFamily, loadOverview, loadMetrics, fetchKeyPage]);
-
-	const handleRefreshFamily = useCallback(
-		async (row: OverviewRow) => {
-			const action = defaultActionFor(row);
-			if (!action || busyFamily !== null) return;
-			setBusyFamily(row.family);
+	const runBusy = useCallback(
+		async (family: string, work: () => Promise<void>) => {
+			if (busyFamily !== null) return;
+			setBusyFamily(family);
 			setNotice(null);
+			setConfirmError(null);
 			try {
-				await callRefresh(row.family, action);
-				setNotice({ type: "success", text: `已刷新 ${row.family}` });
-				await Promise.all([loadOverview(), loadMetrics()]);
-			} catch (error) {
-				setNotice({ type: "error", text: extractErrorMessage(error, `刷新 ${row.family} 失败`) });
+				await work();
 			} finally {
 				setBusyFamily(null);
 			}
 		},
-		[busyFamily, loadOverview, loadMetrics],
+		[busyFamily],
 	);
 
-	const summaries = useMemo(() => summarize(metricsRows), [metricsRows]);
-	const isBusy = busyFamily !== null;
+	const handleConfirm = useCallback(async () => {
+		if (!confirm.row || !confirm.kind || busyFamily !== null) return;
+		const row = confirm.row;
+		const kind = confirm.kind;
+		const rawKey = confirm.rawKey;
+		await runBusy(row.family, async () => {
+			try {
+				const result = await executeConfirm(kind, row, rawKey);
+				if (result.error) {
+					setConfirmError(result.error);
+					return;
+				}
+				if (result.notice) setNotice(result.notice);
+				setConfirm(CLOSED_CONFIRM);
+				await Promise.all([
+					loadOverview(),
+					loadMetrics(),
+					loadOperations(),
+					fetchKeyPage(row.family, null, false),
+				]);
+			} catch (error) {
+				setConfirmError(extractErrorMessage(error, "操作失败，请重试"));
+			}
+		});
+	}, [confirm, busyFamily, runBusy, loadOverview, loadMetrics, loadOperations, fetchKeyPage]);
 
+	const filteredRows = useMemo(
+		() => filterOverviewRows(overviewRows, categoryFilter, statusFilter, tierFilter),
+		[overviewRows, categoryFilter, statusFilter, tierFilter],
+	);
+
+	const summaries = useMemo(() => summarizeFamilyOps(metricsRows), [metricsRows]);
+	const totals = useMemo(() => totalsFromSummaries(summaries), [summaries]);
+	const d1App = useMemo(() => summarizeD1Observation(metricsRows, "application:d1"), [metricsRows]);
+	const isBusy = busyFamily !== null;
+	const windowLabel =
+		METRICS_WINDOWS.find((w) => w.minutes === metricsMinutes)?.label ?? "近 60 分钟";
+	const observedEntries = filteredRows.reduce((n, r) => n + r.count, 0);
+	const anyTruncated = filteredRows.some((r) => r.truncated || r.countKind === "at-least");
+	const footprintBytes = filteredRows.reduce<number | null>((acc, r) => {
+		if (!r.footprint || r.footprint.kind === "unknown") return acc;
+		return (acc ?? 0) + r.footprint.bytes;
+	}, null);
+
+	return (
+		<KvMonitorLayout
+			overviewRows={overviewRows}
+			overviewLoading={overviewLoading}
+			overviewError={overviewError}
+			overviewObservedAt={overviewObservedAt}
+			metricsRows={metricsRows}
+			metricsLoading={metricsLoading}
+			metricsError={metricsError}
+			metricsMinutes={metricsMinutes}
+			operations={operations}
+			operationsError={operationsError}
+			busyFamily={busyFamily}
+			notice={notice}
+			expanded={expanded}
+			keyLists={keyLists}
+			categoryFilter={categoryFilter}
+			tierFilter={tierFilter}
+			statusFilter={statusFilter}
+			keyQuery={keyQuery}
+			scopeQuery={scopeQuery}
+			detail={detail}
+			confirm={confirm}
+			confirmError={confirmError}
+			now={now}
+			activeView={activeView}
+			occupancy={occupancy}
+			filteredRows={filteredRows}
+			totals={totals}
+			d1App={d1App}
+			isBusy={isBusy}
+			windowLabel={windowLabel}
+			observedEntries={observedEntries}
+			anyTruncated={anyTruncated}
+			footprintBytes={footprintBytes}
+			onRefresh={refreshMonitor}
+			onLocate={locateExpanded}
+			onKeyQuery={setKeyQuery}
+			onScopeQuery={setScopeQuery}
+			onCategoryFilter={setCategoryFilter}
+			onTierFilter={setTierFilter}
+			onStatusFilter={setStatusFilter}
+			onActiveView={setActiveView}
+			onMetricsMinutes={setMetricsMinutes}
+			onToggle={handleToggle}
+			onLoadMore={handleLoadMore}
+			onView={handleView}
+			onConfirmDelete={(row, rawKey) => setConfirm({ open: true, kind: "delete", row, rawKey })}
+			onConfirmRebuild={(row, rawKey) => setConfirm({ open: true, kind: "rebuild", row, rawKey })}
+			onConfirmInvalidate={(row) =>
+				setConfirm({ open: true, kind: "invalidate", row, rawKey: null })
+			}
+			onDetailOpenChange={(open) => setDetail((d) => ({ ...d, open }))}
+			onCopy={() => {
+				const text =
+					typeof detail.data?.value === "string"
+						? detail.data.value
+						: JSON.stringify(detail.data?.value, null, 2);
+				if (text) void navigator.clipboard.writeText(text);
+			}}
+			onExpandDetail={() => setDetail((d) => ({ ...d, expanded: !d.expanded }))}
+			onDetailRebuild={() => {
+				const row = overviewRows.find((r) => r.family === detail.family);
+				if (row && detail.rawKey)
+					setConfirm({ open: true, kind: "rebuild", row, rawKey: detail.rawKey });
+			}}
+			onDetailDelete={() => {
+				const row = overviewRows.find((r) => r.family === detail.family);
+				if (row && detail.rawKey)
+					setConfirm({ open: true, kind: "delete", row, rawKey: detail.rawKey });
+			}}
+			onConfirmOpenChange={(open) => setConfirm((c) => ({ ...c, open }))}
+			onConfirm={handleConfirm}
+		/>
+	);
+}
+
+function confirmTitle(kind: ConfirmKind | null): string {
+	if (kind === "delete") return "删除此条缓存";
+	if (kind === "rebuild") return "刷新此条缓存";
+	return "使一组缓存失效";
+}
+
+function confirmDescription(confirm: ConfirmState): string {
+	if (confirm.kind === "delete") {
+		return `确认删除 ${confirm.rawKey}？只移除该缓存条目，不删除 D1 业务记录，也不重建。其他地区可能尚未可见。`;
+	}
+	if (confirm.kind === "rebuild") {
+		return "按该条目原来的参数和可见性范围强制装载权威数据。管理员身份不会写进游客缓存。失败时不会提前删掉仍有效的快照。";
+	}
+	return `确认切换 ${confirm.row?.displayName ?? ""} 的版本？这不是内容已重新生成，后续访问才会按需重建。`;
+}
+
+function metricOrDash(
+	loading: boolean,
+	error: string | null,
+	value: string | number,
+): string | number {
+	return loading || error ? "—" : value;
+}
+
+function KvTrendsTab({
+	metricsMinutes,
+	metricsLoading,
+	metricsError,
+	metricsRows,
+	occupancy,
+	windowLabel,
+	onMetricsMinutes,
+}: {
+	metricsMinutes: MetricsWindowMinutes;
+	metricsLoading: boolean;
+	metricsError: string | null;
+	metricsRows: MetricsRow[];
+	occupancy: OccupancyPoint[];
+	windowLabel: string;
+	onMetricsMinutes: (value: MetricsWindowMinutes) => void;
+}) {
+	const empty = !metricsLoading && metricsRows.length === 0 && occupancy.length === 0;
+	const chart = !metricsLoading && (metricsRows.length > 0 || occupancy.length > 0);
+	return (
+		<TabsContent value="trends" aria-label="运行趋势" className="space-y-3">
+			<div className="flex flex-wrap gap-2">
+				{METRICS_WINDOWS.map((w) => (
+					<Button
+						key={w.minutes}
+						size="sm"
+						variant={metricsMinutes === w.minutes ? "default" : "outline"}
+						onClick={() => onMetricsMinutes(w.minutes)}
+					>
+						{w.label}
+					</Button>
+				))}
+			</div>
+			<p className="text-xs text-basalt-muted-foreground">
+				占用快照从打开本页后开始积累，不回补历史。
+				{occupancy.length > 0 ? ` 已记录 ${occupancy.length} 个观察点。` : " 尚无占用观察点。"}
+			</p>
+			{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
+			{chart && (
+				<LayerCard padding="sm">
+					<KvMetricsChart
+						series={metricsRows}
+						occupancy={occupancy}
+						windowLabel={windowLabel}
+						source="应用指标 kv_cache_metrics_minute"
+					/>
+				</LayerCard>
+			)}
+			{empty && (
+				<div className="py-12 text-center text-basalt-muted-foreground">
+					该区间没有已保存的应用指标，不补零、不虚构占用曲线。
+				</div>
+			)}
+		</TabsContent>
+	);
+}
+
+function KvOperationsTab({
+	operations,
+	operationsError,
+}: {
+	operations: OperationRow[];
+	operationsError: string | null;
+}) {
+	return (
+		<TabsContent value="operations" aria-label="操作记录" className="space-y-3">
+			{operationsError && <AdminInlineMessage variant="error" text={operationsError} />}
+			<LayerCard padding="none" className="overflow-hidden">
+				<LayerCard.Well className="p-0">
+					{operations.length === 0 ? (
+						<div className="py-12 text-center text-basalt-muted-foreground">
+							暂无缓存刷新 / 删除 / 成组失效记录。审计不含缓存原文。
+						</div>
+					) : (
+						<Table className="whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_td]:px-3 [&_td]:py-2">
+							<TableHeader>
+								<TableRow>
+									<TableHead>时间</TableHead>
+									<TableHead>执行者</TableHead>
+									<TableHead>动作</TableHead>
+									<TableHead>目标</TableHead>
+									<TableHead>详情</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{operations.map((op) => (
+									<TableRow key={op.id}>
+										<TableCell className="text-xs">
+											{new Date(op.createdAt).toLocaleString()}
+										</TableCell>
+										<TableCell className="text-xs">{op.adminName}</TableCell>
+										<TableCell className="font-mono text-xs">{op.action}</TableCell>
+										<TableCell className="text-xs">
+											{op.targetType}
+											{op.targetId != null ? ` #${op.targetId}` : ""}
+										</TableCell>
+										<TableCell className="max-w-md truncate font-mono text-xs">
+											{op.details}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</LayerCard.Well>
+			</LayerCard>
+		</TabsContent>
+	);
+}
+
+function KvMonitorLayout(props: {
+	overviewRows: OverviewRow[];
+	overviewLoading: boolean;
+	overviewError: string | null;
+	overviewObservedAt: number | null;
+	metricsRows: MetricsRow[];
+	metricsLoading: boolean;
+	metricsError: string | null;
+	metricsMinutes: MetricsWindowMinutes;
+	operations: OperationRow[];
+	operationsError: string | null;
+	busyFamily: string | null;
+	notice: { type: "success" | "error"; text: string } | null;
+	expanded: Set<string>;
+	keyLists: Record<string, KeyListState | undefined>;
+	categoryFilter: string;
+	tierFilter: string;
+	statusFilter: string;
+	keyQuery: string;
+	scopeQuery: string;
+	detail: KeyDetailState;
+	confirm: ConfirmState;
+	confirmError: string | null;
+	now: number;
+	activeView: "overview" | "entries" | "trends" | "operations";
+	occupancy: OccupancyPoint[];
+	filteredRows: OverviewRow[];
+	totals: ReturnType<typeof totalsFromSummaries>;
+	d1App: ReturnType<typeof summarizeD1Observation>;
+	isBusy: boolean;
+	windowLabel: string;
+	observedEntries: number;
+	anyTruncated: boolean;
+	footprintBytes: number | null;
+	onRefresh: () => void;
+	onLocate: () => void;
+	onKeyQuery: (value: string) => void;
+	onScopeQuery: (value: string) => void;
+	onCategoryFilter: (value: string) => void;
+	onTierFilter: (value: string) => void;
+	onStatusFilter: (value: string) => void;
+	onActiveView: (value: "overview" | "entries" | "trends" | "operations") => void;
+	onMetricsMinutes: (value: MetricsWindowMinutes) => void;
+	onToggle: (row: OverviewRow) => void;
+	onLoadMore: (row: OverviewRow) => void;
+	onView: (row: OverviewRow, rawKey: string) => void;
+	onConfirmDelete: (row: OverviewRow, rawKey: string) => void;
+	onConfirmRebuild: (row: OverviewRow, rawKey: string) => void;
+	onConfirmInvalidate: (row: OverviewRow) => void;
+	onDetailOpenChange: (open: boolean) => void;
+	onCopy: () => void;
+	onExpandDetail: () => void;
+	onDetailRebuild: () => void;
+	onDetailDelete: () => void;
+	onConfirmOpenChange: (open: boolean) => void;
+	onConfirm: () => void;
+}) {
+	const {
+		overviewLoading,
+		overviewError,
+		overviewObservedAt,
+		metricsRows,
+		metricsLoading,
+		metricsError,
+		metricsMinutes,
+		operations,
+		operationsError,
+		busyFamily,
+		notice,
+		expanded,
+		keyLists,
+		categoryFilter,
+		tierFilter,
+		statusFilter,
+		keyQuery,
+		scopeQuery,
+		detail,
+		confirm,
+		confirmError,
+		now,
+		activeView,
+		occupancy,
+		filteredRows,
+		totals,
+		d1App,
+		isBusy,
+		windowLabel,
+		observedEntries,
+		anyTruncated,
+		footprintBytes,
+		onRefresh: refreshMonitor,
+		onLocate: locateExpanded,
+		onKeyQuery: setKeyQuery,
+		onScopeQuery: setScopeQuery,
+		onCategoryFilter: setCategoryFilter,
+		onTierFilter: setTierFilter,
+		onStatusFilter: setStatusFilter,
+		onActiveView: setActiveView,
+		onMetricsMinutes: setMetricsMinutes,
+		onToggle: handleToggle,
+		onLoadMore: handleLoadMore,
+		onView: handleView,
+		onConfirmDelete,
+		onConfirmRebuild,
+		onConfirmInvalidate,
+		onDetailOpenChange,
+		onCopy,
+		onExpandDetail,
+		onDetailRebuild,
+		onDetailDelete,
+		onConfirmOpenChange,
+		onConfirm: handleConfirm,
+	} = props;
 	return (
 		<div className="space-y-4">
 			<PageHeader
@@ -992,19 +1473,16 @@ export default function KvMonitorPage() {
 						KV 缓存监控
 					</span>
 				}
-				description="查看缓存存量、有效期和最近一小时的操作趋势，展开各家族可检查具体记录。"
+				description="查看生命周期、已授权内容和应用自己采集的运行趋势。刷新此条会重建，使一组失效只切换版本。"
 				actions={
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => {
-							void loadOverview();
-							void loadMetrics();
-						}}
+						onClick={refreshMonitor}
 						disabled={overviewLoading || metricsLoading || isBusy}
 					>
 						<RefreshCw className="mr-2 h-4 w-4" />
-						重新加载
+						更新监控数据
 					</Button>
 				}
 			/>
@@ -1012,67 +1490,119 @@ export default function KvMonitorPage() {
 			<AdminMetrics
 				items={[
 					{
-						label: "在用家族",
-						value:
-							overviewLoading || overviewError
-								? "—"
-								: overviewRows.filter((r) => r.presence === "present").length,
-						icon: Database,
-						hint: `已登记 ${overviewRows.length} 个家族`,
-					},
-					{
-						label: "已统计键",
-						value:
-							overviewLoading || overviewError
-								? "—"
-								: `${overviewRows.reduce((n, r) => n + r.count, 0).toLocaleString("zh-CN")}${overviewRows.some((r) => r.truncated) ? "+" : ""}`,
-						icon: KeyRound,
-						hint: "各家族扫描结果合计",
-					},
-					{
-						label: "近一小时读取",
-						value:
-							metricsLoading || metricsError || summaries.length === 0
-								? "—"
-								: summaries.reduce((n, r) => n + r.read, 0),
+						label: "已采集请求",
+						value: metricOrDash(metricsLoading, metricsError, totals.read),
 						icon: Activity,
-						hint: "已记录的读取次数",
+						hint: `${windowLabel} · 来源应用指标 · ${overviewObservedAt ? new Date(overviewObservedAt).toLocaleString() : ""}`,
 					},
 					{
-						label: "近一小时命中率",
-						value:
-							metricsLoading || metricsError || summaries.length === 0
-								? "—"
-								: (() => {
-										const hits = summaries.reduce((n, r) => n + r.hit, 0);
-										const misses = summaries.reduce((n, r) => n + r.miss, 0);
-										return hits + misses ? `${((100 * hits) / (hits + misses)).toFixed(1)}%` : "—";
-									})(),
+						label: "命中率",
+						value: metricOrDash(
+							metricsLoading,
+							metricsError,
+							hitRateLabel(totals.hit, totals.miss),
+						),
 						icon: Gauge,
-						hint: "按命中与未命中总量计算",
+						hint: "命中 ÷（命中 + 未命中）。不含 admin:* 与 D1 观测。",
+					},
+					{
+						label: "回源 / 错误",
+						value: metricOrDash(metricsLoading, metricsError, `${totals.miss} / ${totals.error}`),
+						icon: Activity,
+						hint: "回源是 miss；错误独立计数，不与 hit/miss 相加充请求量",
+					},
+					{
+						label: "已观察条目 / 占用",
+						value: metricOrDash(
+							overviewLoading,
+							overviewError,
+							`${formatCount(observedEntries, anyTruncated ? "at-least" : "observed")} · ${
+								footprintBytes === null ? "未知" : formatBytes(footprintBytes)
+							}`,
+						),
+						icon: KeyRound,
+						hint: "内容 UTF-8 字节或估算，不是 KV 账单存储。未知不显示为 0。",
 					},
 				]}
 			/>
 
+			{!metricsLoading && !metricsError && d1App.queries > 0 && (
+				<p className="text-xs text-basalt-muted-foreground">
+					应用观测 D1
+					{d1App.rowsRead != null ? ` · 读 ${d1App.rowsRead.toLocaleString("zh-CN")} 行` : ""}
+					{d1App.rowsWritten != null ? ` · 写 ${d1App.rowsWritten.toLocaleString("zh-CN")} 行` : ""}
+					{` · ${d1App.queries} 次语句`}
+					{d1App.durationMs > 0 ? ` · ${d1App.durationMs} ms` : ""}
+					。只覆盖已返回 meta 的 .all/.run/.batch，不是数据库全量容量；first/raw 不谎造行数。指标约
+					60 秒后才可能落盘，首请求不会立刻有历史。
+				</p>
+			)}
+
 			{notice && <AdminInlineMessage variant={notice.type} text={notice.text} />}
+
+			<div className="flex flex-wrap gap-2">
+				<LocateBar
+					keyQuery={keyQuery}
+					scopeQuery={scopeQuery}
+					onKeyQuery={setKeyQuery}
+					onScopeQuery={setScopeQuery}
+					onLocate={locateExpanded}
+				/>
+				<select
+					className="rounded-md border border-basalt-border bg-transparent px-2 py-1 text-xs"
+					value={categoryFilter}
+					onChange={(e) => setCategoryFilter(e.target.value)}
+					aria-label="按类型筛选"
+				>
+					<option value="">全部类型</option>
+					<option value="cache">业务缓存</option>
+					<option value="stats">统计</option>
+					<option value="gen">版本</option>
+					<option value="session">会话</option>
+					<option value="rate-limit">限流</option>
+				</select>
+				<select
+					className="rounded-md border border-basalt-border bg-transparent px-2 py-1 text-xs"
+					value={tierFilter}
+					onChange={(e) => setTierFilter(e.target.value)}
+					aria-label="按档位筛选"
+				>
+					<option value="">全部档位</option>
+					<option value="SHORT">SHORT</option>
+					<option value="MEDIUM">MEDIUM</option>
+					<option value="LONG">LONG</option>
+				</select>
+				<select
+					className="rounded-md border border-basalt-border bg-transparent px-2 py-1 text-xs"
+					value={statusFilter}
+					onChange={(e) => setStatusFilter(e.target.value)}
+					aria-label="按状态筛选"
+				>
+					<option value="">全部状态</option>
+					<option value="shipped">已接入</option>
+					<option value="present">在用</option>
+					<option value="planned">尚未接入</option>
+					<option value="historical">已弃用</option>
+				</select>
+			</div>
 
 			<Tabs
 				className="space-y-3"
 				value={activeView}
-				onValueChange={(value) => setActiveView(value as "overview" | "metrics")}
+				onValueChange={(value) =>
+					setActiveView(value as "overview" | "entries" | "trends" | "operations")
+				}
 			>
 				<SectionRule
 					title="视图"
-					hint={
-						activeView === "overview"
-							? "每个家族最多统计 1,000 个键，超过时以 + 标记。展开可检查记录与到期时间。"
-							: "按家族汇总已记录的操作。命中率 = 命中 ÷（命中 + 未命中），单个键没有独立指标。"
-					}
+					hint="筛选条件在四个视图间保留。自动轮询不少于 60 秒，页面不可见时暂停。"
 					actions={
 						<TabsList aria-label={"切换 KV 监控视图"} className="max-w-full overflow-x-auto">
 							{[
-								{ value: "overview", label: "家族总览" },
-								{ value: "metrics", label: `命中指标 (近 ${METRICS_MINUTES} 分钟)` },
+								{ value: "overview", label: "运行总览" },
+								{ value: "entries", label: "缓存条目" },
+								{ value: "trends", label: "运行趋势" },
+								{ value: "operations", label: "操作记录" },
 							].map((option) => (
 								<TabsTrigger key={option.value} value={option.value}>
 									{option.label}
@@ -1082,7 +1612,7 @@ export default function KvMonitorPage() {
 					}
 				/>
 
-				<TabsContent value="overview" aria-label="家族总览" className="space-y-3">
+				<TabsContent value="overview" aria-label="运行总览" className="space-y-3">
 					{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
 					<LayerCard padding="none" className="overflow-hidden">
 						<LayerCard.Well className="p-0">
@@ -1093,7 +1623,7 @@ export default function KvMonitorPage() {
 								tabIndex={0}
 							>
 								<OverviewTable
-									rows={overviewRows}
+									rows={filteredRows}
 									loading={overviewLoading}
 									now={now}
 									expanded={expanded}
@@ -1102,66 +1632,85 @@ export default function KvMonitorPage() {
 									onToggle={handleToggle}
 									onLoadMore={handleLoadMore}
 									onView={handleView}
-									onDelete={handleAskDelete}
-									onRefreshFamily={handleRefreshFamily}
+									onDelete={onConfirmDelete}
+									onRebuild={onConfirmRebuild}
+									onInvalidateGroup={onConfirmInvalidate}
 								/>
 							</section>
 						</LayerCard.Well>
 					</LayerCard>
 				</TabsContent>
 
-				<TabsContent value="metrics" aria-label="家族级命中指标" className="space-y-3">
-					{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
-					{!metricsLoading && !metricsError && metricsRows.length > 0 && (
-						<LayerCard padding="sm">
-							<KvMetricsChart series={metricsRows} />
-						</LayerCard>
-					)}
+				<TabsContent value="entries" aria-label="缓存条目" className="space-y-3">
+					{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
 					<LayerCard padding="none" className="overflow-hidden">
 						<LayerCard.Well className="p-0">
 							<section
 								className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-basalt-ring"
-								aria-label="KV 命中指标表格"
+								aria-label="缓存条目"
 								// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
 								tabIndex={0}
 							>
-								<MetricsTable
-									summaries={summaries}
-									minutes={METRICS_MINUTES}
-									loading={metricsLoading}
+								<OverviewTable
+									rows={filteredRows.filter((r) => r.nameSensitivity !== "hide")}
+									loading={overviewLoading}
+									now={now}
+									expanded={expanded}
+									keyLists={keyLists}
+									busyFamily={busyFamily}
+									onToggle={handleToggle}
+									onLoadMore={handleLoadMore}
+									onView={handleView}
+									onDelete={onConfirmDelete}
+									onRebuild={onConfirmRebuild}
+									onInvalidateGroup={onConfirmInvalidate}
 								/>
 							</section>
 						</LayerCard.Well>
 					</LayerCard>
 				</TabsContent>
+
+				<KvTrendsTab
+					metricsMinutes={metricsMinutes}
+					metricsLoading={metricsLoading}
+					metricsError={metricsError}
+					metricsRows={metricsRows}
+					occupancy={occupancy}
+					windowLabel={windowLabel}
+					onMetricsMinutes={setMetricsMinutes}
+				/>
+				<KvOperationsTab operations={operations} operationsError={operationsError} />
 			</Tabs>
 
 			<p className="flex items-start gap-2 text-xs text-basalt-muted-foreground">
 				<ShieldCheck aria-hidden="true" className="h-4 w-4 shrink-0" />
-				敏感记录按权限隐藏或遮蔽。刷新与过期操作会记录审计日志；命中趋势仅反映已采集的数据，缺失记录留空。
+				预览不装载、不续期、不产生浏览/已读。成组失效不是内容重建。其他地区可能尚未看见本次写入或删除。
 			</p>
 
 			<KeyDetailDialog
 				state={detail}
 				now={now}
-				onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}
+				busy={isBusy}
+				onOpenChange={onDetailOpenChange}
+				onCopy={onCopy}
+				onExpand={onExpandDetail}
+				onRebuild={onDetailRebuild}
+				onDelete={onDetailDelete}
 			/>
 
 			<AdminConfirmDialog
 				open={confirm.open}
-				onOpenChange={(open) => setConfirm((c) => ({ ...c, open }))}
-				title="过期此 key"
-				description={
-					confirm.rawKey
-						? `确认从 KV 中过期 ${confirm.rawKey}？此操作会立即生效，并写入操作日志。`
-						: ""
-				}
-				confirmLabel="过期"
+				onOpenChange={onConfirmOpenChange}
+				title={confirmTitle(confirm.kind)}
+				description={confirmDescription(confirm)}
+				confirmLabel={confirmTitle(confirm.kind)}
 				cancelLabel="取消"
 				loading={isBusy}
 				error={confirmError}
-				variant="destructive"
-				onConfirm={handleConfirmDelete}
+				variant={confirm.kind === "delete" ? "destructive" : "default"}
+				onConfirm={() => {
+					void handleConfirm();
+				}}
 			/>
 		</div>
 	);

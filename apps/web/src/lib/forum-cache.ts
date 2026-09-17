@@ -7,8 +7,8 @@
  *
  * Inputs are the unwrapped loaders in `lib/forum-data.ts` and
  * `lib/forum-settings.ts`; this file wraps each with React `cache()` so
- * `generateMetadata` + the page component can call them independently
- * without double-fetching the Worker.
+ * repeated calls with the same arguments and read purpose share a request.
+ * Thread metadata uses a separate loader so only the page read counts a view.
  *
  * Cross-request freshness is unaffected: `forum-api.ts` still passes
  * `cache: "no-store"`, so each new request re-loads from the Worker.
@@ -26,6 +26,7 @@ import {
 	fetchForumList,
 	fetchForumThreadTypes,
 	fetchThreadById,
+	fetchThreadMetadata,
 } from "./forum-data";
 import { type ForumSettings, fetchForumSettings } from "./forum-settings";
 import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
@@ -35,6 +36,7 @@ import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 // ---------------------------------------------------------------------------
 
 export const getCachedThreadById = cache(fetchThreadById);
+export const getCachedThreadMetadata = cache(fetchThreadMetadata);
 export const getCachedForumList = cache(fetchForumList);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);

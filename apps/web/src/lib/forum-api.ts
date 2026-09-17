@@ -108,8 +108,7 @@ interface RequestOptions {
 	clientIP?: string;
 	/** Client User-Agent to forward as X-Real-User-Agent */
 	clientUA?: string;
-	/** Next.js ISR revalidation interval in seconds. When set, replaces cache: "no-store". */
-	revalidate?: number;
+	readPurpose?: "metadata" | "prefetch";
 }
 
 function buildHeaders(opts: RequestOptions): Record<string, string> {
@@ -128,6 +127,7 @@ function buildHeaders(opts: RequestOptions): Record<string, string> {
 	if (opts.body !== undefined) {
 		headers["Content-Type"] = "application/json";
 	}
+	if (opts.readPurpose) headers["X-Ellie-Read-Purpose"] = opts.readPurpose;
 	return headers;
 }
 
@@ -150,9 +150,7 @@ async function request<T>(
 		method: opts.method,
 		headers,
 		body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-		...(opts.revalidate != null
-			? { next: { revalidate: opts.revalidate } }
-			: { cache: "no-store" as const }),
+		cache: "no-store",
 	});
 
 	const text = await res.text();
@@ -203,8 +201,8 @@ async function request<T>(
 // ---------------------------------------------------------------------------
 
 export interface GetOptions {
-	/** Next.js ISR revalidation interval in seconds. Omit for no-store. */
-	revalidate?: number;
+	/** Metadata and prefetch load data without creating a reading event. */
+	readPurpose?: "metadata" | "prefetch";
 }
 
 export const forumApi = {
@@ -218,7 +216,7 @@ export const forumApi = {
 			method: "GET",
 			path,
 			searchParams,
-			revalidate: options?.revalidate,
+			readPurpose: options?.readPurpose,
 		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},

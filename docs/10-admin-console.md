@@ -2,6 +2,8 @@
 
 > This document describes the admin console for Ellie forum - a full-featured management backend accessible only to administrators.
 
+Cache administration targets are defined in [the unified cache design](20-worker-kv-reference.md): lifecycle and content inspection, per-entry rebuild/delete actions, and trends from application metrics and footprint estimates. No additional platform analytics integration is required. These are implementation targets, not a statement of current feature coverage.
+
 ## Overview
 
 The admin console is a standalone management interface at `/admin/*` that provides comprehensive control over all forum entities.

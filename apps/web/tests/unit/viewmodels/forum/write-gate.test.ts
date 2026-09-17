@@ -25,6 +25,7 @@ import {
 	dispatchWriteGate,
 	getWriteGateOnboardingSteps,
 	invalidateWriteGateCache,
+	setWriteGateScope,
 	WRITE_GATE_EVENT,
 	writeGatePreflight,
 } from "@/viewmodels/forum/write-gate";
@@ -155,13 +156,13 @@ describe("write-gate", () => {
 
 		// ─── Cache behavior ──────────────────────────────────────
 
-		it("second call with same action uses cached result (no extra API call)", async () => {
+		it("completed results do not restart the Worker snapshot deadline", async () => {
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
 
 			await checkWriteGate(null, "thread");
 			await checkWriteGate(null, "thread");
 
-			expect(mockClient.get).toHaveBeenCalledTimes(1);
+			expect(mockClient.get).toHaveBeenCalledTimes(2);
 		});
 
 		it("different actions have independent cache entries", async () => {
@@ -213,18 +214,167 @@ describe("write-gate", () => {
 			expect(result).toEqual({ blocked: true, reason: "新规则", code: "NEW_RULE" });
 		});
 
-		it("invalidateWriteGateCache(action) only clears that action", async () => {
-			mockClient.get.mockResolvedValue({ data: { allowed: true } });
-			await checkWriteGate(null, "thread");
-			await checkWriteGate(null, "reply");
-
-			invalidateWriteGateCache("thread");
-			await checkWriteGate(null, "thread"); // should re-fetch
-			await checkWriteGate(null, "reply"); // should still use cache
-
-			// 2 initial + 1 re-fetch for thread = 3
-			expect(mockClient.get).toHaveBeenCalledTimes(3);
+		it("shares only overlapping requests and isolates actions", async () => {
+			let finish!: (value: unknown) => void;
+			mockClient.get.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+			const first = checkWriteGate(null, "thread");
+			const second = checkWriteGate(null, "thread");
+			expect(mockClient.get).toHaveBeenCalledTimes(1);
+			finish({ data: { allowed: true } });
+			expect(await Promise.all([first, second])).toEqual([{ blocked: false }, { blocked: false }]);
+			mockClient.get.mockResolvedValue({ data: { allowed: false, code: "CHANGED" } });
+			expect(await checkWriteGate(null, "thread")).toMatchObject({
+				blocked: true,
+				code: "CHANGED",
+			});
+			expect(mockClient.get).toHaveBeenCalledTimes(2);
 		});
+
+		it("invalidating one action fences its old request while another can finish", async () => {
+			const finish = new Map<string, (value: unknown) => void>();
+			mockClient.get.mockImplementation(
+				(_url, { action }) =>
+					new Promise((resolve) => {
+						finish.set(action, resolve);
+					}),
+			);
+			const thread = checkWriteGate(null, "thread");
+			const reply = checkWriteGate(null, "reply");
+			invalidateWriteGateCache("thread");
+			(finish.get("thread") ?? expect.fail("Thread request did not start"))({
+				data: { allowed: true },
+			});
+			(finish.get("reply") ?? expect.fail("Reply request did not start"))({
+				data: { allowed: true },
+			});
+			expect(await thread).toMatchObject({ blocked: true, code: "SESSION_CHANGED" });
+			expect(await reply).toEqual({ blocked: false });
+		});
+
+		it("does not produce SESSION_CHANGED when checkWriteGate starts before session resolution and same user resolves", async () => {
+			// Reset module to guarantee fresh settledScope = false and currentScope = "unresolved"
+			vi.resetModules();
+			const freshModule = await import("@/viewmodels/forum/write-gate");
+			const { apiClient: client } = await import("@/lib/api-client");
+			const freshClient = client as unknown as { get: ReturnType<typeof vi.fn> };
+
+			let finishFirst!: (value: unknown) => void;
+			let finishRetry!: (value: unknown) => void;
+
+			freshClient.get
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishFirst = resolve;
+						}),
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishRetry = resolve;
+						}),
+				);
+
+			// checkWriteGate starts early while scope is still initial/unresolved
+			const checkPromise = freshModule.checkWriteGate(null, "thread");
+			expect(freshClient.get).toHaveBeenCalledTimes(1);
+
+			// Session resolves to user 10
+			freshModule.setWriteGateScope("credentials:10:0:ok");
+
+			// Old in-flight allowed response arrives
+			finishFirst({ data: { allowed: true } });
+
+			// Wait for microtask tick so task.promise executes the retry checkWriteGate
+			await Promise.resolve();
+
+			// A fresh retry must be triggered under the newly settled scope
+			expect(freshClient.get).toHaveBeenCalledTimes(2);
+
+			// Second API call returns denied; proves fresh retry overrides old allowed result
+			finishRetry({
+				data: { allowed: false, reason: "封禁中", code: "USER_BANNED" },
+			});
+
+			const result = await checkPromise;
+			expect(result).toEqual({
+				blocked: true,
+				reason: "封禁中",
+				code: "USER_BANNED",
+			});
+		});
+
+		it("handles late failure during initial resolution by retrying under newly settled scope", async () => {
+			vi.resetModules();
+			const freshModule = await import("@/viewmodels/forum/write-gate");
+			const { apiClient: client } = await import("@/lib/api-client");
+			const freshClient = client as unknown as { get: ReturnType<typeof vi.fn> };
+
+			let finishFirst!: (value: unknown) => void;
+			let finishRetry!: (value: unknown) => void;
+
+			freshClient.get
+				.mockImplementationOnce(
+					() =>
+						new Promise((_resolve, reject) => {
+							finishFirst = reject;
+						}),
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishRetry = resolve;
+						}),
+				);
+
+			// Starts under unresolved initial scope
+			const checkPromise = freshModule.checkWriteGate(null, "thread");
+			expect(freshClient.get).toHaveBeenCalledTimes(1);
+
+			// Session resolves before network error returns
+			freshModule.setWriteGateScope("credentials:10:0:ok");
+
+			// Initial call rejects (late failure)
+			finishFirst(new TypeError("Network error"));
+
+			// Wait for microtask tick
+			await Promise.resolve();
+
+			// Retried under settled scope
+			expect(freshClient.get).toHaveBeenCalledTimes(2);
+
+			finishRetry({ data: { allowed: true } });
+			const result = await checkPromise;
+			expect(result).toEqual({ blocked: false });
+		});
+
+		it.each([false, true])(
+			"account/role changes fence late success or failure (%s)",
+			async (fail) => {
+				setWriteGateScope("user:10:role:0");
+				let finish!: (value: unknown) => void;
+				mockClient.get.mockImplementation(
+					() =>
+						new Promise((resolve, reject) => {
+							finish = fail ? reject : resolve;
+						}),
+				);
+				const previous = checkWriteGate(null, "thread");
+				setWriteGateScope("user:20:role:0");
+				mockClient.get.mockResolvedValue({ data: { allowed: false, code: "NEW_USER" } });
+				finish(fail ? new TypeError("Network failed") : { data: { allowed: true } });
+				expect(await previous).toMatchObject({ blocked: true, code: "SESSION_CHANGED" });
+				expect(await checkWriteGate(null, "thread")).toMatchObject({
+					blocked: true,
+					code: "NEW_USER",
+				});
+			},
+		);
 
 		it("fast path (emailVerifiedAt=0) bypasses cache entirely", async () => {
 			// Fill cache with allowed result

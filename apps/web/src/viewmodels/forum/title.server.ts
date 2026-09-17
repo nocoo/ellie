@@ -11,11 +11,11 @@ import "server-only";
 
 import type { PublicUser } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
-import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
+import { getCachedForumList, getCachedThreadMetadata } from "@/lib/forum-cache";
 
 /** Fetch thread subject by ID (deduped via getThreadById cache). */
 export async function getThreadTitle(threadId: number): Promise<string> {
-	const thread = await getCachedThreadById(threadId);
+	const thread = await getCachedThreadMetadata(threadId);
 	return thread.subject;
 }
 

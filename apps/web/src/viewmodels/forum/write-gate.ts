@@ -11,10 +11,8 @@
  * The write-gate is a UX convenience — the server-side `withVerifiedEmail` +
  * `checkPostingPermission` guards remain the security boundary.
  *
- * Cache: results are cached per action for CACHE_TTL_MS (30s) to avoid hitting
- * the API on every button click. `invalidateWriteGateCache()` clears the cache
- * when the user takes an action that changes their permission state (e.g.
- * just verified email, just set avatar).
+ * Only concurrent requests are shared here. Worker owns the 60-second
+ * snapshot deadline; retaining completed results would restart that deadline.
  */
 
 import { apiClient } from "@/lib/api-client";
@@ -168,24 +166,33 @@ export function getWriteGateOnboardingSteps(code: string): OnboardingStep[] {
 }
 
 // ---------------------------------------------------------------------------
-// Permission cache — keyed by action
+// In-flight requests — keyed by account, role and action
 // ---------------------------------------------------------------------------
 
-const CACHE_TTL_MS = 30_000;
+let currentScope = "unresolved";
+let settledScope = false;
+const pending = new Map<string, { promise: Promise<WriteGateResult> }>();
 
-const cache = new Map<string, { result: WriteGateResult; timestamp: number }>();
+/** Account/role changes discard private previews and fence outstanding requests. */
+export function setWriteGateScope(scope: string): void {
+	if (scope === "loading") return;
+	settledScope = true;
+	if (scope === currentScope) return;
+	currentScope = scope;
+	invalidateWriteGateCache();
+}
 
 /**
- * Clear the cached permission results — call after user takes an action
+ * Fence pending permission results — call after user takes an action
  * that could change their permission state (verified email, set avatar).
  * When `action` is specified, only that action's cache entry is cleared;
  * otherwise all entries are cleared.
  */
 export function invalidateWriteGateCache(action?: WriteGateAction): void {
 	if (action) {
-		cache.delete(action);
+		pending.delete(`${currentScope}:${action}`);
 	} else {
-		cache.clear();
+		pending.clear();
 	}
 }
 
@@ -218,45 +225,66 @@ export async function checkWriteGate(
 		};
 	}
 
-	// Check cache (keyed by action)
-	const cached = cache.get(action);
-	if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-		return cached.result;
-	}
+	const initialScope = currentScope;
+	const initialSettled = settledScope;
+	const key = `${initialScope}:${action}`;
+	const existing = pending.get(key);
+	if (existing) return existing.promise;
+	const task = { promise: Promise.resolve<WriteGateResult>({ blocked: false }) };
+	pending.set(key, task);
+	const changed = (): WriteGateResult => ({
+		blocked: true,
+		code: "SESSION_CHANGED",
+		reason: "登录或权限状态已改变，请重试",
+	});
+	task.promise = (async (): Promise<WriteGateResult> => {
+		try {
+			const res = await apiClient.get<PostingPermissionResult>("/api/v1/posting-permission", {
+				action,
+			});
+			const data = res.data;
+			if (pending.get(key) !== task) {
+				// If checkWriteGate started before initial session resolution,
+				// do a single bounded retry under the newly settled scope.
+				if (!initialSettled && settledScope) {
+					return checkWriteGate(emailVerifiedAt, action);
+				}
+				return changed();
+			}
 
-	// API call with action parameter
-	try {
-		const res = await apiClient.get<PostingPermissionResult>("/api/v1/posting-permission", {
-			action,
-		});
-		const data = res.data;
+			if (data.allowed) {
+				return { blocked: false };
+			}
 
-		if (data.allowed) {
-			const result: WriteGateResult = { blocked: false };
-			cache.set(action, { result, timestamp: Date.now() });
-			return result;
-		}
-
-		const result: WriteGateResult = {
-			blocked: true,
-			reason: data.reason ?? "您暂时无法操作",
-			code: data.code ?? "POSTING_RESTRICTION",
-		};
-		cache.set(action, { result, timestamp: Date.now() });
-		return result;
-	} catch (err) {
-		if (isApiErrorLike(err)) {
-			// If the API returns an auth error, don't cache — user may need
-			// to re-login.
-			return {
+			const result: WriteGateResult = {
 				blocked: true,
-				reason: err.message || "请登录后再进行操作",
-				code: err.code || "UNAUTHORIZED",
+				reason: data.reason ?? "您暂时无法操作",
+				code: data.code ?? "POSTING_RESTRICTION",
 			};
+			return result;
+		} catch (err) {
+			if (pending.get(key) !== task) {
+				if (!initialSettled && settledScope) {
+					return checkWriteGate(emailVerifiedAt, action);
+				}
+				return changed();
+			}
+			if (isApiErrorLike(err)) {
+				// If the API returns an auth error, don't cache — user may need
+				// to re-login.
+				return {
+					blocked: true,
+					reason: err.message || "请登录后再进行操作",
+					code: err.code || "UNAUTHORIZED",
+				};
+			}
+			// Network error — don't block, let the server-side guard handle it
+			return { blocked: false };
 		}
-		// Network error — don't block, let the server-side guard handle it
-		return { blocked: false };
-	}
+	})().finally(() => {
+		if (pending.get(key) === task) pending.delete(key);
+	});
+	return task.promise;
 }
 
 /**

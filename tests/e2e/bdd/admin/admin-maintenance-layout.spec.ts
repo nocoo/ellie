@@ -7,6 +7,7 @@ for (const width of [320, 375]) {
 	}) => {
 		await page.setViewportSize({ width, height: 812 });
 		let mutations = 0;
+		const metricsObservedAt = Date.parse("2026-09-16T12:00:00Z");
 		await page.route("**/api/admin/**", (route) => {
 			if (route.request().method() !== "GET") {
 				mutations++;
@@ -26,12 +27,18 @@ for (const width of [320, 375]) {
 			if (path === "/api/admin/kv/metrics")
 				return route.fulfill({
 					json: {
+						ok: true,
 						data: {
+							family: null,
 							minutes: 60,
+							observedAt: metricsObservedAt,
+							source: "application:kv_cache_metrics_minute",
+							truncated: false,
+							coverage: "complete",
 							series: [
 								{
-									family: "forum",
-									tsMinute: Math.floor(Date.now() / 60000),
+									family: "thread:entity",
+									tsMinute: metricsObservedAt / 60000,
 									op: "error",
 									count: 7,
 								},
@@ -84,18 +91,21 @@ for (const width of [320, 375]) {
 			overview.getByRole("columnheader", { name: "操作", exact: true }),
 		).toBeInViewport();
 		await expect(
-			overview.getByRole("button", { name: "刷新", exact: true }).first(),
+			overview.getByRole("button", { name: "使一组缓存失效", exact: true }).first(),
 		).toBeInViewport();
-		await page.getByRole("tab", { name: /命中指标/ }).click();
-		const metrics = page.getByRole("region", { name: "KV 命中指标表格" });
+		await page.getByRole("tab", { name: "运行趋势", exact: true }).click();
+		const legend = page.getByRole("list", { name: "缓存运行趋势图例", exact: true });
+		await legend.scrollIntoViewIfNeeded();
+		await expect(legend.getByText("回填/失效失败", { exact: true })).toBeInViewport();
+		const metrics = page.getByRole("group", { name: "缓存运行趋势", exact: true });
 		await metrics.scrollIntoViewIfNeeded();
-		await metrics.evaluate((element) => {
-			element.scrollLeft = element.scrollWidth;
-		});
-		await expect(
-			metrics.getByRole("columnheader", { name: "error", exact: true }),
-		).toBeInViewport();
-		await expect(metrics.getByRole("cell", { name: "7", exact: true })).toBeInViewport();
+		await expect(metrics).toBeInViewport();
+		await metrics.getByRole("application", { name: "缓存运行趋势", exact: true }).focus();
+		await page.keyboard.press("ArrowRight");
+		const tooltip = metrics.getByTestId("chart-tooltip");
+		await expect(tooltip).toBeVisible();
+		await expect(tooltip.getByText("回填/失效失败（次）", { exact: true })).toBeInViewport();
+		await expect(tooltip.getByText("7", { exact: true })).toBeInViewport();
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 			width,
 		);

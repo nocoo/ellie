@@ -11,19 +11,7 @@ vi.mock("@/lib/forum-api", () => ({
 	publicUserToUser: vi.fn((u: any) => u),
 }));
 
-vi.mock("@/lib/forum-cache", async () => {
-	const { forumApi } = await import("@/lib/forum-api");
-	return {
-		getCachedThreadById: async (id: number) => {
-			const res = await (forumApi as any).get(`/api/v1/threads/${id}`);
-			return res.data;
-		},
-		getCachedForumList: async () => {
-			const res = await (forumApi as any).getAll("/api/v1/forums");
-			return res.data;
-		},
-	};
-});
+vi.mock("react", () => ({ cache: (fn: (...args: unknown[]) => unknown) => fn }));
 
 import { forumApi } from "@/lib/forum-api";
 import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
@@ -36,7 +24,9 @@ describe("getThreadTitle", () => {
 		mockForumApi.get.mockResolvedValue({ data: { subject: "Hello World" } });
 		const result = await getThreadTitle(1);
 		expect(result).toBe("Hello World");
-		expect(mockForumApi.get).toHaveBeenCalledWith("/api/v1/threads/1");
+		expect(mockForumApi.get).toHaveBeenCalledWith("/api/v1/threads/1", undefined, {
+			readPurpose: "metadata",
+		});
 	});
 });
 
@@ -67,31 +57,23 @@ describe("getForumTitle", () => {
 	});
 });
 
-// ─── Dedup routing: title helpers share cached data helpers ──────────
-// These tests verify that title.server.ts routes through the React
-// cache()-backed helpers in forum-data.ts (getCachedThreadById / getCachedForumList),
-// which deduplicates fetches when generateMetadata and the page loader
-// are called in the same RSC render pass.
-
-describe("render-pass dedup routing", () => {
+describe("render-pass loader routing", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it("getThreadTitle and getCachedThreadById both resolve through forumApi.get (shared path)", async () => {
+	it("marks the title request as metadata and retains the page reading event", async () => {
 		mockForumApi.get.mockResolvedValue({ data: { subject: "Shared" } });
 
-		// Simulate what happens in one render pass:
-		// generateMetadata → getThreadTitle → getCachedThreadById → forumApi.get
 		const title = await getThreadTitle(42);
-		// page loader → getCachedThreadById → forumApi.get (same function, deduped by React cache at runtime)
 		const thread = await getCachedThreadById(42);
 
 		expect(title).toBe("Shared");
 		expect(thread.subject).toBe("Shared");
-		// Both route through forumApi.get — in production React cache() deduplicates these
-		// into a single network call. Here we verify the shared path exists.
-		expect(mockForumApi.get).toHaveBeenCalledWith("/api/v1/threads/42");
+		expect(mockForumApi.get.mock.calls).toEqual([
+			["/api/v1/threads/42", undefined, { readPurpose: "metadata" }],
+			["/api/v1/threads/42"],
+		]);
 	});
 
 	it("getForumTitle and getCachedForumList both resolve through forumApi.getAll (shared path)", async () => {

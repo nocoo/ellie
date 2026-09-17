@@ -92,10 +92,10 @@ describe("forum-settings (via lib/forum-cache)", () => {
 			expect(result).toEqual(rawData);
 		});
 
-		it("passes revalidate option to forumApi.get", async () => {
+		it("uses Worker freshness without a second Next.js revalidation window", async () => {
 			mockGet.mockResolvedValue({ data: {} });
 			await getCachedPublicSettings();
-			expect(mockGet).toHaveBeenCalledWith("/api/v1/settings", undefined, { revalidate: 60 });
+			expect(mockGet).toHaveBeenCalledWith("/api/v1/settings");
 		});
 	});
 });

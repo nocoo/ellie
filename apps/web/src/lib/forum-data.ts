@@ -19,6 +19,13 @@ export async function fetchThreadById(threadId: number): Promise<Thread> {
 	return data;
 }
 
+export async function fetchThreadMetadata(threadId: number): Promise<Thread> {
+	const { data } = await forumApi.get<Thread>(`/api/v1/threads/${threadId}`, undefined, {
+		readPurpose: "metadata",
+	});
+	return data;
+}
+
 /** Fetch the full forum list. */
 export async function fetchForumList(): Promise<Forum[]> {
 	const { data } = await forumApi.getAll<Forum>("/api/v1/forums");

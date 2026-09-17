@@ -31,6 +31,20 @@ interface OkEnvelope<T> {
 	data?: T;
 }
 
+export interface AdminKvRequestInit {
+	method?: "GET" | "POST";
+	body?: unknown;
+}
+
+function errorDetail(body: ErrorEnvelope): string {
+	const code = body.error?.code;
+	const message = body.error?.message;
+	if (code && message) return `${code}: ${message}`;
+	if (message) return message;
+	if (code) return code;
+	return "";
+}
+
 /**
  * Fetch a JSON payload from an admin KV endpoint and return its `data` field.
  *
@@ -38,19 +52,18 @@ interface OkEnvelope<T> {
  * returns non-2xx, returns non-JSON, or omits the `data` envelope. Callers
  * are expected to surface the message via AdminInlineMessage / setNotice.
  */
-export async function readAdminKvJson<T>(url: string): Promise<T> {
-	const res = await fetch(url);
+export async function readAdminKvJson<T>(url: string, init: AdminKvRequestInit = {}): Promise<T> {
+	const res = await fetch(url, {
+		method: init.method ?? "GET",
+		headers: init.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+		body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+		cache: "no-store",
+	});
 
 	if (!res.ok) {
-		// Try to lift the worker's error envelope; fall back to the raw status.
 		let detail = "";
 		try {
-			const body = (await res.json()) as ErrorEnvelope;
-			const code = body.error?.code;
-			const message = body.error?.message;
-			if (code && message) detail = `${code}: ${message}`;
-			else if (message) detail = message;
-			else if (code) detail = code;
+			detail = errorDetail((await res.json()) as ErrorEnvelope);
 		} catch {
 			// non-JSON error body — fall through to status-only message
 		}
@@ -70,4 +83,8 @@ export async function readAdminKvJson<T>(url: string): Promise<T> {
 	}
 
 	return parsed.data;
+}
+
+export async function writeAdminKvJson<T>(url: string, body: unknown): Promise<T> {
+	return readAdminKvJson<T>(url, { method: "POST", body });
 }

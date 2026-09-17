@@ -57,7 +57,9 @@ test.describe("Admin Basalt integration", () => {
 		page,
 	}) => {
 		await page.goto("/login?error=AccessDenied");
-		await expect(page.getByRole("alert")).toHaveText("您的账号无权访问此应用。");
+		await expect(
+			page.getByRole("alert").filter({ hasText: "您的账号无权访问此应用。" }),
+		).toHaveText("您的账号无权访问此应用。");
 		const signIn = page.getByRole("button", { name: "使用 Google 登录" });
 		await expect(signIn).toHaveAttribute("type", "submit");
 		await expect(signIn).toBeEnabled();
