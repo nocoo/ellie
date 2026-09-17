@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+/** first/all expose the same rows, as native D1 does under observation. */
+const mockReadRows = (rows: Record<string, unknown>[]) => ({
+	first: vi.fn(async () => rows[0] ?? null),
+	all: vi.fn(async () => ({ success: true, results: rows, meta: {} })),
+});
+
 /**
  * Route-level integration tests that call worker.fetch() directly,
  * proving the router dispatches to the correct handlers.
@@ -125,9 +131,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 		it("should NOT require API key for GET /api/live", async () => {
 			const env = makeEnv({
-				prepare: vi.fn(() => ({
-					first: vi.fn(() => Promise.resolve({ probe: 1 })),
-				})),
+				prepare: vi.fn(() => mockReadRows([{ probe: 1 }])),
 			});
 
 			const response = await (await getWorker()).fetch(
@@ -206,9 +210,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 	describe("GET /api/live", () => {
 		it("should return health check response", async () => {
 			const env = makeEnv({
-				prepare: vi.fn(() => ({
-					first: vi.fn(() => Promise.resolve({ probe: 1 })),
-				})),
+				prepare: vi.fn(() => mockReadRows([{ probe: 1 }])),
 			});
 
 			const response = await (await getWorker()).fetch(
@@ -224,9 +226,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 		it("should include Access-Control-Allow-Origin for allowed origin", async () => {
 			const env = makeEnv({
-				prepare: vi.fn(() => ({
-					first: vi.fn(() => Promise.resolve({ probe: 1 })),
-				})),
+				prepare: vi.fn(() => mockReadRows([{ probe: 1 }])),
 			});
 
 			const response = await (await getWorker()).fetch(
@@ -283,12 +283,11 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					// Forum visibility check query
 					if (sql.includes("SELECT") && sql.includes("forums") && sql.includes("WHERE id")) {
 						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() =>
-									Promise.resolve({ id: 1, status: 1, invisible: 0, password: null }),
-								),
-							})),
+							bind: vi.fn(() => mockReadRows([{ id: 1, status: 1, invisible: 0, password: null }])),
 						};
+					}
+					if (sql.includes("COUNT(*) as total")) {
+						return { bind: vi.fn(() => mockReadRows([{ total: 0 }])) };
 					}
 					// Default: return empty results
 					return {
@@ -349,11 +348,9 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					// Thread→Forum JOIN visibility check (consolidated query)
 					if (sql.includes("JOIN forums f")) {
 						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() =>
-									Promise.resolve({ forum_id: 1, sticky: 0, status: 1, visibility: "public" }),
-								),
-							})),
+							bind: vi.fn(() =>
+								mockReadRows([{ forum_id: 1, sticky: 0, status: 1, visibility: "public" }]),
+							),
 						};
 					}
 					// Default: return empty results for posts
@@ -643,17 +640,15 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					// Post lookup query - get thread_id
 					if (sql.includes("SELECT") && sql.includes("posts") && sql.includes("WHERE id")) {
 						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ thread_id: 1, invisible: 0 })),
-							})),
+							bind: vi.fn(() => mockReadRows([{ thread_id: 1, invisible: 0 }])),
 						};
 					}
 					// Thread lookup query with JOIN forums
 					if (sql.includes("FROM threads t") && sql.includes("JOIN forums f")) {
 						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() =>
-									Promise.resolve({
+							bind: vi.fn(() =>
+								mockReadRows([
+									{
 										id: 1,
 										forum_id: 1,
 										sticky: 0,
@@ -661,16 +656,16 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 										visibility: "public",
 										author_id: 99,
 										moderator_ids: "",
-									}),
-								),
-							})),
+									},
+								]),
+							),
 						};
 					}
 					// Attachment list query
 					if (sql.includes("SELECT * FROM attachments")) {
 						return {
 							bind: vi.fn(() => ({
-								all: vi.fn(() => Promise.resolve({ results: [] })),
+								all: vi.fn(() => Promise.resolve({ success: true, results: [], meta: {} })),
 							})),
 						};
 					}

@@ -69,10 +69,15 @@ describe("GET threads typeId filter", () => {
 		expect(body.meta).toMatchObject({ total: 32, page: 2, limit: 25, pages: 2 });
 		expect(body.data.map((row: { id: number }) => row.id)).toEqual([9, 8, 7, 6, 5, 4, 1]);
 		const snapshots = f.snapshots("thread:list");
-		expect(snapshots).toHaveLength(1);
-		expect(snapshots[0]).toMatchObject({
+		expect(snapshots).toHaveLength(2);
+		expect(snapshots.find((entry) => entry.params.kind === "local")).toMatchObject({
 			tier: "SHORT",
-			params: { forumId: 1, typeId: 11, limit: 25, offset: 25 },
+			params: { kind: "local", forumId: 1, typeId: 11, limit: 25, offset: 25 },
+		});
+		expect(snapshots.find((entry) => entry.params.kind === "count")).toMatchObject({
+			tier: "SHORT",
+			params: { kind: "count", forumId: 1, typeId: 11 },
+			data: { total: 32 },
 		});
 		f.calls.length = 0;
 		expect((await (await read("&typeId=11&page=2&limit=25")).json()).data).toEqual(body.data);

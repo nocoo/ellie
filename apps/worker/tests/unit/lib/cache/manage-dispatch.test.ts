@@ -26,6 +26,7 @@ import {
 	type MessageRow,
 	privateCacheKey,
 } from "../../../../src/lib/cache/private-read";
+import { getThreadListPage } from "../../../../src/lib/cache/thread-list-read";
 import {
 	cacheGetOrSet,
 	createCacheEnvelope,
@@ -59,6 +60,64 @@ afterEach(() => {
 });
 
 describe("manage-dispatch — static manager key/load/validator dispatch per loader group", () => {
+	it("inspects, rebuilds and deletes thread-list counts independently of page snapshots", async () => {
+		await getThreadListPage(f.env, undefined, {
+			forumId: 1,
+			typeId: null,
+			page: 1,
+			limit: 20,
+			cursor: null,
+		});
+		const page = f.snapshots("thread:list").find((entry) => entry.params.kind === "local");
+		const count = f.snapshots("thread:list").find((entry) => entry.params.kind === "count");
+		expect(page).toBeDefined();
+		expect(count).toBeDefined();
+		const countBefore = f.values.get(count.key);
+		f.calls.length = 0;
+		__resetMetricsForTest();
+		for (const entry of [page, count]) {
+			const inspected = await inspectCacheEntry(f.env, entry.key);
+			expect(inspected.valid).toBe(true);
+			expect(inspected.envelope).toMatchObject({ tier: "SHORT", scope: "internal" });
+			expect(entry.expiresAt - entry.loadedAt).toBe(60_000);
+		}
+		expect(f.calls).toHaveLength(0);
+
+		vi.setSystemTime(Date.now() + 30_000);
+		f.thread(2);
+		const rebuiltPage = await rebuildCacheEntry(f.env, undefined, page.key);
+		expect(rebuiltPage.data).toEqual({
+			items: [
+				{ id: 2, sticky: 0, last_post_at: 2 },
+				{ id: 1, sticky: 0, last_post_at: 1 },
+			],
+		});
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).not.toMatch(/COUNT\s*\(/i);
+		expect(f.values.get(count.key)).toBe(countBefore);
+		const pageAfter = f.values.get(page.key);
+
+		f.calls.length = 0;
+		const rebuiltCount = await rebuildCacheEntry(f.env, undefined, count.key);
+		expect(rebuiltCount.data).toEqual({ total: 2 });
+		expect(rebuiltCount.tier).toBe("SHORT");
+		expect(rebuiltCount.expiresAt - rebuiltCount.loadedAt).toBe(60_000);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).toMatch(/COUNT\s*\(/i);
+		expect(f.values.get(page.key)).toBe(pageAfter);
+		expect(f.calls.every((call) => /^\s*SELECT\b/i.test(call.sql))).toBe(true);
+		expect([...swapSnapshot().keys()].some((key) => key.startsWith("thread:list\u0001"))).toBe(
+			false,
+		);
+
+		f.calls.length = 0;
+		const otherEntries = new Map([...f.values].filter(([key]) => key !== count.key));
+		await deleteCacheEntry(f.env, count.key);
+		expect(f.calls).toHaveLength(0);
+		expect(f.values.has(count.key)).toBe(false);
+		expect(f.values).toEqual(otherEntries);
+	});
+
 	it("dispatches forum loader (forum:tree:v2 and forum:summary:v2)", async () => {
 		// Seed forum:tree:v2
 		await getForumTreeV2(f.env, undefined, "anon");

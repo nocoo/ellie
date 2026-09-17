@@ -1,3 +1,4 @@
+import type { CacheParams } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getThreadListPage,
@@ -90,6 +91,8 @@ describe("all thread-list memberships", () => {
 			expect(item.tier).toBe("SHORT");
 			expect(item.scope).toBe("internal");
 			expect(JSON.stringify(item.data)).not.toMatch(/subject|author_name|avatar|views|replies/);
+			if (item.params.kind === "local") expect(Object.keys(item.data)).toEqual(["items"]);
+			if (item.params.kind === "count") expect(Object.keys(item.data)).toEqual(["total"]);
 		}
 	});
 
@@ -122,8 +125,12 @@ describe("all thread-list memberships", () => {
 			},
 		};
 		const membership = await rebuildThreadListCache(f.env, undefined, descriptor);
+		if (!("items" in membership)) throw new Error("Expected a local membership snapshot");
 		expect(membership.items).toHaveLength(20);
+		expect(Object.keys(membership)).toEqual(["items"]);
+		expect(f.calls).toHaveLength(1);
 		expect(isThreadListCacheData(descriptor, membership)).toBe(true);
+		expect(isThreadListCacheData(descriptor, { ...membership, total: 180 })).toBe(false);
 		expect(
 			isThreadListCacheData(
 				{ ...descriptor, params: { ...descriptor.params, limit: 1 } },
@@ -148,5 +155,54 @@ describe("all thread-list memberships", () => {
 			).rejects.toThrow();
 		}
 		expect(f.calls).toHaveLength(0);
+	});
+
+	it("count descriptors require exact safe forum/type parameters and count-only data", async () => {
+		const descriptor = {
+			family: "thread:list",
+			scope: "internal",
+			params: { kind: "count", forumId: 1, typeId: null },
+		};
+		expect(await rebuildThreadListCache(f.env, undefined, descriptor)).toEqual({ total: 180 });
+		expect(f.calls).toHaveLength(1);
+		expect(isThreadListCacheData(descriptor, { total: 0 })).toBe(true);
+		expect(isThreadListCacheData(descriptor, { total: Number.MAX_SAFE_INTEGER })).toBe(true);
+		for (const value of [
+			null,
+			{},
+			{ total: -1 },
+			{ total: 0.5 },
+			{ total: "180" },
+			{ total: Number.MAX_SAFE_INTEGER + 1 },
+			{ total: Number.NaN },
+			{ total: Infinity },
+			{ total: 180, items: [] },
+		]) {
+			expect(isThreadListCacheData(descriptor, value)).toBe(false);
+		}
+		f.calls.length = 0;
+		const invalidParams: CacheParams[] = [
+			{ kind: "count", forumId: 1 },
+			{ ...descriptor.params, forumId: "1 OR 1=1" },
+			{ ...descriptor.params, forumId: 0 },
+			{ ...descriptor.params, forumId: Number.MAX_SAFE_INTEGER + 1 },
+			{ ...descriptor.params, typeId: 0 },
+			{ ...descriptor.params, typeId: 0.5 },
+			{ ...descriptor.params, typeId: "8" },
+			{ ...descriptor.params, typeId: Number.MAX_SAFE_INTEGER + 1 },
+			{ ...descriptor.params, limit: 20 },
+			{ ...descriptor.params, cursorId: null },
+		];
+		for (const params of invalidParams) {
+			const invalid = { ...descriptor, params };
+			expect(isThreadListCacheData(invalid, { total: 180 })).toBe(false);
+			await expect(rebuildThreadListCache(f.env, undefined, invalid)).rejects.toThrow();
+		}
+		await expect(
+			rebuildThreadListCache(f.env, undefined, { ...descriptor, scope: "public" }),
+		).rejects.toThrow();
+		expect(f.calls).toHaveLength(0);
+		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.put).not.toHaveBeenCalled();
 	});
 });

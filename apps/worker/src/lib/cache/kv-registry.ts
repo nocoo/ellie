@@ -387,10 +387,10 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	),
 	businessFamily(
 		"thread:list",
-		"主题分页与公告索引",
+		"主题分页、总数与公告索引",
 		"SHORT",
 		"reading",
-		"All normalized page/cursor/filter combinations; global announcements are shared.",
+		"Independent page memberships and per-forum/type totals; all normalized page/cursor/filter combinations and global announcements are shared without renewing dependencies.",
 		{ kind: "bump-thread-list-forum", requires: ["forumId"] },
 	),
 	businessFamily(

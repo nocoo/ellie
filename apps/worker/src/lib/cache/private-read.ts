@@ -219,11 +219,11 @@ async function loadMessageRows(
 async function loadMessagePage(env: Env, d: CacheDescriptor): Promise<MessagePage> {
 	const p = d.params;
 	const inbox = p.box === "inbox";
-	const cursor = p.cursorId !== null ? " AND (created_at < ? OR (created_at = ? AND id < ?))" : "";
+	const cursor = p.cursorId !== null ? " AND (created_at, id) < (?, ?)" : "";
 	const params =
 		p.cursorId === null
 			? [Number(p.userId)]
-			: [Number(p.userId), Number(p.cursorTime), Number(p.cursorTime), Number(p.cursorId)];
+			: [Number(p.userId), Number(p.cursorTime), Number(p.cursorId)];
 	const result = await env.DB.prepare(
 		`SELECT id, created_at AS createdAt FROM messages WHERE ${inbox ? "receiver_id" : "sender_id"} = ? AND ${inbox ? "receiver_deleted" : "sender_deleted"} = 0${cursor} ORDER BY created_at DESC, id DESC LIMIT ?`,
 	)

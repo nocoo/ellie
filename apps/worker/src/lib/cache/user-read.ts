@@ -420,8 +420,8 @@ export async function loadUserHistory(env: Env, d: CacheDescriptor): Promise<Cac
 	if (d.family === "user:digest") conditions.push("t.digest > 0");
 	const bindings = [Number(p.userId)];
 	if (p.cursorId !== null) {
-		conditions.push(`(${alias}.created_at < ? OR (${alias}.created_at = ? AND ${alias}.id < ?))`);
-		bindings.push(Number(p.cursorTime), Number(p.cursorTime), Number(p.cursorId));
+		conditions.push(`(${alias}.created_at, ${alias}.id) < (?, ?)`);
+		bindings.push(Number(p.cursorTime), Number(p.cursorId));
 	}
 	const result = await env.DB.prepare(
 		`SELECT ${alias}.id, ${alias}.created_at AS createdAt${post ? ", p.thread_id AS threadId" : ""} FROM ${post ? "posts p JOIN threads t ON t.id = p.thread_id" : "threads t"} JOIN forums f ON f.id = t.forum_id WHERE ${conditions.join(" AND ")} ORDER BY ${alias}.created_at DESC, ${alias}.id DESC LIMIT ?`,
