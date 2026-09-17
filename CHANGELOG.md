@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.3] - 2026-09-17
+
+### Fixed
+
+- **Forum list misses use indexed ordering and share counts across pages.** Ordinary lists remove a redundant sticky CASE and seek cursor positions directly. A bounded production comparison returned identical 20-row results with D1 reads reduced from 282,445 to 41 for that query. Per-forum/type counts have independent 60-second snapshots, so changing page, cursor or limit does not repeat COUNT or renew its lifetime. Counts and pages can be inspected, rebuilt and deleted separately.
+- Recommended cards start from the small recommendation table before validating thread membership. Unfiltered sitewide digest pages use the existing digest index; administrative forum distributions search the requested time range before grouping. User history and private-message cursors seek by time and ID. Existing visibility, anonymity, deletion and pagination rules remain in force; no new indexes or migrations are required.
+- **D1 observation includes metadata from `.first()` calls.** Each SQL statement still executes once, with native first-row, column and error behavior. Previously omitted COUNT and access-check rows now appear in application metrics, so row totals across the version boundary have different coverage. Raw-result queries retain native behavior without fabricated row counts.
+
+### Maintenance
+
+- Cache lifetimes remain 60 seconds, 30 minutes and 24 hours. The query audit, measured limits and remaining scan costs are documented in `docs/20-worker-kv-reference.md`; no Cloudflare Analytics dependency or monitoring query is added.
+- Includes the independently merged Hexly links in forum and admin headers.
+
+### Verified
+
+- All 8,115 unit tests and seven coverage gates pass, together with type checks, Web/Admin builds, formatting and staged secret scans. Integration checks pass: 92 fast tests, 354 local Worker HTTP tests, and strict coverage of all 177 routes.
+- Actual captured SQL plans and legacy-result comparisons cover large historical fixtures, deep cursors, count expiry, independent management operations and filtered catalog results. Thirteen native workerd comparisons confirm `.first()` compatibility and one execution per observed query.
+
 ## [1.11.2] - 2026-09-17
 
 ### Fixed
