@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.2] - 2026-09-17
+
+### Fixed
+
+- **Historical placeholder forums no longer break cached reads.** Admin forum lists and digest statistics/filters accept the imported forum-zero record while retaining strict DTO validation and current visibility checks. Cold, warm and rebuild regressions cover the production failure.
+- **Forum summaries avoid scanning historical threads on every refresh.** Today's counts use the existing creation-time index. Migration `0051` adds a partial index for the newest visible thread in each forum, including replacement of deleted or moved candidates, without sorting every thread in that forum.
+- Thread entities and statistics share one generation read per unique thread within a call. Large batches remain bounded, later requests observe new generations, and failed generation reads still bypass old snapshots. Cache lifetimes remain 60 seconds, 30 minutes and 24 hours.
+
+### Maintenance
+
+- Includes the merged Admin dependency pin to Basalt 2.1.8. Cache diagnostics and regression evidence are recorded in `docs/20-worker-kv-reference.md`; no monitoring service or platform analytics dependency is added.
+
+### Verified
+
+- All 8,087 unit tests and seven coverage gates pass, along with type checks, formatting and staged secret scans. Integration checks pass: 92 fast tests, 354 local Worker HTTP tests, and strict coverage of all 177 routes.
+- Real SQLite regressions cover imported forum-zero snapshots, unchanged current visibility checks, bounded generation reads and races, actual indexed query plans, and 10,000 historical threads. The larger query comparison preserves identical results with 100,000 historical threads.
+
 ## [1.11.1] - 2026-09-17
 
 ### Fixed
