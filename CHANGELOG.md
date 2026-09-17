@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2026-09-17
+
+### Added
+
+- **One cache policy across the forum.** Worker reads use validated snapshots with fixed 60-second, 30-minute or 24-hour lifetimes. Shared entities, batch loading of missing rows and concurrent-load limits cover reading, pagination, search, profiles, private messages and administrative displays. Current permissions remain authoritative.
+- **Inspect and manage individual cache entries.** The admin console shows lifecycle, remaining lifetime and permitted content, with separate actions for rebuilding one entry, deleting one entry and invalidating a family. Rebuilds preserve the original parameters and audience, confirm the write and record an audit event.
+- **Application cache and D1 trends.** Charts separate administrative traffic, preserve missing samples and show bounded KV footprint observations. D1 metadata comes from existing queries; no Cloudflare Analytics API, new platform token or remote monitoring query is required.
+
+### Changed
+
+- Ordinary posting, replies and views allow short snapshots to expire naturally. Metadata and prefetch reads avoid duplicate view events; frontend business requests share the Worker policy without renewing cached deadlines.
+- Cache documentation is consolidated in `docs/20-worker-kv-reference.md`, with a route inventory, mutation rules, reproducible query budgets and deployment limits.
+
+### Fixed
+
+- Business invalidation and administrative rebuilds finish writes in order for the same key, preventing an older rebuild from restoring deleted settings. Malformed cached DTOs, pagination and resource associations trigger a fresh load.
+- Administrative edits, moderation, cleanup and completed recalculations advance the affected resource versions, so warm details and lists reflect confirmed changes. Failed and unchanged writes preserve existing snapshots; forum creation, removal and merging also refresh cached thread-type existence and configuration.
+- Mutations reject failed or incomplete D1 results before publishing cache changes. Private-message read transitions invalidate once under concurrent reads and recheck ownership when the transition loses a race.
+- Opening an editor during initial session loading rechecks permission under the resolved account. Temporary loading states preserve the same account's pending request, while account, role and logout changes reject outdated results.
+- SQL-dump gzip export observes process completion before draining output. The release includes the already merged Worker tooling and dependency updates.
+
+### Verified
+
+- All 8,048 unit tests pass: Worker 3,779, web 2,475, admin 886 and shared/tooling packages 908. All seven coverage gates pass, together with production builds, type checks, formatting and staged secret scans.
+- Integration: 92 fast tests and 354 local Worker HTTP tests pass. Strict route coverage is 177/177 with no exemptions or unmatched calls; seven audit-tool regressions pass.
+- Full browser workflows: forum 62 passed with four existing skips; admin 37 passed. They validate current permissions, confirmed mutations through warm caches, editor session loading and narrow-screen controls. Unit and HTTP regressions also cover private-message races and individual cache operations. Business mutation tests use isolated local data.
+
 ## [1.10.3] - 2026-09-16
 
 ### Changed
