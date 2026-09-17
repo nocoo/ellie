@@ -3,12 +3,14 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 import { AVATAR_ALLOWED_TYPES, AVATAR_MAX_UPLOAD_MB } from "@/lib/avatar";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse, isEmailNotVerifiedPayload } from "@/lib/proxy-error";
+
+// Use the CommonJS entry so Bun build workers resolve sharp's native addon correctly.
+const sharp: typeof import("sharp").default = require("sharp");
 
 function getWorkerUrl(): string {
 	const url = process.env.WORKER_API_URL;

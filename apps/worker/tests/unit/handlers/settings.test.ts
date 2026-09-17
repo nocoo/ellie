@@ -50,12 +50,13 @@ function makeKv(cachedValue?: string) {
 	if (cachedValue) {
 		try {
 			const data = JSON.parse(cachedValue);
+			const loadedAt = Date.now();
 			parsedEnvelope = {
 				schemaVersion: 3,
 				family: "settings:all",
 				tier: "LONG",
-				loadedAt: Date.now(),
-				expiresAt: Date.now() + 86400000,
+				loadedAt,
+				expiresAt: loadedAt + 86400000,
 				params: {},
 				scope: "public",
 				data,
