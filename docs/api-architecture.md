@@ -50,7 +50,7 @@ The Worker is the **single source of truth** for all data operations.
 | Prefix | Key | Auth | Description |
 |--------|-----|------|-------------|
 | `/api/v1/*` | Key A (`API_KEY`) | Optional JWT | Public forum API |
-| `/api/admin/*` | Key B (`ADMIN_API_KEY`) | Required JWT + Role | Admin-only API |
+| `/api/admin/*` | Key B (`ADMIN_API_KEY`) | Admin session enforced by Next.js proxy | Admin-only API |
 | `/api/live` | None | None | Health check |
 
 **Key endpoints:**
@@ -243,3 +243,25 @@ const data = await forumApi.get("/api/v1/example");
 // Client Component - via proxy
 const data = await apiClient.get("/api/v1/example");
 ```
+
+## Admin statistics and hourly cache observations
+
+The v1.11.4 Admin statistics update keeps the Key B gate and the existing Next.js proxy routes. The dashboard requests statistics only after selecting **加载统计** (`/admin?statistics=1`); navigation links do not prefetch these reads.
+
+`GET /api/admin/stats` reads three existing `settings` counters in one indexed query, cached as `admin:analytics` / `MEDIUM` (1800 seconds). Its `data` payload is:
+
+```ts
+{
+  users: { total: number | null },
+  threads: { total: number | null },
+  posts: { total: number | null },
+  source: "stored-counters",
+  observedAt: number // epoch milliseconds when counters were read
+}
+```
+
+A missing counter is `null`, a stored zero is `0`, and a failed or malformed read is an error. The old today/banned/forum total fields are removed. Standard Admin forum/thread/user reads use maintained counters and latest-content metadata; the user list no longer supplies `messagesCount` or `attachmentsCount`. Explicit calibration and destructive-action checks retain their current queries and authorization. Worker and Admin must be released together for this DTO change.
+
+`GET /api/admin/kv/metrics?minutes=1440&family=…` reads persisted observations from `kv_cache_metrics_hour`, with a default 24-hour window and a 60-minute minimum. It returns only completed hours, preserving `series[].tsMinute` as the epoch-minute timestamp of each hour's start, plus `intervalMinutes: 60`, `sampling: "best-effort"`, and `source: "application:kv_cache_metrics_hour"`. The page loads the selected tab on demand and never polls automatically. Business cache TTLs remain 60 / 1800 / 86400 seconds; hourly aggregation is a separate policy. Missing observations stay missing, and `coverage=complete` only means the query was not truncated.
+
+Deploy the new Admin first; its totals cards can also read the old response during rollout. Migration `0052` must precede the Worker update. It creates the hourly store without scanning business tables or importing minute history; old minute rows retain their seven-day cleanup. See [cache architecture and budgets](20-worker-kv-reference.md#106-后台按需统计与小时观测v1114).

@@ -16,12 +16,11 @@ const statsConfig: EntityConfig = {
 
 async function getStats(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const dayStart = Math.floor(Date.now() / 1000 / 86400) * 86400;
 	return jsonNoStoreResponse(
 		await getAdminReport(env, ctx, {
-			family: "admin:display",
+			family: "admin:analytics",
 			scope: "admin",
-			params: { resource: "stats", operation: "totals", dayStart },
+			params: { resource: "stats", operation: "totals" },
 		}),
 		origin,
 	);

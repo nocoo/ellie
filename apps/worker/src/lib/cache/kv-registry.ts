@@ -201,14 +201,14 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		"近期缓存与数据库趋势",
 		"SHORT",
 		"monitor",
-		"Application minute metrics for windows up to 60 minutes; administrative traffic is separate.",
+		"Completed hourly application observations for the last hour; best-effort, with administrative traffic separate.",
 	),
 	businessFamily(
 		"monitor:metrics:history",
 		"历史缓存与数据库趋势",
 		"MEDIUM",
 		"monitor",
-		"Application trend windows beyond 60 minutes, without remote platform queries.",
+		"Hourly application observations for longer windows; on-demand reads, without remote platform queries.",
 	),
 	...["user:self", "user:checkin", "user:posting-preview", "pm:list", "pm:entity", "pm:unread"].map(
 		(family): KvFamilySpec => ({
@@ -235,10 +235,10 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	{
 		...businessFamily(
 			"admin:analytics",
-			"后台历史聚合",
+			"后台统计与历史聚合",
 			"MEDIUM",
 			"admin-report",
-			"Date-range aggregates; invalidated once after completed recalibration.",
+			"On-demand maintained totals, KPI snapshots and date-range aggregates; invalidated after completed recalibration.",
 		),
 		genKeys: ["stats:reports:gen"],
 	},

@@ -1,12 +1,20 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import KvMonitorPage from "@/app/(admin)/admin/statistics/kv/page";
+
+vi.mock("@/components/admin/kv-metrics-chart", () => ({
+	KvMetricsChart: ({ series }: { series: unknown[] }) => (
+		<pre data-testid="metrics-series">{JSON.stringify(series)}</pre>
+	),
+}));
 
 afterEach(() => {
 	cleanup();
 	vi.unstubAllGlobals();
+	vi.useRealTimers();
+	vi.restoreAllMocks();
 });
 
 const families = [
@@ -17,7 +25,7 @@ const families = [
 	category: "cache",
 	status: "shipped",
 	pattern: row.family,
-	ttl: 300,
+	ttl: row.family === "settings:all" ? 86400 : 60,
 	nameSensitivity: "public",
 	valueSensitivity: "public",
 	count: 1,
@@ -29,7 +37,16 @@ const families = [
 function readResponse(url: string, removed = false) {
 	const path = new URL(url, "http://localhost").pathname;
 	if (path.endsWith("overview")) return Response.json({ data: { families } });
-	if (path.endsWith("metrics")) return Response.json({ data: { minutes: 60, series: [] } });
+	if (path.endsWith("metrics"))
+		return Response.json({
+			data: {
+				minutes: 1440,
+				intervalMinutes: 60,
+				sampling: "best-effort",
+				source: "application:kv_cache_metrics_hour",
+				series: [],
+			},
+		});
 	if (path.endsWith("operations")) return Response.json({ data: { rows: [] } });
 	return Response.json({
 		data: {
@@ -40,6 +57,41 @@ function readResponse(url: string, removed = false) {
 		},
 	});
 }
+
+it("loads only the chosen view and never polls statistics as time or document visibility changes", async () => {
+	vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+	const fetchMock = vi.fn(async (url: string) => readResponse(url));
+	vi.stubGlobal("fetch", fetchMock);
+	render(<KvMonitorPage />);
+	await screen.findByText("Settings cache");
+	expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/admin/kv/overview"]);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(3_600_000);
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+	expect(fetchMock).toHaveBeenCalledOnce();
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "运行趋势" }));
+	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+	expect(fetchMock.mock.calls[1][0]).toBe("/api/admin/kv/metrics?minutes=1440");
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(3_600_000);
+	});
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+	fireEvent.click(screen.getByRole("button", { name: "近 3 天" }));
+	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+	expect(fetchMock.mock.calls[2][0]).toBe("/api/admin/kv/metrics?minutes=4320");
+	await waitFor(() =>
+		expect(screen.getByRole("button", { name: "更新监控数据" }).hasAttribute("disabled")).toBe(
+			false,
+		),
+	);
+	fireEvent.click(screen.getByRole("button", { name: "更新监控数据" }));
+	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+	expect(fetchMock.mock.calls[3][0]).toBe("/api/admin/kv/metrics?minutes=4320");
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "操作记录" }));
+	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+	expect(fetchMock.mock.calls[4][0]).toBe("/api/admin/kv/operations");
+});
 
 it.each(["network", "http"])(
 	"preserves a failed KV expiry confirmation after a %s error and allows retry",
@@ -77,6 +129,9 @@ it.each(["network", "http"])(
 		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 		expect(attempts).toBe(2);
 		await screen.findByText(/已发送删除 settings:all: settings:all/);
+		expect(
+			vi.mocked(fetch).mock.calls.some(([url]) => /\/(metrics|operations)/.test(String(url))),
+		).toBe(false);
 	},
 );
 
@@ -350,8 +405,8 @@ it("keeps partial metrics visible and names the truncation instead of clearing t
 			if (path.endsWith("metrics")) {
 				return Response.json({
 					data: {
-						minutes: 60,
-						series: [{ family: "forum:tree:v2", tsMinute: 1, op: "hit", count: 2 }],
+						minutes: 1440,
+						series: [{ family: "forum:tree:v2", tsMinute: 60, op: "hit", count: 2 }],
 						truncated: true,
 						coverage: "partial",
 					},
@@ -362,6 +417,9 @@ it("keeps partial metrics visible and names the truncation instead of clearing t
 	);
 	render(<KvMonitorPage />);
 	await screen.findByText("Settings cache");
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "运行趋势" }));
+	await screen.findByText("指标仅部分覆盖，结果已截断。");
+	expect(screen.getByTestId("metrics-series").textContent).toContain('"count":2');
 	expect(screen.getAllByText("—").length).toBeGreaterThan(0);
 	expect(screen.queryByText(/未能获取缓存目录/)).toBeNull();
 });
@@ -373,7 +431,7 @@ it("surfaces metrics-unavailable notes without inventing a zero hit rate", async
 			const path = new URL(url, "http://localhost").pathname;
 			if (path.endsWith("metrics")) {
 				return Response.json({
-					data: { minutes: 60, series: [], note: "metrics table unavailable" },
+					data: { minutes: 1440, series: [], note: "metrics table unavailable" },
 				});
 			}
 			return readResponse(url);
@@ -381,6 +439,8 @@ it("surfaces metrics-unavailable notes without inventing a zero hit rate", async
 	);
 	render(<KvMonitorPage />);
 	await screen.findByText("Settings cache");
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "运行趋势" }));
+	await screen.findByText("指标暂不可用，请稍后重新加载。");
 	expect(screen.getAllByText("—").length).toBeGreaterThan(0);
 	expect(screen.queryByText(/无请求/)).toBeNull();
 });

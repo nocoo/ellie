@@ -52,7 +52,7 @@ async function kpiHandler(request: Request, env: Env, ctx?: ExecutionContext): P
 	const origin = request.headers.get("Origin") ?? undefined;
 	return jsonNoStoreResponse(
 		await getAdminReport(env, ctx, {
-			family: "admin:display",
+			family: "admin:analytics",
 			scope: "admin",
 			params: {
 				resource: "logins",

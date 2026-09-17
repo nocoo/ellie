@@ -59,17 +59,6 @@ export interface User {
 	/** D4 tombstone — admin user id who issued purge. 0 if never. */
 	purgedBy?: number;
 	/**
-	 * Admin-list-only enrichment from worker `enrichListRows`. Number of
-	 * private messages where the user is sender OR receiver (mirrors
-	 * `purgeUser` pre-flight semantics). Absent on detail / non-list paths.
-	 */
-	messagesCount?: number;
-	/**
-	 * Admin-list-only enrichment from worker `enrichListRows`. Number of
-	 * `attachments` rows uploaded by this user (`author_id`).
-	 */
-	attachmentsCount?: number;
-	/**
 	 * Admin user-detail-only soft signal — current online IP from the
 	 * `online:<uid>` KV entry. Present only when worker found a fresh
 	 * (≤15min TTL window) snapshot. Distinct from `lastIp` (persistent

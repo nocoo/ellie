@@ -375,7 +375,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		// Admin monitor: metrics:recent
 		const metricsDesc: CacheDescriptor = {
 			family: "monitor:metrics:recent",
-			params: { resource: "metrics", family: null, minutes: 15 },
+			params: { resource: "metrics", family: null, minutes: 60 },
 			scope: "admin",
 		};
 		const metricsKey = await monitorCacheKey(f.env, metricsDesc);
@@ -385,10 +385,12 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			createCacheEnvelope(
 				{
 					family: null,
-					minutes: 15,
-					series: [{ family: "forum:tree:v2", tsMinute: 1, op: "hit", count: 4 }],
+					minutes: 60,
+					series: [{ family: "forum:tree:v2", tsMinute: 60, op: "hit", count: 4 }],
 					observedAt: 1_700_000_000,
-					source: "application:kv_cache_metrics_minute",
+					source: "application:kv_cache_metrics_hour",
+					intervalMinutes: 60,
+					sampling: "best-effort",
 					truncated: false,
 					coverage: "complete",
 				},

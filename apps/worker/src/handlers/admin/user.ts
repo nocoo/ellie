@@ -38,103 +38,15 @@ import { invalidateRecommendedCache } from "../recommended";
 
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
 
-// D4-a: purged_at/purged_by added for tombstone tracking.
-//
-// Admin reads must reflect ground truth, not the denormalized counters on
-// `users`. `threads`/`posts`/`digest_posts` can drift whenever something
-// writes to `threads`/`posts` without going through the admin-side counter
-// pipelines (ad-hoc SQL repair, bulk reassignment, etc.). We replace those
-// three columns with correlated subqueries so admin list/detail always show
-// live values; the recalc-counters endpoint becomes a write-back convenience
-// rather than a load-bearing read path. Other "denormalized" fields stay as
-// cached columns:
-//   - `credits` / `coins` / `ol_time` are running totals from transactional
-//     writes (no SQL ground-truth source to recompute from)
-//   - `last_login` / `last_activity` are event timestamps written at the
-//     moment of the event — they cannot drift, only be missed if the
-//     writer fails to fire
-// The public user mini/public caches keep reading the cached columns —
-// this change is admin-only.
+// Listing users reads maintained counters; expensive recounts are explicit maintenance.
 const USER_COLUMNS =
 	"id, username, email, avatar, avatar_path, has_avatar, status, role, reg_date, last_login," +
-	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id) AS threads," +
-	" (SELECT COUNT(*) FROM posts p WHERE p.author_id = users.id) AS posts," +
+	" threads, posts," +
 	" credits, coins, signature, group_title, group_stars, group_color, custom_title," +
-	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id AND t.digest > 0) AS digest_posts," +
+	" digest_posts," +
 	" ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city," +
 	" graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at," +
 	" email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
-
-// ─── List enrichment: per-user messages / attachments counts ────────────────
-
-/**
- * Attach `messages_count` and `attachments_count` virtual columns to each
- * row of the admin user list page. Runs *after* the page query, so the
- * subqueries see at most `MAX_PAGE_SIZE` (100) UIDs — never the filter
- * cartesian product. Two GROUP BY queries fired in parallel keep the
- * extra round-trip cost flat regardless of page size.
- *
- * Empty page → no enrichment SQL fires.
- *
- * Schema indexes used:
- *   - idx_messages_sender / idx_messages_receiver (existing) → IN-list
- *     keyed range scan on sender_id and receiver_id respectively.
- *   - idx_attachments_author (added in 0031) → IN-list keyed scan.
- */
-async function enrichUserListRowsWithCounts(
-	rows: Record<string, unknown>[],
-	env: Env,
-): Promise<Record<string, unknown>[]> {
-	if (rows.length === 0) return rows;
-
-	const ids = rows.map((r) => r.id as number);
-	const placeholders = ids.map(() => "?").join(", ");
-
-	// messages: sender OR receiver, matches purgeUser pre-flight semantics.
-	// We GROUP BY each side independently then merge, because a single
-	// `WHERE sender_id IN (...) OR receiver_id IN (...) GROUP BY ?`
-	// cannot pivot the count to the right user when both sides match.
-	const [senderRes, receiverRes, attRes] = await Promise.all([
-		env.DB.prepare(
-			`SELECT sender_id AS uid, COUNT(*) AS cnt FROM messages WHERE sender_id IN (${placeholders}) GROUP BY sender_id`,
-		)
-			.bind(...ids)
-			.all<{ uid: number; cnt: number }>(),
-		env.DB.prepare(
-			`SELECT receiver_id AS uid, COUNT(*) AS cnt FROM messages WHERE receiver_id IN (${placeholders}) GROUP BY receiver_id`,
-		)
-			.bind(...ids)
-			.all<{ uid: number; cnt: number }>(),
-		env.DB.prepare(
-			`SELECT author_id AS uid, COUNT(*) AS cnt FROM attachments WHERE author_id IN (${placeholders}) GROUP BY author_id`,
-		)
-			.bind(...ids)
-			.all<{ uid: number; cnt: number }>(),
-	]);
-	if (!senderRes.success || !receiverRes.success || !attRes.success) {
-		throw new Error("Admin user message and attachment counts could not be loaded");
-	}
-
-	const messagesByUid = new Map<number, number>();
-	for (const r of senderRes.results) {
-		messagesByUid.set(r.uid, (messagesByUid.get(r.uid) ?? 0) + r.cnt);
-	}
-	for (const r of receiverRes.results) {
-		messagesByUid.set(r.uid, (messagesByUid.get(r.uid) ?? 0) + r.cnt);
-	}
-
-	const attachmentsByUid = new Map<number, number>();
-	for (const r of attRes.results) {
-		attachmentsByUid.set(r.uid, r.cnt);
-	}
-
-	for (const row of rows) {
-		const uid = row.id as number;
-		row.messages_count = messagesByUid.get(uid) ?? 0;
-		row.attachments_count = attachmentsByUid.get(uid) ?? 0;
-	}
-	return rows;
-}
 
 // ─── Entity config ───────────────────────────────────────────────────────────
 
@@ -145,7 +57,6 @@ const userConfig: EntityConfig = {
 	columns: USER_COLUMNS,
 	mapper: toUser,
 	notFoundCode: "USER_NOT_FOUND",
-	useSubqueryWrapper: true,
 
 	// #36 filters
 	filters: [
@@ -193,23 +104,6 @@ const userConfig: EntityConfig = {
 		},
 	],
 	listSort: "id DESC",
-
-	// Admin user list: attach per-user `messages_count` and
-	// `attachments_count` virtual columns so the list page can show the
-	// 主题/帖子/站内信/附件 quartet alongside the existing `users.threads` /
-	// `users.posts` denormalised counts.
-	//
-	// Done as a *post-page* enrichment so the count subqueries see only the
-	// page's UID set (≤ MAX_PAGE_SIZE = 100), never the full filter
-	// cartesian product. With idx_messages_sender / idx_messages_receiver
-	// (existing) and idx_attachments_author (added in this batch) each
-	// aggregate query is a small index range scan keyed on `IN (?, ?, …)`.
-	//
-	// Semantics deliberately match `purgeUser` pre-flight: messages count
-	// is `sender_id OR receiver_id` (full direction), attachments count is
-	// `author_id` (uploader). What the operator sees on the list is the
-	// same row count purge will report on success.
-	enrichListRows: enrichUserListRowsWithCounts,
 
 	// #38 update fields
 	//

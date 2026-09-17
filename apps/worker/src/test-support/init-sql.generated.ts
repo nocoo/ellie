@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: 8bcabff79aa58b26fcf696eb3fef3ee9f50180d219ef7a8ed5e4e01e06bef2af):
+ * Source migrations (sha256: 23462879e763802c591aabf0fb8eba8c9198ecdcb665262a8b27f147f94bc476):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -35,6 +35,7 @@
  *   - 0049_backfill_post_anonymous.sql
  *   - 0050_backfill_thread_anonymous.sql
  *   - 0051_idx_threads_forum_latest.sql
+ *   - 0052_kv_cache_metrics_hour.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1670,9 +1671,22 @@ WHERE last_poster_id != 0
 CREATE INDEX IF NOT EXISTS idx_threads_forum_latest
   ON threads(forum_id, last_post_at DESC, id DESC)
   WHERE sticky >= 0;
+
+-- ── 0052_kv_cache_metrics_hour.sql ────────────────────────────────────────────
+-- Hourly observations replace minute-level metric writes. Historical minute
+-- rows keep their existing retention; no business table is scanned or copied.
+CREATE TABLE IF NOT EXISTS kv_cache_metrics_hour (
+  family TEXT NOT NULL,
+  ts_hour INTEGER NOT NULL,
+  op TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (family, ts_hour, op)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kv_metrics_hour_ts ON kv_cache_metrics_hour(ts_hour DESC);
 `;
 
-export const INIT_SQL_HASH = "8bcabff79aa58b26fcf696eb3fef3ee9f50180d219ef7a8ed5e4e01e06bef2af";
+export const INIT_SQL_HASH = "23462879e763802c591aabf0fb8eba8c9198ecdcb665262a8b27f147f94bc476";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1705,5 +1719,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0048_add_thread_anonymous.sql",
 	"0049_backfill_post_anonymous.sql",
 	"0050_backfill_thread_anonymous.sql",
-	"0051_idx_threads_forum_latest.sql"
+	"0051_idx_threads_forum_latest.sql",
+	"0052_kv_cache_metrics_hour.sql"
 ] as const;

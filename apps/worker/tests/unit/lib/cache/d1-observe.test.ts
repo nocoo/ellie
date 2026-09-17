@@ -190,6 +190,8 @@ describe("observation of existing D1 calls", () => {
 		expect(metrics.find(([key]) => key.endsWith("d1-rows-read"))?.[1]).toBe(12);
 		await db.batch([db.prepare("SELECT count FROM kv_cache_metrics_minute").bind(2)]);
 		await db.prepare("SELECT count FROM kv_cache_metrics_minute").all();
+		await db.prepare("SELECT count FROM kv_cache_metrics_hour").all();
+		await db.batch([db.prepare("INSERT INTO kv_cache_metrics_hour VALUES (?)").bind(1)]);
 		expect(swapSnapshot().size).toBe(0);
 		await db.batch([f.db.prepare("SELECT 1")]);
 		expect(count("d1-query", "admin:d1")).toBe(1);

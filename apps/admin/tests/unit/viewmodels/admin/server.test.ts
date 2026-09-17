@@ -28,7 +28,8 @@ describe("dashboard.server", () => {
 				users: { total: 100 },
 				threads: { total: 50 },
 				posts: { total: 300 },
-				forums: { total: 10 },
+				source: "stored-counters",
+				observedAt: 1,
 			},
 		});
 		const stats = await fetchDashboardStats();

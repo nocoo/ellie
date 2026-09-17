@@ -30,9 +30,11 @@ for (const width of [320, 375]) {
 						ok: true,
 						data: {
 							family: null,
-							minutes: 60,
+							minutes: 1440,
 							observedAt: metricsObservedAt,
-							source: "application:kv_cache_metrics_minute",
+							source: "application:kv_cache_metrics_hour",
+							intervalMinutes: 60,
+							sampling: "best-effort",
 							truncated: false,
 							coverage: "complete",
 							series: [

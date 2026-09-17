@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.4] - 2026-09-18
+
+### Changed
+
+- **Admin statistics load on demand.** The dashboard no longer requests statistics on entry, and navigation does not prefetch them. Maintained user/thread/post totals use one indexed settings query and a 30-minute snapshot. Missing counters remain unknown; exact recalculation is an explicit maintenance action.
+- Forum, thread and user management views read maintained counts and latest-content fields instead of running correlated recounts for every row. Unused message and attachment count columns are removed from the user list. Current authorization, mutation checks and calibration remain authoritative.
+- **Cache and D1 trends use one point per hour.** Migration `0052` adds hourly metric storage without scanning business tables or copying minute history. Existing requests flush completed hours at most once per hour per isolate; counters add and footprint gauges retain hourly peaks. Observations remain best-effort and gaps are left empty.
+- The cache monitor loads only the selected tab, with manual updates and no automatic polling. Its default window is 24 hours. Business cache lifetimes remain 60 seconds, 30 minutes and 24 hours.
+
+### Deployment
+
+- Release Admin and Worker together, with migration `0052` applied before the new Worker. The Admin totals response now contains only maintained user/thread/post totals plus source and observation time; the new Admin can also display the previous response during rollout.
+- Hourly observations are not complete billing counters. Short-lived isolates can lose unflushed samples; query-cost comparisons must account for this change in sampling and for traffic differences.
+
+### Validation
+
+- Real SQLite regressions cover indexed total lookups, 10,000-row related-data budgets, zero-query warm reads, unchanged mutation safeguards, hourly submission limits, retention boundaries and missing observations. Admin regressions cover explicit statistics loading and the absence of network polling.
+
 ## [1.11.3] - 2026-09-17
 
 ### Fixed

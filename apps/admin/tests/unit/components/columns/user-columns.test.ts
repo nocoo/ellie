@@ -11,7 +11,7 @@ const SETTINGS: WritePermissionSettings = {
 };
 
 describe("buildUserColumns", () => {
-	it("full variant emits 11 columns including writeGate when settings provided", () => {
+	it("full variant emits maintained counters and writeGate without message or attachment counts", () => {
 		const cols = buildUserColumns({
 			variant: "full",
 			writeGateSettings: SETTINGS,
@@ -25,8 +25,6 @@ describe("buildUserColumns", () => {
 			"writeGate",
 			"threads",
 			"posts",
-			"messages",
-			"attachments",
 			"credits",
 			"registered",
 		]);

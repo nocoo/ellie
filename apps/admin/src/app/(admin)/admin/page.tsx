@@ -1,4 +1,3 @@
-import { formatNumber } from "@ellie/shared";
 import { Button, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
@@ -20,7 +19,7 @@ import { Suspense } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { DashboardActivity } from "@/components/admin/dashboard-activity";
 import { StatCard } from "@/components/admin/stat-card";
-import { activeForums, type DashboardStats } from "@/viewmodels/admin/dashboard";
+import type { DashboardStats } from "@/viewmodels/admin/dashboard";
 import { fetchDashboardActivity, fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 
 const QUICK_LINKS = [
@@ -36,13 +35,20 @@ async function ActivitySection() {
 	return <DashboardActivity activity={await fetchDashboardActivity()} />;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ statistics?: string | string[] }>;
+}) {
+	const showStatistics = (await searchParams).statistics === "1";
 	let stats: DashboardStats | null = null;
 	let error: string | null = null;
-	try {
-		stats = await fetchDashboardStats();
-	} catch (e) {
-		error = e instanceof Error ? e.message : "仪表盘数据加载失败";
+	if (showStatistics) {
+		try {
+			stats = await fetchDashboardStats();
+		} catch (e) {
+			error = e instanceof Error ? e.message : "统计数据加载失败";
+		}
 	}
 
 	return (
@@ -58,7 +64,7 @@ export default async function DashboardPage() {
 						仪表盘
 					</span>
 				}
-				description="掌握社区规模、内容增长与访问质量"
+				description="管理社区内容、用户和运行状态"
 				actions={
 					<>
 						<Button asChild variant="outline" size="sm">
@@ -69,7 +75,7 @@ export default async function DashboardPage() {
 							</Link>
 						</Button>
 						<Button asChild size="sm">
-							<Link href="/admin/analytics">
+							<Link href="/admin/analytics" prefetch={false}>
 								<BarChart3 className="h-4 w-4" aria-hidden="true" />
 								数据分析
 							</Link>
@@ -78,64 +84,50 @@ export default async function DashboardPage() {
 				}
 			/>
 			{error && <AdminInlineMessage variant="error" text={error} />}
+			<LayerCard padding="sm" className="flex flex-wrap items-center justify-between gap-3">
+				<p className="text-sm text-basalt-muted-foreground">需要时再查看累计计数和社区活动。</p>
+				<Button asChild variant="outline" size="sm">
+					<Link href={showStatistics ? "/admin" : "/admin?statistics=1"} prefetch={false}>
+						{showStatistics ? "收起统计" : "加载统计"}
+					</Link>
+				</Button>
+			</LayerCard>
 			{stats && (
-				<section aria-label="全站总览" className="space-y-2">
-					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-						<StatCard
-							label="用户总数"
-							value={stats.users.total}
-							icon={Users}
-							subItems={[
-								{ label: "今日新增 · UTC", value: stats.users.today },
-								{ label: "已封禁", value: stats.users.banned },
-							]}
-						/>
-						<StatCard
-							label="主题总数"
-							value={stats.threads.total}
-							icon={FileText}
-							subItems={[{ label: "今日新增 · UTC", value: stats.threads.today }]}
-						/>
-						<StatCard
-							label="帖子总数"
-							value={stats.posts.total}
-							icon={MessageSquare}
-							subItems={[{ label: "今日发帖 · UTC", value: stats.posts.today }]}
-						/>
-						<StatCard
-							label="版块总数"
-							value={stats.forums.total}
-							icon={MessagesSquare}
-							subItems={[
-								{ label: "可见版块", value: activeForums(stats) },
-								{ label: "隐藏版块", value: stats.forums.hidden },
-							]}
-						/>
+				<section aria-label="累计计数" className="space-y-2">
+					<div className="grid gap-3 sm:grid-cols-3">
+						<StatCard label="累计用户" value={stats.users.total ?? "—"} icon={Users} />
+						<StatCard label="累计主题" value={stats.threads.total ?? "—"} icon={FileText} />
+						<StatCard label="累计帖子" value={stats.posts.total ?? "—"} icon={MessageSquare} />
 					</div>
-					<p className="text-right text-xs text-basalt-muted-foreground tabular-nums">
-						内容记录共 {formatNumber(stats.threads.total + stats.posts.total)} 条 · 主题与帖子合计
+					<p className="text-xs text-basalt-muted-foreground">
+						使用已维护的累计计数，每 30 分钟按需更新。缺失计数显示为 —。
+						<Link href="/admin/statistics/calibrate" prefetch={false} className="ml-2 underline">
+							统计校准
+						</Link>
 					</p>
 				</section>
 			)}
 
-			<Suspense
-				fallback={
-					<LayerCard className="flex min-h-48 items-center justify-center gap-2">
-						<Loader size={20} />
-						<span role="status" className="text-sm text-basalt-muted-foreground">
-							加载社区活动…
-						</span>
-					</LayerCard>
-				}
-			>
-				<ActivitySection />
-			</Suspense>
+			{showStatistics && (
+				<Suspense
+					fallback={
+						<LayerCard className="flex min-h-48 items-center justify-center gap-2">
+							<Loader size={20} />
+							<span role="status" className="text-sm text-basalt-muted-foreground">
+								加载社区活动…
+							</span>
+						</LayerCard>
+					}
+				>
+					<ActivitySection />
+				</Suspense>
+			)}
 
 			<LayerCard padding="sm">
 				<div className="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-6">
 					{QUICK_LINKS.map(({ href, label, icon: Icon }) => (
 						<Button key={href} asChild variant="ghost" size="sm" className="justify-start gap-2">
-							<Link href={href}>
+							<Link href={href} prefetch={false}>
 								<Icon className="h-4 w-4 text-basalt-muted-foreground" aria-hidden="true" />
 								{label}
 							</Link>

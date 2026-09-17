@@ -3,8 +3,12 @@
 
 import type { CacheTier } from "@ellie/types";
 
-export const MONITOR_POLL_MS = 60_000;
+export const METRICS_INTERVAL_MINUTES = 60;
 export const COUNTDOWN_TICK_MS = 1_000;
+
+export function metricHourMinute(minute: number): number {
+	return Math.floor(minute / METRICS_INTERVAL_MINUTES) * METRICS_INTERVAL_MINUTES;
+}
 
 export type { CacheTier };
 
@@ -153,17 +157,6 @@ export function classifyLifecycle(input: {
 		return "logically-expired";
 	}
 	return "valid";
-}
-
-export function shouldAutoPoll(input: {
-	visible: boolean;
-	lastFetchedAt: number | null;
-	now: number;
-	minIntervalMs?: number;
-}): boolean {
-	if (!input.visible) return false;
-	if (input.lastFetchedAt === null) return true;
-	return input.now - input.lastFetchedAt >= (input.minIntervalMs ?? MONITOR_POLL_MS);
 }
 
 export function hitRateLabel(hit: number, miss: number): string {
@@ -342,8 +335,9 @@ export function d1ObservationPoints(
 	>();
 	for (const row of series) {
 		if (row.family !== family) continue;
-		const bucket = buckets.get(row.tsMinute) ?? {
-			tsMinute: row.tsMinute,
+		const minute = metricHourMinute(row.tsMinute);
+		const bucket = buckets.get(minute) ?? {
+			tsMinute: minute,
 			queries: 0,
 			durationMs: 0,
 		};
@@ -352,7 +346,7 @@ export function d1ObservationPoints(
 		else if (row.op === "d1-rows-read") bucket.rowsRead = (bucket.rowsRead ?? 0) + row.count;
 		else if (row.op === "d1-rows-written")
 			bucket.rowsWritten = (bucket.rowsWritten ?? 0) + row.count;
-		buckets.set(row.tsMinute, bucket);
+		buckets.set(minute, bucket);
 	}
 	return [...buckets.values()].sort((a, b) => a.tsMinute - b.tsMinute);
 }
@@ -400,7 +394,7 @@ export function occupancyFromOverview(
 			? "at-least"
 			: "observed";
 	return {
-		tsMinute: Math.floor(observedAt / 60_000),
+		tsMinute: Math.floor(observedAt / 3_600_000) * METRICS_INTERVAL_MINUTES,
 		liveEntries,
 		staleEntries: null,
 		contentBytes: sawBytes ? summed : null,
@@ -412,6 +406,7 @@ export function mergeOccupancySnapshot(
 	prev: OccupancyPoint[],
 	next: OccupancyPoint,
 ): OccupancyPoint[] {
+	next = { ...next, tsMinute: metricHourMinute(next.tsMinute) };
 	const existing = prev.findIndex((p) => p.tsMinute === next.tsMinute);
 	if (existing >= 0) {
 		const copy = prev.slice();
@@ -449,16 +444,14 @@ function addFamilyOccupancy(bucket: OccupancyPoint, point: OccupancyPoint): Occu
 	return bucket;
 }
 
-/** Occupancy trend from persisted gauges. Per-family peaks (MAX), never summed across minutes or isolates. */
+/** Per-family hourly peaks, never summed across time or isolates. */
 export function occupancyFromMetrics(series: KvMetricRow[]): OccupancyPoint[] {
 	const perFamily = new Map<string, OccupancyPoint>();
 	for (const row of series) {
 		if (!isFootprintFamily(row.family)) continue;
-		const key = `${row.tsMinute}\0${row.family}`;
-		perFamily.set(
-			key,
-			peakGauge(perFamily.get(key) ?? emptyOccupancy(row.tsMinute), row.op, row.count),
-		);
+		const minute = metricHourMinute(row.tsMinute);
+		const key = `${minute}\0${row.family}`;
+		perFamily.set(key, peakGauge(perFamily.get(key) ?? emptyOccupancy(minute), row.op, row.count));
 	}
 	const buckets = new Map<number, OccupancyPoint>();
 	for (const point of perFamily.values()) {
@@ -489,8 +482,8 @@ export function insertGapPoints<T extends { tsMinute: number }>(
 ): Array<T | { tsMinute: number }> {
 	const out: Array<T | { tsMinute: number }> = [];
 	for (let i = 0; i < points.length; i++) {
-		if (i > 0 && points[i].tsMinute > points[i - 1].tsMinute + 1) {
-			out.push({ tsMinute: points[i - 1].tsMinute + 1 });
+		if (i > 0 && points[i].tsMinute > points[i - 1].tsMinute + METRICS_INTERVAL_MINUTES) {
+			out.push({ tsMinute: points[i - 1].tsMinute + METRICS_INTERVAL_MINUTES });
 		}
 		out.push(points[i]);
 	}
@@ -559,10 +552,10 @@ export function sensitiveValueLabel(valueSensitivity: string): string | null {
 	return null;
 }
 
-export type MetricsWindowMinutes = 60 | 1440 | 10080;
+export type MetricsWindowMinutes = 1440 | 4320 | 10080;
 
 export const METRICS_WINDOWS: { minutes: MetricsWindowMinutes; label: string }[] = [
-	{ minutes: 60, label: "近 60 分钟" },
 	{ minutes: 1440, label: "近 24 小时" },
+	{ minutes: 4320, label: "近 3 天" },
 	{ minutes: 10080, label: "近 7 天" },
 ];

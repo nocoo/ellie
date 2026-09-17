@@ -161,23 +161,6 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 		className: "text-right tabular-nums",
 	};
 
-	const messagesCell: ColumnDef<User> = {
-		key: "messages",
-		header: "站内信",
-		// `messagesCount` is admin-list-only enrichment from `enrichListRows`
-		// (worker handlers/admin/user.ts). Worker always emits a number on
-		// the list path; the `?? 0` is belt-and-braces.
-		cell: (row) => formatNumber(row.messagesCount ?? 0),
-		className: "text-right tabular-nums",
-	};
-
-	const attachmentsCell: ColumnDef<User> = {
-		key: "attachments",
-		header: "附件",
-		cell: (row) => formatNumber(row.attachmentsCount ?? 0),
-		className: "text-right tabular-nums",
-	};
-
 	const registeredCell: ColumnDef<User> = {
 		key: "registered",
 		header: variant === "full" ? "注册 / 最后登录" : "注册时间",
@@ -213,8 +196,6 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 			...(writeGateCell ? [writeGateCell] : []),
 			threadsCell,
 			postsCell,
-			messagesCell,
-			attachmentsCell,
 			{
 				key: "credits",
 				header: "积分 / 金币",

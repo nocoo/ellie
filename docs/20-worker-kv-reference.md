@@ -1,6 +1,6 @@
 # 20 — 统一缓存架构与验收
 
-> 状态：统一架构已上线；维护与验证记录见第 10 节。更新日期：2026-09-17。
+> 状态：统一架构已上线；后台按需统计与小时观测纳入 v1.11.4（第 10.6 节）。更新日期：2026-09-18。
 >
 > 本文是缓存实现与验收的统一依据，替代原有的用户缓存重构、Worker KV 架构和 KV 参考文档。功能文档涉及缓存时引用本文；第 1 节保留迁移前的问题，第 4 节和第 10 节记录接入范围与验证状态。
 
@@ -141,7 +141,7 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | 本人资料展示、签到状态、发帖权限预览 | `SHORT` | 具体用户范围；真实提交、封禁、余额、额度和邮箱验证判断重新确认 |
 | 私信列表、未读数、私信正文 | `SHORT` | 具体用户、箱体、分页/消息 ID；每次校验归属，发送/删除/已读后处理受影响用户 |
 | Admin / 版主管理列表、详情、举报和日志展示 | `SHORT` | 准确的管理权限范围；执行操作时读取权威状态，实体变更后更新对应后台资源版本，编辑界面使用写入结果 |
-| 管理分析报表、历史聚合 | `MEDIUM` | 日期范围和权限入 key；统计校准完成后失效；不可变的归档结果可单独登记 `LONG` |
+| 后台累计计数、今日 KPI、管理分析报表和历史聚合 | `MEDIUM` | 按需读取；累计总量复用已有计数，日期型报表包含日期范围；统计校准完成后失效 |
 | IP 归属地等外部查询结果 | `LONG` | 也走统一模块，但成本归入外部请求节约，不能算成 D1 节约 |
 
 ### 4.1 边界内仍有不能按普通缓存处理的内容
@@ -225,13 +225,13 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/admin/user.list` | `/api/admin/users` | 部分复用 | `admin:entity:list` | T5；全部合法筛选分页与当前在线信息 |
 | `handlers/admin/user.getById` | `/api/admin/users/:id` | 部分复用 | `admin:entity:detail` | T5；展示资料与当前在线信息 |
 | `handlers/admin/statistics.getStatsJob` | `/api/admin/statistics/job/:kind` | 明确例外 | — | T11；当前任务进度属于运行状态 |
-| `handlers/admin/analytics.getOverview` | `/api/admin/analytics/overview` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
+| `handlers/admin/analytics.getOverview` | `/api/admin/analytics/overview` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，明细接口仍为 SHORT |
 | `handlers/admin/analytics.getTrend` | `/api/admin/analytics/trend` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/analytics.getForumDist` | `/api/admin/analytics/forum-dist` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/analytics.getCheckinTrend` | `/api/admin/analytics/checkin` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
-| `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
+| `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，明细接口仍为 SHORT |
 | `handlers/admin/loginHistory.getTodayLoginsList` | `/api/admin/analytics/today/logins/list` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
-| `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
+| `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，明细接口仍为 SHORT |
 | `handlers/admin/todayVisits.getTodayVisitsList` | `/api/admin/analytics/today/visits/list` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
 | `handlers/admin/kv.overview` | `/api/admin/kv/overview` | 整份复用 | `monitor:overview` | T7；有界 metadata 观察，未知和部分覆盖明确显示 |
 | `handlers/admin/kv.listFamily` | `/api/admin/kv/list` | 明确例外 | — | T7；有界 KV metadata 分页，无逐条正文 GET |
@@ -247,7 +247,7 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/admin/ipBan.getById` | `/api/admin/ip-bans/:id` | 整份复用 | `admin:entity:detail` | T5；管理权限，详情字段白名单 |
 | `handlers/admin/censorWord.list` | `/api/admin/censor-words` | 整份复用 | `admin:entity:list` | T5；管理权限，全部合法筛选分页 |
 | `handlers/admin/censorWord.getById` | `/api/admin/censor-words/:id` | 整份复用 | `admin:entity:detail` | T5；管理权限，详情字段白名单 |
-| `handlers/admin/stats.handleStats` | `/api/admin/stats` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
+| `handlers/admin/stats.handleStats` | `/api/admin/stats` | 整份复用 | `admin:analytics` | T6；只读三个已有累计计数，缺失为 null，不执行全表 COUNT |
 | `handlers/admin/settings.list` | `/api/admin/settings` | 整份复用 | `admin:settings` | T5；管理范围下的设置值 |
 | `handlers/admin/statsCalibrate.handleCalibrateGet` | `/api/admin/stats/calibrate` | 明确例外 | — | T11；显式统计校准的当前基线 |
 | `handlers/admin/report.list` | `/api/admin/reports` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
@@ -335,7 +335,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 - **私信已读**：命中正文缓存仍执行归属检查和必要的状态转换；已读状态避免重复更新。后续可把读取与标记已读拆成明确操作，迁移期间保持 API 行为。
 - **在线与活动**：节流状态更新，避免每个 API 请求都写相同在线 key。聚合任务负责在线统计，普通统计读取直接使用快照。presence 的保留窗口与 60 秒业务缓存分别配置。
 - **计数准确性**：发帖总数、今日帖子数等从已提交的业务记录或可靠增量恢复。KV 的 get → 加一 → put 不能用于要求准确的并发计数。签到、评分、余额等仍保留原子校验与写入，不为了缓存而延迟正确性所需的操作。
-- **缓存指标**：默认命中链路不为 hit/miss 写 D1，优先复用采样日志等现有观测出口。若保留 D1 历史看板，必须聚合、采样并限制提交频率，取消每次回填尾部强制刷新；至少 60 秒的单 isolate 聚合不等于全局写入上限。批量提交减少往返次数，仍须计算实际写入行数。现有 7 天保留与定期清理继续纳入成本。
+- **缓存指标**：每小时一个观测点。hit/miss、KV 和已返回的 D1 metadata 先在 isolate 内按小时聚合；后续请求每个自然小时最多发起一次已结束时间桶的批量提交，不在首次观察或每次回填后强制写入，不新增统计 SQL、定时器或平台依赖。同一 family / 小时 / op 的多个提交合并为一行：计数相加、占用取峰值。512 个桶的内存上限、每条 SQL 最多 25 行，以及七天保留与每日清理都计入成本。该限制是每个 isolate 的提交频率，不是全站一条 SQL；isolate 提前回收、容量耗尽或提交失败可能丢失观测，不能视为完整账单。
 
 业务缓存清理只作用于登记的可重建数据，不能删除会话、验证码、作业、在线累计峰值或其他运行状态。
 
@@ -347,7 +347,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 
 ### 8.1 首屏总览与条目列表
 
-页面提供“运行总览”“缓存条目”“运行趋势”“操作记录”四个视图，保留当前筛选条件。优先显示业务名称，如“主题正文”“用户资料”，family、key 和版本作为定位信息。
+页面提供“运行总览”“缓存条目”“运行趋势”“操作记录”四个视图，保留当前筛选条件。只加载所选视图的数据：首屏读取总览，打开趋势才读指标，打开操作记录才读审计；尚未加载的指标显示 —。优先显示业务名称，如“主题正文”“用户资料”，family、key 和版本作为定位信息。
 
 | 区域 | 必须展示的内容 |
 | --- | --- |
@@ -361,7 +361,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 
 总览最多并行读取 4 个 family 的 KV metadata，避免类别数量增加后串行延迟超过 20 秒回源期限。前缀 family 每次最多观察 1 页、1000 个 key；精确 key 最多扫描 4 页、32 个同前缀 key，空分页也计入请求预算。达到预算仍未找到精确 key 时标为“未知”，不能记作已确认不存在。总览继续使用 `MEDIUM` 快照，不增加数据库统计查询。
 
-剩余时间以包内 `expiresAt` 和服务器提供的时间基准计算；KV 的物理 expiration 单独标明。倒计时在浏览器本地更新，不每秒请求服务。数据与指标的自动轮询最短 60 秒，页面不可见时暂停；“更新监控数据”只重新读取观测信息。
+剩余时间以包内 `expiresAt` 和服务器提供的时间基准计算；KV 的物理 expiration 单独标明。倒计时在浏览器本地更新，不每秒请求服务。数据与指标不自动轮询；切换视图或点击“更新监控数据”时读取对应的观测信息。单条缓存操作结束后只更新相关列表，不附带读取趋势或审计。
 
 ### 8.2 生命周期内的内容预览
 
@@ -411,13 +411,13 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 
 累计写入字节数不能作为当前占用：覆盖写入、自然过期和旧版本失效都会改变存量。只有完整且口径一致的观察结果才显示为该观察范围的总数；部分分页只能表示下界，采样估算同时说明方法和覆盖范围。未知值不能显示为 0。
 
-趋势复用现有应用指标记录及保留期，不新建外部时序服务。默认展示近 60 分钟，有历史记录时可切换近 24 小时、7 天；只提供实际已保存的区间。现有分钟记录保留 7 天，就不承诺 30 天历史。尚未采集的占用趋势从接入后开始积累，不能用当前值补出过去曲线。
+趋势按小时存入 `kv_cache_metrics_hour`，默认展示近 24 小时，可选近 3 天或 7 天；只读取已经结束的小时，缺失小时留空。旧分钟表停止写入，不复制或补造历史，按原七天保留期清理。小时观测从上线后积累；尚未采集的占用不能用当前值补出过去曲线。
 
 采集与持久化沿用第 7 节的聚合、采样和成本约束。仅有 isolate 内的临时计数时，只能显示当前可用范围，不能称为全站历史。指标读取失败或尚未接入时，缓存列表、预览和单条操作仍可独立使用。
 
 ### 8.5 趋势图与效果判断
 
-图表共享时间范围、资源筛选与时间游标，默认近 60 分钟，提供下面几组视图。复用现有图表组件，悬停时显示数值、单位、数据来源、时间桶和采样/估算标记；可选图表只在已有对应数据时显示。
+图表共享时间范围、资源筛选与时间游标，默认近 24 小时、每小时一个点，时间标签采用上海时区，提供下面几组视图。复用现有图表组件，悬停时显示数值、单位、数据来源、时间桶和采样/估算标记；可选图表只在已有对应数据时显示。
 
 | 图表 | 展示内容 | 观察目的 |
 | --- | --- | --- |
@@ -428,7 +428,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 | 单位流量成本，可选 | 每 1000 次同口径业务请求对应的回源次数，以及已有的 D1 读/写行数 | 在采集覆盖一致时比较不同时间段，避免把流量下降误认为缓存改善 |
 | 业务规模对照，可选 | 已有统计能够提供的用户/主题/回复存量与新增量 | 区分自然数据增长和缓存策略变化带来的影响 |
 
-命中率由同一窗口的命中数和未命中数求比值，不能平均各分钟百分比；错误率独立展示，分母为 0 时显示无请求。回源装载次数也不能直接等同于未命中数，因为多个请求可能共享一次 loader。read/hit/miss 等重叠指标不相加为总请求数。
+命中率由同一窗口的命中数和未命中数求比值，不能平均各小时百分比；错误率独立展示，分母为 0 时显示无请求。回源装载次数也不能直接等同于未命中数，因为多个请求可能共享一次 loader。read/hit/miss 等重叠指标不相加为总请求数。
 
 计数按时间桶求和，占用按观察范围取最近值或峰值；不把每日占用求和。耗时分位数只有在已有相应采集能力时展示，也不把不同时间桶的 p90 简单平均。统一时间基准并标明展示时区；只有日级快照时就显示日级点，不插值成分钟级“实时曲线”。缺失段保留空缺。
 
@@ -440,7 +440,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 
 - 总览从登记表和已有应用指标读取，不调用额外平台 API，也不在每次打开页面时遍历所有 KV 值。完整值只在打开某条详情时读取，family 列表有分页和扫描预算。
 - 占用展示使用已观察/估算值及其范围，不能为补一个精确数字而同步读取全 namespace；也不主动查询 D1 的容量、物理统计或执行计数 SQL。
-- 管理观测快照也遵守三档：近期指标使用 `SHORT`，低频占用快照与较长时间范围的报表使用 `MEDIUM`；实时单条预览和操作结果不另设业务缓存。采集节奏与源数据粒度匹配，不能因为页面每 60 秒更新就重复拉取所有历史。
+- 管理观测快照也遵守三档：近期指标使用 `SHORT`，低频占用快照与较长时间范围的报表使用 `MEDIUM`；实时单条预览和操作结果不另设业务缓存。小时采集粒度与业务缓存 TTL 分开；页面按需查询已保存的小时点，不重复拉取未选视图，也不新增一小时业务 TTL。
 - 管理查询、预览和手动重建使用独立来源标记。它们不计入普通用户命中率，也不隐藏其 KV/D1 成本；刷新/删除的必要审计写入单独计量。
 - “查看/更新监控数据”不得触发统计重算、业务缓存预热或全量扫描。后台原有统计校准保留为独立的明确操作。
 
@@ -482,7 +482,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 | 无额外监控依赖 | 看板不请求 Cloudflare Analytics/管理 API，不要求新平台凭据，不为 D1 统计新增 SQL；可选指标无数据时不展示，核心缓存管理仍可用 |
 | 占用与数据范围 | 单条 UTF-8 字节数正确；分页下界、采样估算、旧版本、自然过期、覆盖写入和范围变化被正确区分；累计写入量不能充当当前占用 |
 | 趋势与归因 | 不同流量下单位请求成本计算正确；比例按总量计算、容量不求和、缺失段不补零；family 指标不伪装成单 key 指标，管理流量不污染用户命中率 |
-| 看板开销 | 页面加载/轮询不遍历全量 key 和 value、不全表 COUNT、不触发重算或预热；网络自动轮询不少于 60 秒，浏览器倒计时不发请求 |
+| 看板开销 | 首页统计和所选监控标签按需读取，不自动轮询、不遍历全量 key 和 value、不全表 COUNT、不触发重算或预热；浏览器倒计时不发请求 |
 
 架构守卫检查所有新增业务缓存 I/O 是否经过统一模块，并核对路由覆盖表。路由只能标注“整份数据复用”“部分数据复用”或“明确例外”；例外必须附原因与测试，不能笼统填低流量。
 
@@ -616,6 +616,30 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 应用此前统计 `.first()` 的查询次数与耗时，却无法从其返回值取得 `rows_read`，因此 COUNT 和部分门控读取不在旧的行数总量内。比较 v1.11.2 与本版本时，必须说明这一口径变化；单条 SQL 的前后比较应使用同样的原生 D1 metadata。`.raw()` 的公开返回值不含 metadata，且列名、重复列和列顺序不能从对象安全还原，继续保留原生行为并只观察次数、耗时；当前生产业务没有 `.raw()` 调用。不新增 Cloudflare Analytics 查询、后台轮询 SQL 或监控依赖。
 
 验证通过 8,115 项单元测试、七个覆盖率门槛、92 项快速集成、354 项本地 Worker HTTP 集成和 177/177 严格路由审计。Web/Admin 构建、类型、格式及暂存内容的密钥扫描通过。实际发布与部署结果见 [v1.11.3](https://github.com/nocoo/ellie/releases/tag/v1.11.3)。
+
+### 10.6 后台按需统计与小时观测（v1.11.4）
+
+2026-09-17 19:05–20:02 的既有应用观测中，前台记录 5,482 条 SQL、733,819 行读取；后台只有 15 条 SQL，却记录 12,788,233 行读取，集中在 19:34。后台首页原有六个自动请求正好对应这个 SQL 组合，其中累计总量包含九条统计 SQL。指标按来源和 family 聚合，不能把这 1,278 万行精确分摊到单个端点，也不能当作 Cloudflare 完整用量。
+
+本轮按“统计按需、每小时一个点”调整，三档业务 TTL 保持 60 / 1800 / 86400 秒：
+
+| 范围 | 当前改动与读取预算 |
+| --- | --- |
+| 后台首页 | 默认不请求统计；点击“加载统计”才读取累计值和社区活动。导航、统计入口不预取；不用后台访问维持统计热度 |
+| 累计总量 | `GET /api/admin/stats` 只用一次 settings 主键查询读取 `stats.total_members`、`stats.total_threads`、`stats.total_posts`；旧九条统计 SQL 删除。返回 `source: stored-counters` 与读取时间，缺失为 null，错误值不缓存；`MEDIUM` 热读零 D1 |
+| 标准管理列表和详情 | 版块 threads/posts/last_*、主题 replies/last_*、用户 threads/posts/digest_posts 直接用已维护字段。移除逐行关联 COUNT、重复最后回复查询，以及用户列表的私信/附件统计列；保留分页自身的总数查询 |
+| 今日 KPI 与分析 | 今日登录/访问、分析概览、累计总量使用 `admin:analytics` / `MEDIUM`；举报、日志、登录和访问明细仍为 `SHORT`。统计任务确认完成后沿用 `stats:reports:gen` 失效 |
+| 时间序列 | 迁移 `0052` 只创建小时观察表及时间索引，不扫描业务表或复制分钟历史。请求触发已结束小时的有界批量提交，每个 isolate 每自然小时最多提交一次；计数相加，占用取每个 family 的小时峰值，无采样时不补零 |
+| 监控页面 | 只加载所选标签，无分钟轮询；浏览器本地到期倒计时保留。默认近 24 小时，API 保留 `tsMinute` 字段表示小时起点，并返回 `intervalMinutes: 60`、`sampling: best-effort` |
+| 显式维护 | 统计校准、重算任务、删除前置条件和权限校验继续读取当前事实；普通页面不触发这些操作。确认校准后，后台累计值与前台 public-stats 都更新 |
+
+本地真实 SQLite 预算测试使用一万条关联帖子：版块列表一次 SELECT；主题和用户列表各两次 SELECT（分页总数和本页数据），没有关联统计子查询；热读全部为零 D1。用例见 [列表预算](../apps/worker/tests/unit/lib/cache/admin-statistics-budget.test.ts)、[累计计数](../apps/worker/tests/unit/handlers/admin/stats.test.ts)、[小时写入](../apps/worker/tests/unit/lib/cache/metrics.test.ts)和 [监控读取](../apps/worker/tests/unit/lib/cache/admin-monitor-read.test.ts)。这些是本地查询预算，不是上线后的节约比例。
+
+验证通过 Worker 3,860 项单元测试、Admin 886 项单元测试、92 项快速集成；Worker/Admin 类型检查和改动代码的 Biome 检查通过。后台布局 E2E 仅更新小时数据 fixture，本轮未运行浏览器测试。
+
+维护计数允许暂时偏离真实总量，精确核对只在管理员执行校准时进行。小时缓存指标是尽力而为观测，短生命周期 isolate 可能在提交前消失；页面缺少点不代表没有业务流量。不同 isolate 会分别提交，不能把小时图表理解成全站每小时只写一次 D1。`coverage=complete` 只表示接口结果没有被行数上限截断，不能证明采集完整。新旧趋势的粒度和丢失概率不同，不能直接对比总量并声称节约率。
+
+该实现随 v1.11.4 发布。滚动上线先更新 Admin，新页面也能读取旧版累计总量响应；随后通过迁移优先的 `bun run worker:deploy` 应用 `0052` 并更新 Worker。后台总量 DTO 已简化，不能把新接口与旧仪表盘长期混用。实际版本以各服务 `/api/live` 为准，部署与后续观测结果记录在 [v1.11.4 Release](https://github.com/nocoo/ellie/releases/tag/v1.11.4)。
 
 ## 11. 平台依据
 

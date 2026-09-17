@@ -93,7 +93,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 							内容增长
 						</h2>
 						<Button asChild variant="ghost" size="sm">
-							<Link href="/admin/analytics">
+							<Link href="/admin/analytics" prefetch={false}>
 								近 7 天 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
 							</Link>
 						</Button>

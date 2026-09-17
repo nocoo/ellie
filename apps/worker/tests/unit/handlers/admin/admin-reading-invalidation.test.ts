@@ -328,8 +328,8 @@ it("ban with content cleanup refreshes deleted entities, survivor metadata and c
 			descriptor: list("users"),
 			expected: {
 				items: expect.arrayContaining([
-					expect.objectContaining({ id: 10, posts: 0, attachmentsCount: 0 }),
-					expect.objectContaining({ id: 20, posts: 1, attachmentsCount: 0 }),
+					expect.objectContaining({ id: 10, posts: 0 }),
+					expect.objectContaining({ id: 20, posts: 1 }),
 				]),
 			},
 		},

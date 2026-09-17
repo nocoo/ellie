@@ -26,46 +26,36 @@ afterEach(() => {
 	fixture.close();
 });
 
-describe("Admin user list aggregate confirmation", () => {
-	it.each(["SELECT sender_id AS uid", "SELECT receiver_id AS uid", "SELECT author_id AS uid"])(
-		"does not publish false zero counts when %s fails",
-		async (failedQuery) => {
-			const prepare = fixture.env.DB.prepare.bind(fixture.env.DB);
-			const spy = vi.spyOn(fixture.env.DB, "prepare").mockImplementation((sql) => {
-				const statement = prepare(sql);
-				if (!sql.includes(failedQuery)) return statement;
-				return {
-					...statement,
-					bind: (...args: Parameters<D1PreparedStatement["bind"]>) => {
-						const bound = statement.bind(...args);
-						return {
-							...bound,
-							all: async () => ({ ...(await bound.all()), success: false, results: [] }),
-						} as unknown as D1PreparedStatement;
-					},
-				};
-			});
+describe("Admin user list count budget", () => {
+	it("does not query message or attachment counts and does not replace them with false zeroes", async () => {
+		const prepare = fixture.env.DB.prepare.bind(fixture.env.DB);
+		vi.spyOn(fixture.env.DB, "prepare").mockImplementation((sql) => {
+			if (/FROM (messages|attachments)\b/i.test(sql)) throw new Error("Unnecessary count query");
+			return prepare(sql);
+		});
+		const loaded = await readAdminEntity<{ items: Record<string, unknown>[] }>(
+			fixture.env,
+			undefined,
+			descriptor,
+		);
+		expect(loaded.items).toHaveLength(5);
+		for (const user of loaded.items) {
+			expect(user).not.toHaveProperty("messagesCount");
+			expect(user).not.toHaveProperty("attachmentsCount");
+		}
+		expect(fixture.calls).toHaveLength(2);
+		fixture.calls.length = 0;
+		expect(await readAdminEntity(fixture.env, undefined, descriptor)).toEqual(loaded);
+		expect(fixture.calls).toHaveLength(0);
+		expect(fixture.snapshots("admin:entity:list")).toHaveLength(1);
+	});
 
-			await expect(readAdminEntity(fixture.env, undefined, descriptor)).rejects.toThrow(
-				"Admin user message and attachment counts could not be loaded",
-			);
-			expect(fixture.snapshots("admin:entity:list")).toEqual([]);
-
-			spy.mockRestore();
-			const loaded = await readAdminEntity<{ items: { id: number; messagesCount: number }[] }>(
-				fixture.env,
-				undefined,
-				descriptor,
-			);
-			expect(
-				loaded.items
-					.filter((user) => user.id === 10 || user.id === 20)
-					.map((user) => user.messagesCount),
-			).toEqual([1, 1]);
-			const coldQueries = fixture.calls.length;
-			expect(await readAdminEntity(fixture.env, undefined, descriptor)).toEqual(loaded);
-			expect(fixture.calls).toHaveLength(coldQueries);
-			expect(fixture.snapshots("admin:entity:list")).toHaveLength(1);
-		},
-	);
+	it("still rejects an unconfirmed user page rather than caching an empty list", async () => {
+		fixture.state.queryError = true;
+		await expect(readAdminEntity(fixture.env, undefined, descriptor)).rejects.toThrow();
+		expect(fixture.snapshots("admin:entity:list")).toHaveLength(0);
+		fixture.state.queryError = false;
+		const loaded = await readAdminEntity<{ items: unknown[] }>(fixture.env, undefined, descriptor);
+		expect(loaded.items).toHaveLength(5);
+	});
 });

@@ -86,7 +86,7 @@ export function observeD1(db: D1Database, source: "business" | "admin"): D1Datab
 				return (sql: string) => {
 					const statement = target.prepare(sql);
 					// Instrumentation does not recursively instrument its own storage.
-					return wrap(statement, !sql.includes("kv_cache_metrics_minute"));
+					return wrap(statement, !sql.includes("kv_cache_metrics_"));
 				};
 			if (property === "batch")
 				return (statements: D1PreparedStatement[]) => {

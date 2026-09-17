@@ -1,57 +1,85 @@
-import { describe, expect, it } from "vitest";
-import { activeForums, parseDashboardStats } from "@/viewmodels/admin/dashboard";
+import { createElement, type ReactNode } from "react";
+import { renderToReadableStream } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import DashboardPage from "@/app/(admin)/admin/page";
+import { fetchDashboardActivity, fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 
-describe("dashboard", () => {
-	describe("parseDashboardStats", () => {
-		it("parses complete data", () => {
-			const raw = {
-				users: { total: 100, today: 5, banned: 3 },
-				threads: { total: 500, today: 10 },
-				posts: { total: 3000, today: 50 },
-				forums: { total: 20, hidden: 2 },
-			};
-			const result = parseDashboardStats(raw);
-			expect(result.users.total).toBe(100);
-			expect(result.users.today).toBe(5);
-			expect(result.users.banned).toBe(3);
-			expect(result.threads.total).toBe(500);
-			expect(result.posts.today).toBe(50);
-			expect(result.forums.hidden).toBe(2);
-		});
+vi.mock("@/viewmodels/admin/dashboard.server", () => ({
+	fetchDashboardStats: vi.fn(),
+	fetchDashboardActivity: vi.fn(),
+}));
+vi.mock("@/components/admin/dashboard-activity", () => ({
+	DashboardActivity: () => createElement("div", { "data-testid": "activity" }, "Loaded activity"),
+}));
+vi.mock("next/link", () => ({
+	default: ({
+		href,
+		children,
+		prefetch,
+	}: {
+		href: string;
+		children: ReactNode;
+		prefetch?: boolean;
+	}) => createElement("a", { href, "data-prefetch": String(prefetch) }, children),
+}));
 
-		it("provides defaults for missing fields", () => {
-			const raw = { users: { total: 10 } };
-			const result = parseDashboardStats(raw);
-			expect(result.users.today).toBe(0);
-			expect(result.users.banned).toBe(0);
-			expect(result.threads.total).toBe(0);
-			expect(result.posts.total).toBe(0);
-			expect(result.forums.total).toBe(0);
-		});
+beforeEach(() => {
+	vi.mocked(fetchDashboardStats).mockResolvedValue({
+		users: { total: null },
+		threads: { total: 0 },
+		posts: { total: 123 },
+		source: "stored-counters",
+		observedAt: 1,
+	});
+	vi.mocked(fetchDashboardActivity).mockResolvedValue({
+		threads: null,
+		posts: null,
+		forums: null,
+		visits: null,
+		logins: null,
+	});
+});
+afterEach(() => vi.clearAllMocks());
 
-		it("handles null input", () => {
-			const result = parseDashboardStats(null);
-			expect(result.users.total).toBe(0);
-			expect(result.threads.total).toBe(0);
-			expect(result.posts.total).toBe(0);
-			expect(result.forums.total).toBe(0);
-		});
+async function renderPage(statistics?: string | string[]) {
+	const stream = await renderToReadableStream(
+		await DashboardPage({ searchParams: Promise.resolve({ statistics }) }),
+	);
+	await stream.allReady;
+	return new Response(stream).text();
+}
 
-		it("handles undefined input", () => {
-			const result = parseDashboardStats(undefined);
-			expect(result.users.total).toBe(0);
-		});
+describe("on-demand dashboard", () => {
+	it.each([undefined, "0", ["1", "1"]])(
+		"does not load statistics without explicit opt-in (%j)",
+		async (statistics) => {
+			const html = await renderPage(statistics);
+			expect(fetchDashboardStats).not.toHaveBeenCalled();
+			expect(fetchDashboardActivity).not.toHaveBeenCalled();
+			expect(html).toContain('href="/admin?statistics=1" data-prefetch="false"');
+			expect(html).toContain("加载统计");
+			expect(html).not.toContain("Loaded activity");
+			expect(html).toContain('href="/admin/analytics" data-prefetch="false"');
+		},
+	);
+
+	it("loads requested totals and activity, preserving zero versus missing counts", async () => {
+		const html = await renderPage("1");
+		expect(fetchDashboardStats).toHaveBeenCalledOnce();
+		expect(fetchDashboardActivity).toHaveBeenCalledOnce();
+		expect(html).toContain("Loaded activity");
+		expect(html).toContain('aria-label="累计用户 —"');
+		expect(html).toContain('aria-label="累计主题 0"');
+		expect(html).toContain('aria-label="累计帖子 123"');
+		expect(html).toContain("收起统计");
+		expect(html).toContain('href="/admin/statistics/calibrate" data-prefetch="false"');
 	});
 
-	describe("activeForums", () => {
-		it("computes total - hidden", () => {
-			const stats = parseDashboardStats({
-				users: { total: 0, today: 0, banned: 0 },
-				threads: { total: 0, today: 0 },
-				posts: { total: 0, today: 0 },
-				forums: { total: 20, hidden: 3 },
-			});
-			expect(activeForums(stats)).toBe(17);
-		});
+	it("shows a failed totals load without synthesizing counts and retains available activity", async () => {
+		vi.mocked(fetchDashboardStats).mockRejectedValue(new Error("Stored counter unavailable"));
+		const html = await renderPage("1");
+		expect(html).toContain("Stored counter unavailable");
+		expect(html).not.toContain('aria-label="累计用户');
+		expect(html).toContain("Loaded activity");
 	});
 });

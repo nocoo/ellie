@@ -239,17 +239,18 @@ describe("L2-fast: PATCH thread subject routing", () => {
 
 describe("L2-fast: statistics calibration routing", () => {
 	test.each([undefined, "wrong-key", "test-api-key"])(
-		"requires Key B for both calibration methods (key=%s)",
+		"requires Key B for stored totals and both calibration methods (key=%s)",
 		async (key) => {
 			const headers = new Headers({ "Content-Type": "application/json" });
 			if (key) headers.set("X-API-Key", key);
+			const totals = await workerFetch(env, "/api/admin/stats", { method: "GET", headers });
 			const get = await workerFetch(env, "/api/admin/stats/calibrate", { method: "GET", headers });
 			const post = await workerFetch(env, "/api/admin/stats/calibrate", {
 				method: "POST",
 				headers,
 				body: JSON.stringify({ action: "apply_real" }),
 			});
-			for (const response of [get, post]) {
+			for (const response of [totals, get, post]) {
 				expect(response.status).toBe(401);
 				expect((await response.json()).error.code).toBe("UNAUTHORIZED");
 			}
@@ -305,7 +306,17 @@ describe("L2-fast: statistics calibration routing", () => {
 		expect(await env.KV.get(statsReportsGenKey())).toBeNull();
 	});
 
-	test("apply_real commits all three totals and refreshes a warm public stats snapshot", async () => {
+	test("apply_real commits all three totals and refreshes warm public and admin snapshots", async () => {
+		const adminWarm = await workerFetch(env, "/api/admin/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.ADMIN_API_KEY },
+		});
+		expect((await adminWarm.json()).data).toMatchObject({
+			users: { total: 45 },
+			threads: { total: 90 },
+			posts: { total: 450 },
+			source: "stored-counters",
+		});
 		const warm = await workerFetch(env, "/api/v1/stats", {
 			method: "GET",
 			headers: { "X-API-Key": env.API_KEY },
@@ -336,6 +347,16 @@ describe("L2-fast: statistics calibration routing", () => {
 			totalMembers: 4,
 			yesterdayPosts: 20,
 			todayPosts: 2,
+		});
+		const adminFresh = await workerFetch(env, "/api/admin/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.ADMIN_API_KEY },
+		});
+		expect((await adminFresh.json()).data).toMatchObject({
+			users: { total: 4 },
+			threads: { total: 2 },
+			posts: { total: 4 },
+			source: "stored-counters",
 		});
 	});
 

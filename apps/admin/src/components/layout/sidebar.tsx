@@ -89,7 +89,12 @@ function NavLink({
 				active ? "bg-basalt-accent text-basalt-foreground" : "text-basalt-muted-foreground",
 			].join(" ")}
 		>
-			<Link href={item.href} aria-current={active ? "page" : undefined} aria-label={item.label}>
+			<Link
+				href={item.href}
+				prefetch={false}
+				aria-current={active ? "page" : undefined}
+				aria-label={item.label}
+			>
 				<Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} aria-hidden="true" />
 				{!collapsed && <span className="truncate">{item.label}</span>}
 			</Link>

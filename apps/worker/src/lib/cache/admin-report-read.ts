@@ -69,8 +69,8 @@ const SPECS: Record<string, Spec> = {
 		keys: ["resource", "operation", "id"],
 	},
 	"analytics:overview": {
-		family: "admin:display",
-		tier: "SHORT",
+		family: "admin:analytics",
+		tier: "MEDIUM",
 		keys: ["resource", "operation", "date"],
 	},
 	"analytics:trend": {
@@ -88,13 +88,21 @@ const SPECS: Record<string, Spec> = {
 		tier: "MEDIUM",
 		keys: ["resource", "operation", "date", "range"],
 	},
-	"logins:kpi": { family: "admin:display", tier: "SHORT", keys: ["resource", "operation", "date"] },
+	"logins:kpi": {
+		family: "admin:analytics",
+		tier: "MEDIUM",
+		keys: ["resource", "operation", "date"],
+	},
 	"logins:list": {
 		family: "admin:display",
 		tier: "SHORT",
 		keys: ["resource", "operation", "date", "ok", "kind", "errorCode", "page", "limit"],
 	},
-	"visits:kpi": { family: "admin:display", tier: "SHORT", keys: ["resource", "operation", "date"] },
+	"visits:kpi": {
+		family: "admin:analytics",
+		tier: "MEDIUM",
+		keys: ["resource", "operation", "date"],
+	},
 	"visits:list": {
 		family: "admin:display",
 		tier: "SHORT",
@@ -106,9 +114,9 @@ const SPECS: Record<string, Spec> = {
 		keys: ["resource", "operation", "userId", "from", "to"],
 	},
 	"stats:totals": {
-		family: "admin:display",
-		tier: "SHORT",
-		keys: ["resource", "operation", "dayStart"],
+		family: "admin:analytics",
+		tier: "MEDIUM",
+		keys: ["resource", "operation"],
 	},
 	"admin-logs:list": {
 		family: "admin:display",
@@ -224,8 +232,6 @@ function assertDescriptorParams(spec: Spec, p: CacheParams): void {
 	if (spec.keys.includes("page")) pagePair(p);
 	if (spec.keys.includes("id") && !positive(p.id)) throw new TypeError("Invalid admin report id");
 	if (spec.keys.includes("userId") && !positive(p.userId)) throw new TypeError("Invalid user id");
-	if (spec.keys.includes("dayStart") && !whole(p.dayStart))
-		throw new TypeError("Invalid day start");
 	if (spec.keys.includes("date") && !isValidShanghaiDateLocal(p.date))
 		throw new TypeError("Invalid date");
 	if (
@@ -431,19 +437,17 @@ function isCheckinUser(d: CacheDescriptor, value: Record<string, unknown>): bool
 }
 function isStatsTotals(value: Record<string, unknown>): boolean {
 	return (
-		record(value.users) &&
-		record(value.threads) &&
-		record(value.posts) &&
-		record(value.forums) &&
-		["total", "today", "banned"].every((key) =>
-			finite((value.users as Record<string, unknown>)[key]),
-		) &&
-		finite((value.threads as Record<string, unknown>).total) &&
-		finite((value.threads as Record<string, unknown>).today) &&
-		finite((value.posts as Record<string, unknown>).total) &&
-		finite((value.posts as Record<string, unknown>).today) &&
-		finite((value.forums as Record<string, unknown>).total) &&
-		finite((value.forums as Record<string, unknown>).hidden)
+		value.source === "stored-counters" &&
+		finite(value.observedAt) &&
+		Object.keys(value).length === 5 &&
+		["users", "threads", "posts"].every((key) => {
+			const entry = value[key];
+			return (
+				record(entry) &&
+				Object.keys(entry).length === 1 &&
+				(entry.total === null || (Number.isSafeInteger(entry.total) && Number(entry.total) >= 0))
+			);
+		})
 	);
 }
 function isAdminLogRow(row: unknown): boolean {
@@ -1096,26 +1100,27 @@ export async function loadUserCheckins(env: Env, d: CacheDescriptor) {
 	};
 }
 
-export async function loadStatsTotals(env: Env, d: CacheDescriptor) {
-	const todayUtc = Number(d.params.dayStart);
-	const results = await env.DB.batch([
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM users"),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM users WHERE reg_date >= ?").bind(todayUtc),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM users WHERE status = -1"),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads WHERE created_at >= ?").bind(todayUtc),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts"),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayUtc),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM forums"),
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM forums WHERE status = 0"),
-	]);
-	requireBatch(results, 9, "Admin stats could not be loaded");
-	const count = (i: number) => countOf(results[i]?.results?.[0] as { cnt?: number } | undefined);
+export async function loadStatsTotals(env: Env, _d: CacheDescriptor) {
+	const keys = ["stats.total_members", "stats.total_threads", "stats.total_posts"];
+	const result = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN (?, ?, ?)")
+		.bind(...keys)
+		.all<{ key: string; value: string }>();
+	const rows = requireAll(result, "Stored statistics could not be loaded");
+	const values = new Map(rows.map((row) => [row.key, row.value]));
+	const count = (key: string): number | null => {
+		const value = values.get(key);
+		if (value === undefined) return null;
+		const number = Number(value);
+		if (!/^\d+$/.test(value) || !Number.isSafeInteger(number))
+			throw new Error("Invalid stored statistics counter");
+		return number;
+	};
 	return {
-		users: { total: count(0), today: count(1), banned: count(2) },
-		threads: { total: count(3), today: count(4) },
-		posts: { total: count(5), today: count(6) },
-		forums: { total: count(7), hidden: count(8) },
+		users: { total: count(keys[0]) },
+		threads: { total: count(keys[1]) },
+		posts: { total: count(keys[2]) },
+		source: "stored-counters",
+		observedAt: Date.now(),
 	};
 }
 

@@ -9,7 +9,7 @@ export const OVERVIEW_SAMPLE_SIZE = 5;
 export const EXACT_SIBLING_SCAN = 32;
 const EXACT_MAX_PAGES = 4;
 const OVERVIEW_CONCURRENCY = 4;
-export const METRICS_MINUTES_MIN = 1;
+export const METRICS_MINUTES_MIN = 60;
 export const METRICS_MINUTES_MAX = 10_080;
 export const METRICS_RECENT_MAX = 60;
 export const METRICS_ROW_CAP = 4000;
@@ -83,6 +83,8 @@ export interface MonitorMetrics {
 	source: string;
 	truncated: boolean;
 	coverage: "complete" | "partial";
+	intervalMinutes: 60;
+	sampling: "best-effort";
 }
 
 function tierFromTtl(ttl: KvFamilySpec["ttl"]): CacheTier | null {
@@ -325,6 +327,9 @@ export function isMonitorCacheData(descriptor: CacheDescriptor, value: unknown):
 		return Array.isArray(value.families) && value.families.every(isOverviewRow);
 	}
 	return (
+		value.intervalMinutes === 60 &&
+		value.sampling === "best-effort" &&
+		value.source === "application:kv_cache_metrics_hour" &&
 		value.family === descriptor.params.family &&
 		value.minutes === descriptor.params.minutes &&
 		(value.coverage === "complete" || value.coverage === "partial") &&
@@ -334,7 +339,8 @@ export function isMonitorCacheData(descriptor: CacheDescriptor, value: unknown):
 			(row) =>
 				record(row) &&
 				typeof row.family === "string" &&
-				typeof row.tsMinute === "number" &&
+				Number.isSafeInteger(row.tsMinute) &&
+				Number(row.tsMinute) % 60 === 0 &&
 				typeof row.op === "string" &&
 				typeof row.count === "number",
 		)
@@ -438,33 +444,34 @@ export async function loadMonitorOverview(env: Env): Promise<MonitorOverview> {
 	return { families, observedAt: now, source: "registry+kv-list-metadata" };
 }
 
-/** Pure D1 read of already flushed minute rows. Throws when the query is not confirmed. */
+/** Pure read of persisted, completed hourly observations. No business statistics SQL. */
 export async function loadMonitorMetrics(
 	env: Env,
 	family: string | null,
 	minutes: number,
 ): Promise<MonitorMetrics> {
-	const cutoff = Math.floor(Date.now() / 60_000) - minutes;
+	const currentHour = Math.floor(Date.now() / 3_600_000);
+	const cutoff = currentHour - Math.ceil(minutes / 60);
 	const limit = METRICS_ROW_CAP + 1;
 	const result = family
 		? await env.DB.prepare(
-				`SELECT family, ts_minute, op, count
-				 FROM kv_cache_metrics_minute
-				 WHERE ts_minute >= ? AND family = ?
-				 ORDER BY ts_minute ASC, op ASC
+				`SELECT family, ts_hour, op, count
+				 FROM kv_cache_metrics_hour
+				 WHERE ts_hour >= ? AND ts_hour < ? AND family = ?
+				 ORDER BY ts_hour ASC, op ASC
 				 LIMIT ?`,
 			)
-				.bind(cutoff, family, limit)
-				.all<{ family: string; ts_minute: number; op: string; count: number }>()
+				.bind(cutoff, currentHour, family, limit)
+				.all<{ family: string; ts_hour: number; op: string; count: number }>()
 		: await env.DB.prepare(
-				`SELECT family, ts_minute, op, count
-				 FROM kv_cache_metrics_minute
-				 WHERE ts_minute >= ?
-				 ORDER BY family ASC, ts_minute ASC, op ASC
+				`SELECT family, ts_hour, op, count
+				 FROM kv_cache_metrics_hour
+				 WHERE ts_hour >= ? AND ts_hour < ?
+				 ORDER BY family ASC, ts_hour ASC, op ASC
 				 LIMIT ?`,
 			)
-				.bind(cutoff, limit)
-				.all<{ family: string; ts_minute: number; op: string; count: number }>();
+				.bind(cutoff, currentHour, limit)
+				.all<{ family: string; ts_hour: number; op: string; count: number }>();
 	if (!result.success || !Array.isArray(result.results))
 		throw new Error("Monitor metrics could not be loaded");
 	const truncated = result.results.length > METRICS_ROW_CAP;
@@ -474,14 +481,16 @@ export async function loadMonitorMetrics(
 		minutes,
 		series: rows.map((row) => ({
 			family: row.family,
-			tsMinute: row.ts_minute,
+			tsMinute: row.ts_hour * 60,
 			op: row.op,
 			count: row.count,
 		})),
 		observedAt: Date.now(),
-		source: "application:kv_cache_metrics_minute",
+		source: "application:kv_cache_metrics_hour",
 		truncated,
 		coverage: truncated ? "partial" : "complete",
+		intervalMinutes: 60,
+		sampling: "best-effort",
 	};
 }
 
@@ -568,10 +577,10 @@ export function parseMonitorMetricsQuery(params: {
 	const raw =
 		typeof params.minutes === "number"
 			? params.minutes
-			: Number.parseInt(String(params.minutes ?? "60"), 10);
+			: Number.parseInt(String(params.minutes ?? "1440"), 10);
 	const minutes = Math.min(
 		METRICS_MINUTES_MAX,
-		Math.max(METRICS_MINUTES_MIN, Number.isFinite(raw) ? raw : 60),
+		Math.max(METRICS_MINUTES_MIN, Number.isFinite(raw) ? raw : 1440),
 	);
 	const family =
 		typeof params.family === "string" && params.family.length > 0 ? params.family : null;

@@ -68,7 +68,6 @@ import {
 	LIFECYCLE_LABEL,
 	METRICS_WINDOWS,
 	type MetricsWindowMinutes,
-	MONITOR_POLL_MS,
 	mergeOccupancySnapshot,
 	mutationNotice,
 	type OccupancyPoint,
@@ -848,9 +847,9 @@ export default function KvMonitorPage() {
 	const [overviewError, setOverviewError] = useState<string | null>(null);
 	const [overviewObservedAt, setOverviewObservedAt] = useState<number | null>(null);
 	const [metricsRows, setMetricsRows] = useState<MetricsRow[]>([]);
-	const [metricsLoading, setMetricsLoading] = useState(true);
+	const [metricsLoading, setMetricsLoading] = useState(false);
 	const [metricsError, setMetricsError] = useState<string | null>(null);
-	const [metricsMinutes, setMetricsMinutes] = useState<MetricsWindowMinutes>(60);
+	const [metricsMinutes, setMetricsMinutes] = useState<MetricsWindowMinutes>(1440);
 	const [operations, setOperations] = useState<OperationRow[]>([]);
 	const [operationsError, setOperationsError] = useState<string | null>(null);
 	const [busyFamily, setBusyFamily] = useState<string | null>(null);
@@ -876,7 +875,6 @@ export default function KvMonitorPage() {
 	const [confirm, setConfirm] = useState<ConfirmState>(CLOSED_CONFIRM);
 	const [confirmError, setConfirmError] = useState<string | null>(null);
 	const [now, setNow] = useState<number>(() => Date.now());
-	const [visible, setVisible] = useState(true);
 	const [activeView, setActiveView] = useState<"overview" | "entries" | "trends" | "operations">(
 		"overview",
 	);
@@ -885,13 +883,6 @@ export default function KvMonitorPage() {
 	useEffect(() => {
 		const id = setInterval(() => setNow(Date.now()), COUNTDOWN_TICK_MS);
 		return () => clearInterval(id);
-	}, []);
-
-	useEffect(() => {
-		const onVis = () => setVisible(document.visibilityState === "visible");
-		onVis();
-		document.addEventListener("visibilitychange", onVis);
-		return () => document.removeEventListener("visibilitychange", onVis);
 	}, []);
 
 	const loadOverview = useCallback(async () => {
@@ -963,20 +954,14 @@ export default function KvMonitorPage() {
 	}, []);
 
 	const refreshMonitor = useCallback(() => {
-		void loadOverview();
-		void loadMetrics();
-		void loadOperations();
-	}, [loadOverview, loadMetrics, loadOperations]);
+		if (activeView === "trends") void loadMetrics();
+		else if (activeView === "operations") void loadOperations();
+		else void loadOverview();
+	}, [activeView, loadOverview, loadMetrics, loadOperations]);
 
 	useEffect(() => {
 		refreshMonitor();
 	}, [refreshMonitor]);
-
-	useEffect(() => {
-		if (!visible) return;
-		const id = window.setInterval(refreshMonitor, MONITOR_POLL_MS);
-		return () => window.clearInterval(id);
-	}, [visible, refreshMonitor]);
 
 	const fetchKeyPage = useCallback(
 		async (family: string, cursor: string | null, append: boolean) => {
@@ -1110,17 +1095,12 @@ export default function KvMonitorPage() {
 				}
 				if (result.notice) setNotice(result.notice);
 				setConfirm(CLOSED_CONFIRM);
-				await Promise.all([
-					loadOverview(),
-					loadMetrics(),
-					loadOperations(),
-					fetchKeyPage(row.family, null, false),
-				]);
+				await Promise.all([loadOverview(), fetchKeyPage(row.family, null, false)]);
 			} catch (error) {
 				setConfirmError(extractErrorMessage(error, "操作失败，请重试"));
 			}
 		});
-	}, [confirm, busyFamily, runBusy, loadOverview, loadMetrics, loadOperations, fetchKeyPage]);
+	}, [confirm, busyFamily, runBusy, loadOverview, fetchKeyPage]);
 
 	const filteredRows = useMemo(
 		() => filterOverviewRows(overviewRows, categoryFilter, statusFilter, tierFilter),
@@ -1132,7 +1112,7 @@ export default function KvMonitorPage() {
 	const d1App = useMemo(() => summarizeD1Observation(metricsRows, "application:d1"), [metricsRows]);
 	const isBusy = busyFamily !== null;
 	const windowLabel =
-		METRICS_WINDOWS.find((w) => w.minutes === metricsMinutes)?.label ?? "近 60 分钟";
+		METRICS_WINDOWS.find((w) => w.minutes === metricsMinutes)?.label ?? "近 24 小时";
 	const observedEntries = filteredRows.reduce((n, r) => n + r.count, 0);
 	const anyTruncated = filteredRows.some((r) => r.truncated || r.countKind === "at-least");
 	const footprintBytes = filteredRows.reduce<number | null>((acc, r) => {
@@ -1275,7 +1255,7 @@ function KvTrendsTab({
 				))}
 			</div>
 			<p className="text-xs text-basalt-muted-foreground">
-				占用快照从打开本页后开始积累，不回补历史。
+				每小时一个观测点，按需读取，不自动轮询。占用观察来自本页的总览读取，每小时保留一份，不回补历史。
 				{occupancy.length > 0 ? ` 已记录 ${occupancy.length} 个观察点。` : " 尚无占用观察点。"}
 			</p>
 			{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
@@ -1285,7 +1265,7 @@ function KvTrendsTab({
 						series={metricsRows}
 						occupancy={occupancy}
 						windowLabel={windowLabel}
-						source="应用指标 kv_cache_metrics_minute"
+						source="应用小时观测"
 					/>
 				</LayerCard>
 			)}
@@ -1491,14 +1471,18 @@ function KvMonitorLayout(props: {
 				items={[
 					{
 						label: "已采集请求",
-						value: metricOrDash(metricsLoading, metricsError, totals.read),
+						value: metricOrDash(
+							metricsLoading || metricsRows.length === 0,
+							metricsError,
+							totals.read,
+						),
 						icon: Activity,
 						hint: `${windowLabel} · 来源应用指标 · ${overviewObservedAt ? new Date(overviewObservedAt).toLocaleString() : ""}`,
 					},
 					{
 						label: "命中率",
 						value: metricOrDash(
-							metricsLoading,
+							metricsLoading || metricsRows.length === 0,
 							metricsError,
 							hitRateLabel(totals.hit, totals.miss),
 						),
@@ -1507,7 +1491,11 @@ function KvMonitorLayout(props: {
 					},
 					{
 						label: "回源 / 错误",
-						value: metricOrDash(metricsLoading, metricsError, `${totals.miss} / ${totals.error}`),
+						value: metricOrDash(
+							metricsLoading || metricsRows.length === 0,
+							metricsError,
+							`${totals.miss} / ${totals.error}`,
+						),
 						icon: Activity,
 						hint: "回源是 miss；错误独立计数，不与 hit/miss 相加充请求量",
 					},
@@ -1533,8 +1521,7 @@ function KvMonitorLayout(props: {
 					{d1App.rowsWritten != null ? ` · 写 ${d1App.rowsWritten.toLocaleString("zh-CN")} 行` : ""}
 					{` · ${d1App.queries} 次语句`}
 					{d1App.durationMs > 0 ? ` · ${d1App.durationMs} ms` : ""}
-					。只覆盖已返回 meta 的 .all/.run/.batch，不是数据库全量容量；first/raw 不谎造行数。指标约
-					60 秒后才可能落盘，首请求不会立刻有历史。
+					。按小时汇总的观测可能有漏样，不是完整计费统计；已结束的小时延后显示，缺失记录留空。
 				</p>
 			)}
 
@@ -1595,7 +1582,7 @@ function KvMonitorLayout(props: {
 			>
 				<SectionRule
 					title="视图"
-					hint="筛选条件在四个视图间保留。自动轮询不少于 60 秒，页面不可见时暂停。"
+					hint="筛选条件在四个视图间保留。切换视图时按需加载，不自动轮询。"
 					actions={
 						<TabsList aria-label={"切换 KV 监控视图"} className="max-w-full overflow-x-auto">
 							{[

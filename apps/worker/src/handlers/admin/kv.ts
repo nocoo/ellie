@@ -30,12 +30,11 @@
 //      with `list_complete: false`. Pagination terminates ONLY on
 //      `list_complete === true`.
 //
-// 5. The `metrics` endpoint reads `kv_cache_metrics_minute` (added in
-//    migration 0035), populated by the in-isolate accumulator + flush
-//    in `lib/cache/metrics.ts`. Only business cache families are
-//    instrumented (forum tree/summary/meta, thread:list page1, user
-//    mini, settings, public stats); short-lived auth/rate-limit
-//    families intentionally produce no metrics rows.
+// 5. The `metrics` endpoint reads completed hourly observations from
+//    `kv_cache_metrics_hour` (migration 0052). The in-isolate accumulator
+//    in `lib/cache/metrics.ts` flushes at most once per hour per isolate.
+//    Business, admin and D1 observations remain separate; short-lived
+//    auth/rate-limit state is not counted as business cache traffic.
 
 import {
 	type CacheParams,
@@ -1242,14 +1241,14 @@ async function refreshDeleteUserMini(
 
 // ─── GET /api/admin/kv/metrics ────────────────────────────────────
 //
-// Per-minute op-dimensioned series for one or all instrumented families.
-// Reads from `kv_cache_metrics_minute` (migration 0035), populated by the
+// Hourly op-dimensioned series for one or all instrumented families.
+// Reads from `kv_cache_metrics_hour` (migration 0052), populated by the
 // in-isolate accumulator + ctx.waitUntil flush in `lib/cache/metrics.ts`.
 //
 // Query params:
 //   - `family` (optional): restrict to one registry family. When omitted
 //     the response carries all rows in the window, grouped by family.
-//   - `minutes`: window size in minutes (default 60, max 10080 = 7d).
+//   - `minutes`: window size in minutes (default 1440, min 60, max 10080 = 7d).
 //
 // Response shape:
 //   { family: string | null, minutes: number,
@@ -1258,7 +1257,7 @@ async function refreshDeleteUserMini(
 // `op` includes cache verbs plus optional D1 observation
 // (`d1-query | d1-rows-read | d1-rows-written | d1-duration-ms`) under
 // families `application:d1` and `admin:d1`. No extra SQL: those rows
-// already live in `kv_cache_metrics_minute` when d1-observe recorded them.
+// already live in `kv_cache_metrics_hour` after the hourly observation flush.
 // Hit-rate must ignore admin:* and D1 families.
 
 export const metrics = withEntityAuth(
@@ -1284,7 +1283,11 @@ export const metrics = withEntityAuth(
 					series: [],
 					note: "metrics table unavailable",
 					observedAt: Date.now(),
-					source: "application:kv_cache_metrics_minute",
+					source: "application:kv_cache_metrics_hour",
+					intervalMinutes: 60,
+					sampling: "best-effort",
+					truncated: false,
+					coverage: "partial",
 				},
 				origin,
 			);

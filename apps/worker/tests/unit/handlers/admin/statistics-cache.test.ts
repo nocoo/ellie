@@ -308,7 +308,7 @@ describe("derived values and precise invalidation scopes", () => {
 		{
 			ticker: forumsTicker,
 			entity: "forums",
-			before: { threads: 2, posts: 0 },
+			before: { threads: 99, posts: 99 },
 			after: { threads: 3, posts: 1 },
 		},
 		{ ticker: postForumsTicker, entity: "posts", before: { forumId: 2 }, after: { forumId: 1 } },

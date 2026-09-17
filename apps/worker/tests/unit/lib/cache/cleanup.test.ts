@@ -1,4 +1,4 @@
-// cleanup.test.ts — retention sweep boundary tests for kv_cache_metrics_minute.
+// Retention boundaries for both the hourly observations and retiring minute history.
 //
 // Pins:
 //   1. Default retention window is 7 days; cutoff = floor(nowSec/60) - 7*1440.
@@ -17,6 +17,7 @@ import {
 	DEFAULT_RETENTION_DAYS,
 } from "../../../../src/lib/cache/cleanup";
 import { makeEnv } from "../../../helpers";
+import { readingFixture } from "./thread-cache-fixture";
 
 interface DbCall {
 	sql: string;
@@ -33,11 +34,17 @@ function makeMockDb(metaChanges: number | bigint = 0) {
 				calls.push(call);
 				return stmt;
 			}),
-			run: vi.fn(async () => ({ meta: { changes: metaChanges } })),
+			run: vi.fn(async () => ({
+				success: true,
+				meta: { changes: sql.includes("_hour") ? 0 : metaChanges },
+			})),
 		};
 		return stmt;
 	});
-	const db = { prepare } as unknown as D1Database;
+	const batch = vi.fn(async (statements: ReturnType<typeof prepare>[]) =>
+		Promise.all(statements.map((statement) => statement.run())),
+	);
+	const db = { prepare, batch } as unknown as D1Database;
 	return { db, prepare, calls };
 }
 
@@ -62,8 +69,9 @@ describe("cleanupKvCacheMetricsMinute", () => {
 		const nowSec = 1_747_800_000;
 		const nowMinute = Math.floor(nowSec / 60);
 		await cleanupKvCacheMetricsMinute(env, undefined, nowSec);
-		expect(calls).toHaveLength(1);
+		expect(calls).toHaveLength(2);
 		expect(calls[0].bound).toEqual([nowMinute - 7 * 1440]);
+		expect(calls[1].bound).toEqual([Math.floor(nowSec / 3600) - 7 * 24]);
 	});
 
 	it("explicit retentionDays is honored", async () => {
@@ -73,6 +81,7 @@ describe("cleanupKvCacheMetricsMinute", () => {
 		const nowMinute = Math.floor(nowSec / 60);
 		await cleanupKvCacheMetricsMinute(env, 3, nowSec);
 		expect(calls[0].bound).toEqual([nowMinute - 3 * 1440]);
+		expect(calls[1].bound).toEqual([Math.floor(nowSec / 3600) - 3 * 24]);
 	});
 
 	it("cutoff is in minutes (not seconds) — guards against unit mix-up", async () => {
@@ -96,6 +105,9 @@ describe("cleanupKvCacheMetricsMinute", () => {
 		await cleanupKvCacheMetricsMinute(env, 7, 1_747_800_000);
 		expect(calls[0].sql).toMatch(/DELETE\s+FROM\s+kv_cache_metrics_minute/i);
 		expect(calls[0].sql).toMatch(/WHERE\s+ts_minute\s*<\s*\?/i);
+		expect(calls[1].sql).toMatch(
+			/DELETE\s+FROM\s+kv_cache_metrics_hour\s+WHERE\s+ts_hour\s*<\s*\?/i,
+		);
 	});
 
 	it("returns meta.changes as a number", async () => {
@@ -134,11 +146,64 @@ describe("cleanupKvCacheMetricsMinute", () => {
 		const prepare = vi.fn(() => {
 			const stmt = {
 				bind: vi.fn().mockReturnThis(),
-				run: vi.fn(async () => ({ meta: {} })),
+				run: vi.fn(async () => ({ success: true, meta: {} })),
 			};
 			return stmt;
 		});
-		const env = makeEnv({ DB: { prepare } as unknown as D1Database });
+		const batch = async (statements: ReturnType<typeof prepare>[]) =>
+			Promise.all(statements.map((statement) => statement.run()));
+		const env = makeEnv({ DB: { prepare, batch } as unknown as D1Database });
 		expect(await cleanupKvCacheMetricsMinute(env, 7, 1_747_800_000)).toBe(0);
+	});
+
+	it.each([
+		{ results: [{ success: true, meta: { changes: 1 } }] },
+		{
+			results: [
+				{ success: true, meta: { changes: 1 } },
+				{ success: false, meta: {} },
+			],
+		},
+	])("rejects incomplete or unconfirmed cleanup batches", async ({ results }) => {
+		const { db } = makeMockDb();
+		vi.mocked(db.batch).mockResolvedValueOnce(results as D1Result[]);
+		await expect(cleanupKvCacheMetricsMinute(makeEnv({ DB: db }))).rejects.toThrow(
+			"Metric retention writes were not confirmed",
+		);
+	});
+
+	it("deletes only expired metric rows, retaining the exact hourly and minute boundaries", async () => {
+		const f = readingFixture();
+		const nowSec = Math.floor(Date.parse("2026-09-17T12:34:56Z") / 1000);
+		const hourCutoff = Math.floor(nowSec / 3600) - 7 * 24;
+		const minuteCutoff = Math.floor(nowSec / 60) - 7 * 1440;
+		try {
+			for (const delta of [-1, 0, 1]) {
+				f.insert("kv_cache_metrics_hour", {
+					family: "thread:entity",
+					ts_hour: hourCutoff + delta,
+					op: "hit",
+					count: 1,
+				});
+				f.insert("kv_cache_metrics_minute", {
+					family: "thread:entity",
+					ts_minute: minuteCutoff + delta,
+					op: "hit",
+					count: 1,
+				});
+			}
+			expect(await cleanupKvCacheMetricsMinute(f.env, 7, nowSec)).toBe(2);
+			expect(
+				f.sqlite.prepare("SELECT ts_hour FROM kv_cache_metrics_hour ORDER BY ts_hour").all(),
+			).toEqual([{ ts_hour: hourCutoff }, { ts_hour: hourCutoff + 1 }]);
+			expect(
+				f.sqlite.prepare("SELECT ts_minute FROM kv_cache_metrics_minute ORDER BY ts_minute").all(),
+			).toEqual([{ ts_minute: minuteCutoff }, { ts_minute: minuteCutoff + 1 }]);
+			expect(f.calls).toHaveLength(2);
+			expect(f.calls.every((call) => /^DELETE FROM kv_cache_metrics_/.test(call.sql))).toBe(true);
+			expect(f.env.KV.get).not.toHaveBeenCalled();
+		} finally {
+			f.close();
+		}
 	});
 });

@@ -24,7 +24,6 @@ import {
 	physicalExpirationMs,
 	remainingMs,
 	sensitiveValueLabel,
-	shouldAutoPoll,
 	summarizeD1Observation,
 	summarizeFamilyOps,
 	tierFromTtl,
@@ -111,23 +110,14 @@ describe("lifecycle", () => {
 	});
 });
 
-describe("polling", () => {
-	it("pauses when hidden and never polls faster than 60s", () => {
-		expect(shouldAutoPoll({ visible: false, lastFetchedAt: 0, now: 70_000 })).toBe(false);
-		expect(shouldAutoPoll({ visible: true, lastFetchedAt: 10_000, now: 69_999 })).toBe(false);
-		expect(shouldAutoPoll({ visible: true, lastFetchedAt: 10_000, now: 70_000 })).toBe(true);
-		expect(shouldAutoPoll({ visible: true, lastFetchedAt: null, now: 0 })).toBe(true);
-	});
-});
-
 describe("hit rate and occupancy aggregation", () => {
 	it("computes hit rate from window totals, not averaged percents", () => {
 		expect(hitRateLabel(0, 0)).toBe("无请求");
 		const summaries = summarizeFamilyOps([
-			{ family: "a", tsMinute: 1, op: "hit", count: 9 },
-			{ family: "a", tsMinute: 1, op: "miss", count: 1 },
-			{ family: "b", tsMinute: 2, op: "hit", count: 1 },
-			{ family: "b", tsMinute: 2, op: "miss", count: 1 },
+			{ family: "a", tsMinute: 60, op: "hit", count: 9 },
+			{ family: "a", tsMinute: 60, op: "miss", count: 1 },
+			{ family: "b", tsMinute: 120, op: "hit", count: 1 },
+			{ family: "b", tsMinute: 120, op: "miss", count: 1 },
 		]);
 		const totals = totalsFromSummaries(summaries);
 		expect(hitRateLabel(totals.hit, totals.miss)).toBe("83.3%");
@@ -135,10 +125,10 @@ describe("hit rate and occupancy aggregation", () => {
 
 	it("keeps admin:family metrics out of user hit-rate totals", () => {
 		const summaries = summarizeFamilyOps([
-			{ family: "settings:all", tsMinute: 1, op: "hit", count: 4 },
-			{ family: "settings:all", tsMinute: 1, op: "miss", count: 1 },
-			{ family: "admin:settings:all", tsMinute: 1, op: "kv-get", count: 9 },
-			{ family: "admin:settings:all", tsMinute: 1, op: "load", count: 3 },
+			{ family: "settings:all", tsMinute: 60, op: "hit", count: 4 },
+			{ family: "settings:all", tsMinute: 60, op: "miss", count: 1 },
+			{ family: "admin:settings:all", tsMinute: 60, op: "kv-get", count: 9 },
+			{ family: "admin:settings:all", tsMinute: 60, op: "load", count: 3 },
 		]);
 		expect(summaries.map((s) => s.family)).toEqual(["settings:all"]);
 		const totals = totalsFromSummaries(summaries);
@@ -148,11 +138,11 @@ describe("hit rate and occupancy aggregation", () => {
 
 	it("keeps application:d1 and admin:d1 out of user hit-rate totals", () => {
 		const summaries = summarizeFamilyOps([
-			{ family: "settings:all", tsMinute: 1, op: "hit", count: 2 },
-			{ family: "settings:all", tsMinute: 1, op: "miss", count: 2 },
-			{ family: "application:d1", tsMinute: 1, op: "d1-query", count: 40 },
-			{ family: "application:d1", tsMinute: 1, op: "d1-rows-read", count: 900 },
-			{ family: "admin:d1", tsMinute: 1, op: "d1-rows-written", count: 12 },
+			{ family: "settings:all", tsMinute: 60, op: "hit", count: 2 },
+			{ family: "settings:all", tsMinute: 60, op: "miss", count: 2 },
+			{ family: "application:d1", tsMinute: 60, op: "d1-query", count: 40 },
+			{ family: "application:d1", tsMinute: 60, op: "d1-rows-read", count: 900 },
+			{ family: "admin:d1", tsMinute: 60, op: "d1-rows-written", count: 12 },
 		]);
 		expect(summaries.map((s) => s.family)).toEqual(["settings:all"]);
 		expect(
@@ -163,9 +153,9 @@ describe("hit rate and occupancy aggregation", () => {
 	it("does not invent D1 row counts when only query/duration were recorded", () => {
 		const observed = summarizeD1Observation(
 			[
-				{ family: "application:d1", tsMinute: 1, op: "d1-query", count: 3 },
-				{ family: "application:d1", tsMinute: 1, op: "d1-duration-ms", count: 12 },
-				{ family: "admin:d1", tsMinute: 1, op: "d1-rows-read", count: 99 },
+				{ family: "application:d1", tsMinute: 60, op: "d1-query", count: 3 },
+				{ family: "application:d1", tsMinute: 60, op: "d1-duration-ms", count: 12 },
+				{ family: "admin:d1", tsMinute: 60, op: "d1-rows-read", count: 99 },
 			],
 			"application:d1",
 		);
@@ -174,20 +164,32 @@ describe("hit rate and occupancy aggregation", () => {
 		expect(observed.rowsRead).toBeNull();
 		expect(observed.rowsWritten).toBeNull();
 		const withRows = summarizeD1Observation(
-			[{ family: "application:d1", tsMinute: 2, op: "d1-rows-read", count: 7 }],
+			[{ family: "application:d1", tsMinute: 120, op: "d1-rows-read", count: 7 }],
 			"application:d1",
 		);
 		expect(withRows.rowsRead).toBe(7);
 	});
 
-	it("does not sum occupancy buckets; missing minutes stay gaps", () => {
+	it("does not sum occupancy buckets; missing hours stay gaps", () => {
 		const points = [
-			{ tsMinute: 1, liveEntries: 2, staleEntries: 0, contentBytes: 10, kind: "observed" as const },
-			{ tsMinute: 3, liveEntries: 5, staleEntries: 1, contentBytes: 40, kind: "observed" as const },
+			{
+				tsMinute: 60,
+				liveEntries: 2,
+				staleEntries: 0,
+				contentBytes: 10,
+				kind: "observed" as const,
+			},
+			{
+				tsMinute: 180,
+				liveEntries: 5,
+				staleEntries: 1,
+				contentBytes: 40,
+				kind: "observed" as const,
+			},
 		];
 		expect(occupancyForWindow(points, "latest")?.contentBytes).toBe(40);
 		expect(occupancyForWindow(points, "peak")?.contentBytes).toBe(40);
-		expect(insertGapPoints(points)).toEqual([points[0], { tsMinute: 2 }, points[1]]);
+		expect(insertGapPoints(points)).toEqual([points[0], { tsMinute: 120 }, points[1]]);
 		expect(occupancyForWindow([], "latest")).toBeNull();
 	});
 
@@ -197,9 +199,9 @@ describe("hit rate and occupancy aggregation", () => {
 				{ count: 2, footprint: { kind: "observed", bytes: 100 } },
 				{ count: 3, truncated: true, footprint: { kind: "unknown" } },
 			],
-			120_000,
+			7_200_000,
 		);
-		expect(point.tsMinute).toBe(2);
+		expect(point.tsMinute).toBe(120);
 		expect(point.liveEntries).toBe(5);
 		expect(point.staleEntries).toBeNull();
 		expect(point.contentBytes).toBe(100);
@@ -209,18 +211,18 @@ describe("hit rate and occupancy aggregation", () => {
 		expect(unknown.kind).toBe("unknown");
 	});
 
-	it("merges occupancy by minute instead of summing history", () => {
+	it("merges occupancy by hour instead of summing history", () => {
 		const first = occupancyFromOverview(
 			[{ count: 1, footprint: { kind: "observed", bytes: 10 } }],
-			60_000,
+			3_600_000,
 		);
 		const same = occupancyFromOverview(
 			[{ count: 4, footprint: { kind: "observed", bytes: 40 } }],
-			60_000,
+			3_600_000,
 		);
 		const later = occupancyFromOverview(
 			[{ count: 2, footprint: { kind: "observed", bytes: 20 } }],
-			120_000,
+			7_200_000,
 		);
 		const merged = mergeOccupancySnapshot(mergeOccupancySnapshot([first], same), later);
 		expect(merged).toHaveLength(2);
@@ -228,19 +230,19 @@ describe("hit rate and occupancy aggregation", () => {
 		expect(merged[1].liveEntries).toBe(2);
 	});
 
-	it("builds occupancy from footprint gauges without summing minutes or counting admin hits", () => {
+	it("builds occupancy from footprint gauges without summing hours or counting admin hits", () => {
 		const points = occupancyFromMetrics([
-			{ family: "footprint:thread:list", tsMinute: 1, op: "observed-keys", count: 4 },
-			{ family: "footprint:thread:list", tsMinute: 1, op: "observed-keys", count: 9 },
-			{ family: "footprint:thread:list", tsMinute: 1, op: "observed-bytes", count: 40 },
-			{ family: "footprint:forum:tree:v2", tsMinute: 1, op: "observed-keys", count: 2 },
-			{ family: "footprint:thread:list", tsMinute: 2, op: "observed-keys", count: 9 },
-			{ family: "admin:monitor:overview", tsMinute: 1, op: "hit", count: 99 },
-			{ family: "forum:tree:v2", tsMinute: 1, op: "hit", count: 3 },
+			{ family: "footprint:thread:list", tsMinute: 60, op: "observed-keys", count: 4 },
+			{ family: "footprint:thread:list", tsMinute: 60, op: "observed-keys", count: 9 },
+			{ family: "footprint:thread:list", tsMinute: 60, op: "observed-bytes", count: 40 },
+			{ family: "footprint:forum:tree:v2", tsMinute: 60, op: "observed-keys", count: 2 },
+			{ family: "footprint:thread:list", tsMinute: 120, op: "observed-keys", count: 9 },
+			{ family: "admin:monitor:overview", tsMinute: 60, op: "hit", count: 99 },
+			{ family: "forum:tree:v2", tsMinute: 60, op: "hit", count: 3 },
 		]);
 		expect(points).toHaveLength(2);
 		expect(points[0]).toMatchObject({
-			tsMinute: 1,
+			tsMinute: 60,
 			liveEntries: 11,
 			contentBytes: 40,
 			kind: "at-least",
@@ -395,21 +397,21 @@ describe("D1 observation points and mutation error fallbacks", () => {
 	it("buckets query duration and optional row counts including admin:d1", () => {
 		const points = d1ObservationPoints(
 			[
-				{ family: "application:d1", tsMinute: 2, op: "d1-query", count: 1 },
-				{ family: "application:d1", tsMinute: 2, op: "d1-duration-ms", count: 4 },
-				{ family: "application:d1", tsMinute: 2, op: "d1-rows-read", count: 8 },
-				{ family: "application:d1", tsMinute: 2, op: "d1-rows-written", count: 3 },
-				{ family: "admin:d1", tsMinute: 2, op: "d1-query", count: 9 },
+				{ family: "application:d1", tsMinute: 120, op: "d1-query", count: 1 },
+				{ family: "application:d1", tsMinute: 120, op: "d1-duration-ms", count: 4 },
+				{ family: "application:d1", tsMinute: 120, op: "d1-rows-read", count: 8 },
+				{ family: "application:d1", tsMinute: 120, op: "d1-rows-written", count: 3 },
+				{ family: "admin:d1", tsMinute: 120, op: "d1-query", count: 9 },
 			],
 			"application:d1",
 		);
 		expect(points).toEqual([
-			{ tsMinute: 2, queries: 1, durationMs: 4, rowsRead: 8, rowsWritten: 3 },
+			{ tsMinute: 120, queries: 1, durationMs: 4, rowsRead: 8, rowsWritten: 3 },
 		]);
 		expect(d1ObservationPoints([], "admin:d1")).toEqual([]);
 		expect(
 			summarizeD1Observation(
-				[{ family: "admin:d1", tsMinute: 1, op: "d1-rows-written", count: 2 }],
+				[{ family: "admin:d1", tsMinute: 60, op: "d1-rows-written", count: 2 }],
 				"admin:d1",
 			).rowsWritten,
 		).toBe(2);
@@ -418,9 +420,9 @@ describe("D1 observation points and mutation error fallbacks", () => {
 	it("includes admin families when asked and sorts equal reads by name", () => {
 		const rows = summarizeFamilyOps(
 			[
-				{ family: "zeta", tsMinute: 1, op: "read", count: 2 },
-				{ family: "alpha", tsMinute: 1, op: "read", count: 2 },
-				{ family: "admin:x", tsMinute: 1, op: "hit", count: 5 },
+				{ family: "zeta", tsMinute: 60, op: "read", count: 2 },
+				{ family: "alpha", tsMinute: 60, op: "read", count: 2 },
+				{ family: "admin:x", tsMinute: 60, op: "hit", count: 5 },
 			],
 			{ includeAdmin: true },
 		);
@@ -437,14 +439,14 @@ describe("D1 observation points and mutation error fallbacks", () => {
 		const peak = occupancyForWindow(
 			[
 				{
-					tsMinute: 1,
+					tsMinute: 60,
 					liveEntries: 9,
 					staleEntries: null,
 					contentBytes: 90,
 					kind: "observed",
 				},
 				{
-					tsMinute: 2,
+					tsMinute: 120,
 					liveEntries: 1,
 					staleEntries: null,
 					contentBytes: 10,
@@ -453,16 +455,16 @@ describe("D1 observation points and mutation error fallbacks", () => {
 			],
 			"peak",
 		);
-		expect(peak?.tsMinute).toBe(1);
+		expect(peak?.tsMinute).toBe(60);
 		expect(
 			occupancyFromMetrics([
-				{ family: "footprint:a", tsMinute: 1, op: "observed-expired", count: 3 },
-				{ family: "footprint:a", tsMinute: 1, op: "observed-expired", count: 1 },
+				{ family: "footprint:a", tsMinute: 60, op: "observed-expired", count: 3 },
+				{ family: "footprint:a", tsMinute: 60, op: "observed-expired", count: 1 },
 			])[0].staleEntries,
 		).toBe(3);
 	});
 
-	it("keeps remainingMs unknown, estimated overview bytes observed, and gaps only when minutes skip", () => {
+	it("keeps remainingMs unknown, estimated overview bytes observed, and gaps only when hours skip", () => {
 		expect(remainingMs(null, 10)).toBeNull();
 		expect(remainingMs(25, 10)).toBe(15);
 		expect(contentUtf8Bytes(undefined)).toBe(contentUtf8Bytes("null"));
@@ -481,22 +483,31 @@ describe("D1 observation points and mutation error fallbacks", () => {
 		expect(
 			occupancyForWindow(
 				[
-					{ tsMinute: 1, liveEntries: 2, staleEntries: null, contentBytes: null, kind: "at-least" },
-					{ tsMinute: 2, liveEntries: 8, staleEntries: null, contentBytes: null, kind: "at-least" },
+					{
+						tsMinute: 60,
+						liveEntries: 2,
+						staleEntries: null,
+						contentBytes: null,
+						kind: "at-least",
+					},
+					{
+						tsMinute: 120,
+						liveEntries: 8,
+						staleEntries: null,
+						contentBytes: null,
+						kind: "at-least",
+					},
 				],
 				"peak",
 			)?.liveEntries,
 		).toBe(8);
-		expect(insertGapPoints([{ tsMinute: 4 }, { tsMinute: 5 }])).toEqual([
-			{ tsMinute: 4 },
-			{ tsMinute: 5 },
+		expect(insertGapPoints([{ tsMinute: 240 }, { tsMinute: 300 }])).toEqual([
+			{ tsMinute: 240 },
+			{ tsMinute: 300 },
 		]);
-		expect(shouldAutoPoll({ visible: true, lastFetchedAt: 0, now: 5, minIntervalMs: 4 })).toBe(
-			true,
-		);
 		expect(
 			occupancyFromMetrics([
-				{ family: "footprint:a", tsMinute: 1, op: "observed-current", count: 9 },
+				{ family: "footprint:a", tsMinute: 60, op: "observed-current", count: 9 },
 			])[0],
 		).toMatchObject({ liveEntries: null, contentBytes: null, kind: "unknown" });
 	});

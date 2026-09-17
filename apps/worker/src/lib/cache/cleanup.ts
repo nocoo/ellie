@@ -1,9 +1,7 @@
-// Retention sweep for `kv_cache_metrics_minute` (migration 0035).
+// Retention sweep for hourly metrics and the retiring minute table.
 //
-// The table is a runtime-only rolling counter (NOT an audit log). Rows
-// older than the retention window are deleted outright. The admin KV
-// monitor only queries "last N minutes" with N ≤ 1440 (24h), so anything
-// older than a few days is dead weight.
+// These rolling observations are not an audit log. The monitor queries at
+// most seven days; the daily cron deletes older hourly and legacy minute rows.
 //
 // Boundary:
 //   - Pure D1 op. No KV touch, no admin_log write (retention bookkeeping
@@ -11,10 +9,8 @@
 //   - Caller (the worker `scheduled` handler) owns scheduling. Exported
 //     for the daily cron unit test so the retention boundary can be
 //     pinned without spinning up the scheduled handler.
-//   - `ts_minute` is stored as `floor(unix_seconds / 60)` — the cutoff
-//     MUST be computed in minutes, never seconds. A seconds-based cutoff
-//     would be ~60× larger than every row's ts_minute and silently nuke
-//     the entire table.
+//   - Each cutoff uses its table's unit (epoch minutes or epoch hours),
+//     never epoch seconds, which would incorrectly delete current rows.
 
 import type { Env } from "../env";
 
@@ -24,10 +20,9 @@ export const DEFAULT_RETENTION_DAYS = 7;
 const MIN_PER_DAY = 24 * 60;
 
 /**
- * Delete `kv_cache_metrics_minute` rows whose `ts_minute` is older than
- * `nowMinute - retentionDays * 1440`.
+ * Retain the legacy export name while pruning both metric tables.
  *
- * Returns the D1 `meta.changes` count so the cron caller can log it.
+ * Returns the sum of confirmed D1 `meta.changes` counts for the cron log.
  *
  * Refuses to run when `retentionDays` is non-finite or <= 0 — this guard
  * prevents an accidental `0` (or NaN from a bad env var) from truncating
@@ -43,9 +38,12 @@ export async function cleanupKvCacheMetricsMinute(
 	}
 	const nowMinute = Math.floor(nowSec / 60);
 	const cutoff = nowMinute - Math.floor(retentionDays * MIN_PER_DAY);
-	const result = await env.DB.prepare("DELETE FROM kv_cache_metrics_minute WHERE ts_minute < ?")
-		.bind(cutoff)
-		.run();
-	const changes = result.meta?.changes ?? 0;
-	return Number(changes);
+	const hourCutoff = Math.floor(nowSec / 3600) - Math.floor(retentionDays * 24);
+	const results = await env.DB.batch([
+		env.DB.prepare("DELETE FROM kv_cache_metrics_minute WHERE ts_minute < ?").bind(cutoff),
+		env.DB.prepare("DELETE FROM kv_cache_metrics_hour WHERE ts_hour < ?").bind(hourCutoff),
+	]);
+	if (results.length !== 2 || results.some((result) => !result.success))
+		throw new Error("Metric retention writes were not confirmed");
+	return results.reduce((sum, result) => sum + Number(result.meta?.changes ?? 0), 0);
 }

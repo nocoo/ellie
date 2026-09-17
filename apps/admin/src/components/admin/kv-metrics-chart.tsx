@@ -12,6 +12,7 @@ import {
 	isD1ObservationFamily,
 	isFootprintFamily,
 	type KvOp,
+	metricHourMinute,
 	type OccupancyPoint,
 } from "@/lib/admin-kv-cache";
 
@@ -43,13 +44,14 @@ export function bucketCacheOpPoints(series: KvMetric[]) {
 			isFootprintFamily(row.family)
 		)
 			continue;
-		const bucket = buckets.get(row.tsMinute) ?? {};
+		const minute = metricHourMinute(row.tsMinute);
+		const bucket = buckets.get(minute) ?? {};
 		if (row.op === "hit") bucket.hit = (bucket.hit ?? 0) + row.count;
 		else if (row.op === "miss") bucket.miss = (bucket.miss ?? 0) + row.count;
 		else if (row.op === "load") bucket.load = (bucket.load ?? 0) + row.count;
 		else if (row.op === "error") bucket.error = (bucket.error ?? 0) + row.count;
 		if (PHYSICAL_KV_OPS.has(row.op)) bucket.kvOps = (bucket.kvOps ?? 0) + row.count;
-		buckets.set(row.tsMinute, bucket);
+		buckets.set(minute, bucket);
 	}
 	const minutes = [...buckets.keys()].sort((a, b) => a - b);
 	return insertGapPoints(minutes.map((minute) => ({ tsMinute: minute, ...buckets.get(minute) })));
@@ -70,6 +72,7 @@ const D1_SERIES = [
 
 const timeLabel = (minute: number) =>
 	new Date(minute * 60_000).toLocaleString("zh-CN", {
+		timeZone: "Asia/Shanghai",
 		month: "2-digit",
 		day: "2-digit",
 		hour: "2-digit",
@@ -78,14 +81,14 @@ const timeLabel = (minute: number) =>
 	});
 
 function bucketLabel(minute: number): string {
-	return `时间桶 ${timeLabel(minute)}（Asia/Shanghai 展示）`;
+	return `小时 ${timeLabel(minute)}（Asia/Shanghai）`;
 }
 
 export function KvMetricsChart({
 	series,
 	occupancy,
-	source = "应用指标 kv_cache_metrics_minute",
-	windowLabel = "近 60 分钟",
+	source = "应用小时观测",
+	windowLabel = "近 24 小时",
 }: {
 	series: KvMetric[];
 	occupancy?: OccupancyPoint[];
@@ -116,7 +119,7 @@ export function KvMetricsChart({
 		<div className="min-w-0 space-y-6">
 			<div className="min-w-0 space-y-3">
 				<p className="text-xs text-basalt-muted-foreground">
-					{windowLabel} · 来源 {source} · 命中率按窗口总量计算 · 缺失分钟留空
+					{windowLabel} · 来源 {source} · 每小时一个点 · 命中率按已观测总量计算 · 缺失小时留空
 				</p>
 				<ul className="flex flex-wrap gap-4 text-xs" aria-label="缓存运行趋势图例">
 					{OPS_SERIES.map((item, index) => (
@@ -168,8 +171,8 @@ export function KvMetricsChart({
 			{d1Points.length > 0 && (
 				<div className="min-w-0 space-y-3">
 					<p className="text-xs text-basalt-muted-foreground">
-						应用观测 D1 来自业务语句已返回的 meta（.all / .run / .batch）。first / raw
-						只记查询次数和耗时，不补行数。这不是数据库全量容量，也不是 Cloudflare 平台统计。
+						D1
+						读写按小时汇总已有请求的观测值，可能有漏样；不包含指标自身等未采集开销，不能作为完整计费统计。
 					</p>
 					<ul className="flex flex-wrap gap-4 text-xs" aria-label="应用观测 D1 图例">
 						{D1_SERIES.filter((item) => item.key !== "rowsRead" && item.key !== "rowsWritten").map(

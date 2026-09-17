@@ -16,11 +16,15 @@ import {
 	swapSnapshot,
 } from "../../../../src/lib/cache/metrics";
 import { createMockCtx, createMockDb, makeEnv } from "../../../helpers";
+import { readingFixture } from "./thread-cache-fixture";
+
+const START = Date.parse("2026-09-17T12:00:00Z");
+const HOUR = 3_600_000;
 
 beforeEach(() => {
 	__resetMetricsForTest();
 	vi.useFakeTimers();
-	vi.setSystemTime(1_700_000_000_000);
+	vi.setSystemTime(START);
 });
 afterEach(() => {
 	__resetMetricsForTest();
@@ -88,7 +92,7 @@ describe("bounded cache and D1 observation windows", () => {
 		expect(warn).toHaveBeenCalledOnce();
 		expect(await flushSnapshot(env, new Map())).toBe(0);
 	});
-	it("keeps occupancy gauges as per-minute MAX and flushes them with MAX not SUM", async () => {
+	it("keeps occupancy gauges as per-hour MAX and flushes them with MAX not SUM", async () => {
 		recordGauge("footprint:thread:list", "observed-keys", 4);
 		recordGauge("footprint:thread:list", "observed-keys", 9);
 		recordGauge("footprint:thread:list", "observed-bytes", 100);
@@ -106,27 +110,86 @@ describe("bounded cache and D1 observation windows", () => {
 		expect(sql.some((text) => text.includes("MAX(count, excluded.count)"))).toBe(true);
 		expect(sql.some((text) => text.includes("count = count + excluded.count"))).toBe(false);
 	});
-	it("never flushes at first observation or after fills; every window is at least 60 seconds", async () => {
-		const env = makeEnv({ DB: createMockDb().db });
+	it("accumulates an hour without D1, then flushes completed hours once per hour and retains the active hour", async () => {
+		const f = readingFixture();
 		const ctx = createMockCtx();
-		scheduleMetricsFlush(env, ctx);
-		flushPendingNow(env, ctx);
-		recordHit("thread:entity");
-		scheduleMetricsFlush(env, ctx);
-		flushPendingNow(env, ctx);
-		vi.advanceTimersByTime(59_999);
-		scheduleMetricsFlush(env, ctx);
-		expect(ctx.waitUntil).not.toHaveBeenCalled();
-		vi.advanceTimersByTime(1);
-		scheduleMetricsFlush(env, ctx);
-		expect(ctx.waitUntil).toHaveBeenCalledOnce();
-		recordWrite("thread:entity");
-		flushPendingNow(env, ctx);
-		expect(ctx.waitUntil).toHaveBeenCalledOnce();
-		vi.advanceTimersByTime(60_000);
-		scheduleMetricsFlush(env, ctx);
-		expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
-		await Promise.all(ctx._waitUntilPromises);
-		expect(env.DB.prepare).toHaveBeenCalledTimes(2);
+		try {
+			for (let minute = 0; minute < 60; minute++) {
+				vi.setSystemTime(START + minute * 60_000);
+				recordHit("thread:entity");
+				recordGauge("footprint:thread:entity", "observed-keys", minute);
+				scheduleMetricsFlush(f.env, ctx);
+				flushPendingNow(f.env, ctx);
+			}
+			expect(ctx.waitUntil).not.toHaveBeenCalled();
+			expect(f.calls).toHaveLength(0);
+			vi.setSystemTime(START + HOUR);
+			recordHit("thread:entity");
+			scheduleMetricsFlush(f.env, ctx);
+			await Promise.all(ctx._waitUntilPromises);
+			expect(ctx.waitUntil).toHaveBeenCalledOnce();
+			const rows = () =>
+				f.sqlite
+					.prepare(
+						"SELECT family, ts_hour, op, count FROM kv_cache_metrics_hour ORDER BY ts_hour, family",
+					)
+					.all();
+			expect(rows()).toEqual([
+				{
+					family: "footprint:thread:entity",
+					ts_hour: START / HOUR,
+					op: "observed-keys",
+					count: 59,
+				},
+				{ family: "thread:entity", ts_hour: START / HOUR, op: "hit", count: 60 },
+			]);
+			for (let minute = 0; minute < 60; minute++) {
+				vi.setSystemTime(START + HOUR + minute * 60_000);
+				recordHit("thread:entity");
+				flushPendingNow(f.env, ctx);
+			}
+			expect(ctx.waitUntil).toHaveBeenCalledOnce();
+			vi.setSystemTime(START + 2 * HOUR);
+			scheduleMetricsFlush(f.env, ctx);
+			await Promise.all(ctx._waitUntilPromises);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(rows().at(-1)).toEqual({
+				family: "thread:entity",
+				ts_hour: START / HOUR + 1,
+				op: "hit",
+				count: 61,
+			});
+			expect(f.calls).toHaveLength(3); // One counter batch/hour; one occupancy batch in the first hour.
+			expect(f.calls.every((call) => call.sql.includes("INSERT INTO kv_cache_metrics_hour"))).toBe(
+				true,
+			);
+			expect(f.sqlite.prepare("SELECT COUNT(*) AS n FROM kv_cache_metrics_minute").get()?.n).toBe(
+				0,
+			);
+			vi.setSystemTime(START + 5 * HOUR);
+			scheduleMetricsFlush(f.env, ctx);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(2); // Idle hours are gaps, not synthetic zero points.
+		} finally {
+			f.close();
+		}
+	});
+
+	it("merges multiple isolate observations into one hourly point, summing counters and taking gauge peaks", async () => {
+		const f = readingFixture();
+		try {
+			for (const amount of [4, 9, 2]) {
+				recordKvOp("application:d1", "d1-rows-read", amount);
+				recordGauge("footprint:thread:entity", "observed-keys", amount);
+				await flushSnapshot(f.env, swapSnapshot());
+			}
+			expect(
+				f.sqlite.prepare("SELECT family, count FROM kv_cache_metrics_hour ORDER BY family").all(),
+			).toEqual([
+				{ family: "application:d1", count: 15 },
+				{ family: "footprint:thread:entity", count: 9 },
+			]);
+		} finally {
+			f.close();
+		}
 	});
 });

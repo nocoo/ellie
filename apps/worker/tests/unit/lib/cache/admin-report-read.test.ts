@@ -203,7 +203,7 @@ describe("custom display reads", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("keeps today login/visit/checkin/stats totals on SHORT and masks IPs", async () => {
+	it("keeps detail lists SHORT, KPI snapshots MEDIUM, and masks IPs", async () => {
 		f.thread(1);
 		seedLogin(1);
 		seedLogin(2, { ok: 0, ip: "2001:db8:cafe::1", error_code: "INVALID_CREDENTIALS" });
@@ -266,8 +266,8 @@ describe("custom display reads", () => {
 		expect(JSON.stringify(f.snapshots("admin:display"))).not.toMatch(
 			/1\.2\.3\.4|9\.8\.7\.6|2001:db8:cafe::1/,
 		);
-		await hot(display({ resource: "logins", operation: "kpi", date: DATE }));
-		await hot(display({ resource: "visits", operation: "kpi", date: DATE }));
+		await hot(analytics({ resource: "logins", operation: "kpi", date: DATE }));
+		await hot(analytics({ resource: "visits", operation: "kpi", date: DATE }));
 		const visits = await hot(
 			display({
 				resource: "visits",
@@ -282,13 +282,7 @@ describe("custom display reads", () => {
 		await hot(
 			display({ resource: "checkins", operation: "user", userId: 10, from: DATE, to: DATE }),
 		);
-		await hot(
-			display({
-				resource: "stats",
-				operation: "totals",
-				dayStart: Math.floor(Date.now() / 1000 / 86400) * 86400,
-			}),
-		);
+		await hot(analytics({ resource: "stats", operation: "totals" }));
 		const logs = await hot(
 			display({
 				resource: "admin-logs",
@@ -358,7 +352,7 @@ describe("custom display reads", () => {
 		await hot(
 			analytics({ resource: "analytics", operation: "checkin-trend", date: DATE, range: "90d" }),
 		);
-		await hot(display({ resource: "analytics", operation: "overview", date: DATE }));
+		await hot(analytics({ resource: "analytics", operation: "overview", date: DATE }));
 	});
 });
 
@@ -447,7 +441,7 @@ describe("live handlers, auth gates, failures", () => {
 			getAdminReport(
 				f.env,
 				undefined,
-				display({ resource: "analytics", operation: "overview", date: DATE }),
+				analytics({ resource: "analytics", operation: "overview", date: DATE }),
 			),
 		).rejects.toThrow("Analytics overview could not be loaded");
 		expect(f.snapshots("admin:display")).toHaveLength(0);

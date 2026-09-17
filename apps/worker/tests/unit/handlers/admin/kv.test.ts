@@ -773,13 +773,13 @@ describe("admin/kv — overview", () => {
 		expect(refreshRow?.sampleKeys).toEqual([]);
 	});
 
-	it("does not stamp a later occupancy minute from a cached overview", async () => {
+	it("does not stamp a later occupancy hour from a cached overview", async () => {
 		const { __resetMetricsForTest, swapSnapshot } = await import(
 			"../../../../src/lib/cache/metrics"
 		);
 		vi.useFakeTimers();
 		try {
-			const origin = 1_700_000_000_000;
+			const origin = Date.parse("2026-09-17T12:59:00Z");
 			vi.setSystemTime(origin);
 			__resetMetricsForTest();
 			const kvStore = createMockKV({ "settings:all": "{}" });
@@ -788,11 +788,11 @@ describe("admin/kv — overview", () => {
 			expect(first.status).toBe(200);
 			const firstBody = (await first.json()) as { data: { observedAt: number } };
 			expect(firstBody.data.observedAt).toBe(origin);
-			const minuteT = Math.floor(origin / 60_000);
+			const hourT = Math.floor(origin / 3_600_000);
 			const warm = swapSnapshot();
 			expect(
 				[...warm.keys()].some(
-					(key) => key.startsWith("footprint:") && key.includes(`\u0001${minuteT}\u0001`),
+					(key) => key.startsWith("footprint:") && key.includes(`\u0001${hourT}\u0001`),
 				),
 			).toBe(true);
 			vi.mocked(kvStore.list).mockClear();
@@ -802,12 +802,12 @@ describe("admin/kv — overview", () => {
 			const secondBody = (await second.json()) as { data: { observedAt: number } };
 			expect(secondBody.data.observedAt).toBe(origin);
 			expect(kvStore.list).not.toHaveBeenCalled();
-			const laterMinute = Math.floor((origin + 61_000) / 60_000);
-			expect(laterMinute).not.toBe(minuteT);
+			const laterHour = Math.floor((origin + 61_000) / 3_600_000);
+			expect(laterHour).not.toBe(hourT);
 			const hot = swapSnapshot();
 			expect(
 				[...hot.keys()].some(
-					(key) => key.startsWith("footprint:") && key.includes(`\u0001${laterMinute}\u0001`),
+					(key) => key.startsWith("footprint:") && key.includes(`\u0001${laterHour}\u0001`),
 				),
 			).toBe(false);
 		} finally {
@@ -818,13 +818,13 @@ describe("admin/kv — overview", () => {
 });
 
 describe("admin/kv — metrics", () => {
-	it("returns op-dimensioned rows from kv_cache_metrics_minute filtered by family + minutes", async () => {
-		const tsNow = Math.floor(Date.now() / 60_000);
+	it("returns op-dimensioned rows from kv_cache_metrics_hour filtered by family + minutes", async () => {
+		const tsNow = Math.floor(Date.now() / 3_600_000) - 1;
 		const rows = [
-			{ family: "forum:tree:v2", ts_minute: tsNow - 1, op: "read", count: 5 },
-			{ family: "forum:tree:v2", ts_minute: tsNow - 1, op: "hit", count: 4 },
-			{ family: "forum:tree:v2", ts_minute: tsNow - 1, op: "miss", count: 1 },
-			{ family: "forum:tree:v2", ts_minute: tsNow, op: "write", count: 2 },
+			{ family: "forum:tree:v2", ts_hour: tsNow - 1, op: "read", count: 5 },
+			{ family: "forum:tree:v2", ts_hour: tsNow - 1, op: "hit", count: 4 },
+			{ family: "forum:tree:v2", ts_hour: tsNow - 1, op: "miss", count: 1 },
+			{ family: "forum:tree:v2", ts_hour: tsNow, op: "write", count: 2 },
 		];
 		// Mock D1 that returns the seeded rows for the metrics query
 		// regardless of bind args; assertion is on response shape.
@@ -836,7 +836,7 @@ describe("admin/kv — metrics", () => {
 			}),
 		} as unknown as D1Database;
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("GET", "/api/admin/kv/metrics?family=forum:tree:v2&minutes=15");
+		const req = createAdminRequest("GET", "/api/admin/kv/metrics?family=forum:tree:v2&minutes=60");
 		const res = await kv.metrics(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
@@ -847,7 +847,7 @@ describe("admin/kv — metrics", () => {
 			};
 		};
 		expect(body.data.family).toBe("forum:tree:v2");
-		expect(body.data.minutes).toBe(15);
+		expect(body.data.minutes).toBe(60);
 		expect(body.data.series).toHaveLength(4);
 		// Op + count round-trip through the response shape.
 		expect(body.data.series[0].op).toBe("read");
@@ -857,17 +857,17 @@ describe("admin/kv — metrics", () => {
 	});
 
 	it("passes through application:d1 observation from the same metrics table, no extra SQL", async () => {
-		const tsNow = Math.floor(Date.now() / 60_000);
+		const tsNow = Math.floor(Date.now() / 3_600_000) - 1;
 		const rows = [
-			{ family: "application:d1", ts_minute: tsNow, op: "d1-query", count: 4 },
-			{ family: "application:d1", ts_minute: tsNow, op: "d1-duration-ms", count: 18 },
-			{ family: "application:d1", ts_minute: tsNow, op: "d1-rows-read", count: 22 },
+			{ family: "application:d1", ts_hour: tsNow, op: "d1-query", count: 4 },
+			{ family: "application:d1", ts_hour: tsNow, op: "d1-duration-ms", count: 18 },
+			{ family: "application:d1", ts_hour: tsNow, op: "d1-rows-read", count: 22 },
 		];
 		const sql: string[] = [];
 		const db = {
 			prepare: (query: string) => {
 				sql.push(query);
-				expect(query).toContain("kv_cache_metrics_minute");
+				expect(query).toContain("kv_cache_metrics_hour");
 				expect(query).not.toContain("sqlite_master");
 				expect(query.toLowerCase()).not.toContain("pragma");
 				return {
@@ -899,7 +899,7 @@ describe("admin/kv — metrics", () => {
 			prepare: () => ({
 				bind: () => ({
 					all: async () => {
-						throw new Error("no such table: kv_cache_metrics_minute");
+						throw new Error("no such table: kv_cache_metrics_hour");
 					},
 				}),
 			}),
@@ -913,6 +913,11 @@ describe("admin/kv — metrics", () => {
 		};
 		expect(body.data.series).toEqual([]);
 		expect(body.data.note).toContain("metrics table unavailable");
+		expect(body.data).toMatchObject({
+			intervalMinutes: 60,
+			sampling: "best-effort",
+			coverage: "partial",
+		});
 	});
 });
 
@@ -1298,7 +1303,7 @@ describe("admin/kv — operations and metrics window", () => {
 	it("accepts a 7-day metrics window without extra D1 stats SQL", async () => {
 		const db = {
 			prepare: (sql: string) => {
-				expect(sql).toContain("kv_cache_metrics_minute");
+				expect(sql).toContain("kv_cache_metrics_hour");
 				expect(sql).not.toContain("sqlite_master");
 				expect(sql.toLowerCase()).not.toContain("pragma");
 				return {

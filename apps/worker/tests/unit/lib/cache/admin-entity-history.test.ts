@@ -35,7 +35,18 @@ afterEach(() => {
 
 async function rebuildPlaceholder(forumId = 0): Promise<ForumList> {
 	// migrateThreads creates these for missing forum IDs referenced by imported threads.
-	f.insert("forums", { id: forumId, name: `[已删除版块${forumId}]`, status: -1 });
+	f.insert("forums", {
+		id: forumId,
+		name: `[已删除版块${forumId}]`,
+		status: -1,
+		threads: 1,
+		posts: 1,
+		last_thread_id: 1,
+		last_post_at: 1,
+		last_poster: "bob",
+		last_poster_id: 20,
+		last_thread_subject: "Thread 1",
+	});
 	f.thread(1, { forum_id: forumId });
 	f.post(1, { forum_id: forumId });
 	return (await rebuildAdminEntityCache(f.env, f.ctx, descriptor)) as ForumList;

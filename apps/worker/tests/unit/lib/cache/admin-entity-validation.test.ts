@@ -133,11 +133,20 @@ describe("Admin DTO projections from real SQL", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("preserves nullable latest-content joins and nullable scheduling fields", async () => {
+	it("preserves maintained latest-content metadata and nullable scheduling fields", async () => {
 		f.thread(2, { forum_id: 3 });
+		expect(await readAdminEntity(f.env, undefined, detail("threads", 2))).toMatchObject({
+			lastPostAt: 2,
+			lastPoster: "bob",
+			lastPosterId: 20,
+		});
+		expect(await readAdminEntity(f.env, undefined, detail("forums", 2))).toMatchObject({
+			lastThreadId: 0,
+			lastPostAt: 0,
+			lastPoster: "",
+			lastThreadSubject: "",
+		});
 		for (const [descriptor, nullableFields] of [
-			[detail("threads", 2), ["lastPostAt", "lastPoster"]],
-			[detail("forums", 2), ["lastThreadId", "lastPostAt", "lastPoster", "lastThreadSubject"]],
 			[detail("ip_bans", 1), ["expiresAt"]],
 			[detail("admin_logs", 1), ["targetId"]],
 			[detail("announcements", 1), ["startAt", "endAt"]],

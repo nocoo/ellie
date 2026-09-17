@@ -921,7 +921,7 @@ export default {
 				);
 				ctx.waitUntil(
 					cleanupKvCacheMetricsMinute(env).catch((err) => {
-						// Prune `kv_cache_metrics_minute` rows older than
+						// Prune hourly and legacy minute observations older than
 						// DEFAULT_RETENTION_DAYS (7). Same operational-only
 						// failure contract — admin KV monitor only needs short
 						// history, anything older is dead weight.

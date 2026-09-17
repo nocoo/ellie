@@ -49,7 +49,7 @@ async function overviewHandler(
 	const date = shanghaiDateLocal(Math.floor(Date.now() / 1000));
 	return jsonNoStoreResponse(
 		await getAdminReport(env, ctx, {
-			family: "admin:display",
+			family: "admin:analytics",
 			scope: "admin",
 			params: { resource: "analytics", operation: "overview", date },
 		}),
@@ -140,7 +140,7 @@ export const _internal = {
 	fillDailyByIso,
 	loadOverview: (env: Env, nowSec: number) =>
 		getAdminReport(env, undefined, {
-			family: "admin:display",
+			family: "admin:analytics",
 			scope: "admin",
 			params: { resource: "analytics", operation: "overview", date: shanghaiDateLocal(nowSec) },
 		}),

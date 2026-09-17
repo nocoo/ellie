@@ -104,7 +104,7 @@ const userFields = {
 	hasAvatar: isBoolean,
 	checkin: (value: unknown) => value === null || checkinSummary(value),
 };
-const userListRow = shape({ ...userFields, messagesCount: isCount, attachmentsCount: isCount });
+const userListRow = shape(userFields);
 const entityValidators: Record<keyof typeof imports, FieldValidator> = {
 	users: shape(userFields),
 	forums: shape({

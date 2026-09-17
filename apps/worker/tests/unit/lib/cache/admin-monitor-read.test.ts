@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { overview } from "../../../../src/handlers/admin/kv";
 import {
 	footprintFamilyName,
+	getMonitorMetrics,
 	getMonitorOverview,
 	isMonitorCacheData,
 	loadMonitorMetrics,
@@ -14,7 +15,9 @@ import {
 	rebuildMonitorCache,
 	validateMonitorDescriptor,
 } from "../../../../src/lib/cache/admin-monitor-read";
+import { createCacheEnvelope } from "../../../../src/lib/cache/store";
 import { createAdminRequest, createMockDb, createMockKV, makeEnv } from "../../../helpers";
+import { readingFixture } from "./thread-cache-fixture";
 
 describe("monitor cache descriptors", () => {
 	it("splits recent SHORT and history MEDIUM windows", () => {
@@ -257,6 +260,89 @@ describe("monitor overview source read", () => {
 });
 
 describe("monitor metrics source read", () => {
+	it("queries completed hourly points only, reuses warm snapshots, and rejects legacy minute envelopes", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(Date.parse("2026-09-17T12:34:56Z"));
+		const f = readingFixture();
+		const hour = Math.floor(Date.now() / 3_600_000);
+		const descriptor: CacheDescriptor = {
+			family: "monitor:metrics:history",
+			scope: "admin",
+			params: { resource: "metrics", family: null, minutes: 1440 },
+		};
+		try {
+			for (const offset of [-25, -24, -1, 0]) {
+				f.insert("kv_cache_metrics_hour", {
+					family: "application:d1",
+					ts_hour: hour + offset,
+					op: "d1-rows-read",
+					count: 5,
+				});
+			}
+			f.insert("kv_cache_metrics_hour", {
+				family: "admin:d1",
+				ts_hour: hour - 1,
+				op: "d1-rows-read",
+				count: 10,
+			});
+			f.insert("kv_cache_metrics_minute", {
+				family: "application:d1",
+				ts_minute: hour * 60 - 1,
+				op: "d1-rows-read",
+				count: 9000,
+			});
+			const key = await monitorCacheKey(f.env, descriptor);
+			f.values.set(
+				key,
+				JSON.stringify(
+					createCacheEnvelope(
+						{
+							family: null,
+							minutes: 1440,
+							series: [
+								{
+									family: "application:d1",
+									tsMinute: hour * 60 - 1,
+									op: "d1-rows-read",
+									count: 9000,
+								},
+							],
+							observedAt: Date.now(),
+							source: "application:kv_cache_metrics_minute",
+							coverage: "complete",
+							truncated: false,
+						},
+						{ ...descriptor, tier: "MEDIUM" },
+					),
+				),
+			);
+			expect(f.calls).toHaveLength(0);
+			const result = await getMonitorMetrics(f.env, undefined, null, 1440);
+			expect(result).toMatchObject({
+				source: "application:kv_cache_metrics_hour",
+				intervalMinutes: 60,
+				sampling: "best-effort",
+			});
+			expect(result.series).toEqual([
+				{ family: "admin:d1", tsMinute: (hour - 1) * 60, op: "d1-rows-read", count: 10 },
+				{ family: "application:d1", tsMinute: (hour - 24) * 60, op: "d1-rows-read", count: 5 },
+				{ family: "application:d1", tsMinute: (hour - 1) * 60, op: "d1-rows-read", count: 5 },
+			]);
+			expect(f.calls).toHaveLength(1);
+			expect(f.calls[0].params).toEqual([hour - 24, hour, METRICS_ROW_CAP + 1]);
+			expect(f.calls[0].sql).toContain("FROM kv_cache_metrics_hour");
+			f.calls.length = 0;
+			expect(await getMonitorMetrics(f.env, undefined, null, 1440)).toEqual(result);
+			expect(f.calls).toHaveLength(0);
+			const filtered = await loadMonitorMetrics(f.env, "admin:d1", 60);
+			expect(filtered.series).toEqual([result.series[0]]);
+			expect(f.calls).toHaveLength(1);
+		} finally {
+			f.close();
+			vi.useRealTimers();
+		}
+	});
+
 	it("throws on unconfirmed SQL and does not synthesize an empty cacheable page", async () => {
 		const db = {
 			prepare: () => ({
@@ -277,7 +363,7 @@ describe("monitor metrics source read", () => {
 				bind: () => ({
 					all: async () => ({
 						success: true,
-						results: [{ family: "forum:tree:v2", ts_minute: 1, op: "hit", count: 4 }],
+						results: [{ family: "forum:tree:v2", ts_hour: 1, op: "hit", count: 4 }],
 					}),
 				}),
 			}),
@@ -286,9 +372,9 @@ describe("monitor metrics source read", () => {
 		const data = (await rebuildMonitorCache(env, undefined, {
 			family: "monitor:metrics:recent",
 			scope: "admin",
-			params: { resource: "metrics", family: null, minutes: 15 },
+			params: { resource: "metrics", family: null, minutes: 60 },
 		})) as { series: { op: string; count: number }[] };
-		expect(data.series).toEqual([{ family: "forum:tree:v2", tsMinute: 1, op: "hit", count: 4 }]);
+		expect(data.series).toEqual([{ family: "forum:tree:v2", tsMinute: 60, op: "hit", count: 4 }]);
 		expect((data as { coverage: string; truncated: boolean }).coverage).toBe("complete");
 		expect((data as { truncated: boolean }).truncated).toBe(false);
 		await expect(
@@ -303,7 +389,7 @@ describe("monitor metrics source read", () => {
 	it("bounds metric rows and marks partial coverage without caching SQL failure", async () => {
 		const rows = Array.from({ length: METRICS_ROW_CAP + 3 }, (_, i) => ({
 			family: "forum:tree:v2",
-			ts_minute: i,
+			ts_hour: i,
 			op: "hit",
 			count: 1,
 		}));
@@ -345,10 +431,10 @@ describe("live overview handler", () => {
 
 describe("monitor descriptor validation and masking", () => {
 	it("parses query windows and rejects bad descriptors", () => {
-		expect(parseMonitorMetricsQuery({})).toEqual({ family: null, minutes: 60 });
+		expect(parseMonitorMetricsQuery({})).toEqual({ family: null, minutes: 1440 });
 		expect(parseMonitorMetricsQuery({ minutes: "0", family: "" })).toEqual({
 			family: null,
-			minutes: 1,
+			minutes: 60,
 		});
 		expect(parseMonitorMetricsQuery({ minutes: 99999, family: "forum:tree:v2" })).toEqual({
 			family: "forum:tree:v2",
@@ -468,7 +554,7 @@ describe("monitor descriptor validation and masking", () => {
 	});
 
 	it("rejects bad monitor dimensions and incomplete cache payloads", () => {
-		expect(parseMonitorMetricsQuery({ minutes: "nope" })).toEqual({ family: null, minutes: 60 });
+		expect(parseMonitorMetricsQuery({ minutes: "nope" })).toEqual({ family: null, minutes: 1440 });
 		expect(() =>
 			validateMonitorDescriptor({
 				family: "forum:tree:v2",
@@ -509,16 +595,16 @@ describe("monitor descriptor validation and masking", () => {
 				{
 					family: "monitor:metrics:recent",
 					scope: "admin",
-					params: { resource: "metrics", family: null, minutes: 15 },
+					params: { resource: "metrics", family: null, minutes: 60 },
 				},
 				{
 					observedAt: 1,
 					source: "x",
 					family: null,
-					minutes: 15,
+					minutes: 60,
 					coverage: "complete",
 					truncated: false,
-					series: [{ family: "forum:tree:v2", tsMinute: 1, op: "hit" }],
+					series: [{ family: "forum:tree:v2", tsMinute: 60, op: "hit" }],
 				},
 			),
 		).toBe(false);
@@ -533,7 +619,7 @@ describe("monitor descriptor validation and masking", () => {
 					return {
 						all: async () => ({
 							success: true,
-							results: [{ family: "forum:tree:v2", ts_minute: 9, op: "miss", count: 2 }],
+							results: [{ family: "forum:tree:v2", ts_hour: 9, op: "miss", count: 2 }],
 						}),
 					};
 				},
@@ -541,10 +627,10 @@ describe("monitor descriptor validation and masking", () => {
 		} as unknown as D1Database;
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const metrics = await loadMonitorMetrics(env, "forum:tree:v2", 60);
-		expect(binds[0]?.[1]).toBe("forum:tree:v2");
-		expect(binds[0]?.[2]).toBe(METRICS_ROW_CAP + 1);
+		expect(binds[0]?.[2]).toBe("forum:tree:v2");
+		expect(binds[0]?.[3]).toBe(METRICS_ROW_CAP + 1);
 		expect(metrics.series).toEqual([
-			{ family: "forum:tree:v2", tsMinute: 9, op: "miss", count: 2 },
+			{ family: "forum:tree:v2", tsMinute: 540, op: "miss", count: 2 },
 		]);
 		const overview = await rebuildMonitorCache(env, undefined, {
 			family: "monitor:overview",
