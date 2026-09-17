@@ -15,7 +15,11 @@ function fixture() {
 			}),
 			all: vi.fn(async function (this: unknown) {
 				expect(this).toBe(value);
-				return { success: true, results: [{ id: 1 }], meta: { rows_read: 12, rows_written: 0 } };
+				return {
+					success: true,
+					results: [{ id: 1, name: "thread-1" }],
+					meta: { rows_read: 12, rows_written: 0 },
+				};
 			}),
 			run: vi.fn(async function (this: unknown) {
 				expect(this).toBe(value);
@@ -23,7 +27,7 @@ function fixture() {
 			}),
 			first: vi.fn(async function (this: unknown) {
 				expect(this).toBe(value);
-				return { id: 1 };
+				return { id: 1, name: "thread-1" };
 			}),
 			raw: vi.fn(async () => [[1]]),
 			tag: "original",
@@ -55,26 +59,124 @@ function count(op: string, family = "application:d1") {
 }
 
 describe("observation of existing D1 calls", () => {
-	it("preserves bindings, result identity, and optional row metadata without extra queries", async () => {
+	it("preserves bindings, result identity, and captures row metadata without extra queries", async () => {
 		const f = fixture();
 		const db = observeD1(f.db, "business");
 		const stmt = db.prepare("SELECT id FROM threads WHERE id = ?").bind(7);
 		expect((stmt as unknown as { tag: string }).tag).toBe("original");
-		expect(await stmt.all()).toMatchObject({ results: [{ id: 1 }] });
+		expect(await stmt.all()).toMatchObject({ results: [{ id: 1, name: "thread-1" }] });
 		expect(f.original.prepare).toHaveBeenCalledOnce();
-		const values = [...swapSnapshot().entries()];
-		expect(values.find(([key]) => key.endsWith("d1-query"))?.[1]).toBe(1);
-		expect(values.find(([key]) => key.endsWith("d1-rows-read"))?.[1]).toBe(12);
+		const allValues = [...swapSnapshot().entries()];
+		expect(allValues.find(([key]) => key.endsWith("d1-query"))?.[1]).toBe(1);
+		expect(allValues.find(([key]) => key.endsWith("d1-rows-read"))?.[1]).toBe(12);
+
 		await stmt.run();
-		expect(count("d1-rows-written")).toBe(3);
-		await stmt.first();
-		const first = [...swapSnapshot().keys()];
-		expect(first.some((key) => key.includes("rows-read"))).toBe(false);
+		const runValues = [...swapSnapshot().entries()];
+		expect(runValues.find(([key]) => key.endsWith("d1-rows-written"))?.[1]).toBe(3);
+
+		// .first() returns row while capturing rows_read from underlying call
+		expect(await stmt.first()).toEqual({ id: 1, name: "thread-1" });
+		const firstValues = [...swapSnapshot().entries()];
+		expect(firstValues.find(([key]) => key.endsWith("d1-query"))?.[1]).toBe(1);
+		expect(firstValues.find(([key]) => key.endsWith("d1-rows-read"))?.[1]).toBe(12);
+
+		// .first('id') returns single column value
+		expect(await stmt.first("id")).toBe(1);
+		const colValues = [...swapSnapshot().entries()];
+		expect(colValues.find(([key]) => key.endsWith("d1-query"))?.[1]).toBe(1);
+		expect(colValues.find(([key]) => key.endsWith("d1-rows-read"))?.[1]).toBe(12);
+
+		// raw keeps query count and duration observation without fabricated metadata
 		await stmt.raw();
-		expect(count("d1-query")).toBe(1);
+		const rawValues = [...swapSnapshot().entries()];
+		expect(rawValues.find(([key]) => key.endsWith("d1-query"))?.[1]).toBe(1);
+		expect(rawValues.some(([key]) => key.includes("rows-read"))).toBe(false);
+
 		await db.exec("PRAGMA test");
 		expect(f.original.exec).toHaveBeenCalledOnce();
 	});
+
+	it("observes native first() semantics: empty results, missing column, prototype properties, and errors", async () => {
+		const f = fixture();
+		const db = observeD1(f.db, "business");
+		const stmt1 = db.prepare("SELECT id FROM threads WHERE id = -1");
+		const original = f.prepared.at(-1) as { all: ReturnType<typeof vi.fn> };
+
+		// Empty results -> first() returns null
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [],
+			meta: { rows_read: 1, rows_written: 0 },
+		});
+		expect(await stmt1.first()).toBeNull();
+		expect(count("d1-rows-read")).toBe(1);
+
+		// Empty results with column name -> first("id") returns null
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [],
+			meta: { rows_read: 1, rows_written: 0 },
+		});
+		expect(await stmt1.first("id")).toBeNull();
+		expect(count("d1-rows-read")).toBe(1);
+
+		// Missing column throws D1_COLUMN_NOTFOUND error with cause
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [{ id: 1 }],
+			meta: { rows_read: 3, rows_written: 0 },
+		});
+		await expect(stmt1.first("missing")).rejects.toMatchObject({
+			message: "D1_COLUMN_NOTFOUND: Column not found (missing)",
+			cause: expect.objectContaining({ message: "Column not found" }),
+		});
+		expect(count("d1-rows-read")).toBe(3);
+
+		// Column name referring to inherited property (e.g. toString) returns property value
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [{ id: 1 }],
+			meta: { rows_read: 1, rows_written: 0 },
+		});
+		const inherited = await stmt1.first("toString");
+		expect(typeof inherited).toBe("function");
+
+		// Column with null / 0 / empty string name
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [{ "": "empty-name", nullCol: null, zero: 0 }],
+			meta: { rows_read: 1, rows_written: 0 },
+		});
+		expect(await stmt1.first("")).toBe("empty-name");
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [{ nullCol: null }],
+			meta: { rows_read: 1, rows_written: 0 },
+		});
+		expect(await stmt1.first("nullCol")).toBeNull();
+		original.all.mockResolvedValueOnce({
+			success: true,
+			results: [{ zero: 0 }],
+			meta: { rows_read: 1, rows_written: 0 },
+		});
+		expect(await stmt1.first("zero")).toBe(0);
+
+		// Explicitly reject false-success adapter result so it never becomes a null or auth row
+		original.all.mockResolvedValueOnce({
+			success: false,
+			error: "D1_ERROR: simulated adapter failure",
+			results: [],
+			meta: { rows_read: 0, rows_written: 0 },
+		} as unknown as D1Result);
+		await expect(stmt1.first()).rejects.toThrow("D1_ERROR: simulated adapter failure");
+
+		// A malformed adapter response must not be mistaken for an authoritative missing row.
+		original.all.mockResolvedValueOnce({ success: true, meta: {} });
+		await expect(stmt1.first()).rejects.toThrow("D1_ERROR: malformed query result");
+		expect(original.all).toHaveBeenCalledTimes(9);
+		expect((f.prepared.at(-1) as { first: ReturnType<typeof vi.fn> }).first).not.toHaveBeenCalled();
+	});
+
 	it("unwraps native batch statements and excludes the metrics store from observation", async () => {
 		const f = fixture();
 		const db = observeD1(f.db, "admin");
@@ -92,12 +194,13 @@ describe("observation of existing D1 calls", () => {
 		await db.batch([f.db.prepare("SELECT 1")]);
 		expect(count("d1-query", "admin:d1")).toBe(1);
 	});
+
 	it("propagates failures while observing only query count and duration", async () => {
 		const f = fixture();
 		const db = observeD1(f.db, "business");
 		const stmt = db.prepare("SELECT 1");
-		const original = f.prepared.at(-1) as { first: ReturnType<typeof vi.fn> };
-		original.first.mockRejectedValue(new Error("D1 failed"));
+		const original = f.prepared.at(-1) as { all: ReturnType<typeof vi.fn> };
+		original.all.mockRejectedValue(new Error("D1 failed"));
 		await expect(stmt.first()).rejects.toThrow("D1 failed");
 		const metrics = [...swapSnapshot().entries()];
 		expect(metrics.find(([key]) => key.endsWith("d1-query"))?.[1]).toBe(1);

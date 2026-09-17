@@ -1,6 +1,33 @@
 import { recordKvOp } from "./metrics";
 
-/** Observes results of existing calls; never issues SQL or retains SQL/bind values. */
+function extractFirst(result: D1Result, column?: string): unknown {
+	if (!result.success) {
+		throw new Error((result as { error?: string }).error ?? "D1_ERROR: query execution failed");
+	}
+	const results = result.results;
+	if (!Array.isArray(results)) throw new Error("D1_ERROR: malformed query result");
+	if (results.length === 0) return null;
+	const firstRow = results[0];
+	if (column !== undefined) {
+		if (
+			typeof firstRow !== "object" ||
+			!firstRow ||
+			(firstRow as Record<string, unknown>)[column] === undefined
+		) {
+			throw new Error(`D1_COLUMN_NOTFOUND: Column not found (${column})`, {
+				cause: new Error("Column not found"),
+			});
+		}
+		return (firstRow as Record<string, unknown>)[column];
+	}
+	return firstRow;
+}
+
+/**
+ * Observes each existing SQL call once; no extra queries; never retains SQL/bind values.
+ * Note: D1 .raw() does not expose metadata in the public API; raw calls are measured for
+ * query count and duration only without row counts.
+ */
 export function observeD1(db: D1Database, source: "business" | "admin"): D1Database {
 	const family = source === "admin" ? "admin:d1" : "application:d1";
 	const originals = new WeakMap<
@@ -36,8 +63,16 @@ export function observeD1(db: D1Database, source: "business" | "admin"): D1Datab
 					return (...params: unknown[]) => wrap(target.bind(...params), observed);
 				const method = Reflect.get(target, property);
 				if (typeof method !== "function") return method;
-				if (observed && ["all", "run", "first", "raw"].includes(String(property))) {
-					return (...args: unknown[]) => measured(() => method.apply(target, args));
+				if (observed) {
+					if (property === "all" || property === "run" || property === "raw") {
+						return (...args: unknown[]) => measured(() => method.apply(target, args));
+					}
+					if (property === "first") {
+						return async (column?: string) => {
+							const res = await measured(() => target.all());
+							return extractFirst(res, column);
+						};
+					}
 				}
 				return method.bind(target);
 			},

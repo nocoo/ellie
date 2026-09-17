@@ -68,6 +68,11 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 											ol_time: 10,
 										}),
 									),
+									all: vi.fn(async () => ({
+										success: true,
+										results: [{ last_activity: Math.floor(Date.now() / 1000) - 120, ol_time: 10 }],
+										meta: {},
+									})),
 								})),
 							};
 						}
