@@ -62,6 +62,7 @@ function getStatusMessage(code: string): string {
 		NOT_FOUND: "Resource not found",
 		RATE_LIMITED: "Too many requests, please try again later",
 		INTERNAL_ERROR: "Internal server error",
+		SERVICE_UNAVAILABLE: "Service temporarily unavailable, please try again later",
 		INVALID_CREDENTIALS: "Invalid username or password",
 		INVALID_USERNAME: "Username format is invalid",
 		INVALID_PASSWORD: "Password must be at least 6 characters",

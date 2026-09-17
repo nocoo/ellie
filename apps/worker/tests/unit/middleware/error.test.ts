@@ -73,6 +73,7 @@ describe("errorResponse", () => {
 			"NOT_FOUND",
 			"RATE_LIMITED",
 			"INTERNAL_ERROR",
+			"SERVICE_UNAVAILABLE",
 			"INVALID_CREDENTIALS",
 			"USER_BANNED",
 			"TOKEN_EXPIRED",

@@ -7,6 +7,8 @@ import { cacheGetOrSet } from "./wrap";
 export const OVERVIEW_HARD_CAP = 1000;
 export const OVERVIEW_SAMPLE_SIZE = 5;
 export const EXACT_SIBLING_SCAN = 32;
+const EXACT_MAX_PAGES = 4;
+const OVERVIEW_CONCURRENCY = 4;
 export const METRICS_MINUTES_MIN = 1;
 export const METRICS_MINUTES_MAX = 10_080;
 export const METRICS_RECENT_MAX = 60;
@@ -213,7 +215,7 @@ async function listMetadata(
 	return { keys: out, truncated: true };
 }
 
-/** Exact keys share prefixes with siblings. Scan past siblings until the exact name, completion, or cap. */
+/** Bound both keys and requests: expired/deleted KV keys can leave empty incomplete pages. */
 export async function listExactMetadata(
 	env: Env,
 	name: string,
@@ -223,7 +225,7 @@ export async function listExactMetadata(
 }> {
 	let cursor: string | undefined;
 	let scanned = 0;
-	while (scanned < EXACT_SIBLING_SCAN) {
+	for (let page = 0; page < EXACT_MAX_PAGES && scanned < EXACT_SIBLING_SCAN; page++) {
 		const result = await env.KV.list({
 			prefix: name,
 			cursor,
@@ -419,7 +421,20 @@ async function loadFamilyRow(
 export async function loadMonitorOverview(env: Env): Promise<MonitorOverview> {
 	const now = Date.now();
 	const families: MonitorOverviewRow[] = [];
-	for (const spec of KV_REGISTRY) families.push(await loadFamilyRow(env, spec, now));
+	// Serial KV latency across the registry exceeds the core's 20s load deadline.
+	// Keep fan-out below Workers' six outgoing connections and preserve registry order.
+	for (let offset = 0; offset < KV_REGISTRY.length; offset += OVERVIEW_CONCURRENCY) {
+		const rows = await Promise.allSettled(
+			KV_REGISTRY.slice(offset, offset + OVERVIEW_CONCURRENCY).map((spec) =>
+				loadFamilyRow(env, spec, now),
+			),
+		);
+		// Retain the origin permit until every started KV request has settled, even on failure.
+		for (const row of rows) {
+			if (row.status === "rejected") throw row.reason;
+			families.push(row.value);
+		}
+	}
 	return { families, observedAt: now, source: "registry+kv-list-metadata" };
 }
 

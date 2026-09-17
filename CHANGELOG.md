@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.1] - 2026-09-17
+
+### Fixed
+
+- **Admin cache overview no longer accumulates serial KV latency.** Metadata reads run in batches of four, keeping the 78-family overview within the existing origin deadline under ordinary remote latency. Warm snapshots keep their 30-minute lifetime and avoid repeating the scan.
+- Exact-key metadata scans now stop after four pages as well as 32 keys, including empty pages left by expired or deleted entries. Incomplete observations remain unknown; failed reads are not cached as zero counts.
+- Service-unavailable responses now include a useful retry message. Regression tests cover remote latency, scan limits, empty-page continuation, failed reads and snapshot reuse without D1 queries.
+
 ## [1.11.0] - 2026-09-17
 
 ### Added

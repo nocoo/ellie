@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { overview } from "../../../../src/handlers/admin/kv";
 import {
 	footprintFamilyName,
+	getMonitorOverview,
 	isMonitorCacheData,
 	loadMonitorMetrics,
 	loadMonitorOverview,
@@ -13,7 +14,7 @@ import {
 	rebuildMonitorCache,
 	validateMonitorDescriptor,
 } from "../../../../src/lib/cache/admin-monitor-read";
-import { createAdminRequest, createMockKV, makeEnv } from "../../../helpers";
+import { createAdminRequest, createMockDb, createMockKV, makeEnv } from "../../../helpers";
 
 describe("monitor cache descriptors", () => {
 	it("splits recent SHORT and history MEDIUM windows", () => {
@@ -48,6 +49,152 @@ describe("monitor cache descriptors", () => {
 });
 
 describe("monitor overview source read", () => {
+	it("finishes a cold overview within the origin deadline with bounded KV concurrency", async () => {
+		vi.useFakeTimers();
+		try {
+			const { KV_REGISTRY } = await import("../../../../src/lib/cache/kv-registry");
+			const kv = createMockKV();
+			const list = kv.list.getMockImplementation();
+			if (!list) throw new Error("Missing KV list test implementation");
+			let active = 0;
+			let peak = 0;
+			let started!: () => void;
+			const firstList = new Promise<void>((resolve) => {
+				started = resolve;
+			});
+			kv.list.mockImplementation(async (options) => {
+				active++;
+				peak = Math.max(peak, active);
+				started();
+				try {
+					// 78 serial calls at ordinary remote latency exceed the 20s origin deadline.
+					await new Promise((resolve) => setTimeout(resolve, 300));
+					return await list(options);
+				} finally {
+					active--;
+				}
+			});
+			const env = makeEnv({ KV: kv, DB: createMockDb().db });
+			const beginning = Date.now();
+			const result = getMonitorOverview(env, undefined).then(
+				(data) => ({ data, error: null, elapsed: Date.now() - beginning }),
+				(error) => ({ data: null, error, elapsed: Date.now() - beginning }),
+			);
+			await firstList;
+			await vi.runAllTimersAsync();
+			const cold = await result;
+			expect(cold.error).toBeNull();
+			expect(cold.elapsed).toBeLessThan(10_000);
+			expect(peak).toBeGreaterThan(1);
+			expect(peak).toBeLessThanOrEqual(4);
+			expect(active).toBe(0);
+			expect(cold.data?.families.map((row) => row.family)).toEqual(
+				KV_REGISTRY.map((spec) => spec.family),
+			);
+			expect(kv.list).toHaveBeenCalledTimes(KV_REGISTRY.length);
+			expect(env.DB.prepare).not.toHaveBeenCalled();
+			expect(kv.put).toHaveBeenCalledOnce();
+			const snapshot = JSON.parse(kv.put.mock.calls[0][1]);
+			expect(snapshot.tier).toBe("MEDIUM");
+			expect(snapshot.expiresAt - snapshot.loadedAt).toBe(1_800_000);
+			const listed = kv.list.mock.calls.length;
+			expect(await getMonitorOverview(env, undefined)).toEqual(cold.data);
+			expect(kv.list).toHaveBeenCalledTimes(listed);
+			expect(kv.put).toHaveBeenCalledOnce();
+		} finally {
+			await vi.runAllTimersAsync();
+			vi.useRealTimers();
+		}
+	});
+
+	it("bounds exact-key scans across empty incomplete pages without reporting an observed zero", async () => {
+		const kv = createMockKV();
+		const list = kv.list.getMockImplementation();
+		if (!list) throw new Error("Missing KV list test implementation");
+		let pages = 0;
+		kv.list.mockImplementation(async (options) => {
+			if (options?.prefix !== "settings:all") return list(options);
+			pages++;
+			if (pages > 4) throw new Error("Exact-key pagination exceeded its request budget");
+			// KV may skip deleted/expired keys yet still return a continuation cursor.
+			return { keys: [], list_complete: false, cursor: `deleted-page-${pages}` };
+		});
+		const data = await loadMonitorOverview(makeEnv({ KV: kv }));
+		expect(data.families.find((row) => row.family === "settings:all")).toMatchObject({
+			count: 0,
+			countKind: "unknown",
+			truncated: true,
+			footprint: { kind: "unknown", bytes: null },
+		});
+		expect(pages).toBeLessThanOrEqual(4);
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+	});
+
+	it("follows an empty KV page to find the exact singleton within the scan budget", async () => {
+		const kv = createMockKV();
+		const list = kv.list.getMockImplementation();
+		if (!list) throw new Error("Missing KV list test implementation");
+		kv.list.mockImplementation(async (options) => {
+			if (options?.prefix !== "settings:all") return list(options);
+			if (!options.cursor) return { keys: [], list_complete: false, cursor: "after-deleted" };
+			expect(options.cursor).toBe("after-deleted");
+			return {
+				keys: [{ name: "settings:all", expiration: undefined, metadata: undefined }],
+				list_complete: true,
+				cursor: "",
+			};
+		});
+		const data = await loadMonitorOverview(makeEnv({ KV: kv }));
+		expect(data.families.find((row) => row.family === "settings:all")).toMatchObject({
+			count: 1,
+			countKind: "observed",
+			truncated: false,
+		});
+	});
+
+	it("does not cache a successful-looking overview when a family listing fails", async () => {
+		const kv = createMockKV();
+		const list = kv.list.getMockImplementation();
+		if (!list) throw new Error("Missing KV list test implementation");
+		kv.list.mockImplementation(async (options) => {
+			if (options?.prefix === "settings:all") throw new Error("KV list unavailable");
+			return list(options);
+		});
+		const env = makeEnv({ KV: kv, DB: createMockDb().db });
+		await expect(getMonitorOverview(env, undefined)).rejects.toThrow("KV list unavailable");
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(env.DB.prepare).not.toHaveBeenCalled();
+	});
+
+	it("settles the current batch before rejecting so failed attempts cannot leave untracked scans", async () => {
+		const kv = createMockKV();
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		kv.list.mockImplementation(async (options) => {
+			if (options?.prefix === "cache:v3:monitor:overview:") throw new Error("KV list unavailable");
+			await pending;
+			return { keys: [], list_complete: true, cursor: "" };
+		});
+		let settled = false;
+		const result = loadMonitorOverview(makeEnv({ KV: kv })).catch((error) => {
+			settled = true;
+			return error;
+		});
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(settled).toBe(false);
+			expect(kv.list.mock.calls.length).toBeLessThanOrEqual(4);
+		} finally {
+			release();
+		}
+		expect(await result).toEqual(new Error("KV list unavailable"));
+		expect(kv.list).toHaveBeenCalledTimes(4);
+		expect(kv.put).not.toHaveBeenCalled();
+	});
+
 	it("lists metadata without singleton value GET and does not seed gens", async () => {
 		const kv = createMockKV({
 			"online:1": JSON.stringify({ at: 1 }),
