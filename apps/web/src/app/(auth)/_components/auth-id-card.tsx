@@ -2,7 +2,6 @@ import { BookOpen, GraduationCap, MessageCircle, ShieldCheck, TriangleAlert } fr
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { ForumLogo } from "@/components/forum/forum-logo";
-import { HexlyLink } from "@/components/header-links";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 interface AuthIdCardProps {
@@ -14,7 +13,6 @@ export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 	return (
 		<div className="relative flex min-h-dvh flex-col bg-background">
 			<div className="flex items-center justify-end gap-0.5 px-4 pt-3 sm:px-6">
-				<HexlyLink />
 				<ThemeToggle />
 			</div>
 			<main className="flex flex-1 items-center justify-center px-4 pb-8 pt-3 sm:px-6 sm:pb-12">

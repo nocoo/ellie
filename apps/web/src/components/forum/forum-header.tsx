@@ -10,7 +10,7 @@ import { ForumLogo } from "@/components/forum/forum-logo";
 import { MessageBadgeIcon } from "@/components/forum/message-badge-icon";
 import { TrackedUserAvatar } from "@/components/forum/user-avatar";
 import { UserPopover } from "@/components/forum/user-popover";
-import { HeaderTooltip, HexlyLink } from "@/components/header-links";
+import { HeaderTooltip } from "@/components/header-links";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,7 +70,6 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 					>
 						<WidthToggle />
 					</div>
-					<HexlyLink />
 					<ThemeToggle />
 					{user ? (
 						<>
