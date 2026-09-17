@@ -9,7 +9,6 @@ import {
 	SheetDescription,
 	SheetTitle,
 	SheetTrigger,
-	ThemeToggle,
 } from "@nocoo/basalt";
 import { AppHeader } from "@nocoo/basalt/components/app-header";
 import {
@@ -23,6 +22,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { BreadcrumbOverrideProvider, useBreadcrumbOverrideValue } from "./breadcrumb-context";
+import { HeaderActions } from "./header-actions";
 import { Sidebar } from "./sidebar";
 
 function AppShellInner({ children }: { children: ReactNode }) {
@@ -64,7 +64,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
 						}
 						breadcrumbs={breadcrumbs}
 						title={breadcrumbOverride ?? current?.label}
-						actions={<ThemeToggle aria-label="切换主题" />}
+						actions={<HeaderActions />}
 					/>
 					<div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
 						<ContentIsland

@@ -2,11 +2,12 @@
 
 import { ADMIN_LOGO, SITE_ART } from "@ellie/shared";
 import { VERSION_DISPLAY } from "@ellie/types";
-import { Button, LayerCard, Separator, ThemeToggle } from "@nocoo/basalt";
+import { Button, LayerCard, Separator } from "@nocoo/basalt";
 import { LoadingScreen } from "@nocoo/basalt/components/loading-screen";
 import { useSearchParams } from "next/navigation";
 import { type CSSProperties, Suspense } from "react";
 import { useFormStatus } from "react-dom";
+import { HeaderActions } from "@/components/layout/header-actions";
 import { signInWithGoogle } from "./actions";
 
 /** Static barcode decoration for the badge header. */
@@ -74,8 +75,8 @@ function LoginContent() {
 				} as CSSProperties
 			}
 		>
-			<div className="absolute right-4 top-4">
-				<ThemeToggle aria-label="切换主题" />
+			<div className="absolute right-4 top-4 flex items-center gap-1">
+				<HeaderActions />
 			</div>
 			<LayerCard
 				data-basalt-surface-root=""

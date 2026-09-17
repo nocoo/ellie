@@ -5,6 +5,7 @@
 
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { HeaderTooltip } from "./header-links";
 import { Button } from "./ui/button";
 
 type WidthMode = "fixed" | "full";
@@ -33,8 +34,10 @@ export function WidthToggle() {
 	const label = mode === "fixed" ? "切换全屏宽度" : "切换固定宽度";
 
 	return (
-		<Button variant="ghost" size="icon" onClick={toggleMode} aria-label={label} title={label}>
-			<Icon className="h-4 w-4" />
-		</Button>
+		<HeaderTooltip label={label}>
+			<Button variant="ghost" size="icon" onClick={toggleMode} aria-label={label}>
+				<Icon className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
+			</Button>
+		</HeaderTooltip>
 	);
 }

@@ -10,6 +10,7 @@ import { ForumLogo } from "@/components/forum/forum-logo";
 import { MessageBadgeIcon } from "@/components/forum/message-badge-icon";
 import { TrackedUserAvatar } from "@/components/forum/user-avatar";
 import { UserPopover } from "@/components/forum/user-popover";
+import { HeaderTooltip, HexlyLink } from "@/components/header-links";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,19 +70,21 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 					>
 						<WidthToggle />
 					</div>
+					<HexlyLink />
 					<ThemeToggle />
 					{user ? (
 						<>
 							<MessageBadgeIcon />
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => signOut({ callbackUrl: "/" })}
-								title="退出登录"
-								aria-label="退出登录"
-							>
-								<LogOut className="h-4 w-4" aria-hidden="true" />
-							</Button>
+							<HeaderTooltip label="退出登录">
+								<Button
+									variant="ghost"
+									size="icon"
+									onClick={() => signOut({ callbackUrl: "/" })}
+									aria-label="退出登录"
+								>
+									<LogOut className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
+								</Button>
+							</HeaderTooltip>
 						</>
 					) : (
 						<>
