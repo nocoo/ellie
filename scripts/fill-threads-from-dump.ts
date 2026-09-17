@@ -20,7 +20,7 @@
  *     `buildForumThreadTypeNameMap` / `syntheticIdMap` from the migrate
  *     transform pass.
  *   ✓ Streams `pre_forum_thread` + shards from the dump via
- *     `Bun.spawn(["gunzip","-c", path])` (NOT node:zlib+readline) and
+ *     a `gunzip -c` subprocess (NOT node:zlib+readline) and
  *     uses the existing `parseInsertLine` / `extractThread` to keep the
  *     extraction behavior identical to the full migrate pipeline.
  *   ✓ Inserts rows into `threads` with `PRAGMA foreign_keys=OFF` so
@@ -37,11 +37,11 @@
  */
 
 import { Database } from "bun:sqlite";
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { extractThread } from "../packages/migrate/src/extract/extractors";
 import { parseInsertLine } from "../packages/migrate/src/extract/parser";
+import { streamGzipLines } from "./lib/stream-gzip-lines";
 
 const { values } = parseArgs({
 	args: process.argv.slice(2),
@@ -136,41 +136,6 @@ console.log(
 	`[maps] synthetic-id forums = ${syntheticIdMap.size}, name forums = ${nameMap.size}, total fth rows = ${fthRows.length}`,
 );
 
-// ─── Stream parser (gunzip subprocess + manual line buffer) ────────────────
-
-/**
- * Stream-parse a gzipped dump and yield rows for a target table.
- *
- * We avoid node:zlib + node:readline because the 5/14 monolithic dump
- * contains 1-row-per-INSERT lines around 1MB; the readline transform
- * deadlocks on these (observed: main thread parked in kevent64 forever).
- * Instead we spawn `gunzip -c` and consume stdout via a buffer-and-split
- * loop, which has no per-line size assumption.
- */
-async function* streamLines(path: string): AsyncGenerator<string> {
-	const child = spawn("gunzip", ["-c", path], { stdio: ["ignore", "pipe", "inherit"] });
-	const stdout = child.stdout;
-	if (!stdout) throw new Error("gunzip stdout not available");
-	let buf = "";
-	for await (const chunk of stdout) {
-		buf += (chunk as Buffer).toString("utf8");
-		let nl = buf.indexOf("\n");
-		while (nl >= 0) {
-			yield buf.substring(0, nl);
-			buf = buf.substring(nl + 1);
-			nl = buf.indexOf("\n");
-		}
-	}
-	if (buf.length > 0) yield buf;
-	await new Promise<void>((resolve, reject) => {
-		child.on("exit", (code) => {
-			if (code === 0 || code === null) resolve();
-			else reject(new Error(`gunzip exited with code ${code}`));
-		});
-		child.on("error", reject);
-	});
-}
-
 // ─── Stream rows from one table prefix ─────────────────────────────────────
 
 interface ParseStats {
@@ -254,7 +219,7 @@ async function loadTable(table: string, stats: ParseStats): Promise<number> {
 	let tableRows = 0;
 	let lineCount = 0;
 	const t0 = Date.now();
-	for await (const line of streamLines(DUMP_PATH)) {
+	for await (const line of streamGzipLines(DUMP_PATH)) {
 		lineCount++;
 		if (!line.startsWith(prefix)) continue;
 		const rows = parseInsertLine(line, table);
