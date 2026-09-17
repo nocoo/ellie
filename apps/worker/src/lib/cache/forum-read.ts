@@ -73,7 +73,7 @@ export async function loadForumStructure(env: Env): Promise<ForumSnapshotRow[]> 
 
 /** One indexed newest-thread lookup per forum within a single SQL statement. */
 const LAST_ID =
-	"(SELECT t.id FROM threads t WHERE t.forum_id = f.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1)";
+	"(SELECT t.id FROM threads t INDEXED BY idx_threads_forum_latest WHERE t.forum_id = f.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1)";
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 	const cutoff = Math.floor(Date.now() / 1000) - 86400;
 	const [forums, counts] = await Promise.all([
@@ -81,7 +81,7 @@ export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 			`SELECT f.id, f.status, f.visibility, f.threads, f.posts, ${LAST_ID} AS last_thread_id FROM forums f`,
 		).all<Record<string, unknown>>(),
 		env.DB.prepare(
-			"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
+			"SELECT forum_id, COUNT(*) AS cnt FROM threads INDEXED BY idx_threads_created WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
 		)
 			.bind(cutoff)
 			.all<{ forum_id: number; cnt: number }>(),

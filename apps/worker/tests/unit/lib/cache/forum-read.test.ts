@@ -83,4 +83,123 @@ describe("forum origin budgets and pure rebuild", () => {
 		await expect(rebuildForumCache(f.env, undefined, d)).rejects.toThrow();
 		expect(f.calls).toHaveLength(0);
 	});
+
+	it("uses partial covering index and created_at index without temporary b-trees or full forum scans", async () => {
+		// Populate realistic distribution: old threads (past cutoff) and new threads
+		const cutoff = Math.floor(Date.now() / 1000) - 86400;
+		for (let id = 1000; id <= 1050; id++) {
+			f.thread(id, {
+				forum_id: 1,
+				created_at: cutoff - 5000,
+				last_post_at: cutoff - 5000 + id,
+				sticky: 0,
+			});
+		}
+		// 3 recent threads today
+		f.thread(2001, {
+			forum_id: 1,
+			created_at: cutoff + 100,
+			last_post_at: cutoff + 1000,
+			sticky: 0,
+		});
+		f.thread(2002, {
+			forum_id: 1,
+			created_at: cutoff + 200,
+			last_post_at: cutoff + 2000,
+			sticky: 0,
+		});
+		// Thread with negative sticky (soft deleted / hidden) should be excluded
+		f.thread(2003, {
+			forum_id: 1,
+			created_at: cutoff + 300,
+			last_post_at: cutoff + 3000,
+			sticky: -1,
+		});
+
+		f.calls.length = 0;
+
+		// Execute loadForumSnapshot and verify calls captured
+		const snapshot = await loadForumSnapshot(f.env);
+		const forum1 = snapshot.find((row) => row.id === 1);
+		expect(forum1).toBeDefined();
+		expect(forum1?.lastThreadId).toBe(2002);
+		expect(forum1?.todayThreads).toBe(2); // 2001 and 2002, excluding 2003 (sticky: -1)
+
+		// Derive EXPLAIN directly from actual queries captured by loadForumSnapshot
+		const capturedLatestSql = f.calls.find((c) => c.sql.includes("last_thread_id"))?.sql;
+		expect(capturedLatestSql).toBeDefined();
+		const latestExplain = f.sqlite.prepare(`EXPLAIN QUERY PLAN ${capturedLatestSql}`).all() as {
+			detail: string;
+		}[];
+
+		expect(
+			latestExplain.some((step) =>
+				step.detail.includes("SEARCH t USING INDEX idx_threads_forum_latest"),
+			),
+		).toBe(true);
+		expect(latestExplain.some((step) => step.detail.includes("USE TEMP B-TREE FOR ORDER BY"))).toBe(
+			false,
+		);
+
+		const capturedTodayCall = f.calls.find((c) => c.sql.includes("GROUP BY forum_id"));
+		expect(capturedTodayCall).toBeDefined();
+		const todayExplain = f.sqlite
+			.prepare(`EXPLAIN QUERY PLAN ${capturedTodayCall?.sql}`)
+			.all(...(capturedTodayCall?.params ?? [])) as { detail: string }[];
+
+		// Must search created_at range using idx_threads_created, not scanning entire idx_threads_forum
+		expect(
+			todayExplain.some((step) =>
+				step.detail.includes("SEARCH threads USING INDEX idx_threads_created (created_at>?)"),
+			),
+		).toBe(true);
+		expect(todayExplain.some((step) => step.detail.includes("idx_threads_forum"))).toBe(false);
+	});
+
+	it("replaces missing candidates with fallback LAST_ID maintaining sticky and tie-breaker contract", async () => {
+		// Populate initial candidate threads
+		f.thread(301, { forum_id: 1, last_post_at: 1700000000, sticky: 0 });
+		f.thread(302, { forum_id: 1, last_post_at: 1700000000, sticky: 0 }); // tie-breaker by id DESC: 302
+		f.thread(303, { forum_id: 1, last_post_at: 1700000005, sticky: -1 }); // hidden
+
+		// Warm getForums to seed forum summary cache with 302 as newest candidate
+		const forums1 = await getForums(f.env, f.ctx, "anon");
+		expect(forums1.find((m) => m.id === 1)?.lastThreadId).toBe(302);
+
+		// Now remove/hide the cached newest thread (302) by setting sticky = -1 (or moving forum_id)
+		f.sqlite.prepare("UPDATE threads SET sticky = -1 WHERE id = 302").run();
+
+		// Add another candidate with same timestamp as 301 but lower id, to verify tie-breaking on fallback
+		f.thread(300, { forum_id: 1, last_post_at: 1700000000, sticky: 0 });
+
+		f.calls.length = 0;
+
+		// Second getForums call: summary cache is warm with lastThreadId: 302,
+		// but currentCandidates sees 302 sticky < 0, triggering replaceMissingCandidates fallback.
+		const forums2 = await getForums(f.env, f.ctx, "anon");
+		const f1After = forums2.find((m) => m.id === 1);
+
+		// The fallback must re-run LAST_ID for forum 1 and pick 301 (since 302 is hidden, 301 > 300 on same timestamp)
+		expect(f1After?.lastThreadId).toBe(301);
+
+		// Verify fallback query was executed using idx_threads_forum_latest
+		const fallbackCall = f.calls.find((c) =>
+			c.sql.includes(
+				"SELECT f.id, (SELECT t.id FROM threads t INDEXED BY idx_threads_forum_latest",
+			),
+		);
+		expect(fallbackCall).toBeDefined();
+
+		const fallbackExplain = f.sqlite
+			.prepare(`EXPLAIN QUERY PLAN ${fallbackCall?.sql}`)
+			.all(...(fallbackCall?.params ?? [])) as { detail: string }[];
+		expect(
+			fallbackExplain.some((step) =>
+				step.detail.includes("SEARCH t USING INDEX idx_threads_forum_latest"),
+			),
+		).toBe(true);
+		expect(
+			fallbackExplain.some((step) => step.detail.includes("USE TEMP B-TREE FOR ORDER BY")),
+		).toBe(false);
+	});
 });

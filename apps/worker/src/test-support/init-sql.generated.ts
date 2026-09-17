@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: 66fdda51b828026558c2e0fe8ecb0f2dfa7c3b4eddc3639bbc0bddb7c8a1fb18):
+ * Source migrations (sha256: 8bcabff79aa58b26fcf696eb3fef3ee9f50180d219ef7a8ed5e4e01e06bef2af):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -34,6 +34,7 @@
  *   - 0048_add_thread_anonymous.sql
  *   - 0049_backfill_post_anonymous.sql
  *   - 0050_backfill_thread_anonymous.sql
+ *   - 0051_idx_threads_forum_latest.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1658,9 +1659,20 @@ WHERE last_poster_id != 0
       AND p.anonymous = 1
       AND p.created_at = threads.last_post_at
   );
+
+-- ── 0051_idx_threads_forum_latest.sql ────────────────────────────────────────────
+-- 0051_idx_threads_forum_latest.sql
+-- Optimizes forum summary latest thread lookup:
+-- SELECT t.id FROM threads t WHERE t.forum_id = f.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1
+-- By providing a partial index on (forum_id, last_post_at DESC, id DESC) WHERE sticky >= 0,
+-- SQLite can satisfy the ORDER BY and LIMIT 1 directly via index scan without a temp b-tree.
+
+CREATE INDEX IF NOT EXISTS idx_threads_forum_latest
+  ON threads(forum_id, last_post_at DESC, id DESC)
+  WHERE sticky >= 0;
 `;
 
-export const INIT_SQL_HASH = "66fdda51b828026558c2e0fe8ecb0f2dfa7c3b4eddc3639bbc0bddb7c8a1fb18";
+export const INIT_SQL_HASH = "8bcabff79aa58b26fcf696eb3fef3ee9f50180d219ef7a8ed5e4e01e06bef2af";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1692,5 +1704,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0047_add_post_anonymous.sql",
 	"0048_add_thread_anonymous.sql",
 	"0049_backfill_post_anonymous.sql",
-	"0050_backfill_thread_anonymous.sql"
+	"0050_backfill_thread_anonymous.sql",
+	"0051_idx_threads_forum_latest.sql"
 ] as const;
