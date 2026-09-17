@@ -750,7 +750,7 @@ async function loadForumDist(env: Env, d: CacheDescriptor) {
 		SELECT p.forum_id  AS forum_id,
 		       COALESCE(f.name, '') AS forum_name,
 		       COUNT(*)    AS posts
-		FROM posts p
+		FROM posts p INDEXED BY idx_posts_created
 		LEFT JOIN forums f ON f.id = p.forum_id
 		WHERE p.created_at >= ?
 		  AND COALESCE(f.status, -1) >= 0

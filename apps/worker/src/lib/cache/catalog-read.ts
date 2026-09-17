@@ -274,7 +274,7 @@ export async function loadCatalogPage(env: Env, d: CacheDescriptor): Promise<Cat
 	const p = d.params;
 	if (d.family === "recommended:threads") {
 		const result = await env.DB.prepare(`SELECT r.thread_id AS id, r.recommended_at AS recommendedAt
-   FROM forum_recommended_threads r JOIN threads t ON t.id = r.thread_id AND t.forum_id = r.forum_id
+   FROM forum_recommended_threads r CROSS JOIN threads t ON t.id = r.thread_id AND t.forum_id = r.forum_id
    WHERE r.forum_id = ? AND ${threadVisible("t")} ORDER BY r.thread_id DESC LIMIT 6`)
 			.bind(p.forumId)
 			.all<CatalogMember>();
@@ -316,7 +316,11 @@ export async function loadCatalogPage(env: Env, d: CacheDescriptor): Promise<Cat
 			bindings.push(start, end);
 		}
 	}
-	const base = `FROM threads t ${join} JOIN forums f ON f.id = t.forum_id WHERE ${where.join(" AND ")}`;
+	const digestIndex =
+		d.family === "digest:list" && p.forumId === null && p.year === null
+			? "INDEXED BY idx_threads_digest "
+			: "";
+	const base = `FROM threads t ${digestIndex}${join} JOIN forums f ON f.id = t.forum_id WHERE ${where.join(" AND ")}`;
 	const totalTask =
 		d.family === "search:threads" && p.cursorId === null
 			? env.DB.prepare(`SELECT COUNT(*) AS count ${base}`)
