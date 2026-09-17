@@ -98,8 +98,8 @@ test.describe("Feature: Social & User Journey", () => {
 		await loginAs("e2etest");
 		await page.goto("/");
 
-		// When: click the icon-only logout button (matched by title attribute)
-		const logoutBtn = page.locator('button[title="退出登录"]').first();
+		// When: click the icon-only logout button by its accessible name
+		const logoutBtn = page.getByRole("button", { name: "退出登录", exact: true });
 		await expect(logoutBtn).toBeVisible({ timeout: 15_000 });
 		await logoutBtn.click();
 
@@ -108,7 +108,7 @@ test.describe("Feature: Social & User Journey", () => {
 
 		// Then: logged-out marker (login link visible, logout button gone)
 		await expect(page.locator('a[href="/login"]').first()).toBeVisible({ timeout: 15_000 });
-		await expect(page.locator('button[title="退出登录"]')).toHaveCount(0);
+		await expect(logoutBtn).toHaveCount(0);
 	});
 
 	// Cap CAPTCHA gate — driving the real /login form means either fighting
