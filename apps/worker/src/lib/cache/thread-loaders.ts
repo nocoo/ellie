@@ -107,6 +107,7 @@ async function readEntities<T>(
 		batchSize?: number;
 		load: (ids: number[]) => Promise<Map<number, T>>;
 		empty: () => T;
+		cacheKey?: (id: number) => Promise<string>;
 	},
 ): Promise<Map<number, T>> {
 	const result = new Map<number, T>();
@@ -118,7 +119,9 @@ async function readEntities<T>(
 			batch.map(async (id) => {
 				const params = options.params(id);
 				const descriptor = { family: options.family, params, scope: SCOPE };
-				const key = await readingCacheKey(env, descriptor);
+				const key = options.cacheKey
+					? await options.cacheKey(id)
+					: await readingCacheKey(env, descriptor);
 				return {
 					id,
 					key,
@@ -210,11 +213,35 @@ export async function loadPostEntities(
 	);
 }
 
+async function threadMetaGens(env: Env, ids: readonly number[]): Promise<Map<number, string>> {
+	const unique = uniqueIds(ids);
+	const gens = new Map<number, string>();
+	for (let start = 0; start < unique.length; start += BATCH_SIZE) {
+		const batch = unique.slice(start, start + BATCH_SIZE);
+		const tokens = await Promise.all(batch.map((id) => getGen(env, threadMetaGenKey(id))));
+		for (const [index, id] of batch.entries()) gens.set(id, tokens[index] as string);
+	}
+	return gens;
+}
+
+async function threadResourceCacheKey(
+	family: "thread:entity" | "thread:stats",
+	threadId: number,
+	gen: string,
+): Promise<string> {
+	const descriptor = { family, params: { threadId }, scope: SCOPE };
+	validateThreadCacheDescriptor(descriptor);
+	return dataCacheKey(family, { threadId }, SCOPE, { resource: gen });
+}
+
 export async function getThreadRows(
 	env: Env,
 	ctx: ExecutionContext | undefined,
 	ids: readonly number[],
 ): Promise<Map<number, ReadingRow>> {
+	const gens = await threadMetaGens(env, ids);
+	const cacheKey = (family: "thread:entity" | "thread:stats") => (id: number) =>
+		threadResourceCacheKey(family, id, gens.get(id) as string);
 	const [entities, stats] = await Promise.all([
 		readEntities(env, ctx, ids, {
 			family: "thread:entity",
@@ -222,6 +249,7 @@ export async function getThreadRows(
 			params: (threadId) => ({ threadId }),
 			load: (missing) => loadThreadEntities(env, missing),
 			empty: () => null,
+			cacheKey: cacheKey("thread:entity"),
 		}),
 		readEntities(env, ctx, ids, {
 			family: "thread:stats",
@@ -229,6 +257,7 @@ export async function getThreadRows(
 			params: (threadId) => ({ threadId }),
 			load: (missing) => loadThreadStats(env, missing),
 			empty: () => null,
+			cacheKey: cacheKey("thread:stats"),
 		}),
 	]);
 	const rows = new Map<number, ReadingRow>();
