@@ -20,6 +20,44 @@ describe("digest handlers", () => {
 		vi.restoreAllMocks();
 	});
 
+	it("serves stats and filters with a deleted forum-zero group and rechecks visibility on hits", async () => {
+		f.insert("forums", { id: 0, name: "Deleted forum", status: -1 });
+		f.thread(1, { forum_id: 0, digest: 1, created_at: 1_104_537_600 });
+		f.thread(2, { forum_id: 1, digest: 2, created_at: 1_711_540_800 });
+		f.thread(3, { forum_id: 2, digest: 3, created_at: 1_680_000_000 });
+		const statsRequest = new Request("https://api.example.com/api/v1/digest/stats");
+		const filtersRequest = new Request("https://api.example.com/api/v1/digest/filters");
+
+		const stats = await digest.stats(statsRequest, f.env);
+		const filters = await digest.filters(filtersRequest, f.env);
+		expect(stats.status).toBe(200);
+		expect(filters.status).toBe(200);
+		expect((await stats.json()).data).toEqual({ total: 1, level1: 0, level2: 1, level3: 0 });
+		expect((await filters.json()).data).toEqual({
+			years: [2024],
+			forums: [{ id: 1, name: "Public", digestCount: 1 }],
+		});
+		const snapshots = [...f.snapshots("digest:stats"), ...f.snapshots("digest:filters")];
+		expect(snapshots).toHaveLength(2);
+		const aggregateQueries = () =>
+			f.calls.filter((call) => call.sql.includes("GROUP BY t.forum_id"));
+		expect(aggregateQueries()).toHaveLength(2);
+
+		f.sqlite.exec("UPDATE forums SET status = 0 WHERE id = 1");
+		expect((await (await digest.stats(statsRequest, f.env)).json()).data).toEqual({
+			total: 0,
+			level1: 0,
+			level2: 0,
+			level3: 0,
+		});
+		expect((await (await digest.filters(filtersRequest, f.env)).json()).data).toEqual({
+			years: [],
+			forums: [],
+		});
+		expect(aggregateQueries()).toHaveLength(2);
+		expect([...f.snapshots("digest:stats"), ...f.snapshots("digest:filters")]).toEqual(snapshots);
+	});
+
 	describe("list", () => {
 		it("should return empty list when no digest threads exist with SHORT cache tier", async () => {
 			const request = new Request("https://api.example.com/api/v1/digest");

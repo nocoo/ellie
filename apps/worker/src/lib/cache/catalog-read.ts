@@ -209,7 +209,8 @@ export function isCatalogCacheData(d: CacheDescriptor, value: unknown): boolean 
 			value.every(
 				(row) =>
 					exactFields(row, ["forumId", "year", "digest", "count"]) &&
-					positiveId(row.forumId) &&
+					// Imports retain deleted forum 0; current forum gates still decide visibility.
+					nonnegative(row.forumId) &&
 					Number.isSafeInteger(row.year) &&
 					Number(row.year) >= 1 &&
 					Number(row.year) <= 9998 &&

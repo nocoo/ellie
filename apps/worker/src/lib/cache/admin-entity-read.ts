@@ -108,7 +108,8 @@ const userListRow = shape({ ...userFields, messagesCount: isCount, attachmentsCo
 const entityValidators: Record<keyof typeof imports, FieldValidator> = {
 	users: shape(userFields),
 	forums: shape({
-		id: isId,
+		// Historical imports retain a deleted-forum placeholder at id 0.
+		id: (value) => value === 0 || isId(value),
 		...fields("parentId displayOrder threads posts status todayThreads lastPosterId", isNumber),
 		...fields(
 			"name description announcement icon type visibility moderators lastPosterAvatar lastPosterAvatarPath",

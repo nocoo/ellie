@@ -6,6 +6,7 @@ import {
 	getCachedThreadTypes,
 	getCatalogPage,
 	getDigestGroups,
+	isCatalogCacheData,
 	loadCatalogPage,
 	loadDigestGroups,
 	loadThreadTypes,
@@ -195,6 +196,61 @@ describe("lib/cache/catalog-read", () => {
 			const g2 = groups.find((g) => g.forumId === 1 && g.digest === 2);
 			expect(g1?.count).toBe(2);
 			expect(g2?.count).toBe(1);
+		});
+
+		it.each(["digest:stats", "digest:filters"] as const)(
+			"%s caches imported forum-zero groups without repeating the aggregate",
+			async (family) => {
+				f.insert("forums", { id: 0, name: "Deleted forum", status: -1 });
+				f.thread(1, { forum_id: 0, digest: 1, created_at: 1_104_537_600 });
+				f.thread(2, { forum_id: 1, digest: 2, created_at: 1_711_540_800 });
+				const descriptor = { family, params: {}, scope: "internal" };
+				const expected = [
+					{ forumId: 0, year: 2005, digest: 1, count: 1 },
+					{ forumId: 1, year: 2024, digest: 2, count: 1 },
+				];
+
+				expect(await getDigestGroups(f.env, undefined, family)).toEqual(expected);
+				const key = await catalogCacheKey(f.env, descriptor);
+				const snapshot = JSON.parse(f.values.get(key) ?? "null");
+				expect(snapshot).toMatchObject({ tier: "MEDIUM", scope: "internal", data: expected });
+				expect(snapshot.expiresAt - snapshot.loadedAt).toBe(1_800_000);
+				const coldQueries = f.calls.length;
+				expect(coldQueries).toBe(1);
+				expect(await getDigestGroups(f.env, undefined, family)).toEqual(expected);
+				expect(f.calls).toHaveLength(coldQueries);
+				expect(JSON.parse(f.values.get(key) ?? "null")).toEqual(snapshot);
+
+				const puts = vi.mocked(f.env.KV.put).mock.calls.length;
+				const rebuilt = await rebuildCatalogCache(f.env, undefined, descriptor);
+				expect(rebuilt).toEqual(expected);
+				expect(isCatalogCacheData(descriptor, rebuilt)).toBe(true);
+				expect(vi.mocked(f.env.KV.put).mock.calls).toHaveLength(puts);
+				expect(f.calls.every((call) => call.mode === "all")).toBe(true);
+			},
+		);
+
+		it("keeps digest aggregate types and public forum parameters strict", () => {
+			const descriptor = { family: "digest:stats", params: {}, scope: "internal" };
+			const group = { forumId: 0, year: 2005, digest: 1, count: 1 };
+			for (const invalid of [
+				{ forumId: -1 },
+				{ forumId: "0" },
+				{ forumId: Number.MAX_SAFE_INTEGER + 1 },
+				{ year: null },
+				{ digest: 4 },
+				{ count: 0 },
+				{ content: "unexpected" },
+			]) {
+				expect(isCatalogCacheData(descriptor, [{ ...group, ...invalid }])).toBe(false);
+			}
+			expect(() =>
+				validateCatalogDescriptor({
+					family: "thread-types",
+					params: { forumId: 0 },
+					scope: "internal",
+				}),
+			).toThrow("Invalid recommendation scope");
 		});
 
 		it("getDigestGroups caches with MEDIUM tier for populated groups and SHORT for empty", async () => {
