@@ -6,7 +6,7 @@
 // silent-failure mode.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readAdminKvJson } from "../../../src/lib/admin-kv-fetch";
+import { readAdminKvJson, writeAdminKvJson } from "../../../src/lib/admin-kv-fetch";
 
 const originalFetch = globalThis.fetch;
 
@@ -57,6 +57,15 @@ describe("readAdminKvJson", () => {
 		expect(result.families).toEqual([]);
 	});
 
+	it("uses message-only or code-only worker errors", async () => {
+		mockFetch({ error: { message: "只消息" } }, { status: 503 });
+		await expect(readAdminKvJson("/api/admin/kv/overview")).rejects.toThrow(/只消息/);
+		mockFetch({ error: { code: "GONE" } }, { status: 410 });
+		await expect(readAdminKvJson("/api/admin/kv/overview")).rejects.toThrow(/GONE/);
+		mockFetch({ error: {} }, { status: 502 });
+		await expect(readAdminKvJson("/api/admin/kv/overview")).rejects.toThrow(/HTTP 502/);
+	});
+
 	it("throws with worker error envelope on 401", async () => {
 		mockFetch({ ok: false, error: { code: "UNAUTHORIZED", message: "未登录" } }, { status: 401 });
 		await expect(readAdminKvJson("/api/admin/kv/overview")).rejects.toThrow(
@@ -84,5 +93,29 @@ describe("readAdminKvJson", () => {
 			throw new TypeError("Failed to fetch");
 		}) as typeof fetch;
 		await expect(readAdminKvJson("/api/admin/kv/overview")).rejects.toThrow(/Failed to fetch/);
+	});
+
+	it("POSTs JSON with no-store and returns data", async () => {
+		const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+			expect(init?.method).toBe("POST");
+			expect(init?.cache).toBe("no-store");
+			expect(JSON.parse(String(init?.body))).toEqual({
+				family: "settings:all",
+				key: "settings:all",
+			});
+			return {
+				ok: true,
+				status: 200,
+				json: async () => ({
+					data: { outcome: "deleted", deletedKeys: ["settings:all"], observedAt: 1 },
+				}),
+			} as Response;
+		});
+		globalThis.fetch = fetchMock as typeof fetch;
+		const result = await writeAdminKvJson<{ outcome: string }>("/api/admin/kv/delete", {
+			family: "settings:all",
+			key: "settings:all",
+		});
+		expect(result.outcome).toBe("deleted");
 	});
 });
