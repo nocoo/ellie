@@ -1,277 +1,87 @@
 # Ellie — Project Intelligence
 
-## Architecture
+Forum and admin applications with a Cloudflare API and a Rust TUI.
+Profile: ts-worker-web + native-tool (Rust CLI).
+Direction: [product and development](docs/25-development.md). Frameworks must preserve this handbook.
 
-Monorepo with Bun (TypeScript) + Rust:
+## Sources of Truth
 
-| Package | Description |
-|---------|-------------|
-| `apps/web` | Next.js frontend |
-| `apps/worker` | Cloudflare Worker API (D1 + KV) |
-| `packages/cli-rs` | Rust TUI client (ratatui) — workspace: `ellie-core` (lib) + `ellie-tui` (bin) |
-| `packages/db` | D1 schema & migrations |
-| `packages/repositories` | Data access layer (`@ellie/repositories`) |
-| `packages/types` | Shared TypeScript types (`@ellie/types`) |
-| `packages/cli` | Legacy TS CLI (deprecated) |
-| `packages/migrate` | Migration tooling |
+This file is the quality contract; hooks, CI and config are enforcement. Close implementation gaps without lowering the contract. Historical test results are not evidence of a current passing run.
 
-## API Architecture (IMPORTANT)
+| Fact | Where |
+|---|---|
+| Product / setup | [README.md](README.md), [development](docs/25-development.md) |
+| API / credentials | [API architecture](docs/api-architecture.md), [agent details](docs/26-agent-development.md) |
+| Test lifecycle | [local stack](docs/23-local-test-stack.md), `scripts/run-l2.ts`, `scripts/lib/local-d1.ts` |
+| Versions / gates | root `package.json`, package Vitest configs, `.husky`, CI |
+| Accidents | [Retrospective.md](Retrospective.md) |
+| Machine workflow | global `AGENTS.md` and Git rules |
 
-**Full documentation:** `docs/api-architecture.md`
+## Project Invariants
 
-### Three-Layer Model
+- Browser → Next.js proxy → Worker → D1/KV/R2; add every browser proxy with its Worker route and update the API docs.
+- Forum Key A and admin Key B are distinct, server-only credentials; use `apiClient` in browsers and the appropriate server API client.
+- Keep `apps/worker/.dev.vars` symlinked to root `.dev.vars`; web/admin use their own ignored `.env.local` files and tracked examples. Never log keys or sessions.
+- Worker migrations are the live schema authority. Deploy only through migration-first `bun run worker:deploy`; schema-dependent code and migrations move together.
+- Rust TUI defaults can address the live service: explicitly select a local URL and isolated config for tests. Keep legacy TS CLI status clear.
 
-```
-Browser → Next.js API Routes → Cloudflare Worker → D1/KV
-         (proxy layer)        (backend)
-```
+## Stack / Layout
 
-### Key Rules
+| Component | Path / choice |
+|---|---|
+| Forum / admin | `apps/web`, `apps/admin`; Next.js/Auth.js |
+| API / schema | `apps/worker`, `packages/db`, `packages/repositories`, `packages/types` |
+| CLI / migration | `packages/cli-rs` (core + TUI), `packages/migrate` |
 
-1. **Browser NEVER calls Worker directly** — always goes through Next.js proxy routes
-2. **API Keys are server-side only** — never exposed to browser
-3. **Every browser API call needs a Next.js route** — missing routes cause "Unexpected token '<'" errors
+## Commands
 
-### API Clients
-
-| Client | Location | Use Case |
-|--------|----------|----------|
-| `apiClient` | `lib/api-client.ts` | Browser → Next.js routes |
-| `forumApi` | `lib/forum-api.ts` | Server → Worker (Key A) |
-| `adminApi` | `lib/admin-api.ts` | Server → Worker (Key B) |
-| `authFetch/authPatch` | `lib/forum-auth.ts` | Server → Worker (Key A + JWT) |
-
-### Adding New Endpoints
-
-1. **Worker handler:** `apps/worker/src/handlers/*.ts`
-2. **Worker router:** `apps/worker/src/index.ts`
-3. **Next.js proxy (if browser needs it):** `apps/web/src/app/api/v1/*/route.ts`
-4. **Use correct client:** `forumApi` for server, `apiClient` for browser
-5. **Deploy Worker:** `bun run worker:deploy` (remind user after Worker changes!)
-6. **Update docs:** Keep `docs/api-architecture.md` and relevant feature docs in sync
-
-### Common Mistakes
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `Unexpected token '<'` | Missing Next.js proxy route | Create `/api/v1/*/route.ts` |
-| `404` on new API | Worker not deployed | Run `bun run worker:deploy` |
-| `404` on browser API call | Missing Next.js proxy | Add proxy route for the endpoint |
-| `UNAUTHORIZED` | Wrong API key | Check Key A vs Key B routing |
-| `import error` | Using server-only client in browser | Use `apiClient` instead |
-
-## Secrets & Environment
-
-Three env files, one per app. Each has a tracked `.example` sibling — copy
-those to the real names below (all gitignored) and fill in values.
-
-| Real path | Example file | Consumed by |
-|---|---|---|
-| `/.dev.vars` (root) | `apps/worker/.dev.vars.example` | `wrangler dev` — `apps/worker/.dev.vars` MUST be a symlink → `../../.dev.vars` so worker + CLI dev builds read one file |
-| `apps/web/.env.local` | `apps/web/.env.local.example` | Next.js forum (port 7031) |
-| `apps/admin/.env.local` | `apps/admin/.env.local.example` | Next.js admin console (port 7032) |
-
-### Worker secrets (in `/.dev.vars`)
-
-| Variable | Required | Purpose |
-|---|---|---|
-| `API_KEY` | ✓ | Forum API key (Key A). Must match `apps/web/.env.local:FORUM_API_KEY` |
-| `ADMIN_API_KEY` | ✓ | Admin API key (Key B). Must match `apps/admin/.env.local:ADMIN_API_KEY` |
-| `JWT_SECRET` | ✓ | JWT signing secret for forum user tokens |
-| `EMAIL_VERIFY_HMAC_KEY` | optional | HMAC for 6-digit email codes (docs/17). Without it `/auth/email/*` → 503 |
-| `DOVE_WEBHOOK_TOKEN` | optional | Dove mail relay bearer. Non-secret Dove config lives in `wrangler.toml [vars]` |
-| `IP_LOOKUP_API_KEY` | optional | Upstream IP-lookup key for admin panel. Without it → 503 |
-| `ANALYTICS_INGEST_KEY` | optional | Shared with `apps/web/.env.local`. P5 page-view ingest bridge |
-
-### Web (`apps/web/.env.local`)
-
-`AUTH_SECRET`, `AUTH_URL`, `WORKER_API_URL`, `FORUM_API_KEY`,
-`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_CAP_API_ENDPOINT`,
-`ANALYTICS_INGEST_KEY` (optional). See `.env.local.example` for details.
-
-### Admin (`apps/admin/.env.local`)
-
-`AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`
-(admin is Google-only), `ADMIN_EMAILS` (allowlist), `WORKER_API_URL`,
-`ADMIN_API_KEY`. See `.env.local.example` for details.
-
-### Key A vs Key B
-
-Forum handlers accept `API_KEY` only; admin handlers accept
-`ADMIN_API_KEY` only. Never share the same value across both — leaking
-one must not grant the other's scope.
-
-**Wrangler commands** must specify config: `-c apps/worker/wrangler.toml`
+Run from root with Bun (manifest 1.3.14; CI 1.4.2), Node 22+, Rust 1.88+ and installed Playwright Chromium. Local Worker runners inject test secrets; browser login needs the documented fixtures. See the linked examples for optional Cap, Google OAuth and mail configuration.
 
 ```bash
-# Deploy Worker (standard: applies pending D1 migrations first)
-bun run worker:deploy
-
-# Update secrets
-echo "<value>" | npx wrangler secret put API_KEY -c apps/worker/wrangler.toml
-
-# Local dev
-npx wrangler dev -c apps/worker/wrangler.toml
+bun install --frozen-lockfile
+bun run typecheck
+bun run lint
+bun run build
+bun run test:coverage
+bun run test:l2                  # managed local real-HTTP API lane
+bun run gate:l2                  # adds strict route-coverage audit
+bun run test:e2e:bdd             # forum then admin browser runners
+cargo test --locked --workspace --manifest-path packages/cli-rs/Cargo.toml
 ```
 
-**Rust CLI** reads API key from (highest priority first):
-1. `--api-key <KEY>` CLI argument
-2. `ELLIE_API_KEY` environment variable
-3. `apiKey` in `~/.config/ellie/config.json`
-4. Build-time `ELLIE_DEFAULT_API_KEY` (injected in release builds)
+## Verification
 
-## Deployment
+6DQ = L1/L2/L3 + G1/G2 + D1 (test isolation). Status: `enforced`, `planned`, `manual`, or `N/A`; partial enforcement below does not certify the full required bar.
+L1 requires statements, branches, functions and lines each ≥95%, with no skipped/focused tests; preserve any stricter package threshold. Native tools must identify unmeasured metrics as gaps.
+G1 requires check-only strict analysis/formatting with zero errors/warnings. G2 requires dependency and secret scans, with missing required scanners failing.
 
-**Full documentation:** `docs/docker-deployment.md`
+| Dimension | Status | Required proof and current evidence/gap |
+|---|---|---|
+| L1 TypeScript | planned | Coverage runs in hooks/CI; web/admin/Worker currently require branches 90%, other metrics 95%. Close exclusions and branch gaps without lowering existing bars. |
+| L1 Rust | planned | `cargo test --workspace` exercises core/TUI; no all-four coverage gate. Ignored external API cases are not unit-test proof. |
+| L2 API / Rust | planned | `test:l2` uses real local Worker HTTP; require 100% routes including auth/error paths. `gate:l2` adds strict audit, but hooks use only `test:l2`; Rust external integration is conditional. |
+| L3 web / TUI | planned | CI runs local forum/admin BDD; require all pages and real CLI workflows. Cap scenarios are skipped; real OAuth/mail and full TUI interactions remain explicit manual lanes. |
+| G1 TS / Rust | planned | Biome/typecheck are wired; Rust fmt/clippy (`-D warnings`)/tests run on staged Rust changes. Check-only index enforcement is incomplete. |
+| G2 | enforced | Hooks/CI run gitleaks and OSV for Bun/Cargo locks; scanners must be available. |
+| D1 | planned | Runners force local mode and test vars, but use fixed lane directories and unguarded recursive cleanup without a checked marker; admin L3 shares dev port 7032. |
 
-- **Host:** jp2.nocoo.cloud (Azure Japan, Docker)
-- **Edge:** Cloudflare → proxy-caddy (mTLS) → Docker containers
-- **Images:** `ghcr.io/<owner>/ellie-web` + `ghcr.io/<owner>/ellie-admin` on GHCR
-- **CI/CD:** Push to main → CI green → Release workflow builds images → SSH deploy to jp2
-- **Worker:** Deployed separately via `bun run worker:deploy` (not part of Docker release)
-- **Domains:** ellie.hexly.ai (forum), ellie-admin.hexly.ai (admin console)
+Pre-commit runs lint-staged, coverage, local L2 and staged gitleaks in parallel, adding TS/Rust checks when relevant. Pre-push runs full TS checks, then L2 and security; Rust HTTP tests run only when `ELLIE_API_URL` and `ELLIE_API_KEY` are set. Point those only at a disposable local fixture. Existing hooks inspect the working tree, not a push-ref snapshot.
 
-## NPM Scripts (root package.json)
+Target hooks: pre-commit checks G1 + L1 against the index snapshot (`git checkout-index`) in <30s; pre-push checks L2 and G2 in parallel against every stdin push ref/commit in <3min, plus build where applicable. L3 runs in CI or an explicit manual lane.
+Never bypass commit/push hooks, force-push, or use autofix in checks. Documentation changes do not authorize deploying or implementing new gates.
 
-### Development
+## Resources / Isolation
 
-| Script | Description |
-|--------|-------------|
-| `bun run dev` | Start Next.js dev server (port 7031) |
-| `bun run build` | Build Next.js for production |
-| `bun run start` | Start production server |
-| `bun run worker:dev` | Start Cloudflare Worker locally |
-| `bun run worker:migrate:prod` | Apply pending D1 migrations to production (`tongjinet-db`) |
-| `bun run worker:migrate:test` | Apply pending D1 migrations to test (`tongjinet-db-test`) |
-| `bun run worker:deploy` | **Standard prod deploy**: applies pending D1 migrations, then `wrangler deploy`. Always use this — never run `wrangler deploy` directly. |
-| `bun run worker:deploy:test` | Same flow against the test environment |
-| `bun run migrate` | Run database migrations |
-| `bun run cli` | Run legacy TS CLI |
-| `bun run tui` | Launch Rust TUI (via scripts/tui.ts) |
+Dev: forum 7031, admin 7032, Worker 8787. L2: 17031 or an available port, `.wrangler/state/e2e`; L3: Worker 8788, forum 27031, admin 7032, `.wrangler/state/l3`. Run browser lanes sequentially and keep their ports free. Target unique per-run SQLite/KV/R2 state, test marker and canonical-path/ownership guards before cleanup; never remote `-test` resources.
 
-### Testing (6-dimensional quality system)
+## Operations / Release
 
-| Script | Description | Test Count |
-|--------|-------------|------------|
-| `bun run test` | Run all L1 tests (unit + worker) | ~3069 |
-| `bun run test:unit` | L1 unit tests (`tests/unit/`) | ~2202 |
-| `bun run test:unit:worker` | L1 worker tests (`apps/worker/`) | ~867 |
-| `bun run test:integration` | L2 integration tests (requires worker running) | ~164 |
-| `bun run test:e2e` | L3 E2E tests (Playwright) | 22 |
-| `bun run test:coverage` | L1 unit tests with coverage report | - |
-| `bun run verify:test-db` | D1 isolation verification | - |
-
-**Port Convention:**
-- Dev: 7031
-- L2 Integration: 17031 (dev + 10000)
-- L3 E2E: 27031 (dev + 20000)
-
-### Code Quality
-
-| Script | Description |
-|--------|-------------|
-| `bun run typecheck` | TypeScript type checking (all packages) |
-| `bun run lint` | Biome linting |
-| `bun run lint:fix` | Biome lint with auto-fix |
-| `bun run format` | Biome format |
-
-### Version Management
-
-| Script | Description |
-|--------|-------------|
-| `bun run release` | Bump patch version (Z+1) |
-| `bun run release -- minor` | Bump minor version (Y+1) |
-| `bun run release -- major` | Bump major version (X+1) |
-| `bun run release -- 2.0.0` | Set specific version |
-| `bun run release -- --dry-run` | Preview changes without modifying |
-
-**Version locations (all updated by release script):**
-- Root `package.json` (single source of truth)
-- All workspace `package.json` files
-- `packages/types/src/version.ts` — exports `VERSION` and `VERSION_DISPLAY`
-- `packages/types/src/version.d.ts` — TypeScript declarations
-
-**Version display:**
-- Footer: `v1.0.0` (via `VERSION_DISPLAY`)
-- `/api/live`: returns `version` field
-
-## Quality Gates (pre-push)
-
-| Gate | Command |
-|------|---------|
-| G1 typecheck | `bun run typecheck` |
-| L1 all tests | `bun run test` |
-| G2 dependency scan | `osv-scanner scan --lockfile bun.lock` |
-| G2 secret detection | `gitleaks detect --no-banner` |
-| D1 isolation | `bun run verify:test-db` |
-| Rust L1 | `cargo test --workspace` (in `packages/cli-rs`) |
-| Rust L2 | `cargo test --test integration -- --ignored` (requires `ELLIE_API_URL` + `ELLIE_API_KEY`) |
-| Rust G2 | `osv-scanner scan --lockfile Cargo.lock` |
+Current Docker hosts and CI release behavior are in [development](docs/25-development.md); Worker deployment is separate. Root version is synchronized across workspaces, shared version exports and `/api/live`; follow [version details](docs/26-agent-development.md). Do not infer live deployment from a local commit.
 
 ## Retrospective
 
-### 2026-05-10: Checkin Streak Bug from Pre-Fix Deployment
-- **Issue:** 3 users who checked in on May 9 have `streak_days=1` instead of 2, despite checking in on consecutive days (import from May 8 → new checkin May 9).
-- **Cause:** The initial Worker deployment included commit `3c36b33` which used `toLocaleString("en-US", { timeZone: "Asia/Shanghai" })` → `new Date()` for timezone conversion. In Cloudflare Workers (UTC runtime), this re-parses the Shanghai-formatted string as UTC, shifting `todayStart` by +8 hours. The fix in `bb4523c` (using `Intl.DateTimeFormat.formatToParts()` + `Date.UTC - 8h`) was committed locally but not deployed until later.
-- **Fix:** `bb4523c` is now in production (Worker `8e8a6d7d`). Future streak calculations are correct. Optional D1 repair for 3 affected users.
-- **Lessons:**
-  1. **Don't deploy code with known review blockers.** The timezone bug was identified by the reviewer as a blocker — the initial deployment should not have happened before the fix was committed and verified.
-  2. **Timezone logic in Workers must use `formatToParts()` + explicit UTC arithmetic**, never `toLocaleString → new Date()` round-trip.
+Move accident narratives to [Retrospective.md](Retrospective.md); keep at most about ten concise recurring project rules here. Put architecture and operational detail in linked docs.
 
-### 2026-05-07: Worker Deploy Without Migration Apply
-- **Issue:** Deployed worker `f1d00be` to production; admin `/api/admin/users` immediately broke with 500 ("无法加载 users 列表")
-- **Cause:** Migration `0030_user_tombstone.sql` (adds `purged_at`/`purged_by` to `users`) was never applied to prod D1. Deployed worker's `USER_COLUMNS` SELECT references those columns → SQLite "no such column" → 500.
-- **Fix:**
-  1. `cd apps/worker && bun x wrangler d1 migrations apply tongjinet-db --remote` — applied 0030
-  2. Hardened the deploy contract: `bun run worker:deploy` now runs `worker:migrate:prod` BEFORE `wrangler deploy`. `worker:deploy:test` does the same against the test env.
-- **Lessons:**
-  1. **Never run `wrangler deploy` directly.** Always use `bun run worker:deploy` so migrations apply first.
-  2. **Schema and code must move together.** Any commit that touches `*_COLUMNS`/handlers + a new migration must be deployed atomically — migration first, code second.
-  3. **Pre-deploy verification:** `bun x wrangler d1 migrations list tongjinet-db --remote` should print `✅ No migrations to apply!` once `worker:deploy` completes.
-
-### 2026-04-06: D1 Test Isolation Setup
-- **Issue:** L2 tests were failing because they couldn't connect to production D1 or used empty local D1
-- **Solution:** Created isolated test environment with separate D1 and KV instances
-- **Configuration:**
-  - Test D1: `tongjinet-db-test` (940c7758-0a9e-44b2-aeb5-745fa3143371)
-  - Test KV: `ellie-test-kv` (490227e961174fd38c6c14530a4ee3ee)
-  - wrangler.toml `[env.test]` section configures isolated resources
-  - `_test_marker` table with `env=test` for runtime verification
-- **Running L2 tests:**
-  1. `bun run verify:test-db` — verify D1 isolation
-  2. Worker auto-starts with `--env test --remote` via `tests/integration/preload.ts`
-- **Key files:**
-  - `apps/worker/wrangler.toml` — [env.test] configuration
-  - `scripts/verify-test-db.ts` — D1 isolation verification script
-  - `apps/worker/migrations/0000_init_schema.sql` — base schema for test DB
-
-### 2026-04-03: Worker + Next.js Proxy Sync Issues
-- **Issue:** User moderation actions (mute/ban/nuke) returned 404 errors
-- **Cause:** Worker API endpoints existed but Next.js proxy routes were missing; also Worker wasn't deployed
-- **Fix:** Created all missing proxy routes in `apps/web/src/app/api/v1/moderation/`
-- **Lessons:**
-  1. **Always create proxy routes together with Worker endpoints** — browser calls go through Next.js
-  2. **After modifying Worker code, remind user to deploy** — `bun run worker:deploy`
-  3. **Check both layers when debugging 404s** — Worker route + Next.js proxy route
-  4. **Keep docs in sync** — update relevant docs when adding new API endpoints
-
-### 2026-04-03: API Proxy Routes Missing
-- **Issue:** `/api/v1/settings` called by `useFeatureFlags` hook returned HTML 404 instead of JSON
-- **Cause:** Next.js proxy route didn't exist; browser received HTML error page
-- **Fix:** Created `apps/web/src/app/api/v1/settings/route.ts` to proxy to Worker
-- **Lesson:** Every browser API endpoint must have a corresponding Next.js route
-
-### 2026-04-03: SQL Syntax Error in Offset Pagination  
-- **Issue:** `LIMIT  OFFSET ?` (missing LIMIT parameter) caused SQLite syntax error
-- **Cause:** `getThreadListQueryWithOffset` used `.slice(0, -1)` incorrectly
-- **Fix:** Changed to append ` OFFSET ?` without slicing
-- **Lesson:** Always test SQL query string generation
-
-### 2026-04-05: D1 Schema Not Deployed
-- **Issue:** 站内信页面报 "Internal server error"，实际是 `D1_ERROR: no such table: messages`
-- **Cause:** Worker handler 引用了 `messages` 表，但没有创建对应的 migration
-- **Fix:** 创建 `0022_create_messages.sql` 并运行 `wrangler d1 migrations apply`
-- **Lessons:**
-  1. **新增 Worker handler 涉及新表时，必须同时创建 migration**
-  2. **单独 apply migration（不 deploy）:** `bun run worker:migrate:prod`
-  3. **部署检查清单:** Worker 代码改动 → `bun run worker:deploy`（已自动先 apply migrations，再 deploy）；纯 schema 改动且暂不 deploy → `bun run worker:migrate:prod`
+- Test SQL generation and authorization at both proxy and Worker boundaries.
+- Use `Intl.DateTimeFormat.formatToParts()` with explicit UTC arithmetic for Shanghai date boundaries; never locale-string round trips.
+- Never deploy known review blockers or omit schema migrations.
