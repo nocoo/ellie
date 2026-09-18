@@ -29,8 +29,8 @@
 | 档位 | 唯一允许的 TTL，单位秒 | 用途 |
 | --- | ---: | --- |
 | `SHORT` | **60** | 动态列表、计数、搜索、个人状态的展示快照 |
-| `MEDIUM` | **1800** | 主题和回帖正文、资料详情、精华聚合等相对稳定的数据 |
-| `LONG` | **86400** | 版块结构、展示设置、用户 mini、分类、附件元数据等稳定数据 |
+| `MEDIUM` | **1800** | 主题和回帖正文、资料详情、点评评分等相对稳定的数据 |
+| `LONG` | **86400** | 版块结构、展示设置、用户 mini、分类、精华聚合、附件元数据等稳定数据 |
 
 共享的纯数据定义只暴露档位，调用方不能传任意秒数：
 
@@ -50,7 +50,7 @@ export type CacheTier = keyof typeof CACHE_TTL_SECONDS;
 2. TTL 是固定有效期。命中不续期，复制到下一层不续期，回填重试不续期。缓存包保存 `schemaVersion`、`loadedAt`、`expiresAt` 和 `data`；读取时校验时间与结构。
 3. 冷加载的逻辑有效期从本次数据装载完成时起算；聚合数据另记录源快照时间。由其他缓存组合出的结果，截止时间不得晚于最早到期的依赖。缓存 TTL 不等于源数据的新鲜程度。
 4. KV 回填的 `expirationTtl` 只使用这三个值；读取同时检查包内的 `expiresAt`。慢回填或重试留下的物理记录，不能延长逻辑有效期。已经逻辑过期的值不得回填。
-5. 空列表和确认不存在的资源也可缓存，统一使用 `SHORT`；不存在结果必须带资源类型与可见性范围。网络故障、D1 错误、鉴权失败不能伪装成空结果缓存。
+5. 空列表和确认不存在的资源也可缓存，默认使用 `SHORT`；空附件、点评和评分明细沿用其登记档位（附件 LONG，点评/评分明细 MEDIUM）。不存在结果必须带资源类型与可见性范围。网络故障、D1 错误、鉴权失败不能伪装成空结果缓存。
 6. 60 秒约束自动刷新周期。内容编辑、删除、权限撤销等明确变更，以及第 8 节中管理员主动执行的刷新/删除，可以触发主动失效；**普通回帖、浏览量增长不能反复清空动态列表或全站摘要，使 60 秒缓存事实上只活几秒。** 高频展示数据优先等 `SHORT` 自然过期。
 7. 写后本人立即看到结果，优先使用写接口返回的数据更新界面。其他读者通过快照更新看到变化；严格的新鲜读取与权限撤销按第 6 节处理。
 8. 默认不提供超过 `expiresAt` 的过期内容，也不设置额外的 stale 窗口。故障不能把 60 秒自动变成无限期可用。
@@ -131,7 +131,7 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | 评论列表、评分汇总及评分明细 | `MEDIUM` | 按主题/帖子和分页组合；提交结果更新当前界面，额度判断由写接口确认 |
 | 附件元数据、帖子图片信息、头像路径映射 | `LONG` | 上传、替换、删除后失效；下载授权与临时签名单独处理 |
 | 推荐主题 ID 与人工排序 | `LONG` | 推荐配置、删除、移动等影响成员关系时失效；展示字段复用对应实体与统计 |
-| 精华列表、统计、年份/版块筛选 | `MEDIUM` | 缓存全部合法组合；精华级别、移动、删除、版块可见性变化时失效 |
+| 精华列表、统计、年份/版块筛选 | `LONG` | 缓存全部合法组合；精华级别、移动、删除、版块可见性变化时失效 |
 | 用户 mini：用户名、头像、展示组信息 | `LONG` | 所有用户富化路径共用；资料变化按用户失效，不作为权限依据 |
 | 公开用户资料的稳定字段 | `MEDIUM` | 当前用户可见字段投影；动态计数使用 `SHORT`，私有字段另行隔离 |
 | 用户主题、回复、精华等历史列表 | `SHORT` | 覆盖全部分页；复用主题/回帖实体 |
@@ -225,11 +225,11 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/admin/user.list` | `/api/admin/users` | 部分复用 | `admin:entity:list` | T5；全部合法筛选分页与当前在线信息 |
 | `handlers/admin/user.getById` | `/api/admin/users/:id` | 部分复用 | `admin:entity:detail` | T5；展示资料与当前在线信息 |
 | `handlers/admin/statistics.getStatsJob` | `/api/admin/statistics/job/:kind` | 明确例外 | — | T11；当前任务进度属于运行状态 |
-| `handlers/admin/analytics.getOverview` | `/api/admin/analytics/overview` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
+| `handlers/admin/analytics.getOverview` | `/api/admin/analytics/overview` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照 |
 | `handlers/admin/analytics.getTrend` | `/api/admin/analytics/trend` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/analytics.getForumDist` | `/api/admin/analytics/forum-dist` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/analytics.getCheckinTrend` | `/api/admin/analytics/checkin` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
-| `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
+| `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，登录明细仍为 SHORT |
 | `handlers/admin/loginHistory.getTodayLoginsList` | `/api/admin/analytics/today/logins/list` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
 | `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
 | `handlers/admin/todayVisits.getTodayVisitsList` | `/api/admin/analytics/today/visits/list` | 整份复用 | `admin:analytics` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
@@ -266,7 +266,7 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 
 | 变更 | 主动失效范围 | 保留到自然过期 / 其他要求 |
 | --- | --- | --- |
-| 新主题、新回复 | 已存在的相关负缓存可定向处理 | 版块/主题/回帖索引、动态计数使用 `SHORT`；不更新全局版块结构版本；提交者使用返回实体 |
+| 新主题、新回复 | 已存在的相关负缓存可定向处理 | 主题/回帖索引、动态计数使用 `SHORT`，版块摘要使用 `MEDIUM`；不更新全局版块结构版本；提交者使用返回实体 |
 | 编辑主题标题、正文或回帖 | 对应主题/回帖实体 | 列表用实体组合获得展示字段；搜索匹配集合等到 `SHORT` 过期 |
 | 删除、恢复、隐藏主题或回帖 | 对应实体、所在主题的回帖索引、受影响版块列表、相关推荐与精华成员集合 | 当前权威状态立即参与授权/占位投影，旧缓存正文不得绕过删除与隐藏规则 |
 | 移动主题，包括 Admin 批量移动 | 对应主题实体、源/目标版块的列表与摘要、相关推荐、精华 | 同一次操作对每个版块只处理一次，不能漏掉源版块或精华筛选 |
@@ -275,12 +275,12 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | 版块新增、改名、排序、删除、合并、可见性调整 | 结构、相关版块详情、受影响列表与精华；合并包含目标版块 | 计数/最后主题重算完成后再切版本；访问控制独立生效 |
 | 用户改名、头像、展示组变更 | 该用户 mini、公开/本人资料与头像路径映射 | 组合列表不保留长期复制的旧用户名或头像；角色变更另走当前授权检查 |
 | 推荐配置、分类、展示设置变更 | 对应配置 family 与确有依赖的集合 | 避免把统计计数更新当作全站 settings 配置变更 |
-| 附件增删、评论/评分提交或撤销 | 对应元数据；需要立即更新的本人视图 | 高频公共评论/评分展示允许 `SHORT` 更新；写入限制重新确认 |
+| 附件增删、评论/评分提交或撤销 | 对应元数据；需要立即更新的本人视图 | 高频公共评论/评分展示允许 `MEDIUM` 更新；写入限制重新确认 |
 | 私信发送、删除、标记已读 | 相关消息、发送者/接收者的相应箱体与未读数，按实际影响去重 | 命中缓存也必须完成合法的已读状态转换 |
 | 统计校准、导入、批量后台任务 | 完成后更新已知受影响范围 | 只有真正涉及全站的操作才能更新全站版本；不在每个批次反复全局清空 |
 | 后台 CRUD、封禁/角色调整与版务操作 | 已变更的后台资源及关联资源；同资源所有列表参数、详情和批量实体共用版本 | D1 确认及必要派生修复完成后，每个资源只更新一次；失败、空操作与影响零行时不更新 |
 
-后台实体使用 `admin:entity:gen:<resource>`，按 users、threads、posts、forums、attachments 等已登记资源划分。用户角色/状态变更同时替换后台员工列表；内容清理包含用户计数、附件及相关版块数据。设置和主题分类的管理快照也纳入对应资源版本。后台统计任务只在有实际更新且任务完成后切换资源版本。普通前台发帖、回复和浏览不更新这些后台版本，仍由 `SHORT` 自然过期；KV 传播期间的一致性限制见第 6 节。
+后台实体使用 `admin:entity:gen:<resource>`，按 users、threads、posts、forums、attachments 等已登记资源划分。用户角色/状态变更同时替换后台员工列表；内容清理包含用户计数、附件及相关版块数据。设置和主题分类的管理快照也纳入对应资源版本。后台统计任务只在有实际更新且任务完成后切换资源版本。普通前台发帖、回复和浏览不更新这些后台版本，仍由各自登记档位自然过期；KV 传播期间的一致性限制见第 6 节。
 
 版本只为已接入读路径、确实需要主动失效的 family 服务。停止为没有读者的 thread/post 等预留 family 持续写永久版本 key。只依赖自然过期的 `SHORT` 统计快照不引入版本读写；需要处理删除、移动等主动变更的索引才使用相应资源版本。
 
@@ -657,13 +657,6 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 
 本轮继续使用 60 / 1800 / 86400 秒缓存策略，不缓存当前授权判断。上线先部署 Worker，再发布 Web/Admin；后续需要在相同流量口径下观察完整时段，才能判断全站读写量变化。
 
-## 11. 平台依据
-
-- [KV 写入与 expirationTtl](https://developers.cloudflare.com/kv/api/write-key-value-pairs/)：最小过期时间、同 key 写入频率限制。
-- [KV 的工作方式与最终一致性](https://developers.cloudflare.com/kv/concepts/how-kv-works/)：跨地区传播、负查询缓存和原子性限制。
-- [KV 单条与批量读取](https://developers.cloudflare.com/kv/api/read-key-value-pairs/)：业务过期与读取侧 cacheTtl 的区别、批量上限。
-- [D1 限制](https://developers.cloudflare.com/d1/platform/limits/)与 [D1 计费](https://developers.cloudflare.com/d1/platform/pricing/)：绑定参数、读取/写入行数与索引成本。
-
 ### 10.8 降低持续运营开销（v1.11.7）
 
 - 删除 Next.js 每 10 秒调用完整论坛列表的保温任务；无访客时不再主动刷新论坛及主题缓存。接受闲置后的首次请求可能变慢。
@@ -679,3 +672,10 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 - 缓存观测：继续按小时最佳努力持久化；默认不写重复的 `read/write/bump/delete` 明细行，保留命中/未命中、回源、各类错误、物理 KV I/O 和 D1 读写/耗时。管理界面从同族同小时的 hit + miss 推导 read，混合新旧样本不重复相加。临时诊断可设置 Worker 变量 `CACHE_METRICS_DETAIL=true`，诊断结束应移除；此观测仍不等于平台账单。
 
 - 作者首帖印章：撤下论坛与后台展示，主题统计 SQL 不再执行按作者回查更早主题的相关子查询；`isAuthorFirstThread` 保留为恒定 false 的兼容字段。
+
+## 11. 平台依据
+
+- [KV 写入与 expirationTtl](https://developers.cloudflare.com/kv/api/write-key-value-pairs/)：最小过期时间、同 key 写入频率限制。
+- [KV 的工作方式与最终一致性](https://developers.cloudflare.com/kv/concepts/how-kv-works/)：跨地区传播、负查询缓存和原子性限制。
+- [KV 单条与批量读取](https://developers.cloudflare.com/kv/api/read-key-value-pairs/)：业务过期与读取侧 cacheTtl 的区别、批量上限。
+- [D1 限制](https://developers.cloudflare.com/d1/platform/limits/)与 [D1 计费](https://developers.cloudflare.com/d1/platform/pricing/)：绑定参数、读取/写入行数与索引成本。

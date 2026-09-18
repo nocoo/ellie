@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.11.7] - 2026-09-19
+
+### Changed
+
+- Removed the Web server's periodic full-forum keepalive request.
+- Forum display summaries now cache for 30 minutes and include latest-thread display fields, avoiding per-thread and per-author KV fan-out. Current visibility, deletion and anonymity checks remain authoritative.
+- Empty attachment lists cache for 24 hours with existing generation invalidation. Comments and rating displays cache for 30 minutes; comments load when expanded, forward the viewer session, and show the writer's confirmed comment immediately.
+- Homepage digest recommendations read five threads without aggregate/filter requests. Digest statistics and filters share one 24-hour aggregate; digest membership changes still invalidate it.
+- Visit analytics merge viewers into page/bot totals and cache reports for 30 minutes. PV, page rankings and bot classifications remain; retired page UV and visit-user counters return `null` and are no longer displayed. Login audit counts remain available.
+- Presence writes run at most every five minutes per user/isolate, and last activity uses a conditional update every 15 minutes without KV throttle reads or a preliminary D1 query. Cumulative online hours and historical online peaks are retired.
+- Cache observation persists core hourly costs, hit/miss, loads and errors while omitting redundant read/write/invalidation detail rows by default. `CACHE_METRICS_DETAIL=true` temporarily restores diagnostic details.
+- Removed the author-first-thread badge and its correlated SQL lookup. The legacy thread flag remains `false` for compatibility.
+
+No database schema migration is introduced. These changes trade display freshness and secondary statistics for lower recurring database/KV work; permission and write-limit checks remain current.
+
 ## [1.11.6] - 2026-09-19
 
 ### Changed
