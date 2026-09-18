@@ -156,7 +156,7 @@ describe("kv-registry — declarative invariants", () => {
 		// the admin "when does it expire" answer would otherwise lie.
 		const expected: Record<string, number | "sticky" | "variable"> = {
 			"forum:tree:v2": 86_400, // FORUM_TREE_TTL
-			"forum:summary:v2": 60, // FORUM_SUMMARY_TTL (SHORT tier = 60s)
+			"forum:summary:v2": 1800, // Forum display snapshot, 30 minutes
 			"forum:meta:v2": 86_400, // FORUM_META_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
 			"user:mini:v1": 86_400, // USER_CACHE_TTL

@@ -1,4 +1,4 @@
-// Structural LONG snapshots and SHORT counters/membership compose at response time.
+// Structural LONG snapshots and MEDIUM display summaries compose at response time.
 // Current forum/thread gates run even on hot data; no combined snapshot renews TTL.
 import {
 	CACHE_TTL_SECONDS,
@@ -29,11 +29,10 @@ import {
 	forumTreeKey,
 	type VisibilityBucket,
 } from "./keys";
-import { getThreadRows, type ReadingRow } from "./thread-loaders";
 import { cacheGetOrSet } from "./wrap";
 
 export const FORUM_TREE_TTL = CACHE_TTL_SECONDS.LONG;
-export const FORUM_SUMMARY_TTL = CACHE_TTL_SECONDS.SHORT;
+export const FORUM_SUMMARY_TTL = CACHE_TTL_SECONDS.MEDIUM;
 export interface ForumSnapshotRow extends Forum {
 	moderatorIds: string;
 }
@@ -74,11 +73,32 @@ export async function loadForumStructure(env: Env): Promise<ForumSnapshotRow[]> 
 /** One indexed newest-thread lookup per forum within a single SQL statement. */
 const LAST_ID =
 	"(SELECT t.id FROM threads t INDEXED BY idx_threads_forum_latest WHERE t.forum_id = f.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1)";
+const LAST_THREAD_COLUMNS = `t.id AS last_thread_id, t.subject AS last_thread_subject,
+ t.last_post_at, t.last_poster, t.last_poster_id, t.anonymous_last_poster,
+ u.username AS last_poster_name, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path`;
+const LAST_THREAD_JOINS = `LEFT JOIN threads t ON t.id = ${LAST_ID}
+ LEFT JOIN users u ON u.id = t.last_poster_id`;
+
+/** Display-only copies; current gates below still mask newly anonymous replies. */
+function lastThreadFields(row: Record<string, unknown>) {
+	const anonymous = row.anonymous_last_poster === 1;
+	return {
+		lastThreadId: Number(row.last_thread_id ?? 0),
+		lastThreadSubject: String(row.last_thread_subject ?? ""),
+		lastPostAt: Number(row.last_post_at ?? 0),
+		lastPoster: anonymous
+			? ANONYMOUS_AUTHOR_NAME
+			: String(row.last_poster_name ?? row.last_poster ?? ""),
+		lastPosterId: anonymous ? 0 : Number(row.last_poster_id ?? 0),
+		lastPosterAvatar: anonymous ? "" : String(row.last_poster_avatar ?? ""),
+		lastPosterAvatarPath: anonymous ? "" : String(row.last_poster_avatar_path ?? ""),
+	};
+}
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 	const cutoff = Math.floor(Date.now() / 1000) - 86400;
 	const [forums, counts] = await Promise.all([
 		env.DB.prepare(
-			`SELECT f.id, f.status, f.visibility, f.threads, f.posts, ${LAST_ID} AS last_thread_id FROM forums f`,
+			`SELECT f.id, f.status, f.visibility, f.threads, f.posts, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS}`,
 		).all<Record<string, unknown>>(),
 		env.DB.prepare(
 			"SELECT forum_id, COUNT(*) AS cnt FROM threads INDEXED BY idx_threads_created WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
@@ -89,7 +109,8 @@ export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 	if (!forums.success || !counts.success) throw new Error("Forum summary could not be loaded");
 	const today = new Map(counts.results.map((row) => [row.forum_id, row.cnt]));
 	return forums.results.map((row) => ({
-		...snapshot({ ...row, last_thread_id: row.last_thread_id ?? 0 }),
+		...snapshot(row),
+		...lastThreadFields(row),
 		todayThreads: today.get(Number(row.id)) ?? 0,
 	}));
 }
@@ -254,50 +275,35 @@ async function replaceMissingCandidates(
 	for (let start = 0; start < missing.length; start += 100) {
 		const part = missing.slice(start, start + 100);
 		const result = await env.DB.prepare(
-			`SELECT f.id, ${LAST_ID} AS thread_id FROM forums f WHERE f.id IN (${part.map(() => "?").join(",")})`,
+			`SELECT f.id, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS} WHERE f.id IN (${part.map(() => "?").join(",")})`,
 		)
 			.bind(...part)
-			.all<{ id: number; thread_id: number | null }>();
+			.all<Record<string, unknown>>();
 		if (!result.success) throw new Error("Visible last-thread fallback could not be loaded");
-		for (const id of part) aggregates[id].lastThreadId = 0;
-		for (const row of result.results) aggregates[row.id].lastThreadId = row.thread_id ?? 0;
+		for (const id of part) aggregates[id] = { ...aggregates[id], ...lastThreadFields({}) };
+		for (const row of result.results) {
+			const id = Number(row.id);
+			aggregates[id] = { ...aggregates[id], ...lastThreadFields(row) };
+		}
 		const replacements = await currentCandidates(
 			env,
-			result.results.flatMap((row) => (row.thread_id ? [row.thread_id] : [])),
+			result.results.flatMap((row) => (row.last_thread_id ? [Number(row.last_thread_id)] : [])),
 		);
 		for (const [id, row] of replacements) gates.set(id, row);
 	}
 }
 function composeLastThread(
 	aggregate: ForumAggregateV2,
-	row: ReadingRow | undefined,
 	gate: Candidate | undefined,
-	minis: Awaited<ReturnType<typeof getUserProfiles>>,
 ): ForumAggregateV2 {
-	if (!row || !gate || gate.sticky < 0)
-		return {
-			...aggregate,
-			lastThreadId: 0,
-			lastThreadSubject: "",
-			lastPostAt: 0,
-			lastPoster: "",
-			lastPosterId: 0,
-			lastPosterAvatar: "",
-			lastPosterAvatarPath: "",
-		};
-	const anonymous = row.anonymous_last_poster === 1 || gate.anonymous_last_poster === 1;
-	const userId = Number(row.last_poster_id ?? 0);
-	const user = !anonymous ? minis.get(userId) : undefined;
+	if (!gate || gate.sticky < 0) return { ...aggregate, ...lastThreadFields({}) };
+	if (gate.anonymous_last_poster !== 1) return aggregate;
 	return {
 		...aggregate,
-		lastThreadSubject: String(row.subject),
-		lastPostAt: Number(row.last_post_at ?? 0),
-		lastPoster: anonymous
-			? ANONYMOUS_AUTHOR_NAME
-			: (user?.username ?? String(row.last_poster ?? "")),
-		lastPosterId: anonymous ? 0 : userId,
-		lastPosterAvatar: user?.avatar ?? "",
-		lastPosterAvatarPath: user?.avatarPath ?? "",
+		lastPoster: ANONYMOUS_AUTHOR_NAME,
+		lastPosterId: 0,
+		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 	};
 }
 export async function getForumSummaryV2(
@@ -316,7 +322,7 @@ export async function getForumSummaryV2(
 		async () => buildForumSummaryPayload(await loadSnapshot(), bucket),
 		{
 			...d,
-			tier: "SHORT",
+			tier: "MEDIUM",
 			validator: (value): value is ForumSummaryPayloadV2 => isForumCacheData(d, value),
 		},
 	);
@@ -332,21 +338,10 @@ export async function getForumSummaryV2(
 	];
 	const gates = await currentCandidates(env, ids());
 	await replaceMissingCandidates(env, aggregates, gates);
-	const rows = await getThreadRows(env, ctx, ids());
-	const minis = await getUserProfiles(
-		env,
-		ctx,
-		[...rows.values()]
-			.filter(
-				(row) =>
-					row.anonymous_last_poster !== 1 && gates.get(Number(row.id))?.anonymous_last_poster !== 1,
-			)
-			.map((row) => Number(row.last_poster_id ?? 0)),
-	);
 	return Object.fromEntries(
 		Object.entries(aggregates).map(([id, agg]) => [
 			id,
-			composeLastThread(agg, rows.get(agg.lastThreadId), gates.get(agg.lastThreadId), minis),
+			composeLastThread(agg, gates.get(agg.lastThreadId)),
 		]),
 	);
 }

@@ -491,15 +491,15 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "forum:summary:v2:",
 		pattern: "forum:summary:v2:<bucket>:g<forumSummaryGen>",
-		ttl: 60,
-		tier: "SHORT",
+		ttl: 1800,
+		tier: "MEDIUM",
 		loader: "forum",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-summary" },
 		genKeys: ["forum:summary:gen"],
 		description:
-			"Per-bucket forum aggregates (counts, last-thread). Bumped by volatile forum writes.",
+			"Thirty-minute forum display snapshots including last-thread and last-poster fields; current access gates run on every read.",
 	},
 	{
 		family: "forum:meta:v2",

@@ -49,7 +49,7 @@ describe("forum structural/counter composition", () => {
 		expect((await request("/api/v1/forums/1/ancestors")).body.data.ancestors).toEqual([]);
 	});
 
-	it("shares entity snapshots and uses only current forum/thread gates on hot list", async () => {
+	it("uses display snapshots and only current forum/thread gates on hot list", async () => {
 		const first = await request();
 		expect(first.response.status).toBe(200);
 		expect(first.body.data.map((row: any) => row.id)).toEqual([1]);
@@ -66,8 +66,14 @@ describe("forum structural/counter composition", () => {
 		expect(f.calls).toHaveLength(2);
 		expect(f.calls.every((call) => !/COUNT|\bsubject\b|FROM users/.test(call.sql))).toBe(true);
 		expect(vi.mocked(f.env.KV.put).mock.calls).toHaveLength(puts);
+		expect(
+			vi
+				.mocked(f.env.KV.get)
+				.mock.calls.flatMap(([key]) => key)
+				.some((key) => /^(thread:|user:mini:20)/.test(key)),
+		).toBe(false);
 	});
-	it("keeps structural content LONG and dynamic membership SHORT with no copied names", async () => {
+	it("keeps structural content LONG and copied display summaries MEDIUM", async () => {
 		await request();
 		const tree = JSON.parse(
 			f.values.get(
@@ -88,15 +94,15 @@ describe("forum structural/counter composition", () => {
 			) ?? expect.fail("Missing forum snapshot"),
 		);
 		expect(tree.expiresAt - tree.loadedAt).toBe(86400000);
-		expect(summary.expiresAt - summary.loadedAt).toBe(60000);
+		expect(summary.expiresAt - summary.loadedAt).toBe(1800000);
 		expect(tree.data.forums[0].moderatorList).toEqual([]);
 		expect(summary.data.aggregates[1]).toMatchObject({
-			lastThreadSubject: "",
-			lastPoster: "",
-			lastPosterAvatar: "",
+			lastThreadSubject: "latest tied ID",
+			lastPoster: "bob",
+			lastPosterAvatar: "bob.png",
 		});
 		f.thread(12, { last_post_at: 300 });
-		vi.setSystemTime(Date.now() + 59999);
+		vi.setSystemTime(Date.now() + 1799999);
 		expect((await request()).body.data[0].lastThreadId).toBe(11);
 		vi.setSystemTime(Date.now() + 1);
 		expect((await request()).body.data[0].lastThreadId).toBe(12);
@@ -112,23 +118,27 @@ describe("forum structural/counter composition", () => {
 			).loadedAt,
 		).toBe(tree.loadedAt);
 	});
-	it("renames and avatars flow through user mini instead of independent LONG copies", async () => {
+	it("last-poster changes wait for summary expiry while moderator names remain current", async () => {
 		await request();
 		f.sqlite.exec(
 			"UPDATE users SET username='changed', avatar_path='changed.png' WHERE id=20; UPDATE users SET username='newmod' WHERE id=30",
 		);
 		await invalidateUserCaches(f.env, 20);
 		await invalidateUserCaches(f.env, 30);
+		expect((await request()).body.data[0].lastPoster).toBe("bob");
+		vi.setSystemTime(Date.now() + 1800000);
 		expect((await request()).body.data[0]).toMatchObject({
 			lastPoster: "changed",
 			lastPosterAvatarPath: "changed.png",
 			moderatorList: [{ id: 30, name: "newmod" }],
 		});
 	});
-	it("subject edit refreshes the shared entity without replacing the forum snapshot", async () => {
+	it("subject display waits for summary expiry without per-thread KV lookups", async () => {
 		await request();
 		f.sqlite.exec("UPDATE threads SET subject='edited' WHERE id=11");
 		await bumpThreadMetaGen(f.env, 11);
+		expect((await request()).body.data[0].lastThreadSubject).toBe("latest tied ID");
+		vi.setSystemTime(Date.now() + 1800000);
 		expect((await request()).body.data[0].lastThreadSubject).toBe("edited");
 	});
 	it.each([

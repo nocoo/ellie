@@ -184,9 +184,7 @@ describe("forum origin budgets and pure rebuild", () => {
 
 		// Verify fallback query was executed using idx_threads_forum_latest
 		const fallbackCall = f.calls.find((c) =>
-			c.sql.includes(
-				"SELECT f.id, (SELECT t.id FROM threads t INDEXED BY idx_threads_forum_latest",
-			),
+			c.sql.includes("FROM forums f LEFT JOIN threads t ON t.id"),
 		);
 		expect(fallbackCall).toBeDefined();
 

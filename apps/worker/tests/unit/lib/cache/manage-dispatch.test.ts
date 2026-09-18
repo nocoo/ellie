@@ -160,7 +160,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		expect(inspectedSummary.valid).toBe(true);
 
 		const rebuiltSummary = await rebuildCacheEntry(f.env, undefined, summaryKey);
-		expect(rebuiltSummary.tier).toBe("SHORT");
+		expect(rebuiltSummary.tier).toBe("MEDIUM");
 		expect(rebuiltSummary.scope).toBe("role:anon");
 	});
 
