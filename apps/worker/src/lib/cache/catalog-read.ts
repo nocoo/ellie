@@ -27,9 +27,9 @@ import { cacheGetOrSet } from "./wrap";
 
 const TIERS: Record<string, CacheTier> = {
 	"search:threads": "SHORT",
-	"digest:list": "MEDIUM",
-	"digest:stats": "MEDIUM",
-	"digest:filters": "MEDIUM",
+	"digest:list": "LONG",
+	"digest:stats": "LONG",
+	"digest:filters": "LONG",
 	"recommended:threads": "LONG",
 	"thread-types": "LONG",
 };
@@ -387,12 +387,13 @@ export async function getCatalogPage(
 export async function getDigestGroups(
 	env: Env,
 	ctx: ExecutionContext | undefined,
-	family: "digest:stats" | "digest:filters",
+	_family: "digest:stats" | "digest:filters",
 ): Promise<DigestGroup[]> {
-	const d = { family, params: {}, scope: "internal" };
+	// Stats and filters share grouped data; current forum permissions apply on each read.
+	const d = { family: "digest:stats", params: {}, scope: "internal" };
 	return cacheGetOrSet(env, ctx, await catalogCacheKey(env, d), () => loadDigestGroups(env), {
 		...d,
-		tier: "MEDIUM",
+		tier: "LONG",
 		validator: (v): v is DigestGroup[] => isCatalogCacheData(d, v),
 	});
 }

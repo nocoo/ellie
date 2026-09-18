@@ -6,21 +6,11 @@ import { ForumGroup } from "@/components/forum/forum-group";
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { HomeFooter } from "@/components/forum/home-footer";
 import { Button } from "@/components/ui/button";
-import { loadDigestList } from "@/viewmodels/forum/digest.server";
+import { loadDigestShowcase } from "@/viewmodels/forum/digest.server";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
-
-/** Shuffle array using Fisher-Yates algorithm and return first n items */
-function shuffleAndTake<T>(arr: T[], n: number): T[] {
-	const shuffled = [...arr];
-	for (let i = shuffled.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-	}
-	return shuffled.slice(0, n);
-}
 
 export default async function ForumHomePage() {
 	let tree: ForumTreeNode[] = [];
@@ -36,7 +26,7 @@ export default async function ForumHomePage() {
 			(r) => ({ status: "fulfilled" as const, value: r }),
 			() => ({ status: "rejected" as const, reason: null }),
 		),
-		loadDigestList({ limit: 20 }).then(
+		loadDigestShowcase().then(
 			(r) => ({ status: "fulfilled" as const, value: r }),
 			() => ({ status: "rejected" as const, reason: null }),
 		),
@@ -60,11 +50,7 @@ export default async function ForumHomePage() {
 				}
 			: undefined;
 
-	// Digest threads for showcase — randomly pick 5 from recent digests
-	const allDigestThreads =
-		digestResult.status === "fulfilled" ? digestResult.value.results.items : [];
-	const digestThreads = shuffleAndTake(allDigestThreads, 5);
-	const digestTotal = digestResult.status === "fulfilled" ? digestResult.value.stats.total : 0;
+	const digestThreads = digestResult.status === "fulfilled" ? digestResult.value : [];
 
 	return (
 		<div className="space-y-4">
@@ -106,7 +92,7 @@ export default async function ForumHomePage() {
 			)}
 
 			{/* Digest showcase — at the top */}
-			<DigestShowcase threads={digestThreads} total={digestTotal} />
+			<DigestShowcase threads={digestThreads} />
 
 			{tree.map((group) => (
 				<ForumGroup key={group.id} group={group} />

@@ -302,7 +302,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	businessFamily(
 		"digest:list",
 		"精华分页索引",
-		"MEDIUM",
+		"LONG",
 		"catalog",
 		"All valid forum/year/level/cursor combinations with shared entities.",
 	),
@@ -579,15 +579,15 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "cache:v3:digest:stats:",
 		pattern: "cache:v3:digest:stats:<hash>",
-		ttl: 1800,
-		tier: "MEDIUM",
+		ttl: 86400,
+		tier: "LONG",
 		loader: "catalog",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
 		genKeys: ["digest:gen"],
 		description:
-			"Aggregate digest thread counts (total, level1-3) per visibility bucket. Gen-keyed for instant invalidation on digest changes.",
+			"Shared per-forum/year/level aggregates for stats and filters; current ACL projection and digest generation invalidation.",
 	},
 	{
 		family: "digest:filters",
@@ -596,15 +596,14 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "cache:v3:digest:filters:",
 		pattern: "cache:v3:digest:filters:<hash>",
-		ttl: 1800,
-		tier: "MEDIUM",
+		ttl: 86400,
+		tier: "LONG",
 		loader: "catalog",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
 		genKeys: ["digest:gen"],
-		description:
-			"Available filter options (years, forums with digest threads) per visibility bucket. Gen-keyed for instant invalidation.",
+		description: "Legacy descriptor retained for management; live filters reuse digest:stats.",
 	},
 	// ─── Recommended threads cache (per forum) ─────────────────────
 	{

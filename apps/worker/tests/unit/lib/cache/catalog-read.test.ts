@@ -204,7 +204,7 @@ describe("lib/cache/catalog-read", () => {
 				f.insert("forums", { id: 0, name: "Deleted forum", status: -1 });
 				f.thread(1, { forum_id: 0, digest: 1, created_at: 1_104_537_600 });
 				f.thread(2, { forum_id: 1, digest: 2, created_at: 1_711_540_800 });
-				const descriptor = { family, params: {}, scope: "internal" };
+				const descriptor = { family: "digest:stats", params: {}, scope: "internal" };
 				const expected = [
 					{ forumId: 0, year: 2005, digest: 1, count: 1 },
 					{ forumId: 1, year: 2024, digest: 2, count: 1 },
@@ -213,8 +213,8 @@ describe("lib/cache/catalog-read", () => {
 				expect(await getDigestGroups(f.env, undefined, family)).toEqual(expected);
 				const key = await catalogCacheKey(f.env, descriptor);
 				const snapshot = JSON.parse(f.values.get(key) ?? "null");
-				expect(snapshot).toMatchObject({ tier: "MEDIUM", scope: "internal", data: expected });
-				expect(snapshot.expiresAt - snapshot.loadedAt).toBe(1_800_000);
+				expect(snapshot).toMatchObject({ tier: "LONG", scope: "internal", data: expected });
+				expect(snapshot.expiresAt - snapshot.loadedAt).toBe(86_400_000);
 				const coldQueries = f.calls.length;
 				expect(coldQueries).toBe(1);
 				expect(await getDigestGroups(f.env, undefined, family)).toEqual(expected);
@@ -229,6 +229,18 @@ describe("lib/cache/catalog-read", () => {
 				expect(f.calls.every((call) => call.mode === "all")).toBe(true);
 			},
 		);
+
+		it("stats and filters share one aggregate and digest changes invalidate it", async () => {
+			f.thread(1, { digest: 1 });
+			await Promise.all([
+				getDigestGroups(f.env, f.ctx, "digest:stats"),
+				getDigestGroups(f.env, f.ctx, "digest:filters"),
+			]);
+			expect(f.calls).toHaveLength(1);
+			f.thread(2, { digest: 1 });
+			await f.env.KV.put("digest:gen", "changed");
+			expect((await getDigestGroups(f.env, f.ctx, "digest:filters"))[0].count).toBe(2);
+		});
 
 		it("keeps digest aggregate types and public forum parameters strict", () => {
 			const descriptor = { family: "digest:stats", params: {}, scope: "internal" };
@@ -253,7 +265,7 @@ describe("lib/cache/catalog-read", () => {
 			).toThrow("Invalid recommendation scope");
 		});
 
-		it("getDigestGroups caches with MEDIUM tier for populated groups and SHORT for empty", async () => {
+		it("getDigestGroups caches with LONG tier for populated groups and SHORT for empty", async () => {
 			f.thread(1, { forum_id: 1, digest: 1, created_at: 1711540800 });
 			const groups = await getDigestGroups(f.env, f.ctx, "digest:stats");
 			expect(groups.length).toBeGreaterThan(0);
@@ -264,7 +276,7 @@ describe("lib/cache/catalog-read", () => {
 				scope: "internal",
 			});
 			const raw = (await f.env.KV.get(key, "json")) as { tier: string };
-			expect(raw.tier).toBe("MEDIUM");
+			expect(raw.tier).toBe("LONG");
 		});
 	});
 

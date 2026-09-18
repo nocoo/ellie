@@ -38,10 +38,10 @@ describe("digest handlers", () => {
 			forums: [{ id: 1, name: "Public", digestCount: 1 }],
 		});
 		const snapshots = [...f.snapshots("digest:stats"), ...f.snapshots("digest:filters")];
-		expect(snapshots).toHaveLength(2);
+		expect(snapshots).toHaveLength(1);
 		const aggregateQueries = () =>
 			f.calls.filter((call) => call.sql.includes("GROUP BY t.forum_id"));
-		expect(aggregateQueries()).toHaveLength(2);
+		expect(aggregateQueries()).toHaveLength(1);
 
 		f.sqlite.exec("UPDATE forums SET status = 0 WHERE id = 1");
 		expect((await (await digest.stats(statsRequest, f.env)).json()).data).toEqual({
@@ -54,7 +54,7 @@ describe("digest handlers", () => {
 			years: [],
 			forums: [],
 		});
-		expect(aggregateQueries()).toHaveLength(2);
+		expect(aggregateQueries()).toHaveLength(1);
 		expect([...f.snapshots("digest:stats"), ...f.snapshots("digest:filters")]).toEqual(snapshots);
 	});
 

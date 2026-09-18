@@ -12,10 +12,9 @@ import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 
 interface DigestShowcaseProps {
 	threads: Thread[];
-	total: number;
 }
 
-export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
+export function DigestShowcase({ threads }: DigestShowcaseProps) {
 	// Empty state: show a friendly message instead of disappearing
 	if (threads.length === 0) {
 		return (
@@ -41,7 +40,6 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 				<div className="flex items-center gap-2">
 					<Award className="h-5 w-5 text-success" />
 					<CardTitle className="text-base">精华推荐</CardTitle>
-					<span className="text-xs text-muted-foreground">共 {total} 篇</span>
 				</div>
 				<Button
 					size="sm"

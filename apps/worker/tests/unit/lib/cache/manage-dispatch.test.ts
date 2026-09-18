@@ -210,7 +210,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		const digestKey = await catalogCacheKey(f.env, digestDesc);
 
 		const rebuiltDigest = await rebuildCacheEntry(f.env, undefined, digestKey);
-		expect(rebuiltDigest.tier).toBe("MEDIUM");
+		expect(rebuiltDigest.tier).toBe("LONG");
 		expect(rebuiltDigest.scope).toBe("internal");
 	});
 

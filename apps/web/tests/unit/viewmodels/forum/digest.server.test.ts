@@ -16,7 +16,7 @@ vi.mock("@/lib/forum-cache", () => ({
 }));
 
 import { forumApi } from "@/lib/forum-api";
-import { loadDigestList } from "@/viewmodels/forum/digest.server";
+import { loadDigestList, loadDigestShowcase } from "@/viewmodels/forum/digest.server";
 
 const mockForumApi = forumApi as any;
 
@@ -55,6 +55,12 @@ describe("loadDigestList", () => {
 			if (path.includes("filters")) return Promise.resolve({ data: mockFilters });
 			return Promise.resolve({ data: null });
 		});
+	});
+
+	it("loads only five preview threads for the homepage", async () => {
+		expect(await loadDigestShowcase()).toEqual(mockThreads);
+		expect(mockForumApi.getCursor).toHaveBeenCalledWith("/api/v1/digest", { limit: 5 });
+		expect(mockForumApi.get).not.toHaveBeenCalled();
 	});
 
 	it("fetches digest threads, stats, and filters in parallel", async () => {

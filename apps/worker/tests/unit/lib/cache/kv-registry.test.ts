@@ -160,8 +160,8 @@ describe("kv-registry — declarative invariants", () => {
 			"forum:meta:v2": 86_400, // FORUM_META_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
 			"user:mini:v1": 86_400, // USER_CACHE_TTL
-			"digest:stats": 1800, // DIGEST_CACHE_TTL
-			"digest:filters": 1800, // DIGEST_CACHE_TTL
+			"digest:stats": 86400, // DIGEST_CACHE_TTL
+			"digest:filters": 86400, // DIGEST_CACHE_TTL
 			"settings:all": 86_400, // settings.ts LONG tier
 			"public-stats": 60, // stats.ts SHORT tier
 			"stats:online_count": 300, // online-stats.ts

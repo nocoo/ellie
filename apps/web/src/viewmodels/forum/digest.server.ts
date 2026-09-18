@@ -75,3 +75,8 @@ export async function loadDigestList(params: {
 		filters: filtersRes.data,
 	};
 }
+
+/** Homepage preview needs only five threads, without aggregate/filter requests. */
+export async function loadDigestShowcase(): Promise<Thread[]> {
+	return (await forumApi.getCursor<Thread>("/api/v1/digest", { limit: 5 })).data;
+}
