@@ -663,3 +663,7 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 - [KV 的工作方式与最终一致性](https://developers.cloudflare.com/kv/concepts/how-kv-works/)：跨地区传播、负查询缓存和原子性限制。
 - [KV 单条与批量读取](https://developers.cloudflare.com/kv/api/read-key-value-pairs/)：业务过期与读取侧 cacheTtl 的区别、批量上限。
 - [D1 限制](https://developers.cloudflare.com/d1/platform/limits/)与 [D1 计费](https://developers.cloudflare.com/d1/platform/pricing/)：绑定参数、读取/写入行数与索引成本。
+
+### 10.8 降低持续运营开销（v1.11.7）
+
+- 删除 Next.js 每 10 秒调用完整论坛列表的保温任务；无访客时不再主动刷新论坛及主题缓存。接受闲置后的首次请求可能变慢。

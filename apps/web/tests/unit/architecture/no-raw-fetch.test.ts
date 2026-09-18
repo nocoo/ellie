@@ -38,7 +38,6 @@ const ALLOWLIST: readonly string[] = [
 	// middleware feature-flag pull (Phase B target)
 	"proxy.ts",
 	// startup health ping
-	"instrumentation.ts",
 ];
 
 const ALLOWED_PREFIXES: readonly string[] = [
