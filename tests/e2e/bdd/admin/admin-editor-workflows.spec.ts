@@ -124,7 +124,7 @@ for (const [action, status] of [
 			return route.fulfill(
 				attempts === 1
 					? { status: 500, json: { error: { code: "UNAVAILABLE", message: "Local API failure" } } }
-					: { json: { data: { affected: 1, skipped: 0 } } },
+					: { json: { data: { updated: true, count: 1 } } },
 			);
 		});
 		await loginAsAdmin();
