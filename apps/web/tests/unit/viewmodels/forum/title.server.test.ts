@@ -14,7 +14,7 @@ vi.mock("@/lib/forum-api", () => ({
 vi.mock("react", () => ({ cache: (fn: (...args: unknown[]) => unknown) => fn }));
 
 import { forumApi } from "@/lib/forum-api";
-import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
+import { getCachedForumList, getCachedForumNames, getCachedThreadById } from "@/lib/forum-cache";
 import { getForumTitle, getThreadTitle, getUserTitle } from "@/viewmodels/forum/title.server";
 
 const mockForumApi = forumApi as any;
@@ -88,4 +88,10 @@ describe("render-pass loader routing", () => {
 		expect(forums).toEqual([{ id: 7, name: "Dev" }]);
 		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums");
 	});
+});
+
+it("name-only reads request no forum summary", async () => {
+	mockForumApi.getAll.mockResolvedValue({ data: [{ id: 7, name: "Dev" }] });
+	expect(await getCachedForumNames()).toEqual([{ id: 7, name: "Dev" }]);
+	expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums", { view: "names" });
 });

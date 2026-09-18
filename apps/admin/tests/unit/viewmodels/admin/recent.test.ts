@@ -79,7 +79,7 @@ describe("recent viewmodel", () => {
 		it("returns min < max for today", () => {
 			const { min, max } = timeRangeToBounds("today");
 			expect(min).toBeLessThan(max);
-			expect(max).toBeCloseTo(Math.floor(Date.now() / 1000), -1);
+			expect(max - min).toBe(86400 - 1);
 		});
 
 		it("returns broader range for 7d than today", () => {
@@ -106,11 +106,9 @@ describe("recent viewmodel", () => {
 			expect(min).toBe(0);
 		});
 
-		it("defaults custom max to now if not provided", () => {
+		it("defaults custom max to the end of today if not provided", () => {
 			const { max } = timeRangeToBounds("custom", "2026-01-01");
-			const nowSecs = Math.floor(Date.now() / 1000);
-			expect(max).toBeGreaterThanOrEqual(nowSecs - 2);
-			expect(max).toBeLessThanOrEqual(nowSecs + 2);
+			expect(max).toBe(timeRangeToBounds("today").max);
 		});
 
 		it("today min is aligned to midnight Shanghai time", () => {
@@ -180,4 +178,18 @@ describe("recent viewmodel", () => {
 			});
 		});
 	});
+});
+
+it("calendar ranges reuse keys within a Shanghai day and advance at midnight", () => {
+	vi.useFakeTimers();
+	try {
+		vi.setSystemTime(new Date("2026-09-18T15:00:01Z"));
+		const first = timeRangeToBounds("today");
+		vi.setSystemTime(new Date("2026-09-18T15:59:59Z"));
+		expect(timeRangeToBounds("today")).toEqual(first);
+		vi.setSystemTime(new Date("2026-09-18T16:00:00Z"));
+		expect(timeRangeToBounds("today").min).toBe(first.max + 1);
+	} finally {
+		vi.useRealTimers();
+	}
 });

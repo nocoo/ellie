@@ -128,6 +128,22 @@ async function main() {
 	console.log("\nUpdating version source files:");
 	updateVersionTs(newVersion, dryRun);
 	updateVersionDts(newVersion, dryRun);
+	// Rust's --version must agree with the web/Worker release, without
+	// resolving or upgrading any third-party Cargo dependencies.
+	for (const file of [
+		"packages/cli-rs/ellie-core/Cargo.toml",
+		"packages/cli-rs/ellie-tui/Cargo.toml",
+		"packages/cli-rs/Cargo.lock",
+	]) {
+		const path = join(ROOT, file);
+		const content = readFileSync(path, "utf-8");
+		const updated = content.replace(
+			/(name = "ellie-(?:core|tui)"\nversion = ")[^"]+/g,
+			`$1${newVersion}`,
+		);
+		if (!dryRun) writeFileSync(path, updated);
+		console.log(`  ${dryRun ? "[dry-run] " : ""}${file}`);
+	}
 
 	if (!dryRun) {
 		console.log("\nRunning bun install to sync lockfile...");

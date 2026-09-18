@@ -25,11 +25,30 @@ describe("forum structural/counter composition", () => {
 		const req = new Request(`https://test${path}`, { headers });
 		const response = path.endsWith("ancestors")
 			? await getAncestors(req, f.env, f.ctx)
-			: path === "/api/v1/forums"
+			: path.split("?")[0] === "/api/v1/forums"
 				? await list(req, f.env, f.ctx)
 				: await getById(req, f.env, f.ctx);
 		return { response, body: (await response.json()) as any };
 	}
+	it("name-only reads omit dynamic summaries and still enforce current visibility", async () => {
+		const names = await request("/api/v1/forums?view=names");
+		expect(names.body.data).toEqual([{ id: 1, name: "Public" }]);
+		expect(f.calls.some(({ sql }) => /FROM threads|COUNT/.test(sql))).toBe(false);
+		f.sqlite.exec("UPDATE forums SET visibility='staff' WHERE id=1");
+		expect((await request("/api/v1/forums?view=names")).body.data).toEqual([]);
+	});
+	it("ancestor reads check only the current chain without loading latest threads", async () => {
+		await request("/api/v1/forums/1/ancestors");
+		f.calls.length = 0;
+		const result = await request("/api/v1/forums/1/ancestors");
+		expect(result.body.data.forum.id).toBe(1);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).toContain("WITH RECURSIVE chain");
+		expect(f.calls[0].params).toEqual([1]);
+		f.sqlite.exec("UPDATE forums SET parent_id=1 WHERE id=1");
+		expect((await request("/api/v1/forums/1/ancestors")).body.data.ancestors).toEqual([]);
+	});
+
 	it("shares entity snapshots and uses only current forum/thread gates on hot list", async () => {
 		const first = await request();
 		expect(first.response.status).toBe(200);

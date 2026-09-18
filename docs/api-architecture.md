@@ -54,7 +54,7 @@ The Worker is the **single source of truth** for all data operations.
 | `/api/live` | None | None | Health check |
 
 **Key endpoints:**
-- `GET /api/v1/forums` - List forums
+- `GET /api/v1/forums` - List forums; optional `view=names` returns only visible `{ id, name }` entries without thread summaries
 - `GET /api/v1/threads?forumId=X` - List threads
 - `GET /api/v1/posts?threadId=X` - List posts
 - `POST /api/v1/auth/login` - Login, returns JWT

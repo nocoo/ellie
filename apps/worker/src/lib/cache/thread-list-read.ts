@@ -19,6 +19,8 @@ export interface ThreadListQuery {
 	page: number;
 	cursor: ThreadCursor | null;
 	typeId: number | null;
+	/** Cursor consumers do not expose or use a total. */
+	includeTotal?: boolean;
 }
 
 export interface ThreadListMember {
@@ -270,7 +272,7 @@ export async function getThreadListPage(
 	ctx: ExecutionContext | undefined,
 	query: ThreadListQuery,
 	fresh = false,
-): Promise<ThreadListMembership & { nextCursor: string | null }> {
+): Promise<ThreadListItems & { total: number | null; nextCursor: string | null }> {
 	const { forumId, limit, typeId, cursor, page } = query;
 	if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger((page - 1) * limit)) {
 		throw new Error("Invalid thread-list page");
@@ -320,18 +322,21 @@ export async function getThreadListPage(
 	// Only this response combines them; neither snapshot copies the other.
 	const [local, count] = await Promise.all([
 		read(descriptor),
-		read({
-			family: "thread:list",
-			scope: "internal",
-			params: { kind: "count", forumId, typeId },
-		}),
+		query.includeTotal === false
+			? null
+			: read({
+					family: "thread:list",
+					scope: "internal",
+					params: { kind: "count", forumId, typeId },
+				}),
 	]);
-	if (!isItems(local) || !isCount(count)) throw new Error("Invalid thread-list snapshot");
+	if (!isItems(local) || (count !== null && !isCount(count)))
+		throw new Error("Invalid thread-list snapshot");
 	const items = [...globals, ...local.items].slice(0, limit);
 	const nextCursor = buildNextCursor(items, limit, (row) => ({
 		sticky: stickyRank(row.sticky),
 		lastPostAt: row.last_post_at,
 		id: row.id,
 	}));
-	return { items, total: announcements.total + count.total, nextCursor };
+	return { items, total: count === null ? null : announcements.total + count.total, nextCursor };
 }

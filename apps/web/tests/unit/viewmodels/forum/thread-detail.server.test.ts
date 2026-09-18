@@ -55,10 +55,11 @@ vi.mock("@/lib/forum-cache", async () => {
 			const res = await (forumApi as any).get(`/api/v1/threads/${id}`);
 			return res.data;
 		},
-		getCachedForumList: async () => {
-			const res = await (forumApi as any).getAll("/api/v1/forums");
-			return res.data;
-		},
+		getCachedForumAncestors: vi.fn(async (id: number) => {
+			const { ApiError } = await import("@/lib/api-error");
+			if (id !== 10) throw new ApiError(404, "FORUM_NOT_FOUND", "Missing forum");
+			return { forum: mockForums[0], ancestors: [] };
+		}),
 		getCachedPostsPerPage: vi.fn(async () => 20),
 	};
 });
@@ -74,7 +75,10 @@ vi.mock("@/viewmodels/forum/settings.server", () => ({
 }));
 
 vi.mock("@/lib/forum-breadcrumbs", () => ({
-	buildThreadBreadcrumbs: vi.fn(() => [{ label: "首页", href: "/" }, { label: "Test" }]),
+	buildThreadBreadcrumbsFromAncestors: vi.fn(() => [
+		{ label: "首页", href: "/" },
+		{ label: "Test" },
+	]),
 }));
 
 import { forumApi } from "@/lib/forum-api";
@@ -371,8 +375,8 @@ describe("loadThreadDetail", () => {
 
 		// get: 1 thread GET only (no per-user GETs)
 		expect(mockForumApi.get).toHaveBeenCalledTimes(1);
-		// getAll: 1 forums + 1 users/batch = 2
-		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
+		// Only users/batch; forum context uses the ancestors endpoint.
+		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
 		// getCursor: 1 posts
 		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
 		// post: 1 attachments/batch + 1 comments/batch = 2
@@ -394,8 +398,8 @@ describe("loadThreadDetail", () => {
 
 		// get: 1 thread (constant)
 		expect(mockForumApi.get).toHaveBeenCalledTimes(1);
-		// getAll: 1 forums + 1 users/batch = 2 (constant)
-		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
+		// Only users/batch; forum context no longer loads the full forum list.
+		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
 		// getCursor: 1 posts (constant)
 		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
 		// post: 1 attachments/batch + 1 comments/batch = 2 (constant)

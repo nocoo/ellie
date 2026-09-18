@@ -11,15 +11,15 @@ import type {
 	UserPostHistoryItem,
 } from "@ellie/types";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import { getCachedForumList, getCachedPageSize } from "@/lib/forum-cache";
+import { getCachedForumNames, getCachedPageSize } from "@/lib/forum-cache";
 import { emptyPage, type PaginatedResult } from "@/viewmodels/shared/pagination";
 import { isUserPostHistoryItem, type ProfileTab, resolveTab } from "./user-profile";
 
 /**
  * Lookup map from forumId → forum display name, built once at load time so
  * each profile-tab row component can resolve the board chip without firing
- * its own request. The full forum list is itself cached upstream by
- * `getCachedForumList()`, so this adds a single in-render reduce.
+ * its own request. The forum name list is itself cached upstream by
+ * `getCachedForumNames()`, so this adds a single in-render reduce.
  */
 export type ForumNameMap = Readonly<Record<number, string>>;
 
@@ -108,7 +108,7 @@ export async function loadUserProfile(params: {
 
 /** Build a `forumId → name` map from the cached forum list. */
 async function loadForumNameMap(): Promise<ForumNameMap> {
-	const forums = await getCachedForumList();
+	const forums = await getCachedForumNames();
 	const map: Record<number, string> = {};
 	for (const f of forums) {
 		map[f.id] = f.name;

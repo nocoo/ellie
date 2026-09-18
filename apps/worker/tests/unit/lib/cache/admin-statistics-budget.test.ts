@@ -73,3 +73,57 @@ describe("admin list statistics budgets", () => {
 		},
 	);
 });
+
+describe("narrow date list plans", () => {
+	it.each([
+		{ entity: "users", date: "reg_date", param: "regDate", index: "idx_users_reg_date" },
+		{ entity: "threads", date: "created_at", param: "createdAt", index: "idx_threads_created" },
+	])(
+		"$entity seeks dates but preserves ID ordering and pagination",
+		async ({ entity, date, param, index }) => {
+			const now = Math.floor(Date.now() / 1000);
+			if (entity === "users") {
+				f.sqlite.exec(`WITH RECURSIVE n(id) AS (VALUES (100) UNION ALL SELECT id+1 FROM n WHERE id<10100)
+			INSERT INTO users(id,username,reg_date) SELECT id,'history-'||id,100 FROM n`);
+			} else {
+				f.sqlite.exec(`WITH RECURSIVE n(id) AS (VALUES (100) UNION ALL SELECT id+1 FROM n WHERE id<10100)
+			INSERT INTO threads(id,forum_id,author_id,subject,created_at) SELECT id,1,10,'history',100 FROM n`);
+			}
+			f.sqlite.exec(
+				`UPDATE ${entity} SET ${date}=${now - 100} WHERE id=100; UPDATE ${entity} SET ${date}=${now - 200} WHERE id=101`,
+			);
+			const descriptor = {
+				family: "admin:entity:list",
+				scope: "admin",
+				params: { entity, query: `${param}Min=${now - 86400}&limit=1&page=1` },
+			};
+			// Canonical query key order is lexical (createdAt/limit/page versus limit/page/regDate).
+			descriptor.params.query = new URLSearchParams(
+				[...new URLSearchParams(descriptor.params.query)].sort(([a], [b]) => a.localeCompare(b)),
+			).toString();
+			const page = await readAdminEntity<List>(f.env, undefined, descriptor);
+			expect(page.total).toBe(2);
+			expect(page.items.map((row) => row.id)).toEqual([101]);
+			for (const call of f.calls) {
+				const plan = f.sqlite
+					.prepare(`EXPLAIN QUERY PLAN ${call.sql}`)
+					.all(...call.params)
+					.map((row) => String(row.detail))
+					.join("\n");
+				expect(plan).toContain(index);
+				expect(plan).toContain(`${date}>?`);
+			}
+			const last =
+				f.calls.find((call) => call.sql.includes("ORDER BY")) ?? expect.fail("Missing list query");
+			expect(
+				f.sqlite
+					.prepare(last.sql.replace(` INDEXED BY ${index}`, ""))
+					.all(...last.params)
+					.map((row) => row.id),
+			).toEqual([101]);
+			f.calls.length = 0;
+			await readAdminEntity(f.env, undefined, descriptor);
+			expect(f.calls).toHaveLength(0);
+		},
+	);
+});

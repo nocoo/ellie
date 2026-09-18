@@ -78,7 +78,7 @@ const userConfig: EntityConfig = {
 		// `lastLoginMin=0` filter selects users with `last_login >= 0`
 		// (i.e. everyone, including never-logged-in `last_login = 0`),
 		// and `creditsMin=0` selects everyone with non-negative credits.
-		{ param: "regDate", column: "reg_date", type: "range" },
+		{ param: "regDate", column: "reg_date", type: "range", rangeIndex: "idx_users_reg_date" },
 		{ param: "lastLogin", column: "last_login", type: "range" },
 		{ param: "threads", column: "threads", type: "range" },
 		{ param: "posts", column: "posts", type: "range" },

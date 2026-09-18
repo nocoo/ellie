@@ -216,7 +216,8 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return errorResponse("INVALID_REQUEST", 400, { message: type.message }, origin);
 	const typeId = type.kind === "ok" ? type.row.id : null;
 	const cursor = cursorStr ? decodeGenericCursor<ThreadCursor>(cursorStr, isThreadCursor) : null;
-	const query = { forumId, limit, page, cursor, typeId };
+	const includeTotal = !!pageParam && !cursorStr;
+	const query = { forumId, limit, page, cursor, typeId, includeTotal };
 	let pageData = await getThreadListPage(env, ctx, query);
 	let access = await loadThreadAccessBatch(
 		env,
@@ -254,9 +255,11 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		env,
 		ctx,
 	);
-	return pageParam && !cursorStr
-		? paginatedResponse(items, pageData.total, page, limit, origin)
-		: jsonListResponse(items, origin, pageData.nextCursor);
+	if (includeTotal) {
+		if (pageData.total === null) throw new Error("Missing page total");
+		return paginatedResponse(items, pageData.total, page, limit, origin);
+	}
+	return jsonListResponse(items, origin, pageData.nextCursor);
 }
 
 /** Helper to enrich threads with user cache (only used when KV cache is enabled) */

@@ -14,6 +14,7 @@ vi.mock("../../../src/lib/cache/forum-read", async () => {
 	return {
 		...actual,
 		getForumTreeV2: vi.fn(),
+		currentForums: vi.fn(async () => new Map()),
 		lazyForumSnapshot: vi.fn(() => async () => ({ all: [], visibleByBucket: {} })),
 	};
 });

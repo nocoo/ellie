@@ -138,6 +138,7 @@ npx wrangler dev -c apps/worker/wrangler.toml
 - All workspace `package.json` files
 - `packages/types/src/version.ts` — exports `VERSION` and `VERSION_DISPLAY`
 - `packages/types/src/version.d.ts` — TypeScript declarations
+- `packages/cli-rs/ellie-{core,tui}/Cargo.toml` and their first-party `Cargo.lock` entries — Rust package and CLI versions
 
 **Version display:**
 - Footer: `v1.0.0` (via `VERSION_DISPLAY`)

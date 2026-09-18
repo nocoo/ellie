@@ -24,6 +24,7 @@ import {
 	type ForumAncestorsData,
 	fetchForumAncestors,
 	fetchForumList,
+	fetchForumNames,
 	fetchForumThreadTypes,
 	fetchThreadById,
 	fetchThreadMetadata,
@@ -38,6 +39,7 @@ import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedThreadMetadata = cache(fetchThreadMetadata);
 export const getCachedForumList = cache(fetchForumList);
+export const getCachedForumNames = cache(fetchForumNames);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
 export const getCachedRecommendedThreads = cache(loadRecommendedThreads);

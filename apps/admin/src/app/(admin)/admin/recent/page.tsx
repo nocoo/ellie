@@ -92,7 +92,7 @@ function RecentPageInner() {
 	const [customEnd, setCustomEnd] = useState("");
 	const [activeTab, setActiveTab] = useState<TabKey>(DEFAULT_TAB);
 
-	// Tab counts (fetched cheaply with limit=1)
+	// Counts from tabs actually opened in this time range.
 	const [counts, setCounts] = useState<Record<TabKey, number | null>>({
 		users: null,
 		threads: null,
@@ -136,42 +136,17 @@ function RecentPageInner() {
 	// Track latest fetch to avoid stale state
 	const fetchIdRef = useRef(0);
 
-	// Each count belongs to this exact range; missing responses stay unavailable.
-	useEffect(() => {
-		let cancelled = false;
-		const { min, max } = bounds;
-		setCounts({ users: null, threads: null, posts: null, attachments: null });
-		Promise.allSettled([
-			fetchRecentUsers(min, max, 1, 1),
-			fetchRecentThreads(min, max, 1, 1),
-			fetchRecentPosts(min, max, 1, 1),
-			fetchRecentAttachments(min, max, 1, 1),
-		]).then((results) => {
-			if (cancelled) return;
-			setCounts(
-				(prev) =>
-					Object.fromEntries(
-						ALL_TABS.map((key, i) => {
-							const result = results[i];
-							// A loaded list has the authoritative total. A delayed
-							// background count must not replace it, even after a deletion.
-							return [
-								key,
-								prev[key] ?? (result.status === "fulfilled" ? result.value.meta.total : null),
-							];
-						}),
-					) as Record<TabKey, number | null>,
-			);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [bounds]);
+	// Only the selected tab is loaded; its response supplies its count.
+	const countBounds = useRef(bounds);
 
 	// Fetch tab data
 	const fetchTabData = useCallback(
 		async (tab: TabKey, page: number) => {
 			const id = ++fetchIdRef.current;
+			if (countBounds.current !== bounds) {
+				countBounds.current = bounds;
+				setCounts({ users: null, threads: null, posts: null, attachments: null });
+			}
 			setLoading(true);
 			setLoadError(null);
 			setSelectedIds(new Set());

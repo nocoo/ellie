@@ -19,7 +19,7 @@ vi.mock("@/lib/forum-api", () => ({
 
 vi.mock("@/lib/forum-cache", () => ({
 	getCachedPageSize: vi.fn(async () => 20),
-	getCachedForumList: vi.fn(async () => [
+	getCachedForumNames: vi.fn(async () => [
 		{ id: 1, name: "灌水区" },
 		{ id: 2, name: "技术区" },
 	]),

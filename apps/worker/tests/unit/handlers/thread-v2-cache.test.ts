@@ -135,7 +135,7 @@ describe("reading cache hot paths", () => {
 		async (query) => {
 			f.thread(2);
 			const cold = await (await listThreads(query)).json();
-			expect(f.calls).toHaveLength(8); // forum, globals, local count/page, gate, entity/stats, minis
+			expect(f.calls).toHaveLength(query.includes("page=") ? 8 : 7); // Cursor reads omit COUNT.
 			const entries = f.snapshots("thread:list");
 			expect(
 				entries.every(
@@ -160,7 +160,8 @@ describe("reading cache hot paths", () => {
 		expect(offset.data).toEqual(first.data);
 		expect(offset.meta).toMatchObject({ total: 1, page: 1, limit: 1, pages: 1 });
 		expect(first.meta.nextCursor).toEqual(expect.any(String));
-		expect(f.calls).toHaveLength(2);
+		expect(f.calls).toHaveLength(3); // Page-number mode loads its total for the first time.
+		expect(f.calls.filter(({ sql }) => sql.includes("COUNT(*)"))).toHaveLength(1);
 	});
 
 	it.each([

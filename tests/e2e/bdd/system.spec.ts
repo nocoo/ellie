@@ -147,8 +147,12 @@ test.describe("Feature: System & Layout", () => {
 				const submit = page.getByRole("button", { name: "创建账号", exact: true });
 				await submit.scrollIntoViewIfNeeded();
 				await expect(submit).toBeInViewport();
-				const box = await submit.boundingBox();
-				expect(box?.height, `${variant} registration at ${width}px`).toBeGreaterThanOrEqual(44);
+				// The dialog scales in; measure its settled touch target, not an animation frame.
+				await expect
+					.poll(async () => (await submit.boundingBox())?.height ?? 0, {
+						message: `${variant} registration at ${width}px`,
+					})
+					.toBeGreaterThanOrEqual(44);
 				expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 					width + 1,
 				);

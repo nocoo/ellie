@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.11.6] - 2026-09-19
+
+### Changed
+
+- Cursor thread lists skip the unused total-count snapshot and SQL. Numbered pagination still returns an exact total through the existing 60-second cache.
+- Admin Recent loads only the selected tab and takes its badge count from that response, removing four background list requests. Shanghai calendar-day bounds keep cache keys stable within the same day.
+- Thread detail loads only its forum ancestor context. Profiles request the visible forum ID/name map without loading latest-thread summaries. Current permission checks remain authoritative, including immediately revoked forum visibility.
+- Bounded recent user/thread administration queries use existing date indexes before sorting by ID. Broad historical queries retain the database planner's choice; pagination, ordering and count semantics are unchanged. No schema migration or new cache lifetime is introduced.
+
+### Maintenance
+
+- The release script also synchronizes the Rust core/TUI package versions and their lockfile entries with the root version.
+- The mobile registration regression waits for the dialog's scale animation to settle before enforcing its unchanged 44px touch-target requirement.
+
 ## [1.11.5] - 2026-09-18
 
 ### Fixed

@@ -1,5 +1,5 @@
 // viewmodels/forum/thread-detail.server.ts — Server-only data loader for thread detail
-// Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/forums
+// Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/forums/:id/ancestors
 //   + POST /api/v1/posts/attachments/batch + GET /api/v1/users/batch).
 
 import "server-only";
@@ -10,8 +10,6 @@ import {
 	canManageThread,
 	canModerate,
 	canMoveThread,
-	type Forum,
-	findForumAncestors,
 	type Post,
 	type PostComment,
 	type PublicUser,
@@ -20,10 +18,16 @@ import {
 	type UserRole,
 	UserStatus,
 } from "@ellie/types";
+import { ApiError } from "@/lib/api-error";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
-import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getCachedForumList, getCachedPostsPerPage, getCachedThreadById } from "@/lib/forum-cache";
+import { buildThreadBreadcrumbsFromAncestors } from "@/lib/forum-breadcrumbs";
+import {
+	getCachedForumAncestors,
+	getCachedPostsPerPage,
+	getCachedThreadById,
+} from "@/lib/forum-cache";
+import type { ForumContext } from "@/lib/forum-data";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { fetchPublicSettings, getStr } from "./settings.server";
 import {
@@ -37,8 +41,7 @@ import {
 
 export interface ThreadDetailPageData {
 	thread: Thread | null;
-	forum: Forum | null;
-	forums: Forum[];
+	forum: ForumContext | null;
 	posts: EnrichedPost[];
 	nextCursor: string | null;
 	prevCursor: string | null;
@@ -72,10 +75,10 @@ export async function loadThreadDetail(params: {
 		getCachedPostsPerPage(),
 	]);
 
-	// Parallel fetch: thread + posts + forums (thread & forums deduped via React cache)
+	// Thread and posts load in parallel; their forum context uses the ancestor chain.
 	// When a JWT is available, use authenticated calls so moderated threads (sticky=-2)
 	// resolve for their author / forum mods / staff.
-	const [thread, postsRes, forums] = await Promise.all([
+	const [thread, postsRes] = await Promise.all([
 		jwt
 			? forumApi.getAuth<Thread>(`/api/v1/threads/${params.threadId}`, jwt).then((r) => r.data)
 			: getCachedThreadById(params.threadId),
@@ -92,10 +95,13 @@ export async function loadThreadDetail(params: {
 					cursor: params.cursor,
 					last: params.last ? "1" : undefined,
 				}),
-		getCachedForumList(),
 	]);
 
-	const forum = forums.find((f) => f.id === thread.forumId) ?? null;
+	const context = await getCachedForumAncestors(thread.forumId).catch((error: unknown) => {
+		if (error instanceof ApiError && error.status === 404) return null;
+		throw error;
+	});
+	const forum = context?.forum ?? null;
 
 	// Build current user object for permission checks
 	let currentUser: User | null = null;
@@ -280,15 +286,20 @@ export async function loadThreadDetail(params: {
 	);
 
 	// Build breadcrumbs from forum ancestors
-	const ancestors = findForumAncestors(forums, thread.forumId);
+	const ancestors = context?.ancestors ?? [];
 	const settings = await fetchPublicSettings();
 	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
-	const breadcrumbs = buildThreadBreadcrumbs(ancestors, thread.subject, homeLabel);
+	const breadcrumbs = buildThreadBreadcrumbsFromAncestors(
+		ancestors,
+		thread.forumId,
+		forum?.name ?? "版块",
+		thread.subject,
+		homeLabel,
+	);
 
 	return {
 		thread,
 		forum,
-		forums,
 		posts,
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination

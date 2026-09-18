@@ -97,10 +97,23 @@ export function lazyForumSnapshot(env: Env): () => Promise<ForumSnapshotRow[]> {
 	let task: Promise<ForumSnapshotRow[]> | undefined;
 	return () => (task ??= loadForumSnapshot(env));
 }
-async function currentForums(env: Env): Promise<Map<number, CurrentForum>> {
+export async function currentForums(
+	env: Env,
+	ancestorOf?: number,
+): Promise<Map<number, CurrentForum>> {
+	// UNION terminates malformed cycles. Single-forum context only checks its chain.
+	const chain =
+		ancestorOf === undefined
+			? ""
+			: `WITH RECURSIVE chain(id) AS (
+		SELECT id FROM forums WHERE id = ?
+		UNION SELECT f.parent_id FROM forums f JOIN chain c ON f.id = c.id WHERE f.parent_id > 0
+	) `;
 	const result = await env.DB.prepare(
-		`SELECT id, parent_id, status, visibility, moderators, moderator_ids, thread_types_enabled, thread_types_required, thread_types_listable, thread_types_prefix FROM forums`,
-	).all<CurrentForum>();
+		`${chain}SELECT id, parent_id, status, visibility, moderators, moderator_ids, thread_types_enabled, thread_types_required, thread_types_listable, thread_types_prefix FROM forums${ancestorOf === undefined ? "" : " WHERE id IN (SELECT id FROM chain)"}`,
+	)
+		.bind(...(ancestorOf === undefined ? [] : [ancestorOf]))
+		.all<CurrentForum>();
 	if (!result.success) throw new Error("Current forum permissions could not be loaded");
 	return new Map(result.results.map((row) => [row.id, row]));
 }

@@ -32,6 +32,14 @@ export async function fetchForumList(): Promise<Forum[]> {
 	return data;
 }
 
+/** Name chips do not need counters, latest threads or their authors. */
+export async function fetchForumNames(): Promise<Pick<Forum, "id" | "name">[]> {
+	const { data } = await forumApi.getAll<Pick<Forum, "id" | "name">>("/api/v1/forums", {
+		view: "names",
+	});
+	return data;
+}
+
 // ─── Forum Context (ancestors endpoint) ─────────────────────────────
 
 /** Forum structural context returned by the ancestors endpoint. */

@@ -50,6 +50,8 @@ export interface FilterDef {
 	minParam?: string;
 	/** Range only: query param for the upper bound (default `${param}Max`). */
 	maxParam?: string;
+	/** Existing time index for bounded recent-date list scans. */
+	rangeIndex?: string;
 	/**
 	 * `expr` only — SQL fragment emitted verbatim when raw is `true`/`1`.
 	 * MUST be a self-contained boolean expression (wrap in parens if it
@@ -378,9 +380,19 @@ export async function loadEntityList(
 		sortParam && config.allowedSorts?.[sortParam]
 			? config.allowedSorts[sortParam]
 			: (config.listSort ?? "id DESC");
+	// Narrow date filters must seek by time before sorting by ID. Let the
+	// planner choose for broad/history-only filters, where an ID scan can win.
+	const indexedRange = config.filters?.find((filter) => {
+		if (!filter.rangeIndex || filter.type !== "range") return false;
+		const rawMin = url.searchParams.get(filter.minParam ?? `${filter.param}Min`);
+		const rawMax = url.searchParams.get(filter.maxParam ?? `${filter.param}Max`);
+		const min = rawMin ? parseRangeBound(rawMin, filter.parse) : null;
+		const max = rawMax ? parseRangeBound(rawMax, filter.parse) : Math.floor(Date.now() / 1000);
+		return min !== null && max !== null && min > 0 && max >= min && max - min <= 90 * 86400;
+	});
 	const from = config.useSubqueryWrapper
 		? `(SELECT ${config.columns} FROM ${config.table}) AS _t`
-		: config.table;
+		: `${config.table}${indexedRange ? ` INDEXED BY ${indexedRange.rangeIndex}` : ""}`;
 	const select = config.useSubqueryWrapper ? "*" : config.columns;
 	const page = Number(url.searchParams.get("page") ?? 1);
 	const limit = Number(url.searchParams.get("limit") ?? 20);

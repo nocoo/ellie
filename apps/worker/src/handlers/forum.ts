@@ -2,12 +2,7 @@ import type { ForumVisibility, ModeratorInfo } from "@ellie/types";
 import { canModerate } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import { getCachedThreadTypes } from "../lib/cache/catalog-read";
-import {
-	getForumMetaV2,
-	getForums,
-	getForumTreeV2,
-	lazyForumSnapshot,
-} from "../lib/cache/forum-read";
+import { currentForums, getForumMetaV2, getForums, getForumTreeV2 } from "../lib/cache/forum-read";
 import { invalidateForumUpdateV2 } from "../lib/cache/invalidate";
 import { dataCacheKey } from "../lib/cache/keys";
 import { cacheDelete } from "../lib/cache/wrap";
@@ -38,6 +33,13 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 
 	const user = await optionalAuthVerified(request, env);
 	const bucket = computeVisibilityBucket(buildVisibilityContext(user));
+	if (new URL(request.url).searchParams.get("view") === "names") {
+		const nodes = await getForumTreeV2(env, ctx, bucket);
+		return jsonResponse(
+			nodes.map(({ id, name }) => ({ id, name })),
+			origin,
+		);
+	}
 	return jsonResponse(await getForums(env, ctx, bucket), origin);
 }
 
@@ -119,8 +121,8 @@ export async function getAncestors(
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 	const bucket = computeVisibilityBucket(visCtx);
-	const loadSnapshot = lazyForumSnapshot(env);
-	const visibleNodes = await getForumTreeV2(env, ctx, bucket, loadSnapshot);
+	const checked = await currentForums(env, forumId);
+	const visibleNodes = await getForumTreeV2(env, ctx, bucket, undefined, checked);
 
 	const target = visibleNodes.find((n) => n.id === forumId);
 	if (!target) {

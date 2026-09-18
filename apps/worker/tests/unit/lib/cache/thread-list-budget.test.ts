@@ -102,6 +102,7 @@ function seedHistory(): void {
 }
 
 describe("thread-list SQL plans and pagination", () => {
+	// Coverage instrumentation and parallel suites add overhead to the 30,000-row fixtures.
 	it("native ordinary order avoids a full CASE sort over historical rows", async () => {
 		seedHistory();
 		const data = await rebuildThreadListCache(f.env, undefined, localDescriptor());
@@ -121,7 +122,7 @@ describe("thread-list SQL plans and pagination", () => {
 		expect(explain(previous)).toContain("USE TEMP B-TREE FOR ORDER BY");
 		expect(data).toEqual({ items: f.sqlite.prepare(previous.sql).all(...previous.params) });
 		expect(f.calls).toHaveLength(1);
-	});
+	}, 15_000);
 
 	it("ordinary tuple cursors seek past earlier timestamp groups that the OR predicate scans", async () => {
 		seedHistory();
@@ -156,7 +157,7 @@ describe("thread-list SQL plans and pagination", () => {
 			WHERE forum_id = 1 AND sticky >= 0 AND sticky != 2 AND last_post_at > ?`)
 			.get(2500);
 		expect(earlier?.total).toBeGreaterThan(25_000);
-	});
+	}, 15_000);
 
 	it.each([null, 8, 9])(
 		"preserves sticky ranks, offsets, cursor ties and totals for typeId=%s",
@@ -230,6 +231,7 @@ describe("thread-list SQL plans and pagination", () => {
 				expect(explain(captured)).toContain("USE TEMP B-TREE FOR ORDER BY");
 			}
 		},
+		15_000,
 	);
 });
 
@@ -474,4 +476,21 @@ describe("independent thread-list count budgets", () => {
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		expect(f.env.KV.put).not.toHaveBeenCalled();
 	});
+});
+
+it("cursor reads never load or rebuild totals, including expired snapshots", async () => {
+	const first = await getThreadListPage(f.env, undefined, query({ includeTotal: false }));
+	expect(first.total).toBeNull();
+	expect(countCalls()).toHaveLength(0);
+	const cursor = decodeGenericCursor<ThreadCursor>(
+		first.nextCursor ?? expect.fail("Missing next cursor"),
+		isThreadCursor,
+	);
+	vi.setSystemTime(Date.now() + 61000);
+	await getThreadListPage(f.env, undefined, query({ cursor, includeTotal: false }), true);
+	expect(countCalls()).toHaveLength(0);
+	expect(f.snapshots("thread:list").some((entry) => entry.params.kind === "count")).toBe(false);
+	const page = await getThreadListPage(f.env, undefined, query());
+	expect(page.total).toBe(100);
+	expect(countCalls()).toHaveLength(1);
 });

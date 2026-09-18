@@ -115,7 +115,6 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		data = {
 			thread: null,
 			forum: null,
-			forums: [],
 			posts: [],
 			nextCursor: null,
 			prevCursor: null,

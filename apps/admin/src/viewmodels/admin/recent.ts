@@ -65,16 +65,16 @@ export function timeRangeToBounds(
 	customStart?: string,
 	customEnd?: string,
 ): { min: number; max: number } {
+	const now = new Date();
+	// Calendar-day bounds stay stable across visits and share Worker snapshots.
+	const endOfToday = shanghaiMidnightUnix(now) + 86400 - 1;
 	if (range === "custom") {
 		const min = customStart ? shanghaiDateStringToUnix(customStart) : 0;
-		const max = customEnd
-			? shanghaiDateStringToUnix(customEnd, true)
-			: Math.floor(Date.now() / 1000);
+		const max = customEnd ? shanghaiDateStringToUnix(customEnd, true) : endOfToday;
 		return { min, max };
 	}
 
-	const now = new Date();
-	const max = Math.floor(Date.now() / 1000);
+	const max = endOfToday;
 
 	let min: number;
 	switch (range) {
