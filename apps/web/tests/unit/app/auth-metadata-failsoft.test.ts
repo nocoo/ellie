@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+// Metadata never renders client forms; avoid loading their full UI dependency tree.
+vi.mock("@/app/(auth)/login/login-form", () => ({ default: () => null }));
+vi.mock("@/app/(auth)/login/already-logged-in", () => ({ default: () => null }));
+vi.mock("@/app/(auth)/register/register-form", () => ({ default: () => null }));
+
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => null) }));
 
 vi.mock("@/viewmodels/forum/settings.server", () => ({
