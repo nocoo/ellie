@@ -6,7 +6,7 @@
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,17 +20,7 @@ interface PostCommentsProps {
 	postId: number;
 	threadClosed?: boolean;
 	isLoggedIn: boolean;
-	/**
-	 * SSR-provided initial comments.
-	 * - `PostComment[]` (incl. `[]`) — SSR batch succeeded; skip the client fetch.
-	 * - `undefined`                  — SSR batch FAILED; fall back to client fetch
-	 *                                   so we never render permanently-empty
-	 *                                   comments due to a transient SSR error.
-	 *
-	 * The distinction is the contract that backs E2E-PC-01 — see
-	 * apps/web/src/viewmodels/forum/thread-detail.server.ts batch-fetch
-	 * failure semantics.
-	 */
+	/** Optional preloaded comments. Otherwise read only after clicking 查看点评. */
 	initialComments?: PostComment[];
 	/** External dialog state control */
 	dialogOpen?: boolean;
@@ -137,10 +127,9 @@ export function PostComments({
 	onDialogOpenChange,
 }: PostCommentsProps) {
 	const [comments, setComments] = useState<PostComment[]>(initialComments ?? []);
-	// Loading is true ONLY when SSR did not provide data (initialComments === undefined).
-	// An empty array from SSR (`[]`) is a successful "no comments" answer and
-	// must NOT trigger a client refetch.
-	const [loading, setLoading] = useState(initialComments === undefined);
+	const [loaded, setLoaded] = useState(initialComments !== undefined);
+	const [loading, setLoading] = useState(false);
+	const [loadError, setLoadError] = useState(false);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 
@@ -149,50 +138,54 @@ export function PostComments({
 	const setDialogOpen = onDialogOpenChange ?? setInternalDialogOpen;
 
 	const fetchComments = useCallback(async () => {
+		setLoading(true);
+		setLoadError(false);
 		try {
 			// Use searchParams object form so the helper handles encoding and
 			// undefined/null filtering. Never string-concat user-supplied
 			// values into the URL.
 			const response = await apiClient.get<PostComment[]>("/api/v1/post-comments", { postId });
-			setComments(response.data);
-		} catch (err) {
-			console.error("[PostComments] fetch error:", err);
+			setComments((previous) => [
+				...new Map([...response.data, ...previous].map((row) => [row.id, row])).values(),
+			]);
+			setLoaded(true);
+		} catch {
+			setLoadError(true);
 		} finally {
 			setLoading(false);
 		}
 	}, [postId]);
 
-	useEffect(() => {
-		// Only refetch when SSR did NOT supply data. A literal empty array from
-		// SSR (`[]`) means "no comments" — we must trust it and skip the fetch.
-		// `undefined` means SSR batch failed; recover via client fetch.
-		if (initialComments !== undefined) return;
-		fetchComments();
-	}, [fetchComments, initialComments]);
-
 	const handleCommentSuccess = useCallback((newComment: PostComment) => {
-		// Add new comment to list immediately (optimistic update)
+		// Show the confirmed write immediately, without waiting for shared cache expiry.
 		setComments((prev) => [...prev, newComment]);
 		// Also expand to show the new comment if list was collapsed
 		setExpanded(true);
 	}, []);
 
-	// Don't render anything if no comments
-	// The "点评" button is in PostActionBar, not here
-	if (!loading && comments.length === 0) {
-		return (
-			<CommentDialog
-				open={dialogOpen}
-				onOpenChange={setDialogOpen}
-				postId={postId}
-				onSuccess={handleCommentSuccess}
-			/>
-		);
-	}
+	const loadButton = !loaded && (
+		<button
+			type="button"
+			disabled={loading}
+			onClick={fetchComments}
+			className="text-xs text-forum-link hover:underline py-1.5"
+		>
+			{loading ? "加载点评…" : loadError ? "加载失败，重试点评" : "查看点评"}
+		</button>
+	);
 
-	// Show loading or empty state with add button
-	if (loading) {
-		return null; // Don't show loading state, just skip
+	if (comments.length === 0) {
+		return (
+			<>
+				{loadButton}
+				<CommentDialog
+					open={dialogOpen}
+					onOpenChange={setDialogOpen}
+					postId={postId}
+					onSuccess={handleCommentSuccess}
+				/>
+			</>
+		);
 	}
 
 	// Determine which comments to show
@@ -202,6 +195,7 @@ export function PostComments({
 
 	return (
 		<div className="border-t border-dashed border-border">
+			{loadButton}
 			{/* Header - theme-aware colors */}
 			<div className="flex items-center justify-between px-3 py-1.5 bg-muted/30">
 				<span className="text-xs text-muted-foreground font-medium flex items-center gap-1">

@@ -15,6 +15,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForumApiError } from "@/lib/forum-api";
 
 const getMock = vi.fn();
+const getAuthMock = vi.fn();
+const getJwtMock = vi.fn();
+vi.mock("@/lib/forum-auth", () => ({ getWorkerJwt: () => getJwtMock() }));
 
 vi.mock("@/lib/forum-api", async () => {
 	const actual = await vi.importActual<typeof import("@/lib/forum-api")>("@/lib/forum-api");
@@ -22,12 +25,15 @@ vi.mock("@/lib/forum-api", async () => {
 		...actual,
 		forumApi: {
 			get: (...args: unknown[]) => getMock(...args),
+			getAuth: (...args: unknown[]) => getAuthMock(...args),
 		},
 	};
 });
 
 beforeEach(() => {
 	getMock.mockReset();
+	getAuthMock.mockReset();
+	getJwtMock.mockReset().mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -39,6 +45,21 @@ function makeGetRequest(url: string): Request {
 }
 
 describe("GET /api/v1/post-comments", () => {
+	it("forwards the session for comments in member and private forums", async () => {
+		getJwtMock.mockResolvedValue("session-jwt");
+		getAuthMock.mockResolvedValue({ data: [] });
+		const { GET } = await import("@/app/api/v1/post-comments/route");
+		const res = await GET(
+			makeGetRequest("https://web.example.com/api/v1/post-comments?postId=abc&limit=20"),
+		);
+		expect(res.status).toBe(200);
+		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/post-comments", "session-jwt", {
+			postId: "abc",
+			limit: "20",
+		});
+		expect(getMock).not.toHaveBeenCalled();
+	});
+
 	it("returns 400 INVALID_REQUEST when postId is missing", async () => {
 		const { GET } = await import("@/app/api/v1/post-comments/route");
 		const res = await GET(makeGetRequest("https://web.example.com/api/v1/post-comments"));

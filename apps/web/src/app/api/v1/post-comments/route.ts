@@ -23,7 +23,10 @@ export async function GET(request: Request) {
 		// Use typed searchParams form — never string-concat untrusted input into the URL.
 		// `forumApi.get` skips undefined/null/empty values, so an absent `limit`
 		// is simply omitted rather than forwarded as `limit=`.
-		const result = await forumApi.get<unknown>("/api/v1/post-comments", { postId, limit });
+		const jwt = await getWorkerJwt();
+		const result = jwt
+			? await forumApi.getAuth<unknown>("/api/v1/post-comments", jwt, { postId, limit })
+			: await forumApi.get<unknown>("/api/v1/post-comments", { postId, limit });
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) return forumApiErrorToProxyResponse(err);

@@ -553,7 +553,7 @@ describe("writes and fixed snapshots", () => {
 		expect(f.snapshots("post:entity")).toEqual(entity);
 	});
 
-	it("comment/rating writes keep public SHORT snapshots while returning fresh writer data", async () => {
+	it("comment/rating writes keep public MEDIUM snapshots while returning fresh writer data", async () => {
 		await comments();
 		await ratings();
 		const commentResult = await comment.create(
@@ -581,7 +581,7 @@ describe("writes and fixed snapshots", () => {
 		expect((await ratingResult.json()).data.aggregate.total).toBe(2);
 		expect((await (await comments()).json()).data).toHaveLength(1);
 		expect((await (await ratings()).json()).data.aggregate.total).toBe(1);
-		vi.setSystemTime(Date.now() + 60_000);
+		vi.setSystemTime(Date.now() + 1_800_000);
 		expect((await (await comments()).json()).data).toHaveLength(2);
 		expect((await (await ratings()).json()).data.aggregate.total).toBe(2);
 	});

@@ -117,7 +117,7 @@ describe("unified cache time and origin contract", () => {
 		async (value) => {
 			const { env, ctx, store } = jsonKV();
 			const load = vi.fn(async () => value);
-			const settings = { ...options, family: "post:attachments", tier: "LONG" as const };
+			const settings = { ...options, family: "recommended:threads", tier: "LONG" as const };
 			await cacheGetOrSet(env, ctx, "k", load, settings);
 			await cacheGetOrSet(env, ctx, "k", load, settings);
 			expect(load).toHaveBeenCalledTimes(1);
@@ -180,7 +180,7 @@ describe("unified cache time and origin contract", () => {
 		]);
 		expect(privateLoad).toHaveBeenCalledTimes(1);
 		expect(await cacheRead(first.env, "k", { ...options, scope: "user:1" })).toBeNull();
-		expect(await cacheRead(first.env, "k", { ...options, family: "post:ratings" })).toBeNull();
+		expect(await cacheRead(first.env, "k", { ...options, family: "search:threads" })).toBeNull();
 	});
 	it("loader failure is shared, never cached as empty, and the next attempt can retry", async () => {
 		const { env, ctx, kv } = jsonKV();

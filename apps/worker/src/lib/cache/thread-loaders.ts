@@ -429,7 +429,7 @@ export async function getPostComments(
 		throw new Error("Invalid comment limit");
 	return readEntities(env, ctx, ids, {
 		family: "post:comments",
-		tier: "SHORT",
+		tier: "MEDIUM",
 		params: (postId) => ({ postId, limit }),
 		load: (missing) => loadPostComments(env, missing, limit),
 		empty: () => [],
@@ -465,7 +465,7 @@ export async function getRatingAggregates(
 ): Promise<Map<number, PostRatingAggregate>> {
 	return readEntities(env, ctx, ids, {
 		family: "post:ratings",
-		tier: "SHORT",
+		tier: "MEDIUM",
 		params: (postId) => ({ postId }),
 		load: (missing) => loadRatingAggregates(env, missing),
 		empty: () => ({ ...EMPTY_RATING_AGGREGATE }),
@@ -490,7 +490,7 @@ export async function getRatingRows(
 	const key = await readingCacheKey(env, descriptor);
 	return cacheGetOrSet(env, ctx, key, () => loadRatingRows(env, postId), {
 		...descriptor,
-		tier: "SHORT",
+		tier: "MEDIUM",
 		validator: (v): v is ReadingRow[] => isThreadCacheData(descriptor, v),
 	});
 }

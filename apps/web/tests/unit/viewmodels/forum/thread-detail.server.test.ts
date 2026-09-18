@@ -295,56 +295,12 @@ describe("loadThreadDetail", () => {
 		expect(result.posts[0].author).toBeNull();
 	});
 
-	it("injects batch comments into enriched posts by postId", async () => {
-		const posts = [
-			{ ...mockPosts[0], id: 200, authorId: 100 },
-			{ ...mockPosts[0], id: 201, authorId: 100 },
-		];
-		mockForumApi.getCursor.mockResolvedValue({ data: posts, meta: { nextCursor: null } });
-		mockForumApi.post.mockImplementation((path: string) => {
-			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
-			if (path.includes("post-comments/batch"))
-				return Promise.resolve({
-					data: [
-						{
-							id: 1,
-							threadId: 1,
-							postId: 200,
-							authorId: 50,
-							authorName: "commenter",
-							content: "Nice!",
-							score: 0,
-							replyPostId: 0,
-							createdAt: 1000,
-						},
-						{
-							id: 2,
-							threadId: 1,
-							postId: 200,
-							authorId: 51,
-							authorName: "commenter2",
-							content: "Agree",
-							score: 0,
-							replyPostId: 0,
-							createdAt: 1001,
-						},
-					],
-				});
-			return Promise.resolve({ data: null });
-		});
-
-		const result = await loadThreadDetail({ threadId: 1 });
-		// Post 200 should have 2 comments
-		expect(result.posts[0].comments).toHaveLength(2);
-		expect(result.posts[0].comments[0].content).toBe("Nice!");
-		// Post 201 should have 0 comments
-		expect(result.posts[1].comments).toHaveLength(0);
-
-		// Pin endpoint and body contract
-		expect(mockForumApi.post).toHaveBeenCalledWith("/api/v1/post-comments/batch", {
-			threadId: 1,
-			postIds: [200, 201],
-		});
+	it("defers comments until the reader expands them", async () => {
+		const result = await loadThreadDetail({ threadId: 100 });
+		expect(result.posts[0].comments).toBeUndefined();
+		expect(mockForumApi.post.mock.calls.some(([path]) => path.includes("post-comments"))).toBe(
+			false,
+		);
 	});
 
 	it("returns forum as null when thread forumId not in list", async () => {
@@ -363,7 +319,7 @@ describe("loadThreadDetail", () => {
 	// These tests ensure that batch optimizations are not regressed.
 	// With batch endpoints, call counts are constant regardless of post/author count.
 
-	it("makes exactly 6 API calls for a page with 3 posts by 2 authors (batch optimized)", async () => {
+	it("makes exactly 5 API calls for a page with 3 posts by 2 authors (batch optimized)", async () => {
 		const posts = [
 			{ ...mockPosts[0], id: 200, authorId: 100, authorName: "user1" },
 			{ ...mockPosts[0], id: 201, authorId: 100, authorName: "user1" },
@@ -379,8 +335,8 @@ describe("loadThreadDetail", () => {
 		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
 		// getCursor: 1 posts
 		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
-		// post: 1 attachments/batch + 1 comments/batch = 2
-		expect(mockForumApi.post).toHaveBeenCalledTimes(2);
+		// post: 1 attachments/batch; comments are deferred
+		expect(mockForumApi.post).toHaveBeenCalledTimes(1);
 		// Total HTTP calls: 1 + 2 + 1 + 2 = 6 (constant)
 	});
 
@@ -402,8 +358,8 @@ describe("loadThreadDetail", () => {
 		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
 		// getCursor: 1 posts (constant)
 		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
-		// post: 1 attachments/batch + 1 comments/batch = 2 (constant)
-		expect(mockForumApi.post).toHaveBeenCalledTimes(2);
+		// post: 1 attachments/batch; comments are deferred (constant)
+		expect(mockForumApi.post).toHaveBeenCalledTimes(1);
 		// Total: 6 — same as 3 posts. N+1 is gone.
 	});
 
@@ -436,11 +392,6 @@ describe("loadThreadDetail", () => {
 		// Batch endpoints use postAuth with Bearer
 		expect(mockForumApi.postAuth).toHaveBeenCalledWith(
 			"/api/v1/posts/attachments/batch",
-			expect.objectContaining({ threadId: 1 }),
-			jwt,
-		);
-		expect(mockForumApi.postAuth).toHaveBeenCalledWith(
-			"/api/v1/post-comments/batch",
 			expect.objectContaining({ threadId: 1 }),
 			jwt,
 		);

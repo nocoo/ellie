@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 // Tests for PostComments initialComments prop:
 // 1. When initialComments is provided, apiClient.get is NOT called (no N+1 fetch)
-// 2. When initialComments is omitted, apiClient.get IS called (fallback)
+// 2. Missing initial comments are fetched only when explicitly expanded.
 // 3. Initial comments are rendered correctly
 
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -124,7 +124,7 @@ describe("PostComments initialComments", () => {
 	// returns `undefined` to opt back into client fetch — without this
 	// distinction, post-comments stays permanently empty if SSR ever fails.
 
-	it("distinguishes [] (no fetch) from undefined (fetches) — explicit contract", async () => {
+	it("distinguishes [] (no fetch) from undefined (fetches on expansion) — explicit contract", async () => {
 		vi.mocked(apiClient.get).mockResolvedValue({ data: sampleComments } as any);
 
 		// Pass [] explicitly — must NOT fetch.
@@ -133,19 +133,23 @@ describe("PostComments initialComments", () => {
 		expect(vi.mocked(apiClient.get)).not.toHaveBeenCalled();
 		unmount();
 
-		// Pass undefined (omit prop) — MUST fetch.
+		// Missing comments are deferred until the reader asks for them.
 		renderWithInitialComments(undefined);
 		await act(async () => {});
+		expect(apiClient.get).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "查看点评" }));
 		await waitFor(() => {
 			expect(vi.mocked(apiClient.get)).toHaveBeenCalledTimes(1);
 		});
 	});
 
-	it("calls apiClient.get fallback when initialComments is NOT provided", async () => {
+	it("loads missing comments only on expansion", async () => {
 		vi.mocked(apiClient.get).mockResolvedValue({ data: sampleComments } as any);
 
 		renderWithInitialComments(undefined);
 		await act(async () => {});
+		expect(apiClient.get).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "查看点评" }));
 
 		await waitFor(() => {
 			expect(vi.mocked(apiClient.get)).toHaveBeenCalledTimes(1);
@@ -160,6 +164,8 @@ describe("PostComments initialComments", () => {
 
 		renderWithInitialComments(undefined);
 		await act(async () => {});
+		expect(apiClient.get).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "查看点评" }));
 
 		await waitFor(() => {
 			expect(screen.getByText("Nice post!")).toBeTruthy();
@@ -172,6 +178,16 @@ describe("PostComments initialComments", () => {
 	// stats) must be text-xs (12px). The comment timestamp used to be
 	// text-2xs (banned per house rule — 12px is the floor); pin text-xs
 	// here so it can never silently regress.
+
+	it("allows retry after a failed deferred read", async () => {
+		vi.mocked(apiClient.get)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValueOnce({ data: sampleComments } as any);
+		renderWithInitialComments();
+		fireEvent.click(screen.getByRole("button", { name: "查看点评" }));
+		fireEvent.click(await screen.findByRole("button", { name: "加载失败，重试点评" }));
+		expect(await screen.findByText("Nice post!")).toBeTruthy();
+	});
 
 	it("comment timestamp uses text-xs (12px floor, was text-2xs)", async () => {
 		renderWithInitialComments(sampleComments);

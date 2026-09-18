@@ -11,7 +11,6 @@ import {
 	canModerate,
 	canMoveThread,
 	type Post,
-	type PostComment,
 	type PublicUser,
 	type Thread,
 	type User,
@@ -35,7 +34,6 @@ import {
 	type EnrichedPost,
 	enrichPosts,
 	groupAttachmentsByPostId,
-	groupCommentsByPostId,
 	uniqueAuthorIds,
 } from "./thread-detail";
 
@@ -167,31 +165,15 @@ export async function loadThreadDetail(params: {
 			)
 		: false;
 
-	// Fetch attachments, comments, and authors in parallel using batch endpoints
+	// Fetch attachments and authors in parallel; comments load only when expanded.
 	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests).
 	//
-	// Failure semantics (rev — see L3 e2e investigation):
-	// SSR must NOT silently swallow batch failures into empty data, otherwise
-	// downstream UI (post-comments, author link) renders permanently empty even
-	// though the worker is reachable from the browser. Each branch logs the
-	// error and returns a sentinel that downstream code can distinguish from
-	// "successfully empty":
-	//   - comments: `undefined`  → PostComments falls back to its own client fetch
-	//   - authors:  `undefined`  → enrichPosts uses post.authorName for a minimal author shape
-	//   - attachments: `[]`      → no client fallback exists today; log only
-	//
-	// Logging level: use `console.warn`, NOT `console.error`. Next.js dev
-	// mode renders every server-side `console.error` as a full-screen
-	// "Console Error" overlay, which collides with Playwright `[role="dialog"]`
-	// selectors used by L3 specs (see tests/e2e/post-crud.spec.ts strict-mode
-	// failure when `replyDialog` matched the dev overlay alongside the real
-	// reply dialog). The fallback succeeding is expected operational behavior
-	// when the deployed test worker is stale, not a programmer error — `warn`
-	// gives the same observability without triggering the dev-overlay UX.
+	// Authors fall back to post.authorName; attachment failures are logged.
+	// Comments stay undefined until the reader expands them in the browser.
 	const postIds = postsRes.data.map((p) => p.id);
 	const authorIds = uniqueAuthorIds(postsRes.data);
 
-	const [batchAttachmentRes, batchCommentRes, batchAuthorRes] = await Promise.all([
+	const [batchAttachmentRes, batchAuthorRes] = await Promise.all([
 		// Batch attachment fetch: POST /api/v1/posts/attachments/batch
 		// No client-side fallback for attachments; log failure but keep the
 		// shape stable as `[]` so the post body still renders.
@@ -216,30 +198,6 @@ export async function loadThreadDetail(params: {
 						return [] as Attachment[];
 					})
 			: Promise.resolve([] as Attachment[]),
-		// Batch comment fetch: POST /api/v1/post-comments/batch
-		// Failure → `undefined` so PostComments triggers a client-side refetch
-		// instead of hard-rendering an empty list.
-		postIds.length > 0
-			? (jwt
-					? forumApi.postAuth<PostComment[]>(
-							"/api/v1/post-comments/batch",
-							{ threadId: params.threadId, postIds },
-							jwt,
-						)
-					: forumApi.post<PostComment[]>("/api/v1/post-comments/batch", {
-							threadId: params.threadId,
-							postIds,
-						})
-				)
-					.then((res) => res.data as PostComment[] | undefined)
-					.catch((err) => {
-						console.warn(
-							"[thread-detail.server] post-comments/batch failed (client will refetch)",
-							{ threadId: params.threadId, postIds: postIds.length, err },
-						);
-						return undefined;
-					})
-			: Promise.resolve([] as PostComment[]),
 		// Batch author fetch: GET /api/v1/users/batch?ids=1,2,3
 		// Failure → `undefined`. enrichPosts then constructs a minimal author
 		// stub from `post.authorId` + `post.authorName` so the `<Link href="/users/N">`
@@ -267,20 +225,14 @@ export async function loadThreadDetail(params: {
 	]);
 
 	const allAttachments = batchAttachmentRes;
-	const allComments = batchCommentRes;
 	const authorMap = batchAuthorRes ?? buildFallbackAuthorMap(postsRes.data);
 
-	// Group attachments and comments by postId and enrich posts.
-	// `commentMap === undefined` propagates SSR batch failure into
-	// `EnrichedPost.comments === undefined`; PostComments treats that as
-	// "fetch on the client" rather than "no comments exist".
 	const attachmentMap = groupAttachmentsByPostId(allAttachments);
-	const commentMap = allComments === undefined ? undefined : groupCommentsByPostId(allComments);
 	const posts = enrichPosts(
 		postsRes.data,
 		authorMap,
 		attachmentMap,
-		commentMap,
+		undefined,
 		currentUser,
 		forum ?? { moderators: "" },
 	);

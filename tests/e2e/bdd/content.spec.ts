@@ -58,7 +58,7 @@ test.describe("Feature: Forum Content", () => {
 		await expect(postContent).toBeVisible();
 	});
 
-	test("Given I am on a thread with seeded comments, Then a 点评 section renders the comment text and a 点评 action button surfaces in the post action bar", async ({
+	test("Given I am on a thread with seeded comments, When I expand comments, Then a 点评 section renders the comment text and a 点评 action button surfaces in the post action bar", async ({
 		page,
 		loginAs,
 	}) => {
@@ -69,6 +69,11 @@ test.describe("Feature: Forum Content", () => {
 
 		// Then: posts have loaded
 		await expect(threadPage.postCards.first()).toBeVisible();
+
+		await threadPage.postCards
+			.first()
+			.getByRole("button", { name: "查看点评", exact: true })
+			.click();
 
 		// Then: seeded comment content from PC-01 ("写得好！" by e2etest /
 		// e2eprofile on post 662174) is visible inside the 点评 section.

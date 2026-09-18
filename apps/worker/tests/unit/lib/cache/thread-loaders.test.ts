@@ -91,7 +91,7 @@ describe("reusable reading loaders", () => {
 		expect(f.calls).toHaveLength(1);
 	});
 
-	it("negative and empty values are SHORT and scoped to the exact resource", async () => {
+	it("missing entities stay SHORT while empty attachment snapshots stay LONG", async () => {
 		await getPostRows(f.env, undefined, [90], 1);
 		await getPostAttachments(f.env, undefined, [1], 1);
 		expect(f.snapshots("post:entity")[0]).toMatchObject({
@@ -100,13 +100,31 @@ describe("reusable reading loaders", () => {
 			scope: "internal",
 			params: { postId: 90, threadId: 1 },
 		});
-		expect(f.snapshots("post:attachments")[0]).toMatchObject({ tier: "SHORT", data: [] });
+		expect(f.snapshots("post:attachments")[0]).toMatchObject({ tier: "LONG", data: [] });
 		f.post(90);
 		f.calls.length = 0;
 		expect((await getPostRows(f.env, undefined, [90], 1)).size).toBe(0);
 		expect(f.calls).toHaveLength(0);
 		vi.setSystemTime(Date.now() + 60_000);
 		expect((await getPostRows(f.env, undefined, [90], 1)).get(90)?.content).toBe("Body 90");
+	});
+
+	it("invalidates a day-long empty attachment snapshot when an attachment is added", async () => {
+		await getPostAttachments(f.env, undefined, [1], 1);
+		vi.setSystemTime(Date.now() + 1_800_000);
+		f.insert("attachments", {
+			id: 1,
+			post_id: 1,
+			thread_id: 1,
+			author_id: 10,
+			filename: "new.png",
+			file_path: "/new.png",
+		});
+		expect((await getPostAttachments(f.env, undefined, [1], 1)).get(1)).toEqual([]);
+		await bumpPostAttachmentsGen(f.env, 1);
+		expect((await getPostAttachments(f.env, undefined, [1], 1)).get(1)?.[0].filename).toBe(
+			"new.png",
+		);
 	});
 
 	it("batches over 100 IDs, only loads misses, and reserves the thread binding", async () => {
@@ -344,7 +362,7 @@ describe("reusable reading loaders", () => {
 		);
 	});
 
-	it("related data uses SHORT snapshots without IPs or viewer permissions", async () => {
+	it("optional post data uses MEDIUM snapshots without IPs or viewer permissions", async () => {
 		f.insert("post_comments", {
 			id: 1,
 			thread_id: 1,
@@ -373,7 +391,7 @@ describe("reusable reading loaders", () => {
 		await getRatingAggregates(f.env, undefined, [1]);
 		expect(f.calls).toHaveLength(0);
 		for (const family of ["post:comments", "post:ratings", "post:rating-rows"]) {
-			expect(f.snapshots(family)[0].tier).toBe("SHORT");
+			expect(f.snapshots(family)[0].tier).toBe("MEDIUM");
 			expect(JSON.stringify(f.snapshots(family))).not.toMatch(/private-ip|canRevoke/);
 		}
 	});

@@ -29,16 +29,7 @@ import {
 export interface EnrichedPost extends Post {
 	author: User | null;
 	attachments: Attachment[];
-	/**
-	 * Post comments (点评) loaded via SSR batch.
-	 * - `PostComment[]` — batch succeeded (may be empty array if no comments).
-	 * - `undefined`     — batch failed; client should refetch via /api/v1/post-comments?postId=…
-	 *
-	 * Distinguishing "[]" (empty success) from "undefined" (failure) is what
-	 * lets PostComments fall back to a client-side fetch when SSR can't reach
-	 * the worker, instead of silently rendering an empty list (regression
-	 * from the L3 e2e failure investigation).
-	 */
+	/** Preloaded comments, or undefined to load when the reader expands them. */
 	comments: PostComment[] | undefined;
 	canDelete: boolean;
 	canEdit: boolean;

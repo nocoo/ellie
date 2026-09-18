@@ -131,7 +131,11 @@ export function createCacheEnvelope<T>(
 	if (data === undefined || (options.validator && !options.validator(data))) {
 		throw new TypeError("Cache loader returned an invalid value");
 	}
-	const tier = isNegative(data) ? "SHORT" : options.tier;
+	// Empty optional post data is a valid snapshot, not a missing resource.
+	const keepEmpty =
+		Array.isArray(data) &&
+		["post:attachments", "post:comments", "post:rating-rows"].includes(options.family);
+	const tier = isNegative(data) && !keepEmpty ? "SHORT" : options.tier;
 	const loadedAt = Date.now();
 	return {
 		schemaVersion: CACHE_SCHEMA_VERSION,
