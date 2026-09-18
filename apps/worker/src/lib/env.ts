@@ -15,6 +15,8 @@ export interface Env {
 	USE_KV_USER_CACHE?: string;
 	/** Comma-separated business families temporarily routed to their original loaders. */
 	CACHE_DISABLED_FAMILIES?: string;
+	/** Temporary diagnostic switch for redundant cache-op rows; off by default. */
+	CACHE_METRICS_DETAIL?: string;
 	/**
 	 * HMAC key for email-verification codes (docs/17 §6.2).
 	 * 6-digit codes are too small to resist offline brute-force after KV

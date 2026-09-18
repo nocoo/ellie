@@ -257,8 +257,14 @@ export function summarizeFamilyOps(
 	opts: { includeAdmin?: boolean } = {},
 ): FamilyOpSummary[] {
 	const byFamily = new Map<string, FamilyOpSummary>();
+	const readsByHour = new Map<string, { family: string; observed: number; completed: number }>();
 	for (const r of series) {
 		if (!opts.includeAdmin && !isUserHitRateFamily(r.family)) continue;
+		const hourKey = `${r.family}\0${r.tsMinute}`;
+		const reads = readsByHour.get(hourKey) ?? { family: r.family, observed: 0, completed: 0 };
+		if (r.op === "read") reads.observed += r.count;
+		if (r.op === "hit" || r.op === "miss") reads.completed += r.count;
+		readsByHour.set(hourKey, reads);
 		let s = byFamily.get(r.family);
 		if (!s) {
 			s = emptySummary(r.family);
@@ -266,6 +272,13 @@ export function summarizeFamilyOps(
 		}
 		const field = r.op as keyof FamilyOpSummary;
 		if (field !== "family" && typeof s[field] === "number") s[field] += r.count;
+	}
+	// Compact samples omit read. Old and new samples can share an hour: avoid
+	// adding redundant counters, and retain old read-only observations.
+	for (const summary of byFamily.values()) summary.read = 0;
+	for (const reads of readsByHour.values()) {
+		const summary = byFamily.get(reads.family);
+		if (summary) summary.read += Math.max(reads.observed, reads.completed);
 	}
 	return [...byFamily.values()].sort((a, b) => b.read - a.read || a.family.localeCompare(b.family));
 }

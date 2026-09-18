@@ -426,7 +426,7 @@ describe("D1 observation points and mutation error fallbacks", () => {
 			],
 			{ includeAdmin: true },
 		);
-		expect(rows.map((row) => row.family)).toEqual(["alpha", "zeta", "admin:x"]);
+		expect(rows.map((row) => row.family)).toEqual(["admin:x", "alpha", "zeta"]);
 		expect(rows.some((row) => row.family === "admin:x" && row.hit === 5)).toBe(true);
 	});
 
@@ -510,5 +510,22 @@ describe("D1 observation points and mutation error fallbacks", () => {
 				{ family: "footprint:a", tsMinute: 60, op: "observed-current", count: 9 },
 			])[0],
 		).toMatchObject({ liveEntries: null, contentBytes: null, kind: "unknown" });
+	});
+});
+
+describe("compact observation totals", () => {
+	it("derives reads per hour without duplicating legacy or mixed samples", () => {
+		const series = (
+			[
+				[60, "hit", 8],
+				[60, "miss", 2],
+				[120, "read", 5],
+				[120, "hit", 8],
+				[120, "miss", 2],
+				[180, "read", 12],
+				[180, "hit", 8],
+			] as const
+		).map(([tsMinute, op, count]) => ({ family: "thread:entity", tsMinute, op, count }));
+		expect(totalsFromSummaries(summarizeFamilyOps(series)).read).toBe(32);
 	});
 });

@@ -30,6 +30,7 @@
 //     request flushes completed hours only. No timer or collection SQL runs.
 //     Short-lived isolates can lose their unflushed observations; these are
 //     best-effort observations, not full database accounting.
+//     Redundant read/write/bump/delete rows are persisted only during explicit diagnosis.
 //   - A flush detaches completed buckets BEFORE writing and retains the
 //     active hour. Failed batches are dropped without retry, so an uncertain
 //     write cannot double-count on a retry. The buffer is capped at 512 rows.
@@ -109,6 +110,8 @@ const GAUGE_OPS: ReadonlySet<string> = new Set([
 	"observed-current",
 ]);
 const KV_OP_SET: ReadonlySet<string> = new Set<string>(KV_OPS);
+// Read is derived from hit + miss; successful writes/invalidation details duplicate physical I/O.
+const DETAIL_OPS: ReadonlySet<string> = new Set(["read", "write", "bump", "delete"]);
 
 const BUCKETS: Map<string, number> = new Map();
 
@@ -207,6 +210,7 @@ export async function flushSnapshot(env: Env, snap: Map<string, number>): Promis
 		if (parts.length !== 3) continue;
 		const [family, tsRaw, op] = parts;
 		const hour = Number(tsRaw);
+		if (DETAIL_OPS.has(op) && env.CACHE_METRICS_DETAIL !== "true") continue;
 		if (!Number.isSafeInteger(hour) || !KV_OP_SET.has(op) || !Number.isFinite(count) || count < 0)
 			continue;
 		rows.push([family, hour, op, count]);

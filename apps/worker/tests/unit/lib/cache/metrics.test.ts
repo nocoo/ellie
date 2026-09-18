@@ -92,6 +92,41 @@ describe("bounded cache and D1 observation windows", () => {
 		expect(warn).toHaveBeenCalledOnce();
 		expect(await flushSnapshot(env, new Map())).toBe(0);
 	});
+	it("persists core costs and hit rates, with detail rows only on explicit diagnosis", async () => {
+		const f = readingFixture();
+		try {
+			const ops = [
+				"read",
+				"write",
+				"bump",
+				"delete",
+				"hit",
+				"miss",
+				"kv-get",
+				"kv-put",
+				"error",
+				"d1-rows-read",
+			] as const;
+			for (const op of ops) recordKvOp("thread:entity", op);
+			expect(await flushSnapshot(f.env, swapSnapshot())).toBe(6);
+			const rows = f.sqlite.prepare("SELECT op FROM kv_cache_metrics_hour").all();
+			expect(rows.map((row) => row.op).sort()).toEqual([
+				"d1-rows-read",
+				"error",
+				"hit",
+				"kv-get",
+				"kv-put",
+				"miss",
+			]);
+			for (const op of ops) recordKvOp("thread:entity", op);
+			expect(await flushSnapshot({ ...f.env, CACHE_METRICS_DETAIL: "true" }, swapSnapshot())).toBe(
+				10,
+			);
+		} finally {
+			f.close();
+		}
+	});
+
 	it("keeps occupancy gauges as per-hour MAX and flushes them with MAX not SUM", async () => {
 		recordGauge("footprint:thread:list", "observed-keys", 4);
 		recordGauge("footprint:thread:list", "observed-keys", 9);
