@@ -237,7 +237,7 @@ describe("ThreadDetailHeader — Phase H.3", () => {
 	});
 
 	describe("structural meta chips", () => {
-		it("groups typeName / special / recommends / isAuthorFirstThread when present", () => {
+		it("groups current metadata and omits the retired first-thread label", () => {
 			const thread = makeThread({
 				typeName: "公告",
 				special: 1,
@@ -250,7 +250,7 @@ describe("ThreadDetailHeader — Phase H.3", () => {
 			expect(screen.getByText("公告")).not.toBeNull();
 			expect(screen.getByText("special=1")).not.toBeNull();
 			expect(screen.getByText(/推荐\s*5/)).not.toBeNull();
-			expect(screen.getByText("作者首帖")).not.toBeNull();
+			expect(screen.queryByText("作者首帖")).toBeNull();
 		});
 
 		it("hides the meta-chip row entirely when no chip applies", () => {

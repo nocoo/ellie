@@ -7,8 +7,7 @@
 //   - Forum breadcrumb via `buildForumBreadcrumb` (graceful fallback when
 //     parents are missing — see viewmodel for the exact rules).
 //   - Status badges (sticky / closed / digest + the H.3 highlight badge).
-//   - Type-chip grouping for `typeName / special / recommends /
-//     isAuthorFirstThread` so a long flat string of meta no longer eats the
+//   - Type-chip grouping for `typeName / special / recommends` so a long flat string of meta no longer eats the
 //     header (reviewer feedback).
 //   - Author + last-poster links (parity with the list page — never render
 //     a bare username when we have an id).
@@ -57,9 +56,6 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 	if (thread.special > 0) metaChips.push({ key: "special", label: `special=${thread.special}` });
 	if (thread.recommends > 0) {
 		metaChips.push({ key: "recommends", label: `推荐 ${formatNumber(thread.recommends)}` });
-	}
-	if (thread.isAuthorFirstThread) {
-		metaChips.push({ key: "firstThread", label: "作者首帖" });
 	}
 
 	return (
@@ -178,8 +174,7 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 							)}
 						</div>
 
-						{/* Structural meta chips — typeName / special / recommends /
-					    isAuthorFirstThread. Reviewer asked these be GROUPED
+						{/* Structural meta chips — typeName / special / recommends. Reviewer asked these be GROUPED
 					    rather than concatenated into one long string so each
 					    one is independently scannable / hideable. */}
 						{metaChips.length > 0 && (

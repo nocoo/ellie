@@ -123,7 +123,7 @@ function mapOneThreadRow(
 		typeName: r.type_name,
 		anonymousAuthor: anonAuthor,
 		anonymousLastPoster: anonLast,
-		isAuthorFirstThread: r.is_author_first_thread === 1,
+		isAuthorFirstThread: false, // Retired display flag; retained for API compatibility.
 		// List views do not surface the recommended-card flag — it is only
 		// read by the thread-detail mod menu. Default false so the Thread
 		// type stays uniform without paying for a per-row EXISTS probe in

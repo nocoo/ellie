@@ -65,7 +65,7 @@ describe("thread handlers", () => {
 			expect((await response.json()).data).toHaveLength(limit);
 		});
 
-		it("maps entity and statistic fields, user enrichment, and first-thread status", async () => {
+		it("maps entity and statistic fields, user enrichment, without a per-author first-thread subquery", async () => {
 			f.thread(1, { views: 42, recommends: 3, created_at: 1711540800, last_post_at: 1711544400 });
 			f.thread(2, { created_at: 1711544400 });
 			const body = await (await readList()).json();
@@ -82,9 +82,10 @@ describe("thread handlers", () => {
 				lastPosterId: 20,
 				views: 42,
 				recommends: 3,
-				isAuthorFirstThread: true,
+				isAuthorFirstThread: false,
 				isRecommended: false,
 			});
+			expect(f.calls.some((call) => call.sql.includes("FROM threads t2"))).toBe(false);
 			expect(body.data[1].isAuthorFirstThread).toBe(false);
 			for (const field of ["forum_id", "author_id", "post_table_id", "postTableId", "password"])
 				expect(thread).not.toHaveProperty(field);

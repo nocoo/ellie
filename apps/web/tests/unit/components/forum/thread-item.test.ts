@@ -81,7 +81,6 @@ function makeDisplayItem(overrides: Record<string, unknown> = {}) {
 		highlight: null,
 		iconSrc: "/static/folder_common.gif",
 		digestSrc: null,
-		newbieStampSrc: null,
 		isGlobalAnnouncement: false,
 		...overrides,
 	};

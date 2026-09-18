@@ -390,7 +390,7 @@ export function toThread(row: Record<string, unknown>, viewer?: ViewerContext | 
 		typeName: r.type_name,
 		anonymousAuthor: anonAuthor,
 		anonymousLastPoster: anonLastPoster,
-		isAuthorFirstThread: r.is_author_first_thread === 1,
+		isAuthorFirstThread: false, // Retired display flag; retained for API compatibility.
 		isRecommended: r.is_recommended === 1,
 	};
 }

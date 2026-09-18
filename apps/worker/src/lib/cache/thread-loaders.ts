@@ -57,11 +57,7 @@ const THREAD_COLUMNS = `t.id, t.forum_id, t.author_id, t.author_name, t.subject,
 	EXISTS(SELECT 1 FROM forum_recommended_threads r
 		WHERE r.forum_id = t.forum_id AND r.thread_id = t.id) AS is_recommended`;
 const THREAD_STATS_COLUMNS = `t.id, t.replies, t.views, t.last_post_at, t.last_poster,
-	t.last_poster_id, t.anonymous_last_poster, t.recommends,
-	CASE WHEN t.author_id > 0 AND NOT EXISTS (
-		SELECT 1 FROM threads t2 WHERE t2.author_id = t.author_id AND t2.sticky >= 0
-		AND (t2.created_at < t.created_at OR (t2.created_at = t.created_at AND t2.id < t.id))
-	) THEN 1 ELSE 0 END AS is_author_first_thread`;
+	t.last_poster_id, t.anonymous_last_poster, t.recommends`;
 const POST_COLUMNS = `id, thread_id, forum_id, author_id, author_name, content, created_at,
 	is_first, position, anonymous`;
 const ATTACHMENT_COLUMNS = `id, thread_id, post_id, author_id, filename, file_path,

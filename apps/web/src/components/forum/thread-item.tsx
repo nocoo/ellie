@@ -4,7 +4,7 @@
 // Desktop: 4-column table layout (Icon | Subject | Author | Stats | Last Post)
 // Mobile: 2-row compact layout (Icon + badges + subject on row 1, stats inline on row 2)
 
-import { Award, Sprout } from "lucide-react";
+import { Award } from "lucide-react";
 import Link from "next/link";
 import { highlightStyle, type ThreadDisplayItem } from "@/viewmodels/forum/thread-list";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
@@ -24,15 +24,7 @@ interface ThreadItemProps {
 }
 
 export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
-	const {
-		thread,
-		badges,
-		highlight: hl,
-		iconSrc,
-		digestSrc,
-		newbieStampSrc,
-		isGlobalAnnouncement,
-	} = item;
+	const { thread, badges, highlight: hl, iconSrc, digestSrc, isGlobalAnnouncement } = item;
 	const threadHref = returnTo
 		? `/threads/${thread.id}?returnTo=${encodeURIComponent(returnTo)}`
 		: `/threads/${thread.id}`;
@@ -101,9 +93,6 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							aria-label={`精华 ${thread.digest}`}
 							className="size-4 shrink-0 text-success"
 						/>
-					)}
-					{newbieStampSrc && (
-						<Sprout role="img" aria-label="首次发帖" className="size-4 shrink-0 text-success" />
 					)}
 					<span className="shrink-0">
 						<ThreadInlinePages
@@ -186,9 +175,6 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 									aria-label={`精华 ${thread.digest}`}
 									className="size-4 shrink-0 text-success"
 								/>
-							)}
-							{newbieStampSrc && (
-								<Sprout role="img" aria-label="首次发帖" className="size-4 shrink-0 text-success" />
 							)}
 							<span className="shrink-0">
 								<ThreadInlinePages

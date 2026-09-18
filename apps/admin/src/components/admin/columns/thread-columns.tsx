@@ -65,7 +65,6 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 					<span className="truncate text-[11px] text-basalt-muted-foreground">
 						#{row.id}
 						{row.typeName ? ` · ${row.typeName}` : ""}
-						{row.isAuthorFirstThread ? " · 首次发帖" : ""}
 					</span>
 				</div>
 			);

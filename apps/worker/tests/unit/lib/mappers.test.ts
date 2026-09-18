@@ -545,7 +545,7 @@ describe("D1 row mappers", () => {
 			expect(thread.anonymousLastPoster).toBe(0);
 		});
 
-		it("should map is_author_first_thread=1 to isAuthorFirstThread=true", () => {
+		it("ignores the retired first-thread flag in older rows", () => {
 			const row = {
 				id: 1,
 				forum_id: 10,
@@ -569,7 +569,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const thread = toThread(row);
-			expect(thread.isAuthorFirstThread).toBe(true);
+			expect(thread.isAuthorFirstThread).toBe(false);
 		});
 
 		it("should map is_author_first_thread=0 to isAuthorFirstThread=false", () => {
