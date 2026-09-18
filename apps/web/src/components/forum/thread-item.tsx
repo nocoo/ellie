@@ -90,7 +90,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					<Link
 						href={threadHref}
 						prefetch={false}
-						className="min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+						className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 						style={highlightStyle(hl)}
 					>
 						{thread.subject}
@@ -174,7 +174,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							<Link
 								href={threadHref}
 								prefetch={false}
-								className="min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+								className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 								style={highlightStyle(hl)}
 								data-testid="thread-item-mobile-title-link"
 							>

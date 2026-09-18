@@ -48,7 +48,7 @@ interface SettingsFormProps {
 export function SettingsForm({ initialSettings }: SettingsFormProps) {
 	const router = useRouter();
 
-	const savedValues = useMemo(() => toFormValues(initialSettings), [initialSettings]);
+	const [savedValues, setSavedValues] = useState(() => toFormValues(initialSettings));
 	const [formValues, setFormValues] = useState<Record<string, string>>(savedValues);
 	const [saving, setSaving] = useState(false);
 	const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -76,6 +76,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 
 		try {
 			const result = await updateSettings(changed);
+			setSavedValues((previous) => ({ ...previous, ...changed }));
 			setMessage({ type: "success", text: `已保存 ${result.updated} 项设置` });
 			router.refresh();
 		} catch (err) {

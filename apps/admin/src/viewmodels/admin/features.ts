@@ -228,10 +228,4 @@ export async function fetchFeatureSettings(): Promise<SettingsDetailMap> {
 	return res.data;
 }
 
-/**
- * Update settings via BFF proxy (client-side only).
- */
-export async function updateSettings(payload: SettingsUpdatePayload): Promise<{ updated: number }> {
-	const res = await apiClient.put<{ updated: number }>("/api/admin/settings", payload);
-	return res.data;
-}
+export { updateSettings } from "./settings";

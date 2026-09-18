@@ -137,6 +137,18 @@ describe("cleanupLegacyBBCode", () => {
 		});
 	});
 
+	it("removes nested color BBCode without removing content or surrounding HTML formatting", () => {
+		const input =
+			'[COLOR=#000033]<font size="5"><strong>正文</strong>\n[color=black]内层[/color]</font>[/COLOR]';
+		expect(renderContent(input)).toBe('<font size="5"><strong>正文</strong>\n内层</font>');
+	});
+
+	it("removes orphan color tokens without closing surrounding font tags", () => {
+		expect(renderContent('<font size="5">前[/color]后[color=#000]末</font>')).toBe(
+			'<font size="5">前后末</font>',
+		);
+	});
+
 	describe("[free] tag", () => {
 		it("strips [free] tags and keeps content", () => {
 			const input = "[free]免费内容[/free]";

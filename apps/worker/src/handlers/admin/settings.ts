@@ -7,7 +7,12 @@ import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { getSettingsDetailed, type SettingsDetailMap, upsertSettings } from "../../lib/settings";
+import {
+	EDITABLE_SETTING_TYPES,
+	getSettingsDetailed,
+	type SettingsDetailMap,
+	upsertSettings,
+} from "../../lib/settings";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Config (for withEntityAuth pattern consistency) ─────────
@@ -19,78 +24,6 @@ const settingsConfig: EntityConfig = {
 	columns: "",
 	mapper: (row) => row,
 };
-
-// ─── Allowed keys whitelist ─────────────────────────────────
-
-const ALLOWED_KEYS = new Set([
-	// general.site
-	"general.site.name",
-	"general.site.subtitle",
-	"general.site.host",
-	"general.site.copyright",
-	"general.site.powered_by",
-	"general.site.logo_light",
-	"general.site.logo_dark",
-	"general.site.footer_bg_light",
-	"general.site.footer_bg_dark",
-	"general.site.home_label",
-	"general.site.copyright_years",
-	// general.og
-	"general.og.title",
-	"general.og.description",
-	"general.og.site_name",
-	"general.og.image",
-	"general.og.url",
-	"general.og.twitter_card",
-	"general.og.twitter_site",
-	// general.pagination
-	"general.pagination.page_size",
-	"general.pagination.posts_per_page",
-	"general.pagination.max_post_length",
-	// general.navigation
-	"general.navigation.header_links",
-	"general.navigation.friend_links",
-	// features.registration — registration control
-	"features.registration.allow_new_user",
-	// features.access — access control
-	"features.access.require_login",
-	"features.access.maintenance_mode",
-	"features.access.maintenance_message",
-	"features.access.maintenance_admin_bypass",
-	// features.content — content controls
-	"features.content.allow_new_thread",
-	"features.content.allow_reply",
-	// features.posting — new user posting restrictions
-	"features.posting.enabled",
-	"features.posting.min_registration_days",
-	// Note: features.posting.require_email_verified is reserved for future use
-	// when email verification is implemented. Not in whitelist to prevent false security.
-	"features.posting.require_avatar",
-]);
-
-/** Keys that must have positive numeric values */
-const NUMBER_KEYS = new Set([
-	"general.pagination.page_size",
-	"general.pagination.posts_per_page",
-	"general.pagination.max_post_length",
-]);
-
-/** Keys that must have non-negative numeric values (0 allowed) */
-const NUMBER_KEYS_ALLOW_ZERO = new Set(["features.posting.min_registration_days"]);
-
-/** Keys that must be "true" or "false" */
-const BOOLEAN_KEYS = new Set([
-	"features.access.require_login",
-	"features.access.maintenance_mode",
-	"features.access.maintenance_admin_bypass",
-	"features.content.allow_new_thread",
-	"features.content.allow_reply",
-	"features.posting.enabled",
-	"features.posting.require_avatar",
-]);
-
-/** Keys that must be valid JSON with specific structure */
-const JSON_KEYS = new Set(["general.navigation.header_links", "general.navigation.friend_links"]);
 
 /**
  * Validate that a value is a JSON array of { label: string, url: string } objects.
@@ -117,15 +50,20 @@ type ValidationResult =
 	| { valid: true }
 	| { valid: false; error: string; details?: Record<string, unknown> };
 
-function validateEntries(entries: [string, string][]): ValidationResult {
+function validateEntries(entries: [string, unknown][]): ValidationResult {
 	// Validate keys against whitelist
-	const unknownKeys = entries.filter(([key]) => !ALLOWED_KEYS.has(key)).map(([key]) => key);
+	const unknownKeys = entries
+		.filter(([key]) => !Object.hasOwn(EDITABLE_SETTING_TYPES, key))
+		.map(([key]) => key);
 	if (unknownKeys.length > 0) {
 		return { valid: false, error: "UNKNOWN_KEYS", details: { keys: unknownKeys } };
 	}
 
 	// Validate all entry values
 	for (const [key, value] of entries) {
+		if (typeof value !== "string") {
+			return { valid: false, error: "INVALID_BODY", details: { key } };
+		}
 		const result = validateEntryValue(key, value);
 		if (!result.valid) return result;
 	}
@@ -134,31 +72,24 @@ function validateEntries(entries: [string, string][]): ValidationResult {
 }
 
 function validateEntryValue(key: string, value: string): ValidationResult {
-	// Validate positive number keys
-	if (NUMBER_KEYS.has(key)) {
+	const type = EDITABLE_SETTING_TYPES[key];
+	if (type === "number") {
 		const num = Number(value);
-		if (Number.isNaN(num) || num <= 0) {
-			return { valid: false, error: "INVALID_NUMBER", details: { key, value } };
-		}
-	}
-
-	// Validate non-negative number keys
-	if (NUMBER_KEYS_ALLOW_ZERO.has(key)) {
-		const num = Number(value);
-		if (Number.isNaN(num) || num < 0 || !Number.isInteger(num)) {
+		const min = key === "features.posting.min_registration_days" ? 0 : 1;
+		if (!value.trim() || !Number.isSafeInteger(num) || num < min) {
 			return { valid: false, error: "INVALID_NUMBER", details: { key, value } };
 		}
 	}
 
 	// Validate boolean keys
-	if (BOOLEAN_KEYS.has(key)) {
+	if (type === "boolean") {
 		if (value !== "true" && value !== "false") {
 			return { valid: false, error: "INVALID_BOOLEAN", details: { key, value } };
 		}
 	}
 
 	// Validate JSON keys
-	if (JSON_KEYS.has(key)) {
+	if (type === "json") {
 		if (!isValidNavLinksJson(value)) {
 			return { valid: false, error: "INVALID_JSON_VALUE", details: { key } };
 		}
@@ -203,14 +134,14 @@ async function listSettings(request: Request, env: Env, ctx?: ExecutionContext):
 /**
  * #63 PUT /api/admin/settings
  * Accepts { "key": "value", ... } and bulk updates.
- * Validates against ALLOWED_KEYS whitelist and number constraints.
+ * Validates against the editable settings definitions and value constraints.
  */
 async function bulkUpdateSettings(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	let body: Record<string, string>;
+	let body: unknown;
 	try {
-		body = (await request.json()) as Record<string, string>;
+		body = await request.json();
 	} catch {
 		return errorResponse("INVALID_JSON", 400, undefined, origin);
 	}
@@ -259,8 +190,8 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 	for (const [key, value] of entries) {
 		const prior = priorMap[key]?.value ?? null;
 		const next = String(value);
-		// String-equality skip — settings values are stored/compared as strings.
-		if (prior === next) continue;
+		// A historical type repair also changes the parsed value and cached metadata.
+		if (prior === next && priorMap[key]?.type === EDITABLE_SETTING_TYPES[key]) continue;
 		changedKeys.push(key);
 		if (isSensitiveSettingsKey(key)) {
 			valuesBefore[key] = prior === null ? null : "[REDACTED]";

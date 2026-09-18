@@ -55,6 +55,18 @@ describe("admin/statsCalibrate", () => {
 		__resetMetricsForTest();
 		f = readingFixture();
 		f.thread(1);
+		const batch = f.env.DB.batch.bind(f.env.DB);
+		vi.spyOn(f.env.DB, "batch").mockImplementation(async (statements) => {
+			f.sqlite.exec("BEGIN");
+			try {
+				const results = await batch(statements);
+				f.sqlite.exec("COMMIT");
+				return results;
+			} catch (error) {
+				f.sqlite.exec("ROLLBACK");
+				throw error;
+			}
+		});
 	});
 
 	afterEach(() => {
@@ -244,6 +256,163 @@ describe("admin/statsCalibrate", () => {
 			const updateCalls = f.calls.slice(callsBefore).filter((c) => c.sql.startsWith("UPDATE"));
 			expect(updateCalls).toHaveLength(0);
 		});
+	});
+
+	it("creates missing numeric totals when applying real counts", async () => {
+		f.sqlite.exec("DELETE FROM settings WHERE key LIKE 'stats.total_%'");
+		f.post(20);
+		const response = await handleCalibratePost(
+			createAdminRequest("POST", "/api/admin/stats/calibrate", { action: "apply_real" }),
+			f.env,
+		);
+		expect(response.status).toBe(200);
+		expect(
+			f.sqlite
+				.prepare(
+					"SELECT key, value, type FROM settings WHERE key LIKE 'stats.total_%' ORDER BY key",
+				)
+				.all(),
+		).toEqual([
+			{ key: "stats.total_members", value: "5", type: "number" },
+			{ key: "stats.total_posts", value: "1", type: "number" },
+			{ key: "stats.total_threads", value: "1", type: "number" },
+		]);
+	});
+
+	it("applies offsets to a missing counter's displayed zero and retains numeric type", async () => {
+		f.sqlite.exec("DELETE FROM settings WHERE key = 'stats.yesterday_posts'");
+		const response = await handleCalibratePost(
+			createAdminRequest("POST", "/api/admin/stats/calibrate", {
+				action: "apply_offsets",
+				offsets: { "stats.yesterday_posts": 7 },
+			}),
+			f.env,
+		);
+		expect(response.status).toBe(200);
+		expect(
+			f.sqlite
+				.prepare("SELECT value, type FROM settings WHERE key = 'stats.yesterday_posts'")
+				.get(),
+		).toEqual({ value: "7", type: "number" });
+	});
+
+	it.each([
+		[],
+		null,
+		{ "stats.total_posts": 1.5 },
+		{ "stats.total_posts": "5" },
+		{ "stats.total_posts": Number.MAX_SAFE_INTEGER + 1 },
+		{ "stats.total_threads": 5, "unknown.counter": 10 },
+	])("rejects malformed offsets without partially applying valid entries: %j", async (offsets) => {
+		const response = await handleCalibratePost(
+			createAdminRequest("POST", "/api/admin/stats/calibrate", {
+				action: "apply_offsets",
+				offsets,
+			}),
+			f.env,
+		);
+		expect(response.status).toBe(400);
+		expect(f.env.DB.batch).not.toHaveBeenCalled();
+		expect(f.env.KV.delete).not.toHaveBeenCalled();
+	});
+
+	for (const action of ["apply_real", "apply_offsets"] as const) {
+		it.each(["zero", "missing-meta", "failed", "incomplete"])(
+			`${action} refuses %s write confirmation`,
+			async (kind) => {
+				await handleCalibrateGet(createAdminRequest("GET", "/api/admin/stats/calibrate"), f.env);
+				const cached = new Map(f.values);
+				const resultCount = action === "apply_real" ? 3 : 2;
+				const results = Array.from({ length: resultCount }, (_, index) => ({
+					success: kind !== "failed" || index !== 0,
+					results: [],
+					...(kind === "missing-meta" && index === 0
+						? {}
+						: { meta: { changes: kind === "zero" && index === 0 ? 0 : 1 } }),
+				}));
+				vi.mocked(f.env.DB.batch).mockResolvedValueOnce(
+					(kind === "incomplete" ? results.slice(1) : results) as D1Result[],
+				);
+				await expect(
+					handleCalibratePost(
+						createAdminRequest("POST", "/api/admin/stats/calibrate", {
+							action,
+							offsets: { "stats.total_posts": 3, "stats.total_threads": 4 },
+						}),
+						f.env,
+					),
+				).rejects.toThrow(/confirm/i);
+				expect(f.values).toEqual(cached);
+			},
+		);
+
+		it(`${action} rolls back earlier writes on a later SQL failure`, async () => {
+			const before = f.sqlite.prepare("SELECT key, value, type FROM settings ORDER BY key").all();
+			f.sqlite.exec(
+				"CREATE TRIGGER reject_calibration BEFORE INSERT ON settings WHEN NEW.key = 'stats.total_posts' BEGIN SELECT RAISE(ABORT, 'injected calibration failure'); END",
+			);
+			await expect(
+				handleCalibratePost(
+					createAdminRequest("POST", "/api/admin/stats/calibrate", {
+						action,
+						offsets: { "stats.total_threads": 4, "stats.total_posts": 3 },
+					}),
+					f.env,
+				),
+			).rejects.toThrow("injected calibration failure");
+			expect(f.sqlite.prepare("SELECT key, value, type FROM settings ORDER BY key").all()).toEqual(
+				before,
+			);
+			expect(f.env.KV.delete).not.toHaveBeenCalled();
+		});
+	}
+
+	it.each([null, { cnt: -1 }, { cnt: 1.5 }, { cnt: "4" }])(
+		"refuses an invalid count instead of storing a fallback zero: %j",
+		async (value) => {
+			const prepare = f.env.DB.prepare.bind(f.env.DB);
+			vi.spyOn(f.env.DB, "prepare").mockImplementation((sql) => {
+				const statement = prepare(sql);
+				if (sql === "SELECT COUNT(*) AS cnt FROM posts") {
+					return { ...statement, first: async () => value } as unknown as D1PreparedStatement;
+				}
+				return statement;
+			});
+			for (const action of ["run_stats", "apply_real"]) {
+				await expect(
+					handleCalibratePost(
+						createAdminRequest("POST", "/api/admin/stats/calibrate", { action }),
+						f.env,
+					),
+				).rejects.toThrow(/count/i);
+			}
+			expect(f.env.DB.batch).not.toHaveBeenCalled();
+		},
+	);
+
+	it("rejects failed stored-counter reads instead of reporting zero", async () => {
+		f.state.queryError = true;
+		await expect(
+			handleCalibrateGet(createAdminRequest("GET", "/api/admin/stats/calibrate"), f.env),
+		).rejects.toThrow();
+		await expect(
+			handleCalibratePost(
+				createAdminRequest("POST", "/api/admin/stats/calibrate", { action: "run_stats" }),
+				f.env,
+			),
+		).rejects.toThrow();
+	});
+
+	it.each(["null", "[]", "7"])("rejects a non-object body: %s", async (body) => {
+		const response = await handleCalibratePost(
+			new Request("http://localhost/api/admin/stats/calibrate", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", "X-Admin-API-Key": "test-admin-api-key" },
+				body,
+			}),
+			f.env,
+		);
+		expect(response.status).toBe(400);
 	});
 
 	describe("POST /api/admin/stats/calibrate invalid action", () => {

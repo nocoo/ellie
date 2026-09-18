@@ -82,7 +82,9 @@ function makeDbMock(rows: Record<string, unknown>[] = SAMPLE_ROWS) {
 				run: vi.fn(async () => ({ success: true })),
 			})),
 		})),
-		batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+		batch: vi.fn(async (stmts: unknown[]) =>
+			stmts.map(() => ({ success: true, results: [], meta: { changes: 1 } })),
+		),
 	} as unknown as D1Database;
 }
 
@@ -309,7 +311,7 @@ describe("settings cache helper", () => {
 			expect(kv.delete).not.toHaveBeenCalled();
 		});
 
-		it("should prepare UPDATE statements with correct bindings", async () => {
+		it("should prepare UPSERT statements with explicit types and correct bindings", async () => {
 			const kv = makeKvMock();
 			const preparedBindMock = vi.fn((..._params: unknown[]) => ({
 				run: vi.fn(async () => ({ success: true })),
@@ -320,21 +322,25 @@ describe("settings cache helper", () => {
 					first: vi.fn(async () => null),
 					bind: preparedBindMock,
 				})),
-				batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+				batch: vi.fn(async (stmts: unknown[]) =>
+					stmts.map(() => ({ success: true, results: [], meta: { changes: 1 } })),
+				),
 			} as unknown as D1Database;
 			const env = makeEnv({ KV: kv, DB: db });
 
 			await upsertSettings(env, { "general.site.name": "Updated" });
 
-			// Should prepare UPDATE statement
 			expect(db.prepare).toHaveBeenCalledWith(
-				"UPDATE settings SET value = ?, updated_at = ? WHERE key = ?",
+				expect.stringContaining("INSERT INTO settings (key, value, type, updated_at)"),
 			);
-			// Should bind value, timestamp, key
+			expect(db.prepare).toHaveBeenCalledWith(
+				expect.stringContaining("ON CONFLICT(key) DO UPDATE"),
+			);
 			expect(preparedBindMock).toHaveBeenCalledWith(
-				"Updated",
-				expect.any(Number),
 				"general.site.name",
+				"Updated",
+				"string",
+				expect.any(Number),
 			);
 		});
 	});

@@ -18,7 +18,9 @@ function makeSettingsDb(rows = SAMPLE_ROWS) {
 				run: vi.fn(async () => ({ success: true })),
 			})),
 		})),
-		batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+		batch: vi.fn(async (stmts: unknown[]) =>
+			stmts.map(() => ({ success: true, results: [], meta: { changes: 1 } })),
+		),
 	} as unknown as D1Database;
 }
 
@@ -408,7 +410,9 @@ describe("admin settings handler", () => {
 						};
 					}),
 				})),
-				batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+				batch: vi.fn(async (stmts: unknown[]) =>
+					stmts.map(() => ({ success: true, results: [], meta: { changes: 1 } })),
+				),
 			} as unknown as D1Database;
 			return { db, calls };
 		}

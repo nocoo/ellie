@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	ban,
 	batchFetch,
@@ -2005,7 +2005,9 @@ describe("admin user handlers", () => {
 
 	describe("batchStatus", () => {
 		it("should batch update status for multiple users", async () => {
-			const { db, calls } = createMockDb();
+			const { db, calls } = createMockDb({
+				runResults: { "UPDATE users SET status": { success: true, meta: { changes: 3 } } },
+			});
 
 			const request = createAdminRequest("POST", "/api/admin/users/batch-status", {
 				ids: [10, 20, 30],
@@ -2080,7 +2082,9 @@ describe("admin user handlers", () => {
 
 	describe("batchRole", () => {
 		it("should batch update role for multiple users", async () => {
-			const { db, calls } = createMockDb();
+			const { db, calls } = createMockDb({
+				runResults: { "UPDATE users SET role": { success: true, meta: { changes: 2 } } },
+			});
 
 			const request = createAdminRequest("POST", "/api/admin/users/batch-role", {
 				ids: [10, 20],
@@ -2339,6 +2343,10 @@ describe("admin user handlers", () => {
 				},
 			});
 
+			vi.mocked(db.batch).mockImplementationOnce(async (statements) => {
+				batchCalls.push(statements);
+				return [{ success: true, results: [], meta: { changes: 2 } }] as D1Result[];
+			});
 			const res = await batchRecalcCounters(
 				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {
 					ids: [1, 2],
@@ -2361,6 +2369,9 @@ describe("admin user handlers", () => {
 				},
 			});
 
+			vi.mocked(db.batch).mockResolvedValueOnce([
+				{ success: true, results: [], meta: { changes: 2 } },
+			] as D1Result[]);
 			const res = await batchRecalcCounters(
 				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {}),
 				adminEnv(db),

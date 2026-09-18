@@ -88,7 +88,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 							<Link
 								href={`/threads/${thread.id}`}
 								prefetch={false}
-								className="min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+								className="forum-thread-title min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 								style={titleStyle}
 							>
 								{thread.subject}
@@ -160,7 +160,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 						<Link
 							href={`/threads/${thread.id}`}
 							prefetch={false}
-							className="block line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+							className="forum-thread-title block line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
 							style={titleStyle}
 						>
 							{thread.subject}

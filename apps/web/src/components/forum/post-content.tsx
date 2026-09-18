@@ -102,7 +102,7 @@ export function PostContent({
 				   onto the signature line; long posts still auto-expand
 				   because min-height never caps content. */}
 				<article
-					className="mt-4 prose prose-sm max-w-none text-[15px] leading-7 text-foreground whitespace-pre-line min-h-[80px] break-words [overflow-wrap:anywhere] [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&>*:first-child]:mt-0"
+					className="forum-content mt-4 prose prose-sm max-w-none text-[15px] leading-7 text-foreground whitespace-pre-line min-h-[80px] break-words [overflow-wrap:anywhere] [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&>*:first-child]:mt-0"
 					suppressHydrationWarning
 				>
 					<div dangerouslySetInnerHTML={{ __html: post.content }} suppressHydrationWarning />
@@ -152,7 +152,7 @@ export function PostContent({
 					<div className="mt-4">
 						<div className="mb-3 h-px w-24 bg-border" />
 						<article
-							className="text-xs text-muted-foreground prose prose-sm max-w-none [&>*]:text-muted-foreground [&>*]:text-xs"
+							className="forum-content text-xs text-muted-foreground prose prose-sm max-w-none [&>*]:text-muted-foreground [&>*]:text-xs"
 							suppressHydrationWarning
 						>
 							<div

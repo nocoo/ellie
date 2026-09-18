@@ -186,7 +186,7 @@ describe("Admin catalog no-ops and failed writes keep warmed versions", () => {
 				createAdminRequest("PUT", "/api/admin/settings", { "general.site.name": "Ellie" }),
 				f.env,
 			),
-		).rejects.toThrow("Settings writes were not confirmed");
+		).rejects.toThrow("D1 batch writes were not confirmed");
 		expect(
 			f.sqlite.prepare("SELECT value FROM settings WHERE key = ?").get("general.site.name"),
 		).toEqual({ value: "Old" });

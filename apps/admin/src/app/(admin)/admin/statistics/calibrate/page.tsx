@@ -109,6 +109,7 @@ export default function StatsCalibratePage() {
 			});
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const json = (await res.json()) as CalibratePostResponse;
+			if (json.data?.success !== true) throw new Error("统计结果未确认，请重试");
 			if (json.data.counters) {
 				setCounters(json.data.counters);
 			}
@@ -131,6 +132,8 @@ export default function StatsCalibratePage() {
 				body: JSON.stringify({ action: "apply_real" }),
 			});
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const json = (await res.json()) as CalibratePostResponse;
+			if (json.data?.success !== true) throw new Error("统计校准未确认保存，请重试");
 			setSuccess("已同步到真实值");
 			await fetchState();
 		} catch (e) {
@@ -157,6 +160,8 @@ export default function StatsCalibratePage() {
 				body: JSON.stringify({ action: "apply_offsets", offsets: nonZeroOffsets }),
 			});
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const json = (await res.json()) as CalibratePostResponse;
+			if (json.data?.success !== true) throw new Error("统计校准未确认保存，请重试");
 			setSuccess("偏移量已应用");
 			await fetchState();
 		} catch (e) {

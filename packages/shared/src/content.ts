@@ -46,6 +46,9 @@ const RE_ALIGN = /\[align=(center|left|right)\]([\s\S]*?)\[\/align\]/gi;
 // [font=name]text[/font] — Font family (strip, keep text)
 const RE_FONT = /\[font=[^\]]*\]([\s\S]*?)\[\/font\]/gi;
 
+// Residual color BBCode is display-only metadata; strip tokens, including nested pairs.
+const RE_COLOR = /\[\/?color(?:=[^\]]*)?\]/gi;
+
 // [backcolor=color]text[/backcolor] — Background color (strip)
 const RE_BACKCOLOR = /\[backcolor=[^\]]*\]([\s\S]*?)\[\/backcolor\]/gi;
 
@@ -101,6 +104,7 @@ function cleanupLegacyBBCode(html: string): string {
 
 	// Strip [font] tags, keep content
 	result = result.replace(RE_FONT, "$1");
+	result = result.replace(RE_COLOR, "");
 
 	// Strip [backcolor] tags, keep content
 	result = result.replace(RE_BACKCOLOR, "$1");

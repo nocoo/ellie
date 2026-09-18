@@ -360,7 +360,7 @@ describe("L2-fast: statistics calibration routing", () => {
 		});
 	});
 
-	test("apply_offsets updates only the allowed counters and ignores zero or invalid adjustments", async () => {
+	test("apply_offsets updates allowed counters and skips zero adjustments", async () => {
 		const response = await workerFetch(env, "/api/admin/stats/calibrate", {
 			method: "POST",
 			headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
@@ -369,9 +369,7 @@ describe("L2-fast: statistics calibration routing", () => {
 				offsets: {
 					"stats.total_threads": 5,
 					"stats.total_posts": -10,
-					"stats.total_members": "100",
 					"stats.yesterday_posts": 0,
-					"routing.marker": 7,
 				},
 			}),
 		});
@@ -397,6 +395,23 @@ describe("L2-fast: statistics calibration routing", () => {
 		expect(noOp.status).toBe(200);
 		expect(await env.KV.get(statsReportsGenKey())).toBe(generation);
 	});
+
+	test.each([{ "stats.total_members": "100" }, { "routing.marker": 7 }])(
+		"apply_offsets rejects invalid entries before applying any valid adjustment: %j",
+		async (invalid) => {
+			const response = await workerFetch(env, "/api/admin/stats/calibrate", {
+				method: "POST",
+				headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
+				body: JSON.stringify({
+					action: "apply_offsets",
+					offsets: { "stats.total_threads": 5, ...invalid },
+				}),
+			});
+			expect(response.status).toBe(400);
+			expect(counters()).toEqual(initialCounters);
+			expect(await env.KV.get(statsReportsGenKey())).toBeNull();
+		},
+	);
 
 	test("a rejected calibration write rolls back earlier updates and leaves the cached totals valid", async () => {
 		await workerFetch(env, "/api/v1/stats", {

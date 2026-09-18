@@ -76,13 +76,21 @@ describe("forums API", () => {
 	});
 
 	it("reorderForums calls post", async () => {
-		mockPost.mockResolvedValue({ data: { reordered: true } });
+		mockPost.mockResolvedValue({ data: { updated: true, count: 1 } });
 		const r = await reorderForums([{ id: 1, displayOrder: 1 }]);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/forums/reorder", {
 			orders: [{ id: 1, displayOrder: 1 }],
 		});
-		expect(r.reordered).toBe(true);
+		expect(r).toEqual({ updated: true, count: 1 });
 	});
+
+	it.each([null, {}, { updated: false, count: 1 }, { updated: true, count: 0 }])(
+		"rejects unconfirmed forum ordering: %j",
+		async (data) => {
+			mockPost.mockResolvedValue({ data });
+			await expect(reorderForums([{ id: 1, displayOrder: 1 }])).rejects.toThrow("排序未完整保存");
+		},
+	);
 });
 
 describe("thread-detail API", () => {
@@ -118,11 +126,23 @@ describe("thread-detail API", () => {
 
 describe("settings API", () => {
 	it("updateSettings calls put", async () => {
-		mockPut.mockResolvedValue({ data: { updated: 3 } });
+		mockPut.mockResolvedValue({ data: { updated: 1 } });
 		const r = await updateSettings({ "general.site.name": "X" });
 		expect(mockPut).toHaveBeenCalledWith("/api/admin/settings", { "general.site.name": "X" });
-		expect(r.updated).toBe(3);
+		expect(r.updated).toBe(1);
 	});
+});
+
+describe.each([updateSettings, updateFeatures])("settings write confirmation", (save) => {
+	it.each([undefined, null, {}, { updated: 0 }, { updated: 2 }, { updated: "1" }])(
+		"rejects incomplete or malformed confirmation %j",
+		async (data) => {
+			mockPut.mockResolvedValue({ data });
+			await expect(save({ "general.site.copyright_years": "2001-2026" })).rejects.toThrow(
+				"设置未完整保存",
+			);
+		},
+	);
 });
 
 describe("features API", () => {

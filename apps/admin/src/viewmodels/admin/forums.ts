@@ -62,7 +62,8 @@ export interface ReorderItem {
 }
 
 export interface ReorderResult {
-	reordered: boolean;
+	updated: boolean;
+	count: number;
 }
 
 export interface DeleteResult {
@@ -232,5 +233,8 @@ export async function mergeForums(sourceId: number, targetForumId: number): Prom
 
 export async function reorderForums(orders: ReorderItem[]): Promise<ReorderResult> {
 	const res = await apiClient.post<ReorderResult>("/api/admin/forums/reorder", { orders });
+	if (res.data?.updated !== true || res.data.count !== orders.length) {
+		throw new Error("排序未完整保存，请刷新列表后重试");
+	}
 	return res.data;
 }

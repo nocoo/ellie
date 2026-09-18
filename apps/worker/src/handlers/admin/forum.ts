@@ -723,7 +723,7 @@ export const reorder = withEntityAuth(
 			),
 		);
 
-		await confirmedBatch(env, statements);
+		const written = await confirmedBatch(env, statements);
 
 		// Invalidate forum tree cache + write audit row (when there are
 		// actual changes) in parallel — they're independent.
@@ -740,6 +740,9 @@ export const reorder = withEntityAuth(
 				: Promise.resolve(),
 		]);
 
-		return jsonNoStoreResponse({ updated: true, count: orders.length }, origin);
+		return jsonNoStoreResponse(
+			{ updated: true, count: written.reduce((total, result) => total + result.meta.changes, 0) },
+			origin,
+		);
 	},
 );

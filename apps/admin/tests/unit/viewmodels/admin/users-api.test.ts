@@ -125,20 +125,38 @@ describe("users API functions", () => {
 	});
 
 	it("batchSetStatus calls post", async () => {
-		mockPost.mockResolvedValue({ data: { affected: 3 } });
+		mockPost.mockResolvedValue({ data: { updated: true, count: 3 } });
 		const result = await batchSetStatus([1, 2, 3], -1);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/users/batch-status", {
 			ids: [1, 2, 3],
 			status: -1,
 		});
-		expect(result.affected).toBe(3);
+		expect(result.count).toBe(3);
 	});
 
 	it("batchSetRole calls post", async () => {
-		mockPost.mockResolvedValue({ data: { affected: 2 } });
+		mockPost.mockResolvedValue({ data: { updated: true, count: 2 } });
 		const result = await batchSetRole([1, 2], 1);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/users/batch-role", { ids: [1, 2], role: 1 });
-		expect(result.affected).toBe(2);
+		expect(result.count).toBe(2);
+	});
+
+	it.each([
+		null,
+		{},
+		{ updated: false, count: 2 },
+		{ updated: true, count: 0 },
+		{ updated: true, count: 1 },
+	])("refuses an incomplete user batch receipt: %j", async (data) => {
+		mockPost.mockResolvedValue({ data });
+		await expect(batchSetStatus([1, 2], -1)).rejects.toThrow("部分用户未完成更新");
+		await expect(batchSetRole([1, 2], 1)).rejects.toThrow("部分用户未完成更新");
+	});
+
+	it("checks the unique target count for duplicate IDs", async () => {
+		mockPost.mockResolvedValue({ data: { updated: true, count: 2 } });
+		expect((await batchSetStatus([1, 1, 2], -1)).count).toBe(2);
+		expect((await batchSetRole([1, 1, 2], 1)).count).toBe(2);
 	});
 
 	it("fetchUsersByIds returns empty for empty ids", async () => {

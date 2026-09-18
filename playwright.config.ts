@@ -56,7 +56,7 @@ export default defineConfig({
 	// the exact BDD filenames it owns. The forum runner passes --project=
 	// stateless / stateful / mobile; the admin runner passes --project=admin.
 	// The four projects remain strictly non-overlapping by construction.
-	//   - stateless: bdd/auth, bdd/navigation, bdd/search, bdd/system.
+	//   - stateless: bdd/auth, bdd/navigation, bdd/search, bdd/system, bdd/legacy-colors.
 	//     The four legacy stateless-only specs (pagination, digest-filter,
 	//     message, user-journey) merged into bdd/content + bdd/social and
 	//     therefore moved to the stateful project — docs/23 §4.1 records the
@@ -69,7 +69,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: "stateless",
-			testMatch: /\/bdd\/(auth|navigation|search|system)\.spec\.ts$/,
+			testMatch: /\/bdd\/(auth|navigation|search|system|legacy-colors)\.spec\.ts$/,
 			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},

@@ -2,6 +2,21 @@
    Discuz Legacy Styles
    ========================================================================== */
 
+/* Override legacy colors only on displayed content. Keep font sizes and layout,
+   and let colored text inside a link inherit the link's theme color. */
+.dark .forum-content [color] {
+	color: inherit !important;
+}
+.dark .forum-content [bgcolor] {
+	background-color: transparent !important;
+}
+.dark .forum-thread-title[style*="color"] {
+	color: hsl(var(--foreground)) !important;
+}
+.dark .forum-thread-title[style*="color"]:hover {
+	color: hsl(var(--primary)) !important;
+}
+
 /* Inline smileys */
 img.smiley {
 	display: inline;

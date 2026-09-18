@@ -1230,7 +1230,7 @@ export const batchStatus = withEntityAuth(
 		// docs/20 §5: confirmed status changes invalidate all scoped user snapshots.
 		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, ids);
 
-		return jsonNoStoreResponse({ updated: true, count: ids.length }, origin);
+		return jsonNoStoreResponse({ updated: true, count: written.meta.changes }, origin);
 	},
 );
 
@@ -1294,7 +1294,7 @@ export const batchRole = withEntityAuth(
 		// public profile group_title — invalidate per id (legacy + v2).
 		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, ids);
 
-		return jsonNoStoreResponse({ updated: true, count: ids.length }, origin);
+		return jsonNoStoreResponse({ updated: true, count: written.meta.changes }, origin);
 	},
 );
 
@@ -1421,7 +1421,7 @@ export const batchRecalcCounters = withEntityAuth(
 		// users" path.
 		if (written.meta.changes > 0) await invalidateUserCachesForIds(env, userIds);
 
-		return jsonNoStoreResponse({ updated: userIds.length }, origin);
+		return jsonNoStoreResponse({ updated: written.meta.changes }, origin);
 	},
 );
 

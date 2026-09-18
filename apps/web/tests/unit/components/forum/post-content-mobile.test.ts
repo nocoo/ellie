@@ -52,6 +52,20 @@ afterEach(() => {
 });
 
 describe("PostContent — top meta bar mobile-hidden contract", () => {
+	it("scopes legacy color overrides to both post content and signature", () => {
+		const post = makePost({ author: { signature: '<font color="#000033">签名</font>' } });
+		const { container } = render(
+			createElement(PostContent, {
+				post,
+				author: post.author,
+				isFirst: true,
+			}),
+		);
+		const content = container.querySelectorAll("article.forum-content");
+		expect(content).toHaveLength(2);
+		expect(content[0].textContent).toBe("body");
+		expect(content[1].textContent).toBe("签名");
+	});
 	it("meta bar wrapper carries `hidden md:flex` so it disappears on phones", () => {
 		render(
 			createElement(PostContent, {

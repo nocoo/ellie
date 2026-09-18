@@ -172,7 +172,8 @@ export type PurgeResult =
 	  };
 
 export interface BatchResult {
-	affected: number;
+	updated: boolean;
+	count: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,11 +295,17 @@ export async function purgeUser(id: number): Promise<PurgeResult> {
 
 export async function batchSetStatus(ids: number[], status: number): Promise<BatchResult> {
 	const res = await apiClient.post<BatchResult>("/api/admin/users/batch-status", { ids, status });
+	if (res.data?.updated !== true || res.data.count !== new Set(ids).size) {
+		throw new Error("部分用户未完成更新，请刷新列表后重试");
+	}
 	return res.data;
 }
 
 export async function batchSetRole(ids: number[], role: number): Promise<BatchResult> {
 	const res = await apiClient.post<BatchResult>("/api/admin/users/batch-role", { ids, role });
+	if (res.data?.updated !== true || res.data.count !== new Set(ids).size) {
+		throw new Error("部分用户未完成更新，请刷新列表后重试");
+	}
 	return res.data;
 }
 

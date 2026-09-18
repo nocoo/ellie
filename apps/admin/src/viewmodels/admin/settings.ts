@@ -218,5 +218,8 @@ export function getChangedSettings(
  */
 export async function updateSettings(payload: SettingsUpdatePayload): Promise<{ updated: number }> {
 	const res = await apiClient.put<{ updated: number }>("/api/admin/settings", payload);
+	if (res.data?.updated !== Object.keys(payload).length) {
+		throw new Error("设置未完整保存，请重试");
+	}
 	return res.data;
 }

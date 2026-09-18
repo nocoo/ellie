@@ -1543,6 +1543,8 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 
 **成功响应（200）**：`{ data: { updated: true, count: 10 } }`
 
+`count` 是数据库确认写入的排序项数量；不存在的版块不计入。客户端应核对数量后再提示全部保存成功。
+
 ---
 
 ### B. Thread 主题（Admin）— #30-#35
@@ -1815,6 +1817,8 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 
 **成功响应（200）**：`{ data: { updated: true, count } }`
 
+`count` 为数据库实际更新的用户数，重复 ID 只计一次，不存在的用户不计入；可能小于请求数量。
+
 ---
 
 #### #47 `POST /api/admin/users/batch-role`
@@ -1824,6 +1828,8 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **请求体**：`{ ids: number[], role: number }` — `ids` ≤ 100，`role` ∈ {0, 1, 2, 3}。
 
 **成功响应（200）**：`{ data: { updated: true, count } }`
+
+`count` 与批量状态更新相同，表示数据库实际更新的用户数。
 
 ---
 
@@ -2155,6 +2161,13 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 > `today` 基于 UTC 当天 00:00 起的 `created_at` / `reg_date`。
 
 ---
+
+### 管理设置与统计校准
+
+- `PUT /api/admin/settings`：Key B；提交已注册的设置键及字符串值。缺少的设置行自动创建，并按键保存正确类型；整批写入确认后返回 `{ data: { updated: 数量 } }` 并使相关缓存失效。非法键、值或未确认的写入不会返回保存成功。
+- `GET /api/admin/stats/calibrate`：Key B；读取当前存储计数。
+- `POST /api/admin/stats/calibrate`：Key B；`run_stats` 只进行比对，`apply_real` 写入完整表计数，`apply_offsets` 原子应用偏移。偏移仅接受四个计数键及安全整数；未知键或非法值使整个请求返回 400。零偏移不写入；缺少的计数从 0 起算。只有全部写入确认后才返回 `{ data: { success: true } }`。
+- `POST /api/admin/users/batch-recalc-counters` 的 `data.updated` 为实际写入用户数。
 
 ## 附录
 
