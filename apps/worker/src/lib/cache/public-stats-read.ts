@@ -23,7 +23,7 @@ export async function countPostsInDay(env: Env, start = shanghaiTodayStartUnix()
 
 /** Rebuild from existing counters and committed posts; no business mutations. */
 export async function loadPublicStats(env: Env): Promise<PublicStats> {
-	const [settings, todayPosts, online, peak] = await Promise.all([
+	const [settings, todayPosts, online] = await Promise.all([
 		env.DB.prepare(
 			`SELECT key, value FROM settings WHERE key IN (${COUNTERS.map(() => "?").join(",")})`,
 		)
@@ -31,7 +31,6 @@ export async function loadPublicStats(env: Env): Promise<PublicStats> {
 			.all<{ key: string; value: string }>(),
 		countPostsInDay(env),
 		env.KV.get("stats:online_count"),
-		env.KV.get<{ count: number; date: string }>("stats:online_peak", "json"),
 	]);
 	if (!settings.success) throw new Error("Statistics counters could not be read");
 	const values = new Map(
@@ -44,8 +43,9 @@ export async function loadPublicStats(env: Env): Promise<PublicStats> {
 		totalPosts: values.get("stats.total_posts") ?? 0,
 		totalMembers: values.get("stats.total_members") ?? 0,
 		totalOnline: Number.parseInt(online ?? "0", 10) || 0,
-		peakOnline: typeof peak?.count === "number" ? peak.count : 0,
-		peakDate: typeof peak?.date === "string" ? peak.date : "",
+		// Legacy fields retained; peaks are no longer computed or displayed.
+		peakOnline: 0,
+		peakDate: "",
 	};
 }
 

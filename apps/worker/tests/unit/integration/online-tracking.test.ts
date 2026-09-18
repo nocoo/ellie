@@ -166,12 +166,12 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 		await worker.fetch(request, env, ctx);
 		await Promise.all(waitUntilPromises);
 
-		// Should have written activity_throttle:{userId} key
-		const throttlePutCall = kvPut.mock.calls.find(
-			(call) => typeof call[0] === "string" && call[0].startsWith("activity_throttle:"),
+		expect(env.DB.prepare).toHaveBeenCalledWith(
+			"UPDATE users SET last_activity = ? WHERE id = ? AND last_activity <= ?",
 		);
-		expect(throttlePutCall).toBeDefined();
-		expect(throttlePutCall?.[0]).toBe("activity_throttle:456");
+		expect(kvPut.mock.calls.some((call) => String(call[0]).startsWith("activity_throttle:"))).toBe(
+			false,
+		);
 	});
 
 	it("should NOT trigger tracking for unauthenticated requests", async () => {

@@ -16,7 +16,6 @@ import {
 	Loader2,
 	Mail,
 	Shield,
-	Star,
 	User as UserIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -258,11 +257,6 @@ export function UserPopover({
 								icon={<Clock className="h-3.5 w-3.5" />}
 								label="最后活动"
 								value={formatLastActive(user.lastActivity)}
-							/>
-							<DetailRow
-								icon={<Star className="h-3.5 w-3.5" />}
-								label="在线时长"
-								value={`${formatNumber(user.olTime)} 小时`}
 							/>
 
 							{/* Bio preview */}

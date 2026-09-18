@@ -128,8 +128,8 @@ describe("public stats handler", () => {
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as { data: PublicStats };
 			expect(body.data.totalOnline).toBe(42);
-			expect(body.data.peakOnline).toBe(100);
-			expect(body.data.peakDate).toBe("2026-05-29");
+			expect(body.data.peakOnline).toBe(0);
+			expect(body.data.peakDate).toBe("");
 		});
 
 		it("should handle cache envelope read failure gracefully and fall back to fresh load", async () => {

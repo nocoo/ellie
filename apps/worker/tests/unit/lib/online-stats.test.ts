@@ -64,98 +64,12 @@ describe("aggregateOnlineStats", () => {
 		}
 	});
 
-	it("should create new peak when none exists", async () => {
-		const onlineKeys = [{ name: "online:1" }, { name: "online:2" }];
-		const { env, kvPut, kvGet } = createMockEnv({ onlineKeys, existingPeak: null });
-
-		const originalNow = Date.now;
-		const originalDate = global.Date;
-		Date.now = () => NOW * 1000;
-		// Mock Date constructor for toISOString
-		global.Date = class extends originalDate {
-			constructor(...args: Parameters<DateConstructor>) {
-				if (args.length === 0) {
-					super(NOW * 1000);
-				} else {
-					// @ts-expect-error - spread args to super
-					super(...args);
-				}
-			}
-			static now() {
-				return NOW * 1000;
-			}
-		} as typeof Date;
-
-		try {
-			await aggregateOnlineStats(env);
-
-			expect(kvGet).toHaveBeenCalledWith("stats:online_peak", "json");
-			// Should create new peak (no TTL)
-			const putCalls = kvPut.mock.calls;
-			const peakCall = putCalls.find((call) => call[0] === "stats:online_peak");
-			expect(peakCall).toBeDefined();
-			const peakData = JSON.parse(peakCall?.[1] as string);
-			expect(peakData.count).toBe(2);
-			expect(peakData.timestamp).toBe(NOW);
-		} finally {
-			Date.now = originalNow;
-			global.Date = originalDate;
-		}
-	});
-
-	it("should update peak when current count exceeds previous", async () => {
-		const onlineKeys = [
-			{ name: "online:1" },
-			{ name: "online:2" },
-			{ name: "online:3" },
-			{ name: "online:4" },
-			{ name: "online:5" },
-		];
-		const existingPeak = { count: 3, date: "2024-03-30", timestamp: NOW - 86400 };
-		const { env, kvPut } = createMockEnv({ onlineKeys, existingPeak });
-
-		const originalNow = Date.now;
-		const originalDate = global.Date;
-		Date.now = () => NOW * 1000;
-		global.Date = class extends originalDate {
-			constructor(...args: Parameters<DateConstructor>) {
-				if (args.length === 0) {
-					super(NOW * 1000);
-				} else {
-					// @ts-expect-error - spread args to super
-					super(...args);
-				}
-			}
-			static now() {
-				return NOW * 1000;
-			}
-		} as typeof Date;
-
-		try {
-			await aggregateOnlineStats(env);
-
-			const putCalls = kvPut.mock.calls;
-			const peakCall = putCalls.find((call) => call[0] === "stats:online_peak");
-			expect(peakCall).toBeDefined();
-			const peakData = JSON.parse(peakCall?.[1] as string);
-			expect(peakData.count).toBe(5);
-		} finally {
-			Date.now = originalNow;
-			global.Date = originalDate;
-		}
-	});
-
-	it("should NOT update peak when current count is lower", async () => {
-		const onlineKeys = [{ name: "online:1" }, { name: "online:2" }];
-		const existingPeak = { count: 10, date: "2024-03-30", timestamp: NOW - 86400 };
-		const { env, kvPut } = createMockEnv({ onlineKeys, existingPeak });
-
+	it("does not read or write historical peak records", async () => {
+		const { env, kvPut, kvGet } = createMockEnv({ onlineKeys: [{ name: "online:1" }] });
 		await aggregateOnlineStats(env);
-
-		const putCalls = kvPut.mock.calls;
-		// Should only have online_count put, not peak update
-		expect(putCalls.length).toBe(1);
-		expect(putCalls[0][0]).toBe("stats:online_count");
+		expect(kvGet).not.toHaveBeenCalled();
+		expect(kvPut).toHaveBeenCalledTimes(1);
+		expect(kvPut).toHaveBeenCalledWith("stats:online_count", "1", { expirationTtl: 300 });
 	});
 
 	it("should handle zero online users", async () => {

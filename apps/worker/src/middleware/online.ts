@@ -4,7 +4,7 @@ import type { Env } from "../lib/env";
 import type { AuthUser } from "./auth";
 
 const ONLINE_TTL = 900; // 15 minutes
-const PRESENCE_WRITE_INTERVAL_MS = 60_000;
+const PRESENCE_WRITE_INTERVAL_MS = 300_000;
 const lastWrites = new WeakMap<KVNamespace, Map<number, number>>();
 
 export interface OnlineUserData {

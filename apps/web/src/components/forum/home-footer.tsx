@@ -32,8 +32,7 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 				className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm text-muted-foreground"
 				data-testid="online-stats-line"
 			>
-				<span className="font-bold">{formatNumber(s.totalOnline)}</span> 人在线 - 最高记录是{" "}
-				<span className="font-bold">{formatNumber(s.peakOnline)}</span> 于 {s.peakDate}.
+				最近 15 分钟活跃约 <span className="font-bold">{formatNumber(s.totalOnline)}</span> 人
 			</p>
 		</div>
 	);

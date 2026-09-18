@@ -458,7 +458,7 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 			const text = (await line.textContent())?.trim() ?? "";
 			expect(text.startsWith("在线会员"), `width=${width} still has prefix`).toBe(false);
 			// Then: numeric payload survives.
-			expect(text).toMatch(/人在线/);
+			expect(text).toMatch(/最近 15 分钟活跃约/);
 
 			// Then: single-line height (text-sm 14px + leading-5 20px + py-2 ≈
 			// 32px ceiling; wrap would push to ~40+).

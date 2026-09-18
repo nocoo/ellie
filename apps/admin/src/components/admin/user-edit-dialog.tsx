@@ -106,7 +106,6 @@ interface FormState {
 	threads: number;
 	posts: number;
 	digestPosts: number;
-	olTime: number;
 	lastActivity: number;
 	regDate: number;
 	lastLogin: number;
@@ -154,7 +153,6 @@ function blankForm(): FormState {
 		threads: 0,
 		posts: 0,
 		digestPosts: 0,
-		olTime: 0,
 		lastActivity: 0,
 		regDate: 0,
 		lastLogin: 0,
@@ -203,7 +201,6 @@ function counterFields(u: User) {
 		threads: u.threads,
 		posts: u.posts,
 		digestPosts: u.digestPosts ?? 0,
-		olTime: u.olTime ?? 0,
 		lastActivity: u.lastActivity ?? 0,
 		regDate: u.regDate,
 		lastLogin: u.lastLogin,
@@ -382,7 +379,6 @@ export function UserEditDialog({
 			threads: form.threads,
 			posts: form.posts,
 			digestPosts: form.digestPosts,
-			olTime: form.olTime,
 			lastActivity: form.lastActivity,
 			regDate: form.regDate,
 			lastLogin: form.lastLogin,
@@ -651,14 +647,6 @@ export function UserEditDialog({
 								value={form.posts}
 								onChange={set("posts")}
 								disabled={loading}
-							/>
-							<NumberField
-								id="edit-olTime"
-								label="在线时长"
-								value={form.olTime}
-								onChange={set("olTime")}
-								disabled={loading}
-								hint="秒"
 							/>
 						</div>
 					</SectionRule>

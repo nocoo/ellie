@@ -11,7 +11,6 @@ import {
 	formatGender,
 	formatLastActivity,
 	formatLocation,
-	formatOlTime,
 } from "@/viewmodels/forum/user-profile";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 
@@ -19,7 +18,6 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 	const gender = formatGender(user.gender);
 	const birthday = formatBirthday(user.birthYear, user.birthMonth, user.birthDay);
 	const location = formatLocation(user.resideProvince, user.resideCity);
-	const olTime = formatOlTime(user.olTime);
 	const lastActive = formatLastActivity(user.lastActivity);
 	const checkinLevel = formatCheckinLevel(user.checkin);
 	const checkinDays = formatCheckinDays(user.checkin?.totalDays);
@@ -35,7 +33,6 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 	if (user.graduateSchool) infoRows.push({ label: "身份类型", value: user.graduateSchool });
 	if (user.qq) infoRows.push({ label: "QQ", value: user.qq });
 	if (user.site) infoRows.push({ label: "个人网站", value: user.site });
-	if (olTime) infoRows.push({ label: "在线时间", value: olTime });
 	if (lastActive) infoRows.push({ label: "最后活动", value: lastActive });
 
 	if (

@@ -202,14 +202,6 @@ export function PostSidebar({
 						<span>{formatDate(author.regDate)}</span>
 					</div>
 
-					{/* Online time */}
-					{author.olTime > 0 && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-xs leading-3 text-muted-foreground">在线:</span>
-							<span>{formatNumber(author.olTime)} 小时</span>
-						</div>
-					)}
-
 					{/* Digest posts */}
 					{author.digestPosts > 0 && (
 						<div className="flex items-baseline justify-between gap-1">

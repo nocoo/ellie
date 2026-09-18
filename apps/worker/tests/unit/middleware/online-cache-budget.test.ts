@@ -50,7 +50,7 @@ describe("middleware/online — memory budget, throttle, and fault recovery", ()
 		vi.restoreAllMocks();
 	});
 
-	it("throttles same-user online writes within 60 seconds (PRESENCE_WRITE_INTERVAL_MS)", async () => {
+	it("throttles same-user online writes within five minutes (PRESENCE_WRITE_INTERVAL_MS)", async () => {
 		const { env, kvPut } = createMockEnv();
 		const { ctx, waitUntilPromises } = createMockCtx();
 		const user = { userId: 10, role: 0 };
@@ -67,8 +67,8 @@ describe("middleware/online — memory budget, throttle, and fault recovery", ()
 		await Promise.all(waitUntilPromises);
 		expect(kvPut).toHaveBeenCalledTimes(1);
 
-		// Third call at +60 seconds (total 60s from first call) allows next write
-		vi.advanceTimersByTime(30_000);
+		// The next write is allowed exactly five minutes after the first.
+		vi.advanceTimersByTime(270_000);
 		trackOnline(req, env, ctx, user);
 		await Promise.all(waitUntilPromises);
 		expect(kvPut).toHaveBeenCalledTimes(2);

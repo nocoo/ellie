@@ -686,13 +686,13 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		valueSensitivity: "public",
 		refresh: { kind: "none" },
 		description:
-			"Aggregated count of `online:*` markers, recomputed every 60s by lib/online-stats.ts.",
+			"Aggregated count of `online:*` markers, recomputed every five minutes by lib/online-stats.ts.",
 	},
 	{
 		family: "stats:online_peak",
 		displayName: "Online peak (sticky)",
 		category: "sticky-stats",
-		status: "shipped",
+		status: "historical",
 		listPrefix: "stats:online_peak",
 		keyKind: "exact",
 		pattern: "stats:online_peak",
@@ -746,13 +746,13 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		valueSensitivity: "no-read",
 		refresh: { kind: "none" },
 		description:
-			"Per-user presence marker, refreshed on each authenticated request (middleware/online.ts). Suffix is a userId — masked.",
+			"Per-user presence marker, refreshed at most every five minutes per user/isolate (middleware/online.ts). Suffix is a userId — masked.",
 	},
 	{
 		family: "activity_throttle",
 		displayName: "Activity throttle",
 		category: "throttle",
-		status: "shipped",
+		status: "historical",
 		listPrefix: "activity_throttle:",
 		pattern: "activity_throttle:<userId>",
 		ttl: 120,

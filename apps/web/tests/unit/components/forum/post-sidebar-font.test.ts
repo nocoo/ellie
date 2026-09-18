@@ -154,7 +154,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 				author: makeAuthor(),
 			}),
 		);
-		for (const label of ["UID:", "同钱:", "注册:", "精华:", "在线:"]) {
+		for (const label of ["UID:", "同钱:", "注册:", "精华:"]) {
 			const el = screen.getByText(label);
 			expect(el.className).toContain("text-xs");
 			expect(el.className).not.toContain("text-[10px]");

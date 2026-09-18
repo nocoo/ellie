@@ -68,8 +68,8 @@ describe("public-stats-read cache loader", () => {
 			totalPosts: 450,
 			totalMembers: 80,
 			totalOnline: 42,
-			peakOnline: 99,
-			peakDate: "2026-05-29",
+			peakOnline: 0,
+			peakDate: "",
 		});
 	});
 

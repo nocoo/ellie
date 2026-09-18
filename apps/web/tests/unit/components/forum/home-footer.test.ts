@@ -34,24 +34,12 @@ function makeVm(overrides: Partial<HomeFooterViewModel> = {}): HomeFooterViewMod
 describe("HomeFooter", () => {
 	afterEach(cleanup);
 
-	it("renders online stats with formatted peak record", () => {
-		render(createElement(HomeFooter, { vm: makeVm() }));
-
-		// totalOnline=42 stays as-is, peakOnline=10985 should be formatted with thousand separator
-		expect(screen.getByText(/10,985/)).toBeTruthy();
-		expect(screen.getByText(/2011-9-29/)).toBeTruthy();
-	});
-
-	it("drops '在线会员 - 总计 ' prefix but keeps numeric payload (reviewer msg=efa3c2e9)", () => {
-		// 哥 + reviewer freeze: the long prefix was the culprit for the 320/375
-		// line-wrap; delete the prefix only, keep totalOnline / peakOnline /
-		// peakDate so the bar still carries actionable information.
+	it("shows approximate recent activity without a historical peak", () => {
 		const { container } = render(createElement(HomeFooter, { vm: makeVm() }));
-		expect(container.textContent ?? "").not.toContain("在线会员 - 总计");
-		// Numeric/peak/date payload survives.
-		expect(container.textContent ?? "").toMatch(/人在线/);
-		expect(container.textContent ?? "").toMatch(/最高记录是/);
-		expect(container.textContent ?? "").toMatch(/2011-9-29/);
+		expect(container.textContent).toContain("最近 15 分钟活跃约");
+		expect(screen.getByText("42")).toBeTruthy();
+		expect(container.textContent).not.toContain("最高记录");
+		expect(container.textContent).not.toContain("2011-9-29");
 	});
 
 	it("hides friend links section when no links configured", () => {
