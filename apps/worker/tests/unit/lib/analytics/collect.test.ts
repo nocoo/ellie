@@ -191,6 +191,15 @@ describe("recordPageView", () => {
 		}
 	});
 
+	it("combines different viewers of the same page while preserving PV and bot classes", () => {
+		for (const userId of [0, 7, 12]) recordPageView(makeSample({ userId }));
+		recordPageView(makeSample({ userId: 8, botClass: "bot_search" }));
+		const rows = swapBuckets();
+		expect(rows).toHaveLength(2);
+		expect(rows.find((row) => row.botClass === "human")).toMatchObject({ userId: 0, count: 3 });
+		expect(rows.every((row) => row.userId === 0)).toBe(true);
+	});
+
 	it("drains the bucket on swap and starts fresh for new samples", () => {
 		recordPageView(makeSample({ ts: 100 }));
 		recordPageView(makeSample({ ts: 200 }));
@@ -479,7 +488,7 @@ describe("_internal.bucketKey / parseBucketKey", () => {
 			dateLocal: "2026-05-20",
 			pathKind: "user",
 			targetId: 777,
-			userId: 1234,
+			userId: 0,
 			botClass: "bot_search",
 		});
 	});

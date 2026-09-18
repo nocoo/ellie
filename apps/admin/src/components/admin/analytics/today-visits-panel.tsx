@@ -1,24 +1,6 @@
 "use client";
 
-/**
- * Today's page-view visits panel (P5).
- *
- * KPI summary row + paginated per-target list. Mirrors the
- * `LoginAttemptsPanel` (P4) structure: own fetch state for (a) the KPI
- * card (KV-cached on the worker, 60s) and (b) the realtime per-target
- * list (no-store). The list is filterable by `path_kind` (10-bucket
- * whitelist mirrored from the worker enum).
- *
- * Link routing rules (frozen — reviewer pin):
- *   - thread → /admin/threads/:id     (internal admin)
- *   - user   → /admin/users/:id       (internal admin)
- *   - forum  → /forums/:id            (public, target=_blank)
- *   - other path_kinds → label only, no link.
- *
- * The KPI counter labeled "活跃用户/访客（含匿名）" is
- * `activeUsers + anonPresent` — NOT "独立访客". The aggregate has no
- * per-session dedup; the wording reflects what the data can support.
- */
+/** Page totals and bot classification; 30-minute snapshots without per-user tracking. */
 
 import { formatNumber } from "@ellie/shared";
 import { Button, LayerCard, SegmentControl, TablePager } from "@nocoo/basalt";
@@ -39,7 +21,6 @@ import {
 	LayoutList,
 	MousePointer2,
 	Search,
-	Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -184,7 +165,6 @@ export function TodayVisitsPanel() {
 	}, [loadList]);
 
 	const totalPages = list ? Math.max(1, Math.ceil(list.total / list.limit)) : 1;
-	const activeOrAnon = kpi ? kpi.activeUsers + kpi.anonPresent : 0;
 
 	return (
 		<>
@@ -193,6 +173,9 @@ export function TodayVisitsPanel() {
 					<Globe className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
 					今日访问
 				</h2>
+				<p className="text-xs text-basalt-muted-foreground">
+					数据最多延迟 30 分钟；仅统计浏览量，不统计访问人数。
+				</p>
 				{kpiError && (
 					<p role="alert" className="text-sm text-basalt-destructive">
 						KPI 加载失败：{kpiError}
@@ -224,15 +207,6 @@ export function TodayVisitsPanel() {
 								},
 								{ label: "未知", value: kpi.unknownViews, icon: CircleHelp },
 								{ label: "覆盖目标", value: kpi.distinctTargets, icon: Compass },
-								{
-									label: "活跃用户/访客（含匿名）",
-									value: activeOrAnon,
-									icon: Users,
-									hint:
-										kpi.anonPresent === 1
-											? `${kpi.activeUsers} 注册 + 匿名`
-											: `${kpi.activeUsers} 注册`,
-								},
 								{
 									label: "每目标浏览",
 									value: kpi.distinctTargets
@@ -321,7 +295,6 @@ export function TodayVisitsPanel() {
 										<TableHead className="py-2 pr-3 text-right">真人占比</TableHead>
 										<TableHead className="py-2 pr-3 tabular-nums">爬虫</TableHead>
 										<TableHead className="py-2 pr-3 text-right">未识别</TableHead>
-										<TableHead className="py-2 pr-3 tabular-nums">用户</TableHead>
 										<TableHead className="py-2 pr-3">时间窗（首次 / 最近）</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -348,7 +321,6 @@ export function TodayVisitsPanel() {
 											<TableCell className="py-2 pr-3 text-right tabular-nums">
 												{row.unknownViews}
 											</TableCell>
-											<TableCell className="py-2 pr-3 tabular-nums">{row.uniqueUsers}</TableCell>
 											<TableCell className="whitespace-nowrap py-2 pr-3 tabular-nums text-xs">
 												<div>
 													<span className="text-basalt-muted-foreground">首次：</span>

@@ -122,8 +122,10 @@ interface BucketEntry {
 
 const BUCKETS: Map<string, BucketEntry> = new Map();
 
+// Keep the existing table key, but merge all viewers into one page/bot bucket.
+// user_id=0 is now an aggregate sentinel, not evidence of anonymous visits.
 function bucketKey(s: PageViewSample): string {
-	return `${s.dateLocal}${KEY_SEP}${s.pathKind}${KEY_SEP}${s.targetId}${KEY_SEP}${s.userId}${KEY_SEP}${s.botClass}`;
+	return `${s.dateLocal}${KEY_SEP}${s.pathKind}${KEY_SEP}${s.targetId}${KEY_SEP}0${KEY_SEP}${s.botClass}`;
 }
 
 function parseBucketKey(

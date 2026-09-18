@@ -560,3 +560,15 @@ describe("analytics viewmodel", () => {
 		});
 	});
 });
+
+describe("retired visit user counters", () => {
+	it("preserves unavailable counters as null", () => {
+		expect(parseTodayVisitsKpi({ activeUsers: null, anonPresent: null })).toMatchObject({
+			activeUsers: null,
+			anonPresent: null,
+		});
+		expect(
+			parseTodayVisitsList({ rows: [{ pathKind: "home", uniqueUsers: null }] }).rows[0].uniqueUsers,
+		).toBeNull();
+	});
+});

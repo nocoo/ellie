@@ -295,14 +295,7 @@ export interface PathKindBreakdownEntry {
 	targets: number;
 }
 
-/**
- * KPI card payload from GET /api/admin/analytics/today/visits.
- *
- * Aggregate-only — KV-cached on the worker (60s) with NO ip / ua /
- * username. The `activeUsers + anonPresent` sum is intentionally
- * labeled "活跃用户/访客（含匿名）" in the UI (reviewer pin); the
- * aggregate has NO per-session dedup, so we do NOT claim "独立访客".
- */
+/** Page totals cached for 30 minutes. User counters are retired and return null. */
 export interface TodayVisitsKpi {
 	now: number;
 	dateLocal: string;
@@ -312,9 +305,9 @@ export interface TodayVisitsKpi {
 	botOtherViews: number;
 	unknownViews: number;
 	distinctTargets: number;
-	activeUsers: number;
-	/** 1 if any row has user_id = 0 (anonymous bucket), else 0. */
-	anonPresent: 0 | 1;
+	activeUsers: number | null;
+	/** Deprecated; null when viewer identities are not collected. */
+	anonPresent: 0 | 1 | null;
 	byPathKind: PathKindBreakdownEntry[];
 }
 
@@ -342,8 +335,8 @@ export function parseTodayVisitsKpi(raw: unknown): TodayVisitsKpi {
 		botOtherViews: asNumber(o.botOtherViews),
 		unknownViews: asNumber(o.unknownViews),
 		distinctTargets: asNumber(o.distinctTargets),
-		activeUsers: asNumber(o.activeUsers),
-		anonPresent: (anonRaw === 1 ? 1 : 0) as 0 | 1,
+		activeUsers: o.activeUsers === null ? null : asNumber(o.activeUsers),
+		anonPresent: o.anonPresent === null ? null : ((anonRaw === 1 ? 1 : 0) as 0 | 1),
 		byPathKind,
 	};
 }
@@ -362,7 +355,7 @@ export interface TodayVisitsListRow {
 	botSearchViews: number;
 	botOtherViews: number;
 	unknownViews: number;
-	uniqueUsers: number;
+	uniqueUsers: number | null;
 	firstSeenAt: number;
 	lastSeenAt: number;
 }
@@ -394,7 +387,7 @@ export function parseTodayVisitsList(raw: unknown): TodayVisitsList {
 					botSearchViews: asNumber(x.botSearchViews),
 					botOtherViews: asNumber(x.botOtherViews),
 					unknownViews: asNumber(x.unknownViews),
-					uniqueUsers: asNumber(x.uniqueUsers),
+					uniqueUsers: x.uniqueUsers === null ? null : asNumber(x.uniqueUsers),
 					firstSeenAt: asNumber(x.firstSeenAt),
 					lastSeenAt: asNumber(x.lastSeenAt),
 				} satisfies TodayVisitsListRow;

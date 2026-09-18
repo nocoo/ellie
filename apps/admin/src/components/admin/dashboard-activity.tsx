@@ -14,7 +14,6 @@ import {
 	LogIn,
 	MessagesSquare,
 	ShieldCheck,
-	Users,
 } from "lucide-react";
 import Link from "next/link";
 import { metricShare, summarizeTrend } from "@/viewmodels/admin/analytics";
@@ -53,17 +52,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 						value: visits?.totalViews ?? "—",
 						icon: Globe,
 						hint: visits
-							? `真人 ${metricShare(visits.humanViews, visits.totalViews)} · 上海时区`
-							: "访问数据暂不可用",
-					},
-					{
-						label: "活跃登录用户",
-						value: visits?.activeUsers ?? "—",
-						icon: Users,
-						hint: visits
-							? visits.anonPresent
-								? "另有匿名访问，不计入用户数"
-								: "仅统计已登录账号"
+							? `真人 ${metricShare(visits.humanViews, visits.totalViews)} · 上海时区 · 最多延迟 30 分钟`
 							: "访问数据暂不可用",
 					},
 					{

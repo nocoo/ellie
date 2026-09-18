@@ -104,8 +104,8 @@ const SPECS: Record<string, Spec> = {
 		keys: ["resource", "operation", "date"],
 	},
 	"visits:list": {
-		family: "admin:display",
-		tier: "SHORT",
+		family: "admin:analytics",
+		tier: "MEDIUM",
 		keys: ["resource", "operation", "date", "pathKind", "page", "limit"],
 	},
 	"checkins:user": {
@@ -361,7 +361,8 @@ function isVisitKpi(d: CacheDescriptor, value: Record<string, unknown>): boolean
 	return (
 		finite(value.now) &&
 		value.dateLocal === d.params.date &&
-		(value.anonPresent === 0 || value.anonPresent === 1) &&
+		value.anonPresent === null &&
+		value.activeUsers === null &&
 		[
 			"totalViews",
 			"humanViews",
@@ -369,7 +370,6 @@ function isVisitKpi(d: CacheDescriptor, value: Record<string, unknown>): boolean
 			"botOtherViews",
 			"unknownViews",
 			"distinctTargets",
-			"activeUsers",
 		].every((key) => finite(value[key])) &&
 		Array.isArray(value.byPathKind) &&
 		value.byPathKind.every(
@@ -384,6 +384,7 @@ function isVisitKpi(d: CacheDescriptor, value: Record<string, unknown>): boolean
 function isVisitRow(row: unknown): boolean {
 	return (
 		record(row) &&
+		row.uniqueUsers === null &&
 		PATH_KIND_VALUES.has(row.pathKind as PathKind) &&
 		finite(row.targetId) &&
 		typeof row.label === "string" &&
@@ -393,7 +394,6 @@ function isVisitRow(row: unknown): boolean {
 			"botSearchViews",
 			"botOtherViews",
 			"unknownViews",
-			"uniqueUsers",
 			"firstSeenAt",
 			"lastSeenAt",
 		].every((key) => finite(row[key]))
@@ -903,9 +903,7 @@ export async function loadVisitsKpi(env: Env, d: CacheDescriptor) {
 				COALESCE(SUM(CASE WHEN bot_class = 'bot_search' THEN count ELSE 0 END), 0) AS bot_search_views,
 				COALESCE(SUM(CASE WHEN bot_class = 'bot_other'  THEN count ELSE 0 END), 0) AS bot_other_views,
 				COALESCE(SUM(CASE WHEN bot_class = 'unknown'    THEN count ELSE 0 END), 0) AS unknown_views,
-				COUNT(DISTINCT path_kind || '#' || target_id) AS distinct_targets,
-				COUNT(DISTINCT CASE WHEN user_id > 0 THEN user_id END) AS active_users,
-				MAX(CASE WHEN user_id = 0 THEN 1 ELSE 0 END) AS anon_present
+				COUNT(DISTINCT path_kind || '#' || target_id) AS distinct_targets
 			FROM analytics_daily_targets
 			WHERE date_local = ?`,
 		).bind(dateLocal),
@@ -940,8 +938,9 @@ export async function loadVisitsKpi(env: Env, d: CacheDescriptor) {
 		botOtherViews: Number(agg.bot_other_views ?? 0),
 		unknownViews: Number(agg.unknown_views ?? 0),
 		distinctTargets: Number(agg.distinct_targets ?? 0),
-		activeUsers: Number(agg.active_users ?? 0),
-		anonPresent: agg.anon_present === 1 ? 1 : 0,
+		// Deprecated user counters are explicitly unavailable, including during rollout.
+		activeUsers: null,
+		anonPresent: null,
 		byPathKind,
 	};
 }
@@ -972,7 +971,6 @@ export async function loadVisitsList(env: Env, d: CacheDescriptor) {
 		COALESCE(SUM(CASE WHEN bot_class = 'bot_search' THEN count ELSE 0 END), 0) AS bot_search_views,
 		COALESCE(SUM(CASE WHEN bot_class = 'bot_other'  THEN count ELSE 0 END), 0) AS bot_other_views,
 		COALESCE(SUM(CASE WHEN bot_class = 'unknown'    THEN count ELSE 0 END), 0) AS unknown_views,
-		COUNT(DISTINCT CASE WHEN user_id > 0 THEN user_id END) AS unique_users,
 		MIN(first_seen_at) AS first_seen_at,
 		MAX(last_seen_at)  AS last_seen_at
 		FROM analytics_daily_targets
@@ -989,7 +987,6 @@ export async function loadVisitsList(env: Env, d: CacheDescriptor) {
 				bot_search_views: number;
 				bot_other_views: number;
 				unknown_views: number;
-				unique_users: number;
 				first_seen_at: number;
 				last_seen_at: number;
 			}>(),
@@ -1009,7 +1006,7 @@ export async function loadVisitsList(env: Env, d: CacheDescriptor) {
 			botSearchViews: Number(row.bot_search_views ?? 0),
 			botOtherViews: Number(row.bot_other_views ?? 0),
 			unknownViews: Number(row.unknown_views ?? 0),
-			uniqueUsers: Number(row.unique_users ?? 0),
+			uniqueUsers: null,
 			firstSeenAt: Number(row.first_seen_at ?? 0),
 			lastSeenAt: Number(row.last_seen_at ?? 0),
 		})),

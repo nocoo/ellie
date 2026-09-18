@@ -269,7 +269,7 @@ describe("custom display reads", () => {
 		await hot(analytics({ resource: "logins", operation: "kpi", date: DATE }));
 		await hot(analytics({ resource: "visits", operation: "kpi", date: DATE }));
 		const visits = await hot(
-			display({
+			analytics({
 				resource: "visits",
 				operation: "list",
 				date: DATE,

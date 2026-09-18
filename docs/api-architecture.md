@@ -272,3 +272,7 @@ A missing counter is `null`, a stored zero is `0`, and a failed or malformed rea
 `GET /api/admin/kv/metrics?minutes=1440&family=…` reads persisted observations from `kv_cache_metrics_hour`, with a default 24-hour window and a 60-minute minimum. It returns only completed hours, preserving `series[].tsMinute` as the epoch-minute timestamp of each hour's start, plus `intervalMinutes: 60`, `sampling: "best-effort"`, and `source: "application:kv_cache_metrics_hour"`. The page loads the selected tab on demand and never polls automatically. Business cache TTLs remain 60 / 1800 / 86400 seconds; hourly aggregation is a separate policy. Missing observations stay missing, and `coverage=complete` only means the query was not truncated.
 
 Deploy the new Admin first; its totals cards can also read the old response during rollout. Migration `0052` must precede the Worker update. It creates the hourly store without scanning business tables or importing minute history; old minute rows retain their seven-day cleanup. See [cache architecture and budgets](20-worker-kv-reference.md#106-后台按需统计与小时观测v1114).
+
+### v1.11.7 访问统计调整
+
+`GET /api/admin/analytics/today/visits` 和 `/list` 保留 PV、页面排行与机器人分类，展示快照最多延迟 30 分钟。已撤下的访问人数相关字段 `activeUsers`、`anonPresent`、`uniqueUsers` 返回 `null`（未采集），不得解释为零人；登录审计的去重人数不受影响。

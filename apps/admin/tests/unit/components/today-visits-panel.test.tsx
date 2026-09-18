@@ -132,49 +132,20 @@ afterAll(() => {
 });
 
 describe("TodayVisitsPanel — KPI render", () => {
-	it("renders activeUsers+anonPresent under the reviewer-pinned label", async () => {
-		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-			const url = typeof input === "string" ? input : input.toString();
-			if (url.endsWith("/today/visits")) return makeJsonResponse(KPI_PAYLOAD);
-			return makeJsonResponse(LIST_PAYLOAD);
+	it("keeps PV and bot data without claiming visitor counts", async () => {
+		globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			return makeJsonResponse(
+				url.endsWith("/today/visits")
+					? { ...KPI_PAYLOAD, activeUsers: null, anonPresent: null }
+					: LIST_PAYLOAD,
+			);
 		});
-		globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-
 		render(<TodayVisitsPanel />);
-
-		// KPI label is the reviewer-pinned wording.
-		await waitFor(() => {
-			expect(screen.queryByText("活跃用户/访客（含匿名）")).not.toBeNull();
-		});
-
-		// MUST NOT use "独立访客" wording (reviewer pin).
-		expect(screen.queryByText(/独立访客/)).toBeNull();
-
-		// activeUsers (25) + anonPresent (1) → 26.
-		const labelCell = screen.getByText("活跃用户/访客（含匿名）");
-		const cell = labelCell.parentElement;
-		expect(cell?.textContent).toContain("26");
-	});
-
-	it("activeUsers alone when anonPresent=0", async () => {
-		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-			const url = typeof input === "string" ? input : input.toString();
-			if (url.endsWith("/today/visits")) {
-				return makeJsonResponse({ ...KPI_PAYLOAD, activeUsers: 10, anonPresent: 0 });
-			}
-			return makeJsonResponse(LIST_PAYLOAD);
-		});
-		globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-
-		render(<TodayVisitsPanel />);
-
-		await waitFor(() => {
-			expect(screen.queryByText("活跃用户/访客（含匿名）")).not.toBeNull();
-		});
-
-		const labelCell = screen.getByText("活跃用户/访客（含匿名）");
-		const cell = labelCell.parentElement;
-		expect(cell?.textContent).toContain("10");
+		await waitFor(() => expect(screen.queryByText("总浏览")).not.toBeNull());
+		expect(screen.queryByText("活跃用户/访客（含匿名）")).toBeNull();
+		expect(screen.queryByRole("columnheader", { name: "用户", exact: true })).toBeNull();
+		expect(screen.getByText(/数据最多延迟 30 分钟/)).toBeTruthy();
 	});
 });
 

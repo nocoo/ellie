@@ -225,14 +225,14 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/admin/user.list` | `/api/admin/users` | 部分复用 | `admin:entity:list` | T5；全部合法筛选分页与当前在线信息 |
 | `handlers/admin/user.getById` | `/api/admin/users/:id` | 部分复用 | `admin:entity:detail` | T5；展示资料与当前在线信息 |
 | `handlers/admin/statistics.getStatsJob` | `/api/admin/statistics/job/:kind` | 明确例外 | — | T11；当前任务进度属于运行状态 |
-| `handlers/admin/analytics.getOverview` | `/api/admin/analytics/overview` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，明细接口仍为 SHORT |
+| `handlers/admin/analytics.getOverview` | `/api/admin/analytics/overview` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
 | `handlers/admin/analytics.getTrend` | `/api/admin/analytics/trend` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/analytics.getForumDist` | `/api/admin/analytics/forum-dist` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/analytics.getCheckinTrend` | `/api/admin/analytics/checkin` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
-| `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，明细接口仍为 SHORT |
+| `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
 | `handlers/admin/loginHistory.getTodayLoginsList` | `/api/admin/analytics/today/logins/list` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
-| `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，明细接口仍为 SHORT |
-| `handlers/admin/todayVisits.getTodayVisitsList` | `/api/admin/analytics/today/visits/list` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
+| `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
+| `handlers/admin/todayVisits.getTodayVisitsList` | `/api/admin/analytics/today/visits/list` | 整份复用 | `admin:analytics` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
 | `handlers/admin/kv.overview` | `/api/admin/kv/overview` | 整份复用 | `monitor:overview` | T7；有界 metadata 观察，未知和部分覆盖明确显示 |
 | `handlers/admin/kv.listFamily` | `/api/admin/kv/list` | 明确例外 | — | T7；有界 KV metadata 分页，无逐条正文 GET |
 | `handlers/admin/kv.getKey` | `/api/admin/kv/get` | 明确例外 | — | T7；所选条目的实时 KV 诊断，不回源或续期 |
@@ -671,3 +671,5 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 - 空附件沿用 LONG（上传/替换/删除后按附件版本失效）；点评和评分展示改为 MEDIUM，空点评/评分明细不再降为 SHORT。不存在的主体仍短缓存。主题详情不预取全部点评，点击“查看点评”才读取，评分详情继续按展开读取；成功写入即时更新当前页面。
 
 - 精华：首页只读取最近 5 条，不再加载总数/筛选或随机读取 20 条。统计与筛选共用 `digest:stats` 聚合，精华分页和聚合缓存 24 小时；精华变更仍推进 generation，权限仍实时检查。
+
+- 访问统计：按日期、页面和机器人类型聚合，`user_id=0` 为聚合占位，不再代表匿名访客。PV/页面排行/机器人分类保留；页面 UV 与访问活跃人数停止统计和展示，旧 API 字段 `uniqueUsers` / `activeUsers` / `anonPresent` 明确返回 `null`。旧细分数据按原 48 小时保留期自然清理。KPI 与页面明细缓存 30 分钟；采集仍使用原 30 秒最佳努力刷新，不能靠延长 Worker 定时器承诺持久化。

@@ -99,7 +99,7 @@ export interface PageViewSample {
 
 /**
  * Aggregate row drained from the in-isolate bucket. One row per
- * (dateLocal, pathKind, targetId, userId, botClass) tuple — the same
+ * (dateLocal, pathKind, targetId, userId=0, botClass) tuple — the same
  * primary key the `analytics_daily_targets` D1 table uses.
  *
  * This shape is the contract handed to `FlushSink` implementations;

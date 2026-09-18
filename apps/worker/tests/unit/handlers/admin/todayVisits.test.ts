@@ -145,7 +145,7 @@ describe("todayVisits — pure helpers", () => {
 // ─── KPI handler ─────────────────────────────────────────────────
 
 describe("todayVisits — KPI handler", () => {
-	it("returns aggregated counters with activeUsers + anonPresent semantics", async () => {
+	it("returns page counters and explicitly unavailable user counts", async () => {
 		const nowMs = Date.UTC(2026, 0, 1, 4, 0, 0); // 2026-01-01 12:00 Asia/Shanghai
 		vi.setSystemTime(nowMs);
 
@@ -193,8 +193,8 @@ describe("todayVisits — KPI handler", () => {
 		expect(body.data.botOtherViews).toBe(5);
 		expect(body.data.unknownViews).toBe(3);
 		expect(body.data.distinctTargets).toBe(27);
-		expect(body.data.activeUsers).toBe(14);
-		expect(body.data.anonPresent).toBe(1);
+		expect(body.data.activeUsers).toBeNull();
+		expect(body.data.anonPresent).toBeNull();
 		expect(body.data.byPathKind).toEqual([
 			{ pathKind: "thread", views: 60, targets: 18 },
 			{ pathKind: "home", views: 25, targets: 1 },
@@ -215,12 +215,11 @@ describe("todayVisits — KPI handler", () => {
 			ctx,
 		);
 		const aggCalls = db._calls.filter(
-			(c) => c.sql.includes("FROM analytics_daily_targets") && c.sql.includes("active_users"),
+			(c) => c.sql.includes("FROM analytics_daily_targets") && c.sql.includes("distinct_targets"),
 		);
 		expect(aggCalls).toHaveLength(1);
 		const sql = normalizeSql(aggCalls[0].sql);
-		expect(sql).toContain("COUNT(DISTINCT CASE WHEN user_id > 0 THEN user_id END) AS active_users");
-		expect(sql).toContain("MAX(CASE WHEN user_id = 0 THEN 1 ELSE 0 END) AS anon_present");
+		expect(sql).not.toContain("user_id");
 		expect(sql).toContain("WHERE date_local = ?");
 		expect(aggCalls[0].binds).toEqual(["2026-01-01"]);
 
@@ -315,8 +314,8 @@ describe("todayVisits — KPI handler", () => {
 		expect(body.data.botOtherViews).toBe(0);
 		expect(body.data.unknownViews).toBe(0);
 		expect(body.data.distinctTargets).toBe(0);
-		expect(body.data.activeUsers).toBe(0);
-		expect(body.data.anonPresent).toBe(0);
+		expect(body.data.activeUsers).toBeNull();
+		expect(body.data.anonPresent).toBeNull();
 		expect(body.data.byPathKind).toEqual([]);
 	});
 
@@ -331,7 +330,7 @@ describe("todayVisits — KPI handler", () => {
 			env,
 		);
 		const body = (await res.json()) as { data: { anonPresent: number } };
-		expect(body.data.anonPresent).toBe(0);
+		expect(body.data.anonPresent).toBeNull();
 	});
 });
 
@@ -405,7 +404,7 @@ describe("todayVisits — list handler", () => {
 			botSearchViews: 3,
 			botOtherViews: 1,
 			unknownViews: 1,
-			uniqueUsers: 12,
+			uniqueUsers: null,
 			firstSeenAt: 1_700_000_000,
 			lastSeenAt: 1_700_001_000,
 		});
@@ -639,7 +638,7 @@ describe("todayVisits — sparse SQL fallbacks", () => {
 		expect(row.botSearchViews).toBe(0);
 		expect(row.botOtherViews).toBe(0);
 		expect(row.unknownViews).toBe(0);
-		expect(row.uniqueUsers).toBe(0);
+		expect(row.uniqueUsers).toBeNull();
 		expect(row.firstSeenAt).toBe(0);
 		expect(row.lastSeenAt).toBe(0);
 		// resolveLabels: thread subject was null → label coerced to "".

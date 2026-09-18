@@ -1,5 +1,5 @@
 // Admin "today visits" page-view dashboard endpoints (P5).
-// Aggregate KPI + list are SHORT display snapshots. No IP/UA is stored.
+// Aggregate KPI + list are MEDIUM display snapshots. No IP/UA is stored.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { PathKind } from "../../lib/analytics/types";
@@ -69,7 +69,7 @@ async function listHandler(request: Request, env: Env, ctx?: ExecutionContext): 
 	);
 	return jsonNoStoreResponse(
 		await getAdminReport(env, ctx, {
-			family: "admin:display",
+			family: "admin:analytics",
 			scope: "admin",
 			params: {
 				resource: "visits",
