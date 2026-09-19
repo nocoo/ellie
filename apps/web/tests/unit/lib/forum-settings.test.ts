@@ -94,18 +94,21 @@ describe("forum-settings (via lib/forum-cache)", () => {
 		expect(mockGet).toHaveBeenCalledTimes(2);
 	});
 
-	it("caches public forum summaries for one hour and isolates caller mutations", async () => {
+	it.each([
+		[],
+		[{ id: 1, name: "Public", lastThreadId: 0, lastPosterId: 0 }],
+		[{ id: 1, name: "Public", lastThreadId: 42, lastPosterId: 0 }],
+	])("observes a Worker-invalidated summary on the next render: %j", async (updated) => {
 		const { getCachedForumList, getCachedForumAncestors } = await import("@/lib/forum-cache");
-		vi.mocked(forumApi.getAll).mockResolvedValue({ data: [{ id: 1, name: "Original" }] } as never);
-		const first = await getCachedForumList();
-		first[0].name = "Mutated";
-		await vi.advanceTimersByTimeAsync(3_599_999);
-		expect((await getCachedForumList())[0].name).toBe("Original");
-		expect(forumApi.getAll).toHaveBeenCalledTimes(1);
-		await vi.advanceTimersByTimeAsync(1);
+		vi.mocked(forumApi.getAll)
+			.mockResolvedValueOnce({
+				data: [{ id: 1, name: "Public", lastThreadId: 42, lastPosterId: 20 }],
+			} as never)
+			.mockResolvedValue({ data: updated } as never);
 		await getCachedForumList();
+		// React cache is identity here: each call stands for a separate render.
+		expect(await getCachedForumList()).toEqual(updated);
 		expect(forumApi.getAll).toHaveBeenCalledTimes(2);
-		// Authorization context remains request-scoped (React cache is identity here).
 		mockGet.mockResolvedValue({ data: { forum: { id: 1 }, ancestors: [] } });
 		await getCachedForumAncestors(1);
 		await getCachedForumAncestors(1);

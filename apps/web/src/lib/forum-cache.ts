@@ -10,9 +10,9 @@
  * repeated calls with the same arguments and read purpose share a request.
  * Thread metadata uses a separate loader so only the page read counts a view.
  *
- * Public settings and display-only forum summaries also share bounded
- * cross-request snapshots. Content reads and authorization context still
- * reach the Worker on each request; no user/session data is cached here.
+ * Public settings also share a five-minute cross-request snapshot.
+ * Forum summaries remain request-scoped so Worker invalidation of deleted,
+ * restricted or anonymized content is visible on the next render.
  *
  * Enforced by `tests/unit/architecture/no-adhoc-cache.test.ts`.
  */
@@ -40,9 +40,8 @@ import { createTtlCache } from "./ttl-cache";
 
 export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedThreadMetadata = cache(fetchThreadMetadata);
-// Single public snapshot per process. Never use this display data to authorize content.
-const forumSummaries = createTtlCache({ expirationMs: 60 * 60_000, load: fetchForumList });
-export const getCachedForumList = cache(async () => structuredClone(await forumSummaries.get()));
+// The Worker owns summary expiry and mutation invalidation; do not add another TTL here.
+export const getCachedForumList = cache(fetchForumList);
 export const getCachedForumNames = cache(fetchForumNames);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);

@@ -94,7 +94,7 @@ describe("render-pass loader routing", () => {
 		expect(title).toBe("Dev");
 		expect(forums).toEqual([{ id: 7, name: "Dev" }]);
 		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums");
-		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
+		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
 	});
 });
 
