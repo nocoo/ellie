@@ -87,6 +87,24 @@ describe("maintenance middleware", () => {
 		return makeEnv({ DB: db });
 	}
 
+	it("reuses settings for five minutes across request DB wrappers without extending expiry", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			const env = makeNormalEnv();
+			const request = new Request("https://api.example.com/api/v1/forums");
+			const start = Date.now();
+			expect(await checkMaintenance(request, env)).toBeNull();
+			const changed = { ...env, DB: createMockMaintenanceDb({ maintenanceMode: true }) };
+			vi.setSystemTime(start + 299_999);
+			expect(await checkMaintenance(request, changed)).toBeNull();
+			expect(changed.DB.prepare).not.toHaveBeenCalled();
+			vi.setSystemTime(start + 300_000);
+			expect((await checkMaintenance(request, changed))?.status).toBe(503);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	// ─── Bypass paths ────────────────────────────────────────
 
 	describe("bypass paths", () => {

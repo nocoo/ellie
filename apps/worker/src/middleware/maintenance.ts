@@ -4,8 +4,24 @@
 import { UserRole } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { isTokenExpired, verifyJwt } from "../lib/jwt";
-import { getSettingsFresh } from "../lib/settings";
+import { getSettingsFresh, type SettingsMap } from "../lib/settings";
+
 import { errorResponse } from "./error";
+
+const MAINTENANCE_TTL_MS = 5 * 60 * 1000;
+const maintenanceSettings = new WeakMap<KVNamespace, { expiresAt: number; value: SettingsMap }>();
+
+async function getMaintenanceSettings(env: Env): Promise<SettingsMap> {
+	const cached = maintenanceSettings.get(env.KV);
+	if (cached && cached.expiresAt > Date.now()) return cached.value;
+	const value = await getSettingsFresh(env, [
+		"features.access.maintenance_mode",
+		"features.access.maintenance_admin_bypass",
+		"features.access.maintenance_message",
+	]);
+	maintenanceSettings.set(env.KV, { expiresAt: Date.now() + MAINTENANCE_TTL_MS, value });
+	return value;
+}
 
 /** Paths that bypass maintenance mode */
 const BYPASS_PREFIXES = [
@@ -37,11 +53,7 @@ export async function checkMaintenance(
 	}
 
 	// Check maintenance mode setting
-	const current = await getSettingsFresh(env, [
-		"features.access.maintenance_mode",
-		"features.access.maintenance_admin_bypass",
-		"features.access.maintenance_message",
-	]);
+	const current = await getMaintenanceSettings(env);
 	const isMaintenanceMode = current["features.access.maintenance_mode"] === true;
 	if (!isMaintenanceMode) {
 		return null;
