@@ -8,7 +8,7 @@
 import { Mail } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { HeaderTooltip } from "@/components/header-links";
 import { cn } from "@/lib/utils";
 import { fetchUnreadCount } from "@/viewmodels/forum/messages";
@@ -17,9 +17,8 @@ import { fetchUnreadCount } from "@/viewmodels/forum/messages";
 // Refresh interval for polling unread count
 // ---------------------------------------------------------------------------
 
-// 5 minutes — sufficient for sparse-traffic forums; the tab-visibility
-// listener triggers an immediate refresh when the user switches back.
-const POLL_INTERVAL_MS = 300_000;
+// Passive checks are at most once per ten minutes, including tab refocus.
+const POLL_INTERVAL_MS = 600_000;
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -28,62 +27,41 @@ const POLL_INTERVAL_MS = 300_000;
 export function MessageBadgeIcon() {
 	const { data: session, status } = useSession();
 	const [unreadCount, setUnreadCount] = useState(0);
-	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-	// Check if user is logged in with credentials provider
 	const isCredentialsUser = status === "authenticated" && session?.user?.provider === "credentials";
+	const userId = session?.user?.id;
 
-	const loadUnread = useCallback(async () => {
-		try {
-			const count = await fetchUnreadCount();
-			setUnreadCount(count);
-		} catch {
-			// Silently ignore errors
-		}
-	}, []);
-
-	// Poll with visibility awareness: pause when hidden, resume + immediate
-	// refresh when visible again.
 	useEffect(() => {
-		if (!isCredentialsUser) {
-			setUnreadCount(0);
-			return;
-		}
-
-		const startPolling = () => {
-			if (intervalRef.current) return; // already running
-			intervalRef.current = setInterval(loadUnread, POLL_INTERVAL_MS);
-		};
-
-		const stopPolling = () => {
-			if (intervalRef.current) {
-				clearInterval(intervalRef.current);
-				intervalRef.current = null;
+		setUnreadCount(0);
+		if (!isCredentialsUser || !userId) return;
+		let cancelled = false;
+		let lastCheck = -Infinity;
+		let timer: ReturnType<typeof setTimeout>;
+		const check = () => {
+			clearTimeout(timer);
+			if (document.visibilityState !== "visible") return;
+			const remaining = POLL_INTERVAL_MS - (Date.now() - lastCheck);
+			if (remaining > 0) {
+				timer = setTimeout(check, remaining);
+				return;
 			}
+			lastCheck = Date.now();
+			void fetchUnreadCount()
+				.then((count) => {
+					if (!cancelled) setUnreadCount(count);
+				})
+				.catch(() => {
+					/* Retry at the next passive check. */
+				});
+			timer = setTimeout(check, POLL_INTERVAL_MS);
 		};
-
-		const handleVisibility = () => {
-			if (document.visibilityState === "visible") {
-				loadUnread(); // immediate refresh when user switches back
-				startPolling();
-			} else {
-				stopPolling();
-			}
-		};
-
-		// Initial load + start polling (only if tab is visible)
-		loadUnread();
-		if (document.visibilityState === "visible") {
-			startPolling();
-		}
-
-		document.addEventListener("visibilitychange", handleVisibility);
-
+		check();
+		document.addEventListener("visibilitychange", check);
 		return () => {
-			stopPolling();
-			document.removeEventListener("visibilitychange", handleVisibility);
+			cancelled = true;
+			clearTimeout(timer);
+			document.removeEventListener("visibilitychange", check);
 		};
-	}, [isCredentialsUser, loadUnread]);
+	}, [isCredentialsUser, userId]);
 
 	return (
 		<HeaderTooltip label="站内信">
