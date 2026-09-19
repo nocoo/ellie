@@ -292,15 +292,17 @@ function parseCalls(files: string[], layer: "http" | "fast"): L2Call[] {
 				const helper = m[1];
 				const rawPath = m[3];
 				const trailing = m[4] ?? "";
-				let method = HELPER_METHOD[helper];
+				// Only generic fetch helpers accept RequestInit. Fixed-method helpers
+				// must ignore payload fields and adjacent calls containing `method`.
 				const lookahead = [
 					trailing,
 					lines[i + 1] ?? "",
 					lines[i + 2] ?? "",
 					lines[i + 3] ?? "",
 				].join(" ");
-				const ov = lookahead.match(methodOverrideRe);
-				if (ov) method = ov[1];
+				const method = ["workerFetch", "workerAuthFetch", "adminFetch"].includes(helper)
+					? (lookahead.match(methodOverrideRe)?.[1] ?? HELPER_METHOD[helper])
+					: HELPER_METHOD[helper];
 				const templatePath = templatize(rawPath);
 				calls.push({
 					helper: `${helper}@${layer}`,
@@ -318,15 +320,13 @@ function parseCalls(files: string[], layer: "http" | "fast"): L2Call[] {
 			while (rm) {
 				const rawPath = rm[2];
 				const trailing = rm[3] ?? "";
-				let method = "GET";
 				const lookahead = [
 					trailing,
 					lines[i + 1] ?? "",
 					lines[i + 2] ?? "",
 					lines[i + 3] ?? "",
 				].join(" ");
-				const ov = lookahead.match(methodOverrideRe);
-				if (ov) method = ov[1];
+				const method = lookahead.match(methodOverrideRe)?.[1] ?? "GET";
 				const templatePath = templatize(rawPath);
 				calls.push({
 					helper: `fetch@${layer}`,

@@ -38,6 +38,68 @@ afterEach(() => {
 });
 
 describe("L2 audit CLI keeps route coverage strict", () => {
+	test("keeps a fixed GET separate from the adjacent raw POST", () => {
+		write(
+			"apps/worker/src/index.ts",
+			`${FORUM_ROUTE}\nif (path === "/api/admin/visits" && request.method === "GET") {}\nif (path === "/api/v1/analytics" && request.method === "POST") {}`,
+		);
+		write(
+			"tests/integration/http/analytics.test.ts",
+			[
+				'await adminGet("/api/admin/visits");',
+				'await fetch("http://localhost:17031/api/v1/analytics", {',
+				'  method: "POST",',
+				"});",
+			].join("\n"),
+		);
+		const result = audit("--strict-coverage");
+		expect(result.status).toBe(0);
+		expect(result.stdout).toMatch(/Routes hit\s+: 3/);
+		expect(result.stdout).toMatch(/Unmatched calls\s+: 0/);
+	});
+
+	test.each([
+		["workerPost", "POST"],
+		["workerPatch", "PATCH"],
+		["workerDelete", "DELETE"],
+		["adminGet", "GET"],
+		["adminPost", "POST"],
+		["adminPatch", "PATCH"],
+		["adminPut", "PUT"],
+		["adminDelete", "DELETE"],
+	])("%s ignores method fields in payloads", (helper, method) => {
+		write(
+			"apps/worker/src/index.ts",
+			`if (path === "/api/v1/forums" && request.method === "${method}") {}`,
+		);
+		write(
+			"tests/integration/fast/routes.fast.test.ts",
+			`${helper}("/api/v1/forums", { method: "OPTIONS" });`,
+		);
+		const result = audit("--strict-coverage");
+		expect(result.status).toBe(0);
+		expect(result.stdout).toMatch(/Routes hit\s+: 1/);
+		expect(result.stdout).toMatch(/Unmatched calls\s+: 0/);
+	});
+
+	test.each(["workerFetch", "workerAuthFetch", "adminFetch"])(
+		"%s keeps explicit RequestInit method overrides",
+		(helper) => {
+			write(
+				"apps/worker/src/index.ts",
+				'if (path === "/api/v1/forums" && request.method === "PATCH") {}',
+			);
+			write(
+				"tests/integration/fast/routes.fast.test.ts",
+				`${helper}(env, "/api/v1/forums", {\n  method: "PATCH"\n});`,
+			);
+			const result = audit("--strict-coverage");
+			expect(result.status).toBe(0);
+			expect(result.stdout).toMatch(/Routes hit\s+: 1/);
+			expect(result.stdout).toMatch(/Unmatched calls\s+: 0/);
+		},
+	);
+
 	test("reports the two known negative auth probes separately in stdout and the generated matrix", () => {
 		write("tests/integration/fast/api-key.fast.test.ts", `${AUTH_PROBE}\n${AUTH_PROBE}`);
 		const result = audit("--strict-coverage", "--write");

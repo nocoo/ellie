@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 - Admin explains that temporary visits reset when the object is recycled, restarted or redeployed. Each daily instance holds up to 20,000 page targets and reports discarded samples when full. Page labels still resolve for the returned report page; UV remains unavailable.
 - Includes the dependency updates merged today, Rust public-profile/health response compatibility fixes, and migration 0045 coverage in the Bun test lane.
 
+### Fixed
+
+- Admin cache management recognizes and filters the HOUR tier consistently.
+- Deferred post comments load the complete collection, including more than 100 comments, while preserving current access checks and numeric API limits.
+- Legacy visit report caches can be inspected or deleted but cannot be rebuilt into persistent KV snapshots.
+- Strict L2 route auditing respects fixed-method helpers, including adjacent requests and payloads containing a `method` field.
+
 ### Deployment
 
 - No D1 schema migration is introduced. The Worker registers the `TodayVisitsMemory` Durable Object namespace and `TODAY_VISITS` binding; application code never writes Durable Object storage. Historical PV rows remain untouched.
