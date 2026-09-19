@@ -269,7 +269,10 @@ function readListMetadata(entry: { metadata?: unknown }): {
 		};
 	}
 	const o = meta as Record<string, unknown>;
-	const tier = o.tier === "SHORT" || o.tier === "MEDIUM" || o.tier === "LONG" ? o.tier : null;
+	const tier =
+		o.tier === "SHORT" || o.tier === "MEDIUM" || o.tier === "HOUR" || o.tier === "LONG"
+			? o.tier
+			: null;
 	const sizeBytes = typeof o.sizeBytes === "number" ? o.sizeBytes : null;
 	const contentUtf8Bytes = typeof o.contentUtf8Bytes === "number" ? o.contentUtf8Bytes : sizeBytes;
 	return {

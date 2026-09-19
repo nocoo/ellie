@@ -68,14 +68,14 @@ describe("GET threads typeId filter", () => {
 		const body = await response.json();
 		expect(body.meta).toMatchObject({ total: 32, page: 2, limit: 25, pages: 2 });
 		expect(body.data.map((row: { id: number }) => row.id)).toEqual([9, 8, 7, 6, 5, 4, 1]);
-		const snapshots = f.snapshots("thread:list");
+		const snapshots = [...f.snapshots("thread:list"), ...f.snapshots("thread:count")];
 		expect(snapshots).toHaveLength(2);
 		expect(snapshots.find((entry) => entry.params.kind === "local")).toMatchObject({
 			tier: "SHORT",
 			params: { kind: "local", forumId: 1, typeId: 11, limit: 25, offset: 25 },
 		});
 		expect(snapshots.find((entry) => entry.params.kind === "count")).toMatchObject({
-			tier: "SHORT",
+			tier: "HOUR",
 			params: { kind: "count", forumId: 1, typeId: 11 },
 			data: { total: 32 },
 		});

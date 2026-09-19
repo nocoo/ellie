@@ -64,7 +64,7 @@ describe("cache architecture boundaries", () => {
 			for (const family of families) {
 				const spec = KV_REGISTRY.find((entry) => entry.family === family);
 				expect(spec?.status, `${target}: ${family}`).toBe("shipped");
-				expect(spec?.tier, `${target}: ${family}`).toMatch(/^(SHORT|MEDIUM|LONG)$/);
+				expect(spec?.tier, `${target}: ${family}`).toMatch(/^(SHORT|MEDIUM|HOUR|LONG)$/);
 			}
 		}
 	});
@@ -82,11 +82,11 @@ describe("cache architecture boundaries", () => {
 		expect(violations, "Business cache I/O must use the shared module").toEqual([]);
 	});
 
-	it("enrolls every shipped business family with one of the three tiers and a pure loader", () => {
+	it("enrolls every shipped business family with a declared tier and a pure loader", () => {
 		for (const spec of KV_REGISTRY.filter(
 			(entry) => entry.status === "shipped" && entry.category === "cache",
 		)) {
-			expect(spec.tier, spec.family).toMatch(/^(SHORT|MEDIUM|LONG)$/);
+			expect(spec.tier, spec.family).toMatch(/^(SHORT|MEDIUM|HOUR|LONG)$/);
 			expect(spec.loader, spec.family).toBeTruthy();
 		}
 	});

@@ -2,6 +2,7 @@
 export const CACHE_TTL_SECONDS = {
 	SHORT: 60,
 	MEDIUM: 1800,
+	HOUR: 3600,
 	LONG: 86400,
 } as const;
 
@@ -26,7 +27,7 @@ export interface CacheEnvelope<T = unknown> extends CacheDescriptor {
 
 export function getCacheTTL(tier: CacheTier): number {
 	if (!Object.hasOwn(CACHE_TTL_SECONDS, tier)) {
-		throw new RangeError("Business cache tier must be SHORT, MEDIUM, or LONG");
+		throw new RangeError("Business cache tier must be SHORT, MEDIUM, HOUR, or LONG");
 	}
 	return CACHE_TTL_SECONDS[tier];
 }

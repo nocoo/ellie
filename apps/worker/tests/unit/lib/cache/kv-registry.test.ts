@@ -155,8 +155,8 @@ describe("kv-registry — declarative invariants", () => {
 		// Explicit pin so a constant change forces a registry update —
 		// the admin "when does it expire" answer would otherwise lie.
 		const expected: Record<string, number | "sticky" | "variable"> = {
-			"forum:tree:v2": 86_400, // FORUM_TREE_TTL
-			"forum:summary:v2": 1800, // Forum display snapshot, 30 minutes
+			"forum:tree:v2": 3_600, // FORUM_TREE_TTL
+			"forum:summary:v2": 3600, // Forum display snapshot, 30 minutes
 			"forum:meta:v2": 86_400, // FORUM_META_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
 			"user:mini:v1": 86_400, // USER_CACHE_TTL

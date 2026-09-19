@@ -69,7 +69,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			cursor: null,
 		});
 		const page = f.snapshots("thread:list").find((entry) => entry.params.kind === "local");
-		const count = f.snapshots("thread:list").find((entry) => entry.params.kind === "count");
+		const count = f.snapshots("thread:count").find((entry) => entry.params.kind === "count");
 		expect(page).toBeDefined();
 		expect(count).toBeDefined();
 		const countBefore = f.values.get(count.key);
@@ -78,8 +78,11 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		for (const entry of [page, count]) {
 			const inspected = await inspectCacheEntry(f.env, entry.key);
 			expect(inspected.valid).toBe(true);
-			expect(inspected.envelope).toMatchObject({ tier: "SHORT", scope: "internal" });
-			expect(entry.expiresAt - entry.loadedAt).toBe(60_000);
+			expect(inspected.envelope).toMatchObject({
+				tier: entry === count ? "HOUR" : "SHORT",
+				scope: "internal",
+			});
+			expect(entry.expiresAt - entry.loadedAt).toBe(entry === count ? 3_600_000 : 60_000);
 		}
 		expect(f.calls).toHaveLength(0);
 
@@ -100,8 +103,8 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		f.calls.length = 0;
 		const rebuiltCount = await rebuildCacheEntry(f.env, undefined, count.key);
 		expect(rebuiltCount.data).toEqual({ total: 2 });
-		expect(rebuiltCount.tier).toBe("SHORT");
-		expect(rebuiltCount.expiresAt - rebuiltCount.loadedAt).toBe(60_000);
+		expect(rebuiltCount.tier).toBe("HOUR");
+		expect(rebuiltCount.expiresAt - rebuiltCount.loadedAt).toBe(3_600_000);
 		expect(f.calls).toHaveLength(1);
 		expect(f.calls[0].sql).toMatch(/COUNT\s*\(/i);
 		expect(f.values.get(page.key)).toBe(pageAfter);
@@ -138,7 +141,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		// Rebuild forum tree
 		f.sqlite.prepare("UPDATE forums SET name = 'Public Forum Updated' WHERE id = 1").run();
 		const rebuiltTree = await rebuildCacheEntry(f.env, undefined, treeKey);
-		expect(rebuiltTree.tier).toBe("LONG");
+		expect(rebuiltTree.tier).toBe("HOUR");
 		expect(rebuiltTree.scope).toBe("role:anon");
 		expect(
 			(rebuiltTree.data as { forums: { name: string }[] }).forums.some(
@@ -160,7 +163,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		expect(inspectedSummary.valid).toBe(true);
 
 		const rebuiltSummary = await rebuildCacheEntry(f.env, undefined, summaryKey);
-		expect(rebuiltSummary.tier).toBe("MEDIUM");
+		expect(rebuiltSummary.tier).toBe("HOUR");
 		expect(rebuiltSummary.scope).toBe("role:anon");
 	});
 

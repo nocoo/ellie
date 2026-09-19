@@ -95,7 +95,10 @@ function followsCursor(row: ThreadListMember, cursor: ThreadCursor): boolean {
 /** Validate persisted parameters again before a management rebuild. */
 export function validateThreadListDescriptor(descriptor: CacheDescriptor): void {
 	const p = descriptor.params;
-	if (descriptor.family !== "thread:list" || descriptor.scope !== "internal") {
+	if (
+		descriptor.family !== (p.kind === "count" ? "thread:count" : "thread:list") ||
+		descriptor.scope !== "internal"
+	) {
 		throw new Error("Unsupported thread-list cache descriptor");
 	}
 	if (typeof p !== "object" || p === null || Array.isArray(p))
@@ -261,7 +264,7 @@ async function readSnapshot(
 	});
 	return cacheGetOrSet(env, ctx, key, () => rebuildThreadListCache(env, ctx, descriptor), {
 		...descriptor,
-		tier: "SHORT",
+		tier: descriptor.params.kind === "count" ? "HOUR" : "SHORT",
 		validator: (value): value is ThreadListCacheData => isThreadListCacheData(descriptor, value),
 	});
 }
@@ -325,7 +328,7 @@ export async function getThreadListPage(
 		query.includeTotal === false
 			? null
 			: read({
-					family: "thread:list",
+					family: "thread:count",
 					scope: "internal",
 					params: { kind: "count", forumId, typeId },
 				}),

@@ -59,9 +59,12 @@ describe("unified cache time and origin contract", () => {
 			const { env, ctx, kv, store } = jsonKV();
 			const settings = {
 				...options,
-				family: { SHORT: "thread:stats", MEDIUM: "thread:entity", LONG: "post:attachments" }[
-					tier as CacheTier
-				],
+				family: {
+					SHORT: "thread:stats",
+					MEDIUM: "thread:entity",
+					HOUR: "thread:count",
+					LONG: "post:attachments",
+				}[tier as CacheTier],
 				tier: tier as CacheTier,
 			};
 			const load = vi.fn(async () => ({ id: 7 }));

@@ -631,7 +631,7 @@ function hasExactParams(params: CacheDescriptor["params"], fields: string[]): bo
 }
 
 export function validateThreadCacheDescriptor(descriptor: CacheDescriptor): void {
-	if (descriptor.family === "thread:list") {
+	if (descriptor.family === "thread:list" || descriptor.family === "thread:count") {
 		validateThreadListDescriptor(descriptor);
 		return;
 	}
@@ -684,6 +684,7 @@ export function isThreadCacheData(descriptor: CacheDescriptor, value: unknown): 
 	}
 	const p = descriptor.params;
 	switch (descriptor.family) {
+		case "thread:count":
 		case "thread:list":
 			return isThreadListCacheData(descriptor, value);
 		case "thread:entity":
@@ -765,7 +766,8 @@ export function isThreadCacheData(descriptor: CacheDescriptor, value: unknown): 
 /** Same KV-only key derivation for live reads and management version checks. */
 export async function readingCacheKey(env: Env, descriptor: CacheDescriptor): Promise<string> {
 	validateThreadCacheDescriptor(descriptor);
-	if (descriptor.family === "thread:list") return threadListCacheKey(env, descriptor);
+	if (descriptor.family === "thread:list" || descriptor.family === "thread:count")
+		return threadListCacheKey(env, descriptor);
 	const { family, params, scope } = descriptor;
 	const gens: Record<string, string> = {};
 	if (family === "thread:entity" || family === "thread:stats") {
@@ -792,7 +794,8 @@ export async function rebuildThreadCache(
 	ctx: ExecutionContext | undefined,
 	descriptor: CacheDescriptor,
 ): Promise<unknown> {
-	if (descriptor.family === "thread:list") return rebuildThreadListCache(env, ctx, descriptor);
+	if (descriptor.family === "thread:list" || descriptor.family === "thread:count")
+		return rebuildThreadListCache(env, ctx, descriptor);
 	validateThreadCacheDescriptor(descriptor);
 	const p = descriptor.params;
 	const postId = p.postId as number;

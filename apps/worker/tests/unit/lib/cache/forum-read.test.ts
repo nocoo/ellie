@@ -6,6 +6,7 @@ import {
 	loadForumSnapshot,
 	rebuildForumCache,
 } from "../../../../src/lib/cache/forum-read";
+import { bumpForumSummaryGen } from "../../../../src/lib/cache/invalidate";
 import { KV_REGISTRY } from "../../../../src/lib/cache/kv-registry";
 import { inspectCacheEntry, rebuildCacheEntry } from "../../../../src/lib/cache/manage";
 import { readingFixture } from "./thread-cache-fixture";
@@ -34,7 +35,7 @@ describe("forum origin budgets and pure rebuild", () => {
 		expect(batches.map((call) => call.params.length)).toEqual([80, 80, 80, 10]);
 		f.calls.length = 0;
 		await getForumTreeV2(f.env, f.ctx, "anon");
-		expect(f.calls).toHaveLength(1);
+		expect(f.calls).toHaveLength(0);
 	});
 	it("compares disabled and enabled cache on the same dataset and sequence", async () => {
 		f.thread(10);
@@ -53,7 +54,7 @@ describe("forum origin budgets and pure rebuild", () => {
 		expect(await getForums(f.env, undefined, "anon")).toEqual(first);
 		f.calls.length = 0;
 		for (let i = 0; i < 20; i++) expect(await getForums(f.env, undefined, "anon")).toEqual(first);
-		expect(f.calls).toHaveLength(40);
+		expect(f.calls).toHaveLength(0);
 		expect(baseline).toBeGreaterThan(2);
 		expect(f.calls.every((call) => call.mode === "all")).toBe(true);
 	});
@@ -72,7 +73,7 @@ describe("forum origin budgets and pure rebuild", () => {
 		const entry = await rebuildCacheEntry(f.env, f.ctx, key);
 		expect((entry.data as any).forums[0].name).toBe("Changed");
 		expect((entry.data as any).forums.map((row: any) => row.id)).toEqual([1]);
-		expect(entry.tier).toBe("LONG");
+		expect(entry.tier).toBe("HOUR");
 		expect(f.calls.every((call) => call.mode === "all")).toBe(true);
 	});
 	it.each([
@@ -168,6 +169,7 @@ describe("forum origin budgets and pure rebuild", () => {
 
 		// Now remove/hide the cached newest thread (302) by setting sticky = -1 (or moving forum_id)
 		f.sqlite.prepare("UPDATE threads SET sticky = -1 WHERE id = 302").run();
+		await bumpForumSummaryGen(f.env);
 
 		// Add another candidate with same timestamp as 301 but lower id, to verify tie-breaking on fallback
 		f.thread(300, { forum_id: 1, last_post_at: 1700000000, sticky: 0 });

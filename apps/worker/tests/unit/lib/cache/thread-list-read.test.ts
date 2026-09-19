@@ -29,6 +29,24 @@ function query(overrides: Partial<ThreadListQuery> = {}): ThreadListQuery {
 }
 
 describe("all thread-list memberships", () => {
+	it("refreshes page membership each minute but shares exact counts for a fixed hour", async () => {
+		const start = Date.now();
+		await getThreadListPage(f.env, undefined, query());
+		const count = f.snapshots("thread:count")[0];
+		expect(count.expiresAt - count.loadedAt).toBe(3_600_000);
+		f.thread(999, { last_post_at: 9999 });
+		vi.setSystemTime(start + 60_000);
+		f.calls.length = 0;
+		const updated = await getThreadListPage(f.env, undefined, query());
+		expect(updated.items.some((item) => item.id === 999)).toBe(true);
+		expect(updated.total).toBe(183);
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
+		vi.setSystemTime(start + 3_599_999);
+		await getThreadListPage(f.env, undefined, query({ limit: 50, page: 2 }));
+		expect(f.snapshots("thread:count")[0]).toEqual(count);
+		vi.setSystemTime(start + 3_600_000);
+		expect((await getThreadListPage(f.env, undefined, query())).total).toBe(184);
+	});
 	it.each([1, 2, 17, 20, 25, 50, 99, 100])(
 		"caches first/deep pages at legal limit %i with original ordering",
 		async (limit) => {
@@ -106,7 +124,7 @@ describe("all thread-list memberships", () => {
 		expect(f.snapshots("thread:list")).toEqual(original);
 		vi.setSystemTime(Date.now() + 1);
 		await getThreadListPage(f.env, undefined, query());
-		expect(f.calls).toHaveLength(3); // globals + local membership + local count
+		expect(f.calls).toHaveLength(2); // globals + local membership; count remains cached
 	});
 
 	it("rebuild rejects injected parameters and has no KV I/O", async () => {
@@ -159,7 +177,7 @@ describe("all thread-list memberships", () => {
 
 	it("count descriptors require exact safe forum/type parameters and count-only data", async () => {
 		const descriptor = {
-			family: "thread:list",
+			family: "thread:count",
 			scope: "internal",
 			params: { kind: "count", forumId: 1, typeId: null },
 		};

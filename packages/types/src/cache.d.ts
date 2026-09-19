@@ -2,6 +2,7 @@
 export declare const CACHE_TTL_SECONDS: {
     readonly SHORT: 60;
     readonly MEDIUM: 1800;
+    readonly HOUR: 3600;
     readonly LONG: 86400;
 };
 export type CacheTier = keyof typeof CACHE_TTL_SECONDS;

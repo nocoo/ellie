@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAncestors, getById, list } from "../../../src/handlers/forum";
 import { forumCacheKey } from "../../../src/lib/cache/forum-read";
-import { bumpThreadMetaGen, invalidateUserCaches } from "../../../src/lib/cache/invalidate";
+import {
+	bumpForumSummaryGen,
+	bumpForumTreeGen,
+	bumpThreadMetaGen,
+	invalidateUserCaches,
+} from "../../../src/lib/cache/invalidate";
 import { createJwtForRole } from "../../helpers";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
@@ -30,11 +35,12 @@ describe("forum structural/counter composition", () => {
 				: await getById(req, f.env, f.ctx);
 		return { response, body: (await response.json()) as any };
 	}
-	it("name-only reads omit dynamic summaries and still enforce current visibility", async () => {
+	it("name-only reads omit dynamic summaries and honor visibility mutation generations", async () => {
 		const names = await request("/api/v1/forums?view=names");
 		expect(names.body.data).toEqual([{ id: 1, name: "Public" }]);
 		expect(f.calls.some(({ sql }) => /FROM threads|COUNT/.test(sql))).toBe(false);
 		f.sqlite.exec("UPDATE forums SET visibility='staff' WHERE id=1");
+		await bumpForumTreeGen(f.env);
 		expect((await request("/api/v1/forums?view=names")).body.data).toEqual([]);
 	});
 	it("ancestor reads check only the current chain without loading latest threads", async () => {
@@ -49,7 +55,7 @@ describe("forum structural/counter composition", () => {
 		expect((await request("/api/v1/forums/1/ancestors")).body.data.ancestors).toEqual([]);
 	});
 
-	it("uses display snapshots and only current forum/thread gates on hot list", async () => {
+	it("uses display snapshots and reuse hourly forum/thread gates on hot list", async () => {
 		const first = await request();
 		expect(first.response.status).toBe(200);
 		expect(first.body.data.map((row: any) => row.id)).toEqual([1]);
@@ -63,7 +69,7 @@ describe("forum structural/counter composition", () => {
 		f.calls.length = 0;
 		const puts = vi.mocked(f.env.KV.put).mock.calls.length;
 		expect((await request()).body.data).toEqual(first.body.data);
-		expect(f.calls).toHaveLength(2);
+		expect(f.calls).toHaveLength(0);
 		expect(f.calls.every((call) => !/COUNT|\bsubject\b|FROM users/.test(call.sql))).toBe(true);
 		expect(vi.mocked(f.env.KV.put).mock.calls).toHaveLength(puts);
 		expect(
@@ -73,7 +79,7 @@ describe("forum structural/counter composition", () => {
 				.some((key) => /^(thread:|user:mini:20)/.test(key)),
 		).toBe(false);
 	});
-	it("keeps structural content LONG and copied display summaries MEDIUM", async () => {
+	it("expires structure, summaries and gates after one hour", async () => {
 		await request();
 		const tree = JSON.parse(
 			f.values.get(
@@ -93,8 +99,8 @@ describe("forum structural/counter composition", () => {
 				}),
 			) ?? expect.fail("Missing forum snapshot"),
 		);
-		expect(tree.expiresAt - tree.loadedAt).toBe(86400000);
-		expect(summary.expiresAt - summary.loadedAt).toBe(1800000);
+		expect(tree.expiresAt - tree.loadedAt).toBe(3600000);
+		expect(summary.expiresAt - summary.loadedAt).toBe(3600000);
 		expect(tree.data.forums[0].moderatorList).toEqual([]);
 		expect(summary.data.aggregates[1]).toMatchObject({
 			lastThreadSubject: "latest tied ID",
@@ -102,7 +108,7 @@ describe("forum structural/counter composition", () => {
 			lastPosterAvatar: "bob.png",
 		});
 		f.thread(12, { last_post_at: 300 });
-		vi.setSystemTime(Date.now() + 1799999);
+		vi.setSystemTime(Date.now() + 3599999);
 		expect((await request()).body.data[0].lastThreadId).toBe(11);
 		vi.setSystemTime(Date.now() + 1);
 		expect((await request()).body.data[0].lastThreadId).toBe(12);
@@ -116,7 +122,7 @@ describe("forum structural/counter composition", () => {
 					}),
 				) ?? expect.fail("Missing forum snapshot"),
 			).loadedAt,
-		).toBe(tree.loadedAt);
+		).toBe(tree.loadedAt + 3600000);
 	});
 	it("last-poster changes wait for summary expiry while moderator names remain current", async () => {
 		await request();
@@ -126,7 +132,7 @@ describe("forum structural/counter composition", () => {
 		await invalidateUserCaches(f.env, 20);
 		await invalidateUserCaches(f.env, 30);
 		expect((await request()).body.data[0].lastPoster).toBe("bob");
-		vi.setSystemTime(Date.now() + 1800000);
+		vi.setSystemTime(Date.now() + 3600000);
 		expect((await request()).body.data[0]).toMatchObject({
 			lastPoster: "changed",
 			lastPosterAvatarPath: "changed.png",
@@ -138,7 +144,7 @@ describe("forum structural/counter composition", () => {
 		f.sqlite.exec("UPDATE threads SET subject='edited' WHERE id=11");
 		await bumpThreadMetaGen(f.env, 11);
 		expect((await request()).body.data[0].lastThreadSubject).toBe("latest tied ID");
-		vi.setSystemTime(Date.now() + 1800000);
+		vi.setSystemTime(Date.now() + 3600000);
 		expect((await request()).body.data[0].lastThreadSubject).toBe("edited");
 	});
 	it.each([
@@ -148,6 +154,7 @@ describe("forum structural/counter composition", () => {
 	])("reselects a visible last thread after current removal: %s", async (sql) => {
 		await request();
 		f.sqlite.exec(sql);
+		await bumpForumSummaryGen(f.env);
 		const row = (await request()).body.data[0];
 		expect(row.lastThreadId).toBe(10);
 		expect(row.lastPoster).toBe("alice");
@@ -155,6 +162,7 @@ describe("forum structural/counter composition", () => {
 	it("clears last-thread fields when all candidates become hidden", async () => {
 		await request();
 		f.sqlite.exec("UPDATE threads SET sticky=-1");
+		await bumpForumSummaryGen(f.env);
 		expect((await request()).body.data[0]).toMatchObject({
 			lastThreadId: 0,
 			lastThreadSubject: "",
@@ -162,9 +170,10 @@ describe("forum structural/counter composition", () => {
 			lastPosterAvatar: "",
 		});
 	});
-	it("masks a newly anonymous last reply without waiting for cache propagation", async () => {
+	it("masks a newly anonymous last reply after the mutation generation advances", async () => {
 		await request();
 		f.sqlite.exec("UPDATE threads SET anonymous_last_poster=1 WHERE id=11");
+		await bumpForumSummaryGen(f.env);
 		expect((await request()).body.data[0]).toMatchObject({
 			lastPosterId: 0,
 			lastPoster: "匿名",
@@ -175,9 +184,11 @@ describe("forum structural/counter composition", () => {
 	it("current visibility and status hide previously cached forum payloads", async () => {
 		await request();
 		f.sqlite.exec("UPDATE forums SET visibility='staff' WHERE id=1");
+		await bumpForumTreeGen(f.env);
 		expect((await request()).body.data).toEqual([]);
 		expect((await request("/api/v1/forums/1")).response.status).toBe(403);
 		f.sqlite.exec("UPDATE forums SET status=0 WHERE id=1");
+		await bumpForumTreeGen(f.env);
 		expect((await request("/api/v1/forums/1")).response.status).toBe(404);
 	});
 	it.each([
@@ -196,7 +207,7 @@ describe("forum structural/counter composition", () => {
 		await request();
 		f.calls.length = 0;
 		expect((await request("/api/v1/forums/1")).body.data.id).toBe(1);
-		expect(f.calls).toHaveLength(2);
+		expect(f.calls).toHaveLength(0);
 		const puts = vi.mocked(f.env.KV.put).mock.calls.length;
 		expect((await request("/api/v1/forums/999")).response.status).toBe(404);
 		expect(vi.mocked(f.env.KV.put).mock.calls).toHaveLength(puts);

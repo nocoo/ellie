@@ -1,5 +1,4 @@
-// Structural LONG snapshots and MEDIUM display summaries compose at response time.
-// Current forum/thread gates run even on hot data; no combined snapshot renews TTL.
+// Hourly display snapshots and gates; mutations still invalidate by generation.
 import {
 	CACHE_TTL_SECONDS,
 	type CacheDescriptor,
@@ -10,7 +9,7 @@ import {
 import type { Env } from "../env";
 import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds, toForum } from "../mappers";
 import { getUserProfiles } from "../user-cache";
-import { getGen } from "./epoch";
+import { getGen, UNAVAILABLE_CACHE_GENERATION } from "./epoch";
 import {
 	bucketToVisibilityContext,
 	buildForumSummaryPayload,
@@ -31,8 +30,8 @@ import {
 } from "./keys";
 import { cacheGetOrSet } from "./wrap";
 
-export const FORUM_TREE_TTL = CACHE_TTL_SECONDS.LONG;
-export const FORUM_SUMMARY_TTL = CACHE_TTL_SECONDS.MEDIUM;
+export const FORUM_TREE_TTL = CACHE_TTL_SECONDS.HOUR;
+export const FORUM_SUMMARY_TTL = CACHE_TTL_SECONDS.HOUR;
 export interface ForumSnapshotRow extends Forum {
 	moderatorIds: string;
 }
@@ -48,6 +47,22 @@ interface CurrentForum {
 	thread_types_required: number;
 	thread_types_listable: number;
 	thread_types_prefix: number;
+}
+interface GateSnapshot<T> {
+	version: string;
+	expiresAt: number;
+	rows: Map<number, T>;
+}
+// ponytail: per-isolate hints avoid hot SQL without another KV payload family.
+// Cold isolates reload; authoritative content/write authorization stays separate.
+const forumGates = new WeakMap<KVNamespace, GateSnapshot<CurrentForum>>();
+const latestGates = new WeakMap<KVNamespace, Map<string, GateSnapshot<Candidate>>>();
+
+function canCacheGates(env: Env, version: string, family: string): boolean {
+	return (
+		version !== UNAVAILABLE_CACHE_GENERATION &&
+		!(env.CACHE_DISABLED_FAMILIES ?? "").split(",").some((value) => value.trim() === family)
+	);
 }
 function snapshot(row: Record<string, unknown>): ForumSnapshotRow {
 	return {
@@ -122,6 +137,11 @@ export async function currentForums(
 	env: Env,
 	ancestorOf?: number,
 ): Promise<Map<number, CurrentForum>> {
+	const version = ancestorOf === undefined ? await getGen(env, forumTreeGenKey()) : null;
+	const cacheable = version !== null && canCacheGates(env, version, "forum:tree:v2");
+	const cached = forumGates.get(env.KV);
+	if (cacheable && cached?.version === version && cached.expiresAt > Date.now())
+		return new Map(cached.rows);
 	// UNION terminates malformed cycles. Single-forum context only checks its chain.
 	const chain =
 		ancestorOf === undefined
@@ -136,7 +156,10 @@ export async function currentForums(
 		.bind(...(ancestorOf === undefined ? [] : [ancestorOf]))
 		.all<CurrentForum>();
 	if (!result.success) throw new Error("Current forum permissions could not be loaded");
-	return new Map(result.results.map((row) => [row.id, row]));
+	const rows = new Map(result.results.map((row) => [row.id, row]));
+	if (cacheable)
+		forumGates.set(env.KV, { version, expiresAt: Date.now() + FORUM_TREE_TTL * 1000, rows });
+	return new Map(rows);
 }
 function visible(row: CurrentForum | undefined, bucket: VisibilityBucket): row is CurrentForum {
 	return (
@@ -209,7 +232,7 @@ export async function getForumTreeV2(
 		async () => buildForumTreePayload(await loadForumStructure(env), bucket),
 		{
 			...d,
-			tier: "LONG",
+			tier: "HOUR",
 			validator: (value): value is ForumTreePayloadV2 => isForumCacheData(d, value),
 		},
 	);
@@ -248,6 +271,14 @@ interface Candidate {
 	anonymous_last_poster: number;
 }
 async function currentCandidates(env: Env, ids: number[]): Promise<Map<number, Candidate>> {
+	if (!ids.length) return new Map();
+	const version = await getGen(env, forumSummaryGenKey());
+	const cacheable = canCacheGates(env, version, "forum:summary:v2");
+	const key = [...ids].sort((a, b) => a - b).join(",");
+	let snapshots = latestGates.get(env.KV);
+	const cached = snapshots?.get(key);
+	if (cacheable && cached?.version === version && cached.expiresAt > Date.now())
+		return new Map(cached.rows);
 	const rows = new Map<number, Candidate>();
 	for (let start = 0; start < ids.length; start += 100) {
 		const part = ids.slice(start, start + 100);
@@ -259,7 +290,15 @@ async function currentCandidates(env: Env, ids: number[]): Promise<Map<number, C
 		if (!result.success) throw new Error("Current last-thread permissions could not be loaded");
 		for (const row of result.results) rows.set(row.id, row);
 	}
-	return rows;
+	if (cacheable) {
+		if (!snapshots) {
+			snapshots = new Map();
+			latestGates.set(env.KV, snapshots);
+		}
+		if (snapshots.size >= 32) snapshots.clear();
+		snapshots.set(key, { version, expiresAt: Date.now() + FORUM_SUMMARY_TTL * 1000, rows });
+	}
+	return new Map(rows);
 }
 async function replaceMissingCandidates(
 	env: Env,
@@ -322,7 +361,7 @@ export async function getForumSummaryV2(
 		async () => buildForumSummaryPayload(await loadSnapshot(), bucket),
 		{
 			...d,
-			tier: "MEDIUM",
+			tier: "HOUR",
 			validator: (value): value is ForumSummaryPayloadV2 => isForumCacheData(d, value),
 		},
 	);

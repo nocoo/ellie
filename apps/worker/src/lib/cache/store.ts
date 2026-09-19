@@ -75,7 +75,13 @@ export function isCacheEnvelope(value: unknown): value is CacheEnvelope {
 	) {
 		return false;
 	}
-	if (entry.tier !== "SHORT" && entry.tier !== "MEDIUM" && entry.tier !== "LONG") return false;
+	if (
+		entry.tier !== "SHORT" &&
+		entry.tier !== "MEDIUM" &&
+		entry.tier !== "HOUR" &&
+		entry.tier !== "LONG"
+	)
+		return false;
 	return entry.expiresAt <= entry.loadedAt + getCacheTTL(entry.tier) * 1000;
 }
 
