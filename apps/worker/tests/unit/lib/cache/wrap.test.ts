@@ -20,6 +20,9 @@ const options = {
 	params: { id: 1 },
 };
 const now = 1_000_000;
+async function drain(ctx: ExecutionContext) {
+	await Promise.all(vi.mocked(ctx.waitUntil).mock.calls.map(([work]) => work));
+}
 
 function jsonKV() {
 	const store = new Map<string, string>();
@@ -67,6 +70,7 @@ describe("unified cache time and origin contract", () => {
 			};
 			const load = vi.fn(async () => ({ id: 7 }));
 			expect(await cacheGetOrSet(env, ctx, "k", load, settings)).toEqual({ id: 7 });
+			await drain(ctx);
 			const initial = store.get("k");
 			const parsed = JSON.parse(initial ?? expect.fail("Missing cache snapshot"));
 			expect(parsed).toMatchObject({ loadedAt: now, expiresAt: now + seconds * 1000, tier });
@@ -79,6 +83,7 @@ describe("unified cache time and origin contract", () => {
 			await cacheGetOrSet(env, ctx, "k", load, settings);
 			expect(load).toHaveBeenCalledTimes(1);
 			expect(store.get("k")).toBe(initial);
+			await drain(ctx);
 			vi.setSystemTime(now + seconds * 1000);
 			await cacheGetOrSet(env, ctx, "k", load, settings);
 			expect(load).toHaveBeenCalledTimes(2);
@@ -110,6 +115,7 @@ describe("unified cache time and origin contract", () => {
 		]) {
 			store.set("k", typeof value === "string" ? value : JSON.stringify(value));
 			expect(await cacheGetOrSet(env, ctx, "k", load, options)).toBe(7);
+			await drain(ctx);
 		}
 		expect(load).toHaveBeenCalledTimes(4);
 	});
@@ -170,6 +176,47 @@ describe("unified cache time and origin contract", () => {
 		values[0].id = 99;
 		expect(values[1].id).toBe(1);
 	});
+	it("returns before a slow fill, coalesces readers, and fences deletion until the fill settles", async () => {
+		const { env, ctx, kv, store } = jsonKV();
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		vi.mocked(kv.put).mockImplementation(async (key, value) => {
+			await gate;
+			store.set(key, value as string);
+		});
+		const load = vi.fn(async () => ({ id: 1 }));
+		expect(await cacheGetOrSet(env, ctx, "k", load, options)).toEqual({ id: 1 });
+		expect(store.has("k")).toBe(false);
+		expect(await cacheGetOrSet(env, ctx, "k", load, options)).toEqual({ id: 1 });
+		expect(load).toHaveBeenCalledTimes(1);
+		const deletion = cacheDelete(env, "k", options.family);
+		for (let i = 0; i < 8; i++) await Promise.resolve();
+		expect(kv.delete).not.toHaveBeenCalled();
+		release();
+		expect(await deletion).toBe(true);
+		expect(store.has("k")).toBe(false);
+	});
+
+	it("keeps a stalled background fill fenced after its timeout", async () => {
+		const { env, ctx, kv } = jsonKV();
+		let release!: () => void;
+		vi.mocked(kv.put).mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					release = resolve;
+				}),
+		);
+		expect(await cacheGetOrSet(env, ctx, "k", async () => 1, options)).toBe(1);
+		await vi.advanceTimersByTimeAsync(20_000);
+		expect(await cacheDelete(env, "k", options.family)).toBe(false);
+		expect(kv.delete).not.toHaveBeenCalled();
+		release();
+		await Promise.all(vi.mocked(ctx.waitUntil).mock.calls.map(([work]) => work));
+		expect(await cacheDelete(env, "k", options.family)).toBe(true);
+	});
+
 	it("different scopes and bindings never share loaders or expose cached values", async () => {
 		const first = jsonKV();
 		const second = jsonKV();
@@ -300,7 +347,7 @@ describe("unified cache time and origin contract", () => {
 		await vi.advanceTimersByTimeAsync(20_000);
 		await check;
 		finish(1);
-		for (let i = 0; i < 4; i++) await Promise.resolve();
+		await drain(ctx);
 		expect(kv.put).not.toHaveBeenCalled();
 		expect(await cacheGetOrSet(env, undefined, "k", async () => 2, options)).toBe(2);
 	});

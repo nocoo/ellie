@@ -26,6 +26,7 @@ const originWindows = new WeakMap<KVNamespace, { startedAt: number; count: numbe
 
 interface PendingLoad {
 	promise: Promise<unknown>;
+	value: Promise<unknown>;
 	work: Promise<unknown>;
 	cancelled: boolean;
 	settled: boolean;
@@ -116,27 +117,34 @@ export async function cacheGetOrSet<T>(
 	ctx: ExecutionContext | undefined,
 	key: string,
 	loader: () => Promise<T>,
-	options: CacheGetOrSetOptions<T>,
+	options: CacheGetOrSetOptions<T> & { knownMiss?: boolean },
 ): Promise<T> {
 	validateCacheOptions(options);
 	const pending = pendingLoads(env);
 	const taskKey = `${options.source ?? "business"}:${options.family}:${options.tier}:${options.scope ?? "public"}:${key}`;
 	const existing = pending.get(taskKey);
 	if (existing) {
-		const value = await existing.promise;
+		// Keep the fill alive in every joining request as well as its origin.
+		if (ctx) ctx.waitUntil(existing.work.catch(() => undefined));
+		const value = await (ctx && !existing.cancelled ? existing.value : existing.promise);
 		return structuredClone(value) as T;
 	}
 	if (pending.size >= MAX_PENDING) throw new CacheLoadLimitError();
 	const task: PendingLoad = {
 		promise: Promise.resolve(),
+		value: Promise.resolve(),
 		work: Promise.resolve(),
 		cancelled: writeHolds.get(env.KV)?.has(key) ?? false,
 		settled: false,
 	};
 	let timer: ReturnType<typeof setTimeout> | undefined;
-	const work = async (): Promise<T> => {
+	let shouldFill = false;
+	const read = async (): Promise<T> => {
 		try {
-			const value = bypassesCache(env, key, options.family) ? null : await env.KV.get(key, "json");
+			const value =
+				options.knownMiss || bypassesCache(env, key, options.family)
+					? null
+					: await env.KV.get(key, "json");
 			if (acceptsCacheValue(value, options)) {
 				return value.data;
 			}
@@ -149,7 +157,7 @@ export async function cacheGetOrSet<T>(
 		if (fresh === undefined || (options.validator && !options.validator(fresh))) {
 			throw new TypeError("Cache loader returned an invalid value");
 		}
-		if (!task.cancelled) await cacheWrite(env, ctx, key, fresh, options);
+		shouldFill = true;
 		return fresh;
 	};
 	const timeout = new Promise<never>((_, reject) => {
@@ -158,23 +166,26 @@ export async function cacheGetOrSet<T>(
 			reject(new CacheLoadLimitError("Cache origin load timed out; retry later"));
 		}, LOAD_TIMEOUT_MS);
 	});
-	task.work = work().finally(() => {
-		task.settled = true;
-		clearTimeout(timer);
-		if (pending.get(taskKey) === task) pending.delete(taskKey);
-	});
+	const value = read();
+	task.work = value
+		.then(async (fresh) => {
+			if (shouldFill && !task.cancelled) await cacheWrite(env, ctx, key, fresh, options);
+			return fresh;
+		})
+		.finally(() => {
+			task.settled = true;
+			clearTimeout(timer);
+			if (pending.get(taskKey) === task) pending.delete(taskKey);
+		});
 	// A timeout releases the caller, never the origin's permit. A SQL/KV
 	// operation that is still running cannot be counted as completed work.
 	task.promise = Promise.race([task.work, timeout]);
+	task.value = ctx ? Promise.race([value, timeout]) : task.promise;
 	pending.set(taskKey, task);
-	if (ctx)
-		ctx.waitUntil(
-			task.work.then(
-				() => undefined,
-				() => undefined,
-			),
-		);
-	return structuredClone(await task.promise) as T;
+	// The response may finish before KV.put, but mutations must still wait for
+	// the full work/timeout barrier. Never release its pending slot early.
+	if (ctx) ctx.waitUntil(Promise.allSettled([task.work, task.promise]));
+	return structuredClone(await task.value) as T;
 }
 
 /** Fence local outstanding fills before an explicit management mutation. */

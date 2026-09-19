@@ -23,7 +23,7 @@ afterEach(() => {
 function metaGenGets(): string[] {
 	return vi
 		.mocked(f.env.KV.get)
-		.mock.calls.map(([key]) => key)
+		.mock.calls.flatMap(([key]) => key)
 		.filter((key): key is string => typeof key === "string" && key.startsWith("thread:meta:gen:"));
 }
 
@@ -31,6 +31,9 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 	it("reads each thread meta gen once for entity and stats together", async () => {
 		await getThreadRows(f.env, undefined, [1, 2, 1]);
 		expect(metaGenGets().sort()).toEqual(["thread:meta:gen:1", "thread:meta:gen:2"]);
+		// Generations, entities and stats: three bulk reads, no per-entity miss re-read.
+		expect(f.env.KV.get).toHaveBeenCalledTimes(3);
+		expect(vi.mocked(f.env.KV.get).mock.calls.every(([key]) => Array.isArray(key))).toBe(true);
 		for (const family of ["thread:entity", "thread:stats"] as const) {
 			for (const snapshot of f.snapshots(family)) {
 				expect(await readingCacheKey(f.env, snapshot)).toBe(snapshot.key);
@@ -64,7 +67,7 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 		f.sqlite.exec("UPDATE threads SET subject = 'Edited' WHERE id = 1");
 		const original = vi.mocked(f.env.KV.get).getMockImplementation();
 		vi.mocked(f.env.KV.get).mockImplementation(async (key, type) => {
-			if (typeof key === "string" && key.startsWith("thread:meta:gen:")) {
+			if (Array.isArray(key) && key.some((item) => item.startsWith("thread:meta:gen:"))) {
 				throw new Error("KV unavailable");
 			}
 			return original?.(key, type);
@@ -75,14 +78,14 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 		expect(f.snapshots("thread:entity")[0].data).toMatchObject({ subject: "Thread 1" });
 	});
 
-	it("fetches each meta gen once in 100-sized waves for more than 100 ids", async () => {
+	it("reads 101 generations in two bounded bulk calls", async () => {
 		for (let id = 3; id <= 101; id++) f.thread(id);
 		const ids = Array.from({ length: 101 }, (_, i) => i + 1);
 		const original = vi.mocked(f.env.KV.get).getMockImplementation();
 		let inflight = 0;
 		let peak = 0;
 		vi.mocked(f.env.KV.get).mockImplementation(async (key, type) => {
-			if (typeof key === "string" && key.startsWith("thread:meta:gen:")) {
+			if (Array.isArray(key) && key.some((item) => item.startsWith("thread:meta:gen:"))) {
 				inflight += 1;
 				peak = Math.max(peak, inflight);
 				try {
@@ -98,7 +101,13 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 		expect(gens).toHaveLength(101);
 		expect(new Set(gens).size).toBe(101);
 		expect(peak).toBeLessThanOrEqual(100);
-		expect(peak).toBe(100);
+		expect(peak).toBe(1);
+		expect(
+			vi
+				.mocked(f.env.KV.get)
+				.mock.calls.filter(([key]) => Array.isArray(key) && key[0]?.startsWith("thread:meta:gen:"))
+				.map(([key]) => key.length),
+		).toEqual([100, 1]);
 	});
 
 	it("a paused old load cannot fill the new thread meta generation", async () => {

@@ -86,6 +86,7 @@ describe("public-stats-read cache loader", () => {
 		expect(res2.todayPosts).toBe(1); // Cached value
 		expect(f.calls.length).toBe(callsBefore);
 
+		await Promise.all(vi.mocked(f.ctx.waitUntil).mock.calls.map(([work]) => work));
 		// Advance time past SHORT tier (60s)
 		vi.advanceTimersByTime(61_000);
 

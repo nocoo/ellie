@@ -15,7 +15,7 @@ import {
 	canViewModeratedThread,
 	STICKY_MODERATED,
 } from "../visibility";
-import { getGen } from "./epoch";
+import { getGen, getGens } from "./epoch";
 import {
 	dataCacheKey,
 	postAttachmentsGenKey,
@@ -149,13 +149,14 @@ async function readEntities<T>(
 				}
 				const value = await cacheGetOrSet(
 					env,
-					ctx,
+					// Drain earlier batches before admitting more background fills.
+					start + size >= unique.length ? ctx : undefined,
 					entry.key,
 					async () => {
 						loading ??= options.load(missing.map((item) => item.id));
 						return (await loading).get(entry.id) ?? options.empty();
 					},
-					entry.options,
+					{ ...entry.options, knownMiss: true },
 				);
 				result.set(entry.id, value);
 			}),
@@ -211,13 +212,8 @@ export async function loadPostEntities(
 
 async function threadMetaGens(env: Env, ids: readonly number[]): Promise<Map<number, string>> {
 	const unique = uniqueIds(ids);
-	const gens = new Map<number, string>();
-	for (let start = 0; start < unique.length; start += BATCH_SIZE) {
-		const batch = unique.slice(start, start + BATCH_SIZE);
-		const tokens = await Promise.all(batch.map((id) => getGen(env, threadMetaGenKey(id))));
-		for (const [index, id] of batch.entries()) gens.set(id, tokens[index] as string);
-	}
-	return gens;
+	const tokens = await getGens(env, unique.map(threadMetaGenKey));
+	return new Map(unique.map((id) => [id, tokens.get(threadMetaGenKey(id)) as string]));
 }
 
 async function threadResourceCacheKey(

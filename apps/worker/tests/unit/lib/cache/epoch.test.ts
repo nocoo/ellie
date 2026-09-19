@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bumpGen, getGen } from "../../../../src/lib/cache/epoch";
+import { bumpGen, getGen, getGens } from "../../../../src/lib/cache/epoch";
 import { createMockKV, makeEnv } from "../../../helpers";
 
 afterEach(() => vi.restoreAllMocks());
@@ -38,5 +38,33 @@ describe("resource generations", () => {
 		vi.mocked(env.KV.put).mockRejectedValue(new Error("429"));
 		await expect(bumpGen(env, "k")).rejects.toThrow("429");
 		expect(await getGen(env, "k")).toBe("old");
+	});
+});
+
+describe("bulk resource generations", () => {
+	it("preserves tokens, missing versions and deduplication across bounded batches", async () => {
+		const env = makeEnv({ KV: createMockKV({ k0: "edited" }) });
+		const keys = Array.from({ length: 101 }, (_, id) => `k${id}`);
+		const result = await getGens(env, [...keys, "k0"]);
+		expect(result.size).toBe(101);
+		expect(result.get("k0")).toBe("edited");
+		expect(result.get("k100")).toBe("0");
+		expect(vi.mocked(env.KV.get).mock.calls.map(([batch]) => batch.length)).toEqual([100, 1]);
+		expect(env.KV.put).not.toHaveBeenCalled();
+	});
+
+	it("bypasses every version in a failed or malformed batch, and does no I/O for no keys", async () => {
+		const env = makeEnv();
+		expect(await getGens(env, [])).toEqual(new Map());
+		expect(env.KV.get).not.toHaveBeenCalled();
+		vi.mocked(env.KV.get).mockRejectedValueOnce(new Error("unavailable"));
+		expect(await getGens(env, ["a", "b"])).toEqual(
+			new Map([
+				["a", "!unavailable"],
+				["b", "!unavailable"],
+			]),
+		);
+		vi.mocked(env.KV.get).mockResolvedValueOnce(null);
+		expect(await getGens(env, ["a"])).toEqual(new Map([["a", "!unavailable"]]));
 	});
 });

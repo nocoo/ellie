@@ -347,7 +347,8 @@ async function getUserParts<T>(
 			missing.slice(offset, offset + 100).map(async (entry) => {
 				const value = await cacheGetOrSet(
 					env,
-					ctx,
+					// Drain earlier batches so background fills cannot exhaust the pending budget.
+					offset + 100 >= missing.length ? ctx : undefined,
 					entry.key,
 					async () => {
 						load ??= loader(missing.map((item) => item.id));
