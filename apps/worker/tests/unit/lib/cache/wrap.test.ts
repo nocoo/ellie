@@ -217,6 +217,102 @@ describe("unified cache time and origin contract", () => {
 		expect(await cacheDelete(env, "k", options.family)).toBe(true);
 	});
 
+	it("bounds waiters behind fills and rechecks KV after waiting on a known miss", async () => {
+		const { env, ctx, kv, store } = jsonKV();
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		vi.mocked(kv.put).mockImplementation(async (key, value) => {
+			await gate;
+			store.set(key, value as string);
+		});
+		await Promise.all(
+			Array.from({ length: 256 }, (_, id) =>
+				cacheGetOrSet(env, ctx, `fill-${id}`, async () => id, options),
+			),
+		);
+		const origin = vi.fn(async () => -1);
+		const waiting = Array.from({ length: 256 }, (_, id) =>
+			cacheGetOrSet(env, ctx, `next-${id}`, origin, { ...options, knownMiss: true }),
+		);
+		await expect(cacheGetOrSet(env, ctx, "overflow", origin, options)).rejects.toBeInstanceOf(
+			CacheLoadLimitError,
+		);
+		expect(origin).not.toHaveBeenCalled();
+		// Another request may populate the previously missing key while we wait.
+		for (let id = 0; id < 256; id++)
+			store.set(`next-${id}`, JSON.stringify(createCacheEnvelope(id, options)));
+		release();
+		expect(await Promise.all(waiting)).toEqual(Array.from({ length: 256 }, (_, id) => id));
+		expect(origin).not.toHaveBeenCalled();
+		await drain(ctx);
+	});
+
+	it("a mutation during admission waiting still fences the subsequent fill", async () => {
+		const { env, ctx, kv, store } = jsonKV();
+		let releaseFills!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			releaseFills = resolve;
+		});
+		vi.mocked(kv.put).mockImplementation(async (key, value) => {
+			await gate;
+			store.set(key, value as string);
+		});
+		await Promise.all(
+			Array.from({ length: 256 }, (_, id) =>
+				cacheGetOrSet(env, ctx, `fill-${id}`, async () => id, options),
+			),
+		);
+		const queued = cacheGetOrSet(env, ctx, "mutated", async () => "current", {
+			...options,
+			knownMiss: true,
+		});
+		let releaseDelete!: () => void;
+		const deletionGate = new Promise<void>((resolve) => {
+			releaseDelete = resolve;
+		});
+		vi.mocked(kv.delete).mockImplementation(async (key) => {
+			await deletionGate;
+			store.delete(key);
+		});
+		const deletion = cacheDelete(env, "mutated", options.family);
+		releaseFills();
+		expect(await queued).toBe("current");
+		await drain(ctx);
+		expect(store.has("mutated")).toBe(false);
+		releaseDelete();
+		expect(await deletion).toBe(true);
+	});
+
+	it("times out admission waiters without freeing stalled fill permits", async () => {
+		const { env, ctx, kv } = jsonKV();
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		vi.mocked(kv.put).mockImplementation(() => gate);
+		await Promise.all(
+			Array.from({ length: 256 }, (_, id) =>
+				cacheGetOrSet(env, ctx, `fill-${id}`, async () => id, options),
+			),
+		);
+		const origin = vi.fn(async () => 1);
+		const check = expect(
+			cacheGetOrSet(env, ctx, "waiting", origin, options),
+		).rejects.toBeInstanceOf(CacheLoadLimitError);
+		await vi.advanceTimersByTimeAsync(20_000);
+		await check;
+		await expect(cacheGetOrSet(env, ctx, "still-full", origin, options)).rejects.toBeInstanceOf(
+			CacheLoadLimitError,
+		);
+		expect(origin).not.toHaveBeenCalled();
+		release();
+		await drain(ctx);
+		expect(await cacheGetOrSet(env, ctx, "recovered", origin, options)).toBe(1);
+		await drain(ctx);
+	});
+
 	it("different scopes and bindings never share loaders or expose cached values", async () => {
 		const first = jsonKV();
 		const second = jsonKV();

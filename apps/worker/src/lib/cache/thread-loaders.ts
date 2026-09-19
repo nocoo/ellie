@@ -149,8 +149,7 @@ async function readEntities<T>(
 				}
 				const value = await cacheGetOrSet(
 					env,
-					// Drain earlier batches before admitting more background fills.
-					start + size >= unique.length ? ctx : undefined,
+					ctx,
 					entry.key,
 					async () => {
 						loading ??= options.load(missing.map((item) => item.id));

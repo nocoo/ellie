@@ -1,5 +1,6 @@
 import type { CacheDescriptor } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { list } from "../../../../src/handlers/thread";
 import { bumpThreadMetaGen } from "../../../../src/lib/cache/invalidate";
 import { getThreadRows, readingCacheKey } from "../../../../src/lib/cache/thread-loaders";
 import { deferred, readingFixture } from "./thread-cache-fixture";
@@ -108,6 +109,34 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 				.mock.calls.filter(([key]) => Array.isArray(key) && key[0]?.startsWith("thread:meta:gen:"))
 				.map(([key]) => key.length),
 		).toEqual([100, 1]);
+	});
+
+	it("a cold 100-thread request waits for slow fills before admitting author reads", async () => {
+		for (let id = 1; id <= 100; id++) {
+			f.insert("users", { id: id + 1000, username: `author${id}` });
+			if (id > 2) f.thread(id);
+			f.sqlite.prepare("UPDATE threads SET author_id = ? WHERE id = ?").run(id + 1000, id);
+		}
+		const gate = deferred();
+		f.state.writeGate = gate.promise;
+		let settled = false;
+		const request = list(
+			new Request("http://localhost/api/v1/threads?forumId=1&page=1&limit=100"),
+			f.env,
+			f.ctx,
+		).finally(() => {
+			settled = true;
+		});
+		try {
+			await vi.waitFor(() => expect(f.env.KV.put).toHaveBeenCalledTimes(256));
+			expect(settled).toBe(false);
+		} finally {
+			gate.resolve();
+		}
+		const response = await request;
+		expect(response.status).toBe(200);
+		expect(((await response.json()) as { data: unknown[] }).data).toHaveLength(100);
+		await Promise.all(f.ctx._waitUntilPromises);
 	});
 
 	it("a paused old load cannot fill the new thread meta generation", async () => {

@@ -20,6 +20,7 @@ export {
 
 const MAX_PENDING = 256;
 const LOAD_TIMEOUT_MS = 20_000;
+const waitingByNamespace = new WeakMap<KVNamespace, number>();
 const ORIGIN_WINDOW_MS = 60_000;
 const MAX_ORIGIN_LOADS_PER_WINDOW = 8192;
 const originWindows = new WeakMap<KVNamespace, { startedAt: number; count: number }>();
@@ -30,6 +31,7 @@ interface PendingLoad {
 	work: Promise<unknown>;
 	cancelled: boolean;
 	settled: boolean;
+	filling: boolean;
 }
 
 function admitOriginLoad(env: Env): void {
@@ -129,13 +131,30 @@ export async function cacheGetOrSet<T>(
 		const value = await (ctx && !existing.cancelled ? existing.value : existing.promise);
 		return structuredClone(value) as T;
 	}
-	if (pending.size >= MAX_PENDING) throw new CacheLoadLimitError();
+	if (pending.size >= MAX_PENDING) {
+		// Background fills must finish before admitting the next stage of a wide
+		// read (for example, thread rows followed by their authors). Never queue
+		// behind unfinished origins or timed-out work, and bound the waiters too.
+		const fills = [...pending.values()].filter((task) => task.filling && !task.cancelled);
+		const waiting = waitingByNamespace.get(env.KV) ?? 0;
+		if (!fills.length || waiting >= MAX_PENDING) throw new CacheLoadLimitError();
+		waitingByNamespace.set(env.KV, waiting + 1);
+		try {
+			await Promise.race(fills.map((task) => task.promise));
+		} finally {
+			waitingByNamespace.set(env.KV, (waitingByNamespace.get(env.KV) ?? 1) - 1);
+		}
+		// A fill or mutation may have completed while waiting. Recheck both the
+		// shared task and KV instead of reusing an earlier bulk miss.
+		return cacheGetOrSet(env, ctx, key, loader, { ...options, knownMiss: false });
+	}
 	const task: PendingLoad = {
 		promise: Promise.resolve(),
 		value: Promise.resolve(),
 		work: Promise.resolve(),
 		cancelled: writeHolds.get(env.KV)?.has(key) ?? false,
 		settled: false,
+		filling: false,
 	};
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let shouldFill = false;
@@ -169,7 +188,10 @@ export async function cacheGetOrSet<T>(
 	const value = read();
 	task.work = value
 		.then(async (fresh) => {
-			if (shouldFill && !task.cancelled) await cacheWrite(env, ctx, key, fresh, options);
+			if (shouldFill && !task.cancelled) {
+				task.filling = true;
+				await cacheWrite(env, ctx, key, fresh, options);
+			}
 			return fresh;
 		})
 		.finally(() => {
