@@ -60,6 +60,64 @@ afterEach(() => {
 });
 
 describe("manage-dispatch — static manager key/load/validator dispatch per loader group", () => {
+	it.each(["kpi", "list"])(
+		"allows inspecting/deleting legacy visits %s but never rebuilds it into KV",
+		async (operation) => {
+			const descriptor: CacheDescriptor = {
+				family: "admin:analytics",
+				scope: "admin",
+				params: {
+					resource: "visits",
+					operation,
+					date: "2023-11-15",
+					...(operation === "list" ? { pathKind: null, page: 1, limit: 20 } : {}),
+				},
+			};
+			const legacyData =
+				operation === "kpi"
+					? {
+							now: 1_700_000_000,
+							dateLocal: "2023-11-15",
+							totalViews: 12,
+							humanViews: 12,
+							botSearchViews: 0,
+							botOtherViews: 0,
+							unknownViews: 0,
+							distinctTargets: 1,
+							activeUsers: 2,
+							anonPresent: 0,
+							byPathKind: [],
+						}
+					: { rows: [], page: 1, limit: 20, total: 0 };
+			const key = await adminReportCacheKey(f.env, descriptor);
+			const stored = JSON.stringify(
+				createCacheEnvelope(legacyData, { ...descriptor, tier: "MEDIUM" }),
+			);
+			f.values.set(key, stored);
+			const actorLookup = vi.fn(() => {
+				throw new Error("Rebuild must not read the visits actor");
+			});
+			f.env.TODAY_VISITS = {
+				getByName: actorLookup,
+			} as unknown as typeof f.env.TODAY_VISITS;
+			expect(await inspectCacheEntry(f.env, key)).toMatchObject({
+				found: true,
+				envelope: { data: legacyData },
+			});
+			await expect(rebuildCacheEntry(f.env, undefined, key)).rejects.toMatchObject({
+				code: "LOAD_FAILED",
+				stage: "load",
+			});
+			expect(f.values.get(key)).toBe(stored);
+			expect(f.env.KV.put).not.toHaveBeenCalled();
+			expect(actorLookup).not.toHaveBeenCalled();
+			expect(f.calls).toHaveLength(0);
+			await deleteCacheEntry(f.env, key);
+			expect(f.values.has(key)).toBe(false);
+			expect(f.env.KV.put).not.toHaveBeenCalled();
+		},
+	);
+
 	it("inspects, rebuilds and deletes thread-list counts independently of page snapshots", async () => {
 		await getThreadListPage(f.env, undefined, {
 			forumId: 1,

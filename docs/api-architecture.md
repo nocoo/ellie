@@ -277,6 +277,8 @@ A missing counter is `null`, a stored zero is `0`, and a failed or malformed rea
 
 Deploy the new Admin first; its totals cards can also read the old response during rollout. Migration `0052` must precede the Worker update. It creates the hourly store without scanning business tables or importing minute history; old minute rows retain their seven-day cleanup. See [cache architecture and budgets](20-worker-kv-reference.md#106-后台按需统计与小时观测v1114).
 
-### v1.11.7 访问统计调整
+### v1.12.0 访问统计调整
 
 `GET /api/admin/analytics/today/visits` 和 `/list` 保留 PV、页面排行与机器人分类，改为读取当日共享内存；采集约 30 秒合并一次，实例回收、重启或部署后清零，不再写入 D1 或持久化报表快照。已撤下的访问人数相关字段 `activeUsers`、`anonPresent`、`uniqueUsers` 返回 `null`（未采集），不得解释为零人；登录审计的去重人数不受影响。
+
+后台 KV 管理可查看、删除部署前遗留的访问统计缓存，但拒绝重建 visits KPI 和页面排行快照，避免将共享内存统计重新持久化。其他统计的缓存管理不变。

@@ -548,6 +548,9 @@ export async function rebuildAdminReportCache(
 	_ctx: ExecutionContext | undefined,
 	descriptor: CacheDescriptor,
 ): Promise<unknown> {
+	validateAdminReportDescriptor(descriptor);
+	if (descriptor.params.resource === "visits")
+		throw new TypeError("Memory-only visits cannot be rebuilt into persistent cache");
 	return loadAdminReport(env, descriptor);
 }
 
