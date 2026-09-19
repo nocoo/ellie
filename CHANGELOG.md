@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-09-20
+
+### Changed
+
+- Private-message badges check every ten minutes while visible, sharing the deadline and request across page navigation. Opening the mailbox and explicit message actions keep their normal refresh behavior.
+- Username prefix search uses a compatible NOCASE index and caches both matches and empty results for one hour. Current user-status checks remain authoritative.
+- Known post and message IDs use primary-key seeks, retaining thread, visibility, ownership and deletion checks. Date-filtered admin lists, filtered digest pages and forum categories use suitable indexes without changing ordering or cursors.
+- Generic admin list totals cache by entity and filters for one hour across pages, limits and sorts. Records retain their one-minute cache and admin mutations invalidate both layers.
+- Admin user search supports literal username prefixes, exact normalized email and explicit UID. Author names resolve exactly to user IDs; title/body substring searches require an indexed forum, thread, author or date scope. Same-IP administration uses nonempty partial indexes.
+
+### Deployment
+
+- Apply D1 migrations 0053 and 0054 before deploying the Worker. They add five read-path indexes and run bounded `PRAGMA optimize` to refresh planner statistics.
+- Web, Admin, Worker and Rust package versions are synchronized to v1.13.1.
+
 ## [1.13.0] - 2026-09-19
 
 ### Changed
