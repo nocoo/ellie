@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-19
+
+### Changed
+
+- Exact forum thread totals and page counts cache for one hour, independently of the existing one-minute thread lists. Existing forum/type generation invalidation still applies.
+- Forum structures, display summaries and full-forum visibility/latest-thread checks cache for one hour. In-memory checks reuse the KV binding across request-specific D1 wrappers; direct content and write authorization keep their current checks.
+- Maintenance settings cache for five minutes without extending their lifetime on hits. Administrator identity and status checks remain current.
+- Today's page views aggregate across Worker instances in a shared, memory-only Durable Object, retaining the existing roughly 30-second collection batches. Reports read current memory instead of persisted snapshots; the PV D1 writer and cleanup job are retired.
+- Admin explains that temporary visits reset when the object is recycled, restarted or redeployed. Each daily instance holds up to 20,000 page targets and reports discarded samples when full. Page labels still resolve for the returned report page; UV remains unavailable.
+
+### Deployment
+
+- No D1 schema migration is introduced. The Worker registers the `TodayVisitsMemory` Durable Object namespace and `TODAY_VISITS` binding; application code never writes Durable Object storage. Historical PV rows remain untouched.
+- Web, Admin, Worker and Rust package versions are synchronized to v1.12.0.
+
 ## [1.11.7] - 2026-09-19
 
 ### Changed
