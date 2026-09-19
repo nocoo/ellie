@@ -1,6 +1,6 @@
 "use client";
 
-/** Page totals and bot classification; 30-minute snapshots without per-user tracking. */
+/** Volatile page totals and bot classification without per-user tracking. */
 
 import { formatNumber } from "@ellie/shared";
 import { Button, LayerCard, SegmentControl, TablePager } from "@nocoo/basalt";
@@ -174,8 +174,13 @@ export function TodayVisitsPanel() {
 					今日访问
 				</h2>
 				<p className="text-xs text-basalt-muted-foreground">
-					数据最多延迟 30 分钟；仅统计浏览量，不统计访问人数。
+					仅保留本次运行期间的访问数据，服务重启后清零；采集约延迟 30 秒，不统计访问人数。
 				</p>
+				{(kpi?.droppedViews ?? 0) > 0 && (
+					<p className="text-xs text-basalt-muted-foreground">
+						统计容量已满，部分新页面访问未计入。
+					</p>
+				)}
 				{kpiError && (
 					<p role="alert" className="text-sm text-basalt-destructive">
 						KPI 加载失败：{kpiError}

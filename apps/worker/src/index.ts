@@ -1,8 +1,7 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 // 85 endpoints: 20 public + 5 moderation + 60 admin
-import { cleanupAnalyticsDailyTargets } from "./lib/analytics/cleanup";
 import { setFlushSink } from "./lib/analytics/collect";
-import { d1FlushSink } from "./lib/analytics/flushSink-d1";
+import { memoryFlushSink } from "./lib/analytics/flushSink-memory";
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import { cleanupKvCacheMetricsMinute } from "./lib/cache/cleanup";
 import { observeD1 } from "./lib/cache/d1-observe";
@@ -20,15 +19,8 @@ import { errorResponse } from "./middleware/error";
 import { checkMaintenance } from "./middleware/maintenance";
 import { trackOnline } from "./middleware/online";
 
-// ─── Boot-time wiring ─────────────────────────────────────────────
-//
-// The analytics page-view collector is shape-only (an in-memory bucket
-// Map keyed by the rollup PK) — it does not know how to persist. We
-// bind the D1 sink here at module load so the very first sample of the
-// worker lifetime can drain into `analytics_daily_targets` on the next
-// `scheduleFlush(env, ctx)` tick. Tests swap this back to the noop sink
-// via `resetFlushSink()` in their own setup.
-setFlushSink(d1FlushSink);
+// Visits are ephemeral and shared across isolates by the site/day memory actor.
+setFlushSink(memoryFlushSink);
 
 // ─── Router ───────────────────────────────────────────────────────
 
@@ -909,14 +901,6 @@ export default {
 						// Surface to the platform log — cron retention failure is
 						// operational, never user-visible.
 						console.warn("[cron] cleanupLoginHistory failed", err);
-					}),
-				);
-				ctx.waitUntil(
-					cleanupAnalyticsDailyTargets(env).catch((err) => {
-						// P5: prune `analytics_daily_targets` rows whose
-						// `last_seen_at` is older than DEFAULT_RETENTION_HOURS (48h).
-						// Same operational-only failure contract.
-						console.warn("[cron] cleanupAnalyticsDailyTargets failed", err);
 					}),
 				);
 				ctx.waitUntil(

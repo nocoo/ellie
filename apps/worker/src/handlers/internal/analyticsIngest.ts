@@ -32,7 +32,7 @@
 //      are read from the body.
 //
 // `recordPageView(sample)` is followed by `scheduleFlush(env, ctx)` so
-// in-isolate buckets actually drain to D1 over time. The first call
+// in-isolate buckets actually drain to the shared memory actor. The first call
 // after isolate boot flushes immediately; subsequent calls are
 // throttled by `collect.ts` at one per 30s.
 

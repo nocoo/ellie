@@ -4,7 +4,7 @@
 >
 > 本文是缓存实现与验收的统一依据，替代原有的用户缓存重构、Worker KV 架构和 KV 参考文档。功能文档涉及缓存时引用本文；第 1 节保留迁移前的问题，第 4 节和第 10 节记录接入范围与验证状态。
 
-目标是让论坛的大部分重复读取由缓存承担，降低 D1 的实际读取行数、写入行数和查询次数。**所有业务数据缓存统一为三档：60 秒、30 分钟、24 小时，最短 60 秒是硬约束。** 每个读接口都要说明如何复用数据，并通过测试证明缓存命中、过期、更新、故障时的行为。
+目标是让论坛的大部分重复读取由缓存承担，降低 D1 的实际读取行数、写入行数和查询次数。**所有业务数据缓存统一为四档：60 秒、30 分钟、1 小时、24 小时，最短 60 秒是硬约束。** 每个读接口都要说明如何复用数据，并通过测试证明缓存命中、过期、更新、故障时的行为。
 
 ## 1. 迁移前的问题
 
@@ -24,13 +24,14 @@
 
 迁移入口是现有的 [cache 模块](../apps/worker/src/lib/cache/wrap.ts)、[KV 登记表](../apps/worker/src/lib/cache/kv-registry.ts)、[失效 helper](../apps/worker/src/lib/cache/invalidate.ts)、[用户批量缓存](../apps/worker/src/lib/user-cache.ts)、[缓存指标](../apps/worker/src/lib/cache/metrics.ts)和 [Web 请求级去重](../apps/web/src/lib/forum-cache.ts)。在这些入口上收敛实现，不另建一套平行框架。
 
-## 2. 三档时间契约
+## 2. 四档时间契约
 
 | 档位 | 唯一允许的 TTL，单位秒 | 用途 |
 | --- | ---: | --- |
 | `SHORT` | **60** | 动态列表、计数、搜索、个人状态的展示快照 |
 | `MEDIUM` | **1800** | 主题和回帖正文、资料详情、点评评分等相对稳定的数据 |
-| `LONG` | **86400** | 版块结构、展示设置、用户 mini、分类、精华聚合、附件元数据等稳定数据 |
+| `HOUR` | **3600** | 版块结构、摘要和精确主题总数 |
+| `LONG` | **86400** | 展示设置、用户 mini、分类、精华聚合、附件元数据等稳定数据 |
 
 共享的纯数据定义只暴露档位，调用方不能传任意秒数：
 
@@ -38,6 +39,7 @@
 export const CACHE_TTL_SECONDS = {
   SHORT: 60,
   MEDIUM: 1800,
+  HOUR: 3600,
   LONG: 86400,
 } as const;
 
@@ -46,10 +48,10 @@ export type CacheTier = keyof typeof CACHE_TTL_SECONDS;
 
 约束如下：
 
-1. **禁止小于 60 秒的业务 TTL。** 30 秒缓存、毫秒/秒混用，以及随机抖动后低于 60 秒，都必须被测试拒绝。也不新增 5 分钟、15 分钟、1 小时等其他档位。
+1. **禁止小于 60 秒的业务 TTL。** 30 秒缓存、毫秒/秒混用，以及随机抖动后低于 60 秒，都必须被测试拒绝。业务快照仅使用登记档位；维护开关的 5 分钟内存状态单独管理。
 2. TTL 是固定有效期。命中不续期，复制到下一层不续期，回填重试不续期。缓存包保存 `schemaVersion`、`loadedAt`、`expiresAt` 和 `data`；读取时校验时间与结构。
 3. 冷加载的逻辑有效期从本次数据装载完成时起算；聚合数据另记录源快照时间。由其他缓存组合出的结果，截止时间不得晚于最早到期的依赖。缓存 TTL 不等于源数据的新鲜程度。
-4. KV 回填的 `expirationTtl` 只使用这三个值；读取同时检查包内的 `expiresAt`。慢回填或重试留下的物理记录，不能延长逻辑有效期。已经逻辑过期的值不得回填。
+4. KV 回填的 `expirationTtl` 只使用这四个值；读取同时检查包内的 `expiresAt`。慢回填或重试留下的物理记录，不能延长逻辑有效期。已经逻辑过期的值不得回填。
 5. 空列表和确认不存在的资源也可缓存，默认使用 `SHORT`；空附件、点评和评分明细沿用其登记档位（附件 LONG，点评/评分明细 MEDIUM）。不存在结果必须带资源类型与可见性范围。网络故障、D1 错误、鉴权失败不能伪装成空结果缓存。
 6. 60 秒约束自动刷新周期。内容编辑、删除、权限撤销等明确变更，以及第 8 节中管理员主动执行的刷新/删除，可以触发主动失效；**普通回帖、浏览量增长不能反复清空动态列表或全站摘要，使 60 秒缓存事实上只活几秒。** 高频展示数据优先等 `SHORT` 自然过期。
 7. 写后本人立即看到结果，优先使用写接口返回的数据更新界面。其他读者通过快照更新看到变化；严格的新鲜读取与权限撤销按第 6 节处理。
@@ -80,7 +82,7 @@ flowchart LR
 | 信息 | 要求 |
 | --- | --- |
 | family、schema version、接入状态 | 能区分已接入、迁移中、已停用；只有 key builder 不算接入 |
-| tier | 只能是 `SHORT`、`MEDIUM`、`LONG` |
+| tier | 只能是 `SHORT`、`MEDIUM`、`HOUR`、`LONG` |
 | scope 与 key 参数 | 明确公共、角色等价范围、具体用户；包含影响结果的全部参数 |
 | 数据结构与校验 | 缓存值是可验证的数据，不保存整份带 Cookie、Token 的 HTTP Response |
 | 更新规则 | 选择自然过期或明确的主动失效事件，声明作用到哪些资源 |
@@ -178,12 +180,12 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | Handler | GET 路径 | 策略 | 登记 family | 当前检查 / 测试证据 |
 | --- | --- | --- | --- | --- |
 | `handlers/live.live` | `/api/live` | 明确例外 | — | T8；探测当前健康及版本，不缓存探测结果 |
-| `handlers/forum.list` | `/api/v1/forums` | 部分复用 | `forum:tree:v2`、`forum:summary:v2` | T1；当前版块可见性和最后主题候选检查 |
+| `handlers/forum.list` | `/api/v1/forums` | 部分复用 | `forum:tree:v2`、`forum:summary:v2` | T1；版块可见性和最后主题候选缓存 1 小时，修改版本使其提前失效 |
 | `handlers/forum.getAncestors` | `/api/v1/forums/:id/ancestors` | 部分复用 | `forum:tree:v2` | T1；当前祖先路径可见性 |
 | `handlers/forum.getThreadTypes` | `/api/v1/forums/:id/thread-types` | 部分复用 | `thread-types` | T3；当前版块权限 |
 | `handlers/recommended.listRecommendedThreads` | `/api/v1/forums/:id/recommended-threads` | 部分复用 | `recommended:threads`、`thread:entity`、`thread:stats`、`user:mini:v1` | T3；当前主题与版块权限，展示字段按实体组合 |
-| `handlers/forum.getById` | `/api/v1/forums/:id` | 部分复用 | `forum:tree:v2`、`forum:summary:v2` | T1；当前版块可见性和最后主题候选检查 |
-| `handlers/thread.list` | `/api/v1/threads` | 部分复用 | `thread:list`、`thread:entity`、`thread:stats`、`user:mini:v1` | T2；全部合法分页、分类、游标，当前候选权限 |
+| `handlers/forum.getById` | `/api/v1/forums/:id` | 部分复用 | `forum:tree:v2`、`forum:summary:v2` | T1；版块可见性和最后主题候选缓存 1 小时，修改版本使其提前失效 |
+| `handlers/thread.list` | `/api/v1/threads` | 部分复用 | `thread:list`、`thread:count`、`thread:entity`、`thread:stats`、`user:mini:v1` | T2；全部合法分页、分类、游标，当前候选权限 |
 | `handlers/thread.getById` | `/api/v1/threads/:id` | 部分复用 | `thread:entity`、`thread:stats`、`user:mini:v1` | T2；当前访问许可，页面阅读单独计数 |
 | `handlers/post.list` | `/api/v1/posts` | 部分复用 | `post:page`、`post:entity`、`user:mini:v1` | T2；全部分页、末页，当前帖子及主题权限 |
 | `handlers/post-rating.listByPost` | `/api/v1/posts/:id/ratings` | 部分复用 | `post:ratings`、`post:rating-rows`、`user:mini:v1` | T2；当前访问许可，评分汇总与明细分开 |
@@ -231,8 +233,8 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/admin/analytics.getCheckinTrend` | `/api/admin/analytics/checkin` | 整份复用 | `admin:analytics` | T6；完整时间范围，统计任务完成后切换报表版本 |
 | `handlers/admin/loginHistory.getTodayLoginsKpi` | `/api/admin/analytics/today/logins` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，登录明细仍为 SHORT |
 | `handlers/admin/loginHistory.getTodayLoginsList` | `/api/admin/analytics/today/logins/list` | 整份复用 | `admin:display` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
-| `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 整份复用 | `admin:analytics` | T6；按需读取的 MEDIUM 日期快照，访问页面明细同为 MEDIUM |
-| `handlers/admin/todayVisits.getTodayVisitsList` | `/api/admin/analytics/today/visits/list` | 整份复用 | `admin:analytics` | T6；规范化筛选、日期、分页；IP 按展示规则脱敏 |
+| `handlers/admin/todayVisits.getTodayVisitsKpi` | `/api/admin/analytics/today/visits` | 明确例外 | — | 当日共享内存，实例重启清零，不写 KV 或 D1 |
+| `handlers/admin/todayVisits.getTodayVisitsList` | `/api/admin/analytics/today/visits/list` | 明确例外 | — | 内存筛选和分页，仅对返回页面查名称，不采集 IP/UA |
 | `handlers/admin/kv.overview` | `/api/admin/kv/overview` | 整份复用 | `monitor:overview` | T7；有界 metadata 观察，未知和部分覆盖明确显示 |
 | `handlers/admin/kv.listFamily` | `/api/admin/kv/list` | 明确例外 | — | T7；有界 KV metadata 分页，无逐条正文 GET |
 | `handlers/admin/kv.getKey` | `/api/admin/kv/get` | 明确例外 | — | T7；所选条目的实时 KV 诊断，不回源或续期 |
@@ -266,7 +268,7 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 
 | 变更 | 主动失效范围 | 保留到自然过期 / 其他要求 |
 | --- | --- | --- |
-| 新主题、新回复 | 已存在的相关负缓存可定向处理 | 主题/回帖索引、动态计数使用 `SHORT`，版块摘要使用 `MEDIUM`；不更新全局版块结构版本；提交者使用返回实体 |
+| 新主题、新回复 | 已存在的相关负缓存可定向处理 | 主题/回帖索引、动态计数使用 `SHORT`，总数与版块摘要使用 `HOUR`；不更新全局版块结构版本；提交者使用返回实体 |
 | 编辑主题标题、正文或回帖 | 对应主题/回帖实体 | 列表用实体组合获得展示字段；搜索匹配集合等到 `SHORT` 过期 |
 | 删除、恢复、隐藏主题或回帖 | 对应实体、所在主题的回帖索引、受影响版块列表、相关推荐与精华成员集合 | 当前权威状态立即参与授权/占位投影，旧缓存正文不得绕过删除与隐藏规则 |
 | 移动主题，包括 Admin 批量移动 | 对应主题实体、源/目标版块的列表与摘要、相关推荐、精华 | 同一次操作对每个版块只处理一次，不能漏掉源版块或精华筛选 |
@@ -290,8 +292,8 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 
 KV 是最终一致存储。写入、删除、版本更新和“之前不存在”的读取都可能在其他地区延迟可见，官方说明可能需要 60 秒或更久。**版本 key 加 UUID 能区分变更，不能使跨地区读取立即一致，也不能充当原子锁。**
 
-- 普通展示接受三档内的快照。TTL 限制快照本身的有效期，源聚合任务的延迟、D1 读取一致性和 KV 传播时间必须分别记录，不能宣传为“最多 60 秒看到所有最新变化”。
-- 私信归属、可撤销权限、封禁、隐藏和删除内容在响应前使用当前权威状态检查。优先复用请求内检查结果，缺失时合并为小范围索引查询；不根据 24 小时前的缓存权限放行。
+- 普通展示接受登记档位内的快照。TTL 限制快照本身的有效期，源聚合任务的延迟、D1 读取一致性和 KV 传播时间必须分别记录，不能宣传为“最多 60 秒看到所有最新变化”。
+- 正文访问、私信归属、封禁和写入授权在响应前使用当前权威状态检查。版块摘要展示按 v1.12.0 的显式取舍缓存权限/候选 1 小时，并沿用修改版本提前失效。优先复用请求内检查结果，缺失时合并为小范围索引查询；不根据 24 小时前的缓存权限放行。
 - 缓存的最后主题或列表候选已经不可见时，按接口语义重新选择当前可见候选或输出删除占位；必要的补查计为回源，不能仅隐藏正文却暴露受限标题、作者或计数。
 - 写接口返回本次结果供本人立即更新。必须再次读取才能完成的写后读，使用受认证和限流保护的新鲜读取路径，D1 配置副本时使用相应 session/bookmark 或主库读取。不要把任意客户端参数做成无限制绕缓存开关。
 - 受控新鲜读取和权威检查都有独立 D1 预算与指标，不能从总成本中隐去。
@@ -310,7 +312,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 - 任务表有容量与超时边界，只保存临时任务和结果，不承担权限状态或可靠计数。同一时刻不同用户范围、版本、分页不能误共享任务。
 - isolate 之间不共享内存，不能声称所有地区只回源一次。先测量热点重建次数与 D1 并发；确有超标热点时再为该范围增加协调机制。
 - 回源并发与等待队列必须有界。预算耗尽时复用已有任务或返回明确的可重试错误，不能无界直连 D1；单 isolate 的限制不能宣传为跨地区全局限额。
-- 处理 KV 同 key 每秒写入限制与 429：去重本次变更、限制重试和并发，不通过无界重试压垮 D1。TTL 不能随机改成第四档。
+- 处理 KV 同 key 每秒写入限制与 429：去重本次变更、限制重试和并发，不通过无界重试压垮 D1。TTL 不能随机改成未登记档位。
 - 批量实体读取先去重 ID，KV 批量读取每组最多 100 个 key；D1 每条查询最多 100 个绑定参数，还要给其他查询条件留位置。只装载缺失 ID，避免用户富化 N+1。
 - 搜索、深分页和私有结果的 key 数量与单条体积有上限。超出登记的接纳条件时正常提供受限回源并记录原因，不预热全部历史组合，也不靠 KV 前缀扫描完成一次普通请求。
 
@@ -440,7 +442,7 @@ KV 是最终一致存储。写入、删除、版本更新和“之前不存在�
 
 - 总览从登记表和已有应用指标读取，不调用额外平台 API，也不在每次打开页面时遍历所有 KV 值。完整值只在打开某条详情时读取，family 列表有分页和扫描预算。
 - 占用展示使用已观察/估算值及其范围，不能为补一个精确数字而同步读取全 namespace；也不主动查询 D1 的容量、物理统计或执行计数 SQL。
-- 管理观测快照也遵守三档：近期指标使用 `SHORT`，低频占用快照与较长时间范围的报表使用 `MEDIUM`；实时单条预览和操作结果不另设业务缓存。小时采集粒度与业务缓存 TTL 分开；页面按需查询已保存的小时点，不重复拉取未选视图，也不新增一小时业务 TTL。
+- 管理观测快照也遵守登记档位：近期指标使用 `SHORT`，低频占用快照与较长时间范围的报表使用 `MEDIUM`；实时单条预览和操作结果不另设业务缓存。小时采集粒度与业务缓存 TTL 分开；页面按需查询已保存的小时点，不重复拉取未选视图。
 - 管理查询、预览和手动重建使用独立来源标记。它们不计入普通用户命中率，也不隐藏其 KV/D1 成本；刷新/删除的必要审计写入单独计量。
 - “查看/更新监控数据”不得触发统计重算、业务缓存预热或全量扫描。后台原有统计校准保留为独立的明确操作。
 
@@ -679,3 +681,16 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 - [KV 的工作方式与最终一致性](https://developers.cloudflare.com/kv/concepts/how-kv-works/)：跨地区传播、负查询缓存和原子性限制。
 - [KV 单条与批量读取](https://developers.cloudflare.com/kv/api/read-key-value-pairs/)：业务过期与读取侧 cacheTtl 的区别、批量上限。
 - [D1 限制](https://developers.cloudflare.com/d1/platform/limits/)与 [D1 计费](https://developers.cloudflare.com/d1/platform/pricing/)：绑定参数、读取/写入行数与索引成本。
+
+
+## 17. v1.12.0 读取预算与内存访问统计
+
+- `thread:count` 独立使用 `HOUR=3600` 秒，继续共享版块/分类总数与原 thread-list 版本。主题列表和公告索引仍为 60 秒，不延长内容刷新周期。
+- 版块树、摘要使用 1 小时 KV 快照；全量版块状态/结构和最新主题候选在 isolate 内复用 1 小时，按 KV binding 隔离，并检查原有 tree/summary generation。候选集合最多保留 32 份；冷实例重新读取。直接内容访问、祖先链与写入授权仍使用原来的当前事实校验。失效仍受 KV 传播/失败约束，过期是兜底。
+- 维护开关、管理员绕过开关和维护文案在 isolate 内缓存 5 分钟，不因命中续期。所有普通路由接受最长 5 分钟的维护切换延迟；管理员实际身份仍重新核验。
+- 今日访问的 30 秒批量采集改为发送到按上海日期命名的 `TodayVisitsMemory` Durable Object，只使用实例内存，不调用 storage、D1、KV 或 alarm。不同 Worker 实例共享同一日的内存汇总；实例回收、重启或部署后数据丢失，跨日自然使用新实例。
+- KPI/页面列表绕过旧 KV 报表快照，直接读取内存；页面名称仅对当前返回页查询。仍不采集用户维度，不提供 UV。每个日期实例最多保留 20,000 个页面目标，超过时丢弃新目标并通过 `droppedViews` 明示。
+- 退役 PV 的 D1 UPSERT 与每日清理代码，历史表保留但不再读写。登录安全审计、帖子浏览次数和缓存监控沿用既有逻辑。
+- Worker 入口为 `src/entry.ts`，导出原 HTTP Worker 及内存类；`TODAY_VISITS` 绑定在生产/测试环境分别声明。SQLite-backed namespace 仅用于平台注册，应用不写其存储。兼容日期提升至 2024-04-03 以使用 DO RPC。
+
+验证覆盖固定过期、不续期、修改版本失效、不同 DB 包装对象的缓存复用、跨 Worker 批次合并、日期隔离、实例重建清零、内存上限，以及真实本地 Worker 的 ingest→报表读取。前文各版本记录为历史行为，本节是这批功能的当前策略。

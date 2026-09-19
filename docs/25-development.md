@@ -34,7 +34,7 @@ Worker 的 `API_KEY` 对应论坛 `FORUM_API_KEY`；`ADMIN_API_KEY` 对应后台
 - 论坛使用用户名 / 密码，通过 Auth.js Credentials 调用 Worker 登录接口。Cap 控件位于网页的登录、注册及相关交互中，`NEXT_PUBLIC_CAP_API_ENDPOINT` 为空时界面禁止提交。当前 Credentials 回调本身不验证 Cap Token，不能把网页控件当作 API 的完整防自动化保证。
 - 发帖、回复等写入要求账号状态允许且邮箱已验证。验证码服务需要 Worker 的 `EMAIL_VERIFY_HMAC_KEY`、`DOVE_WEBHOOK_TOKEN`，以及 Wrangler 中的 `DOVE_BASE_URL`、`DOVE_PROJECT_ID`、`DOVE_TEMPLATE_SLUG`。示例配置的邮件服务并非可直接使用的公共演练接口。
 - 后台使用 Google OAuth 与 `ADMIN_EMAILS`。本地 Google OAuth Web 客户端的回调 URI 为 `http://localhost:7032/api/auth/callback/google`；它与论坛用户的版主 / 管理角色不是同一套登录配置。
-- `ANALYTICS_INGEST_KEY` 同时配置在 Worker 与论坛时，论坛可转发页面访问样本；未设置时不阻塞浏览。后台 IP 查询还需要 `IP_LOOKUP_API_KEY`。
+- `ANALYTICS_INGEST_KEY` 同时配置在 Worker 与论坛时，论坛可转发页面访问样本；未设置时不阻塞浏览。`TODAY_VISITS` 将各 Worker 的样本汇总到按上海日期命名的内存实例，回收或重启后清零，不写 D1。后台 IP 查询还需要 `IP_LOOKUP_API_KEY`。
 
 最小本地环境可以先检查页面与数据读取。完整注册、邮箱验证和后台登录需要为相应服务准备自己的配置，不能仅靠空白模板完成。
 

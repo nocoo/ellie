@@ -1,4 +1,5 @@
 // Worker environment types
+import type { TodayVisitsMemory } from "./analytics/memory";
 
 export interface Env {
 	API_KEY: string;
@@ -7,6 +8,8 @@ export interface Env {
 	ENVIRONMENT: string;
 	JWT_SECRET: string;
 	KV: KVNamespace;
+	/** Ephemeral site/day counters; this actor never uses persistent storage. */
+	TODAY_VISITS?: DurableObjectNamespace<TodayVisitsMemory>;
 	/** R2 bucket for avatar and attachment uploads */
 	R2: R2Bucket;
 	/** Comma-separated CORS allowed origins (wrangler [vars]) */

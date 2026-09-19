@@ -1,5 +1,5 @@
 // Admin "today visits" page-view dashboard endpoints (P5).
-// Aggregate KPI + list are MEDIUM display snapshots. No IP/UA is stored.
+// KPI + list read the shared memory actor without persistent snapshots. No IP/UA is stored.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { PathKind } from "../../lib/analytics/types";

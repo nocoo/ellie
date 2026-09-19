@@ -6,6 +6,7 @@ process.env.PBKDF2_ITERATIONS = process.env.PBKDF2_ITERATIONS || "1000";
 export default defineConfig({
 	resolve: {
 		alias: {
+			"cloudflare:workers": resolve(__dirname, "tests/stubs/cloudflare-workers.ts"),
 			"server-only": resolve(__dirname, "../../tests/stubs/server-only.ts"),
 		},
 	},

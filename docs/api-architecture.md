@@ -275,4 +275,4 @@ Deploy the new Admin first; its totals cards can also read the old response duri
 
 ### v1.11.7 访问统计调整
 
-`GET /api/admin/analytics/today/visits` 和 `/list` 保留 PV、页面排行与机器人分类，展示快照最多延迟 30 分钟。已撤下的访问人数相关字段 `activeUsers`、`anonPresent`、`uniqueUsers` 返回 `null`（未采集），不得解释为零人；登录审计的去重人数不受影响。
+`GET /api/admin/analytics/today/visits` 和 `/list` 保留 PV、页面排行与机器人分类，改为读取当日共享内存；采集约 30 秒合并一次，实例回收、重启或部署后清零，不再写入 D1 或持久化报表快照。已撤下的访问人数相关字段 `activeUsers`、`anonPresent`、`uniqueUsers` 返回 `null`（未采集），不得解释为零人；登录审计的去重人数不受影响。

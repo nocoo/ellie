@@ -295,8 +295,10 @@ export interface PathKindBreakdownEntry {
 	targets: number;
 }
 
-/** Page totals cached for 30 minutes. User counters are retired and return null. */
+/** Ephemeral page totals reset when the memory instance restarts. User counters are retired and return null. */
 export interface TodayVisitsKpi {
+	startedAt?: number;
+	droppedViews?: number;
 	now: number;
 	dateLocal: string;
 	totalViews: number;
@@ -327,6 +329,8 @@ export function parseTodayVisitsKpi(raw: unknown): TodayVisitsKpi {
 		}
 	}
 	return {
+		...(typeof o.startedAt === "number" ? { startedAt: o.startedAt } : {}),
+		...(typeof o.droppedViews === "number" ? { droppedViews: o.droppedViews } : {}),
 		now: asNumber(o.now),
 		dateLocal: asString(o.dateLocal),
 		totalViews: asNumber(o.totalViews),

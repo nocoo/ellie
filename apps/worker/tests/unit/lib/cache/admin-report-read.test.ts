@@ -267,18 +267,6 @@ describe("custom display reads", () => {
 			/1\.2\.3\.4|9\.8\.7\.6|2001:db8:cafe::1/,
 		);
 		await hot(analytics({ resource: "logins", operation: "kpi", date: DATE }));
-		await hot(analytics({ resource: "visits", operation: "kpi", date: DATE }));
-		const visits = await hot(
-			analytics({
-				resource: "visits",
-				operation: "list",
-				date: DATE,
-				pathKind: "thread",
-				page: 1,
-				limit: 20,
-			}),
-		);
-		expect((visits.first as { rows: Array<{ label: string }> }).rows[0].label).toBe("Thread 1");
 		await hot(
 			display({ resource: "checkins", operation: "user", userId: 10, from: DATE, to: DATE }),
 		);

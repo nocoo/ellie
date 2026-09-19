@@ -26,6 +26,7 @@
 // existing handler unit tests under apps/worker/tests/unit/handlers.
 
 import { describe, expect, test } from "bun:test";
+import { TEST_WORKER_VARS } from "../../../scripts/lib/test-worker-vars";
 import { adminGet, getWorkerUrl } from "../setup";
 
 const WORKER_URL = getWorkerUrl();
@@ -34,20 +35,41 @@ describe("L2: Worker analytics API", () => {
 	// ─── Internal ingest ───────────────────────────────────────────
 
 	describe("POST /api/internal/analytics/ingest", () => {
-		test("returns 503 when ANALYTICS_INGEST_KEY is not configured", async () => {
-			// L2 worker boots without ANALYTICS_INGEST_KEY (see scripts/run-l2.ts
-			// — only API_KEY / ADMIN_API_KEY / JWT_SECRET are injected). The
-			// handler refuses with INGEST_NOT_CONFIGURED to surface the
-			// deployment-hardening invariant: no anonymous ingest without
-			// the shared secret in place. This is the only branch we can
-			// reliably exercise from L2 without baking a secret into the
-			// boot script.
+		test("rejects unauthenticated ingest", async () => {
 			const res = await fetch(`${WORKER_URL}/api/internal/analytics/ingest`, { method: "POST" });
-			// Allow 401 in case the worker pushes auth checks even without
-			// a configured key (current handler returns 503 first); either
-			// status proves the router actually dispatched the handler.
-			expect([401, 503]).toContain(res.status);
+			expect(res.status).toBe(401);
 		});
+		test("collects a real page view into the shared memory report", async () => {
+			const read = async () =>
+				(await (await adminGet("/api/admin/analytics/today/visits")).json()).data;
+			const before = await read();
+			const ingest = await fetch(`${WORKER_URL}/api/internal/analytics/ingest`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Ingest-Key": TEST_WORKER_VARS.ANALYTICS_INGEST_KEY,
+					"User-Agent": "Mozilla/5.0",
+				},
+				body: JSON.stringify({ path_kind: "home", target_id: 0, user_id: 0 }),
+			});
+			expect(ingest.status).toBe(200);
+			const deadline = Date.now() + 35_000;
+			let after = await read();
+			while (after.totalViews <= before.totalViews && Date.now() < deadline) {
+				await Bun.sleep(100);
+				after = await read();
+			}
+			expect(after.totalViews).toBeGreaterThan(before.totalViews);
+			expect(after.startedAt).toBeGreaterThan(0);
+			const list = await (
+				await adminGet("/api/admin/analytics/today/visits/list?path_kind=home")
+			).json();
+			expect(
+				list.data.rows.some(
+					(row: { pathKind: string; views: number }) => row.pathKind === "home" && row.views > 0,
+				),
+			).toBe(true);
+		}, 40_000);
 	});
 
 	// ─── Admin trend / overview ────────────────────────────────────

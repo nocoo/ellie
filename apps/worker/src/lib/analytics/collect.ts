@@ -10,8 +10,8 @@
 //     (`apps/worker/src/handlers/internal/analyticsIngest.ts`), which
 //     invokes `recordPageView(sample)` and `scheduleFlush(env, ctx)`
 //     from inside its handler after the trust-edge checks.
-//   - Production binds the D1 sink in `apps/worker/src/index.ts` via
-//     `setFlushSink(d1FlushSink)`. The default `FlushSink` in this
+//   - Production binds the memory sink in `apps/worker/src/index.ts` via
+//     `setFlushSink(memoryFlushSink)`. The default `FlushSink` in this
 //     module is a no-op test/dev fallback that drains the bucket
 //     without persisting — it is ONLY used when no production sink
 //     has been installed (unit-test stubs, dev isolates that opt out).
@@ -148,7 +148,6 @@ function parseBucketKey(
 
 /**
  * Record one resolved page-view sample. The collector accumulates by
- * the canonical primary key of the `analytics_daily_targets` table:
  * `(dateLocal, pathKind, targetId, userId, botClass)`. For each key
  * the bucket tracks `count` (monotonic), `firstSeenAt` (min over
  * samples), and `lastSeenAt` (max over samples).
@@ -214,8 +213,8 @@ export function pendingBucketSize(): number {
 /**
  * Sink contract handed a drained snapshot. The default implementation
  * is a no-op kept for unit-test stubs / dev isolates that opt out of
- * persistence. Production swaps it for the D1 UPSERT sink
- * (`flushSink-d1.ts`) via `setFlushSink(d1FlushSink)` in
+ * collection. Production swaps it for the memory sink
+ * (`flushSink-memory.ts`) via `setFlushSink(memoryFlushSink)` in
  * `apps/worker/src/index.ts`. Tests inject their own sink via
  * `setFlushSink`.
  *
@@ -226,17 +225,17 @@ export function pendingBucketSize(): number {
 export type FlushSink = (env: Env, rows: AggregateRow[]) => Promise<void>;
 
 const NOOP_SINK: FlushSink = async () => {
-	// Default fallback: drain without persisting. The production D1
-	// sink (`flushSink-d1.ts`) is installed by `index.ts` via
-	// `setFlushSink(d1FlushSink)`; this no-op remains the safe default
+	// Default fallback: drain without collecting. The production memory
+	// sink (`flushSink-memory.ts`) is installed by `index.ts` via
+	// `setFlushSink(memoryFlushSink)`; this no-op remains the safe default
 	// for unit-test stubs that have not opted into a sink.
 };
 
 let activeSink: FlushSink = NOOP_SINK;
 
 /**
- * Install a flush sink. `apps/worker/src/index.ts` swaps in the D1
- * UPSERT sink at module load; tests use this entry point to assert
+ * Install a flush sink. `apps/worker/src/index.ts` swaps in the shared
+ * memory sink at module load; tests use this entry point to assert
  * what was drained. Production code outside that one swap point MUST
  * NOT call this.
  */
@@ -312,7 +311,7 @@ function drainOnce(env: Env): Promise<void> {
  * that one tail flush.
  *
  * The drained snapshot is handed to the active `FlushSink`. Production
- * binds the D1 UPSERT sink in `apps/worker/src/index.ts`; with the
+ * binds the memory sink in `apps/worker/src/index.ts`; with the
  * default no-op sink (unit-test stubs / dev opt-out), the snapshot is
  * simply discarded.
  */

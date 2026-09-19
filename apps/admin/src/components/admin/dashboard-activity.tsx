@@ -52,7 +52,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 						value: visits?.totalViews ?? "—",
 						icon: Globe,
 						hint: visits
-							? `真人 ${metricShare(visits.humanViews, visits.totalViews)} · 上海时区 · 最多延迟 30 分钟`
+							? `真人 ${metricShare(visits.humanViews, visits.totalViews)} · 上海时区 · 重启后清零`
 							: "访问数据暂不可用",
 					},
 					{

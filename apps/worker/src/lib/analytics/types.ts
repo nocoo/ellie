@@ -7,14 +7,14 @@
 //     → recordPageView()
 //     → in-isolate bucket
 //     → scheduleFlush(env, ctx)
-//     → flushSink (D1 UPSERT into `analytics_daily_targets`)
+//     → flushSink (site/day memory actor, no persistence)
 //
 // The collector itself is contract-only: it owns no trust-edge concerns
 // and never reads request-scoped signals. Trust-edge ownership lives
 // in the ingest route (`apps/worker/src/handlers/internal/analyticsIngest.ts`),
-// and the production D1 sink is installed by `apps/worker/src/index.ts`
-// via `setFlushSink(d1FlushSink)`. Keeping the types minimal here lets
-// the ingest handler and the D1 sink import them without depending on
+// and the production memory sink is installed by `apps/worker/src/index.ts`
+// via `setFlushSink(memoryFlushSink)`. Keeping the types minimal here lets
+// the ingest handler and the memory sink import them without depending on
 // each other's runtime concerns.
 
 /**
@@ -99,11 +99,10 @@ export interface PageViewSample {
 
 /**
  * Aggregate row drained from the in-isolate bucket. One row per
- * (dateLocal, pathKind, targetId, userId=0, botClass) tuple — the same
- * primary key the `analytics_daily_targets` D1 table uses.
+ * (dateLocal, pathKind, targetId, userId=0, botClass) tuple.
  *
  * This shape is the contract handed to `FlushSink` implementations;
- * the production D1 sink lives in `flushSink-d1.ts`.
+ * the production memory sink lives in `flushSink-memory.ts`.
  */
 export interface AggregateRow {
 	dateLocal: string;

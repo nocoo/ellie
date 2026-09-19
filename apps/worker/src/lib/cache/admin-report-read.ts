@@ -5,6 +5,7 @@ import type {
 	CheckinHistoryEntry,
 	UserCheckin,
 } from "@ellie/types";
+import { todayVisitsMemory } from "../analytics/flushSink-memory";
 import type { PathKind } from "../analytics/types";
 import type { Env } from "../env";
 import { isValidShanghaiDateLocal } from "../shanghaiTime";
@@ -556,6 +557,9 @@ export async function getAdminReport<T>(
 	descriptor: CacheDescriptor,
 ): Promise<T> {
 	const spec = validateAdminReportDescriptor(descriptor);
+	// Ephemeral visits must never outlive the memory actor through a KV snapshot.
+	if (descriptor.params.resource === "visits")
+		return loadAdminReport(env, descriptor) as Promise<T>;
 	return cacheGetOrSet(
 		env,
 		ctx,
@@ -894,121 +898,25 @@ export async function loadLoginsList(env: Env, d: CacheDescriptor) {
 }
 
 export async function loadVisitsKpi(env: Env, d: CacheDescriptor) {
-	const dateLocal = String(d.params.date);
-	const [aggRow, breakdown] = await env.DB.batch([
-		env.DB.prepare(
-			`SELECT
-				COALESCE(SUM(count), 0) AS total_views,
-				COALESCE(SUM(CASE WHEN bot_class = 'human'      THEN count ELSE 0 END), 0) AS human_views,
-				COALESCE(SUM(CASE WHEN bot_class = 'bot_search' THEN count ELSE 0 END), 0) AS bot_search_views,
-				COALESCE(SUM(CASE WHEN bot_class = 'bot_other'  THEN count ELSE 0 END), 0) AS bot_other_views,
-				COALESCE(SUM(CASE WHEN bot_class = 'unknown'    THEN count ELSE 0 END), 0) AS unknown_views,
-				COUNT(DISTINCT path_kind || '#' || target_id) AS distinct_targets
-			FROM analytics_daily_targets
-			WHERE date_local = ?`,
-		).bind(dateLocal),
-		env.DB.prepare(
-			`SELECT
-				path_kind AS path_kind,
-				COALESCE(SUM(count), 0) AS views,
-				COUNT(DISTINCT target_id) AS targets
-			FROM analytics_daily_targets
-			WHERE date_local = ?
-			GROUP BY path_kind
-			ORDER BY views DESC, path_kind ASC`,
-		).bind(dateLocal),
-	]);
-	requireBatch([aggRow, breakdown], 2, "Visit KPI could not be loaded");
-	const agg = (aggRow.results?.[0] ?? {}) as Record<string, number | null | undefined>;
-	const byPathKind = (
-		(breakdown.results ?? []) as Array<{ path_kind: string; views: number; targets: number }>
-	)
-		.filter((row) => PATH_KIND_VALUES.has(row.path_kind as PathKind))
-		.map((row) => ({
-			pathKind: row.path_kind as PathKind,
-			views: Number(row.views ?? 0),
-			targets: Number(row.targets ?? 0),
-		}));
-	return {
-		now: Math.floor(Date.now() / 1000),
-		dateLocal,
-		totalViews: Number(agg.total_views ?? 0),
-		humanViews: Number(agg.human_views ?? 0),
-		botSearchViews: Number(agg.bot_search_views ?? 0),
-		botOtherViews: Number(agg.bot_other_views ?? 0),
-		unknownViews: Number(agg.unknown_views ?? 0),
-		distinctTargets: Number(agg.distinct_targets ?? 0),
-		// Deprecated user counters are explicitly unavailable, including during rollout.
-		activeUsers: null,
-		anonPresent: null,
-		byPathKind,
-	};
+	const date = String(d.params.date);
+	return todayVisitsMemory(env, date).kpi(date);
 }
 export async function loadVisitsList(env: Env, d: CacheDescriptor) {
 	const p = d.params;
-	const conditions = ["date_local = ?"];
-	const binds: unknown[] = [p.date];
-	if (p.pathKind !== null) {
-		conditions.push("path_kind = ?");
-		binds.push(p.pathKind);
-	}
-	const where = conditions.join(" AND ");
-	const page = Number(p.page);
-	const limit = Number(p.limit);
-	const [countRow, listResult] = await Promise.all([
-		env.DB.prepare(`SELECT COUNT(*) AS total FROM (
-		SELECT 1 FROM analytics_daily_targets
-		WHERE ${where}
-		GROUP BY path_kind, target_id
-	)`)
-			.bind(...binds)
-			.first<{ total: number }>(),
-		env.DB.prepare(`SELECT
-		path_kind AS path_kind,
-		target_id AS target_id,
-		COALESCE(SUM(count), 0) AS views,
-		COALESCE(SUM(CASE WHEN bot_class = 'human'      THEN count ELSE 0 END), 0) AS human_views,
-		COALESCE(SUM(CASE WHEN bot_class = 'bot_search' THEN count ELSE 0 END), 0) AS bot_search_views,
-		COALESCE(SUM(CASE WHEN bot_class = 'bot_other'  THEN count ELSE 0 END), 0) AS bot_other_views,
-		COALESCE(SUM(CASE WHEN bot_class = 'unknown'    THEN count ELSE 0 END), 0) AS unknown_views,
-		MIN(first_seen_at) AS first_seen_at,
-		MAX(last_seen_at)  AS last_seen_at
-		FROM analytics_daily_targets
-		WHERE ${where}
-		GROUP BY path_kind, target_id
-		ORDER BY views DESC, last_seen_at DESC, path_kind ASC, target_id ASC
-		LIMIT ? OFFSET ?`)
-			.bind(...binds, limit, (page - 1) * limit)
-			.all<{
-				path_kind: string;
-				target_id: number;
-				views: number;
-				human_views: number;
-				bot_search_views: number;
-				bot_other_views: number;
-				unknown_views: number;
-				first_seen_at: number;
-				last_seen_at: number;
-			}>(),
-	]);
-	const raw = requireAll(listResult, "Visit list could not be loaded");
-	const labels = await resolveLabels(env, raw);
+	const result = await todayVisitsMemory(env, String(p.date)).list(
+		p.pathKind as PathKind | null,
+		Number(p.page),
+		Number(p.limit),
+	);
+	const labels = await resolveLabels(
+		env,
+		result.rows.map((row) => ({ path_kind: row.pathKind, target_id: row.targetId })),
+	);
 	return {
-		page,
-		limit,
-		total: countOf(countRow),
-		rows: raw.map((row) => ({
-			pathKind: row.path_kind as PathKind,
-			targetId: row.target_id,
-			label: labels.get(`${row.path_kind}#${row.target_id}`) ?? "",
-			views: Number(row.views ?? 0),
-			humanViews: Number(row.human_views ?? 0),
-			botSearchViews: Number(row.bot_search_views ?? 0),
-			botOtherViews: Number(row.bot_other_views ?? 0),
-			unknownViews: Number(row.unknown_views ?? 0),
-			uniqueUsers: null,
-			firstSeenAt: Number(row.first_seen_at ?? 0),
-			lastSeenAt: Number(row.last_seen_at ?? 0),
+		...result,
+		rows: result.rows.map((row) => ({
+			...row,
+			label: labels.get(`${row.pathKind}#${row.targetId}`) ?? "",
 		})),
 	};
 }

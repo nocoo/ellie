@@ -1,8 +1,7 @@
 // TodayVisitsPanel component test — P5 reviewer follow-up.
 //
 // Pins the panel's frozen contract:
-//   - KPI counter labeled "活跃用户/访客（含匿名）" renders the sum
-//     `activeUsers + anonPresent` (NOT "独立访客").
+//   - KPI cards show temporary PV/bot totals, without visitor counts.
 //   - Each row's link target follows the frozen routing rule:
 //       * thread → /admin/threads/<id>  (internal admin link)
 //       * user   → /admin/users/<id>    (internal admin link)
@@ -137,7 +136,13 @@ describe("TodayVisitsPanel — KPI render", () => {
 			const url = String(input);
 			return makeJsonResponse(
 				url.endsWith("/today/visits")
-					? { ...KPI_PAYLOAD, activeUsers: null, anonPresent: null }
+					? {
+							...KPI_PAYLOAD,
+							activeUsers: null,
+							anonPresent: null,
+							startedAt: 1_700_000_000,
+							droppedViews: 17,
+						}
 					: LIST_PAYLOAD,
 			);
 		});
@@ -145,7 +150,8 @@ describe("TodayVisitsPanel — KPI render", () => {
 		await waitFor(() => expect(screen.queryByText("总浏览")).not.toBeNull());
 		expect(screen.queryByText("活跃用户/访客（含匿名）")).toBeNull();
 		expect(screen.queryByRole("columnheader", { name: "用户", exact: true })).toBeNull();
-		expect(screen.getByText(/数据最多延迟 30 分钟/)).toBeTruthy();
+		expect(screen.getByText(/服务重启后清零；采集约延迟 30 秒/)).toBeTruthy();
+		expect(screen.getByText(/统计容量已满，部分新页面访问未计入/)).toBeTruthy();
 	});
 });
 

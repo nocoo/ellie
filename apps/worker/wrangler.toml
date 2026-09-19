@@ -1,6 +1,14 @@
 name = "ellie"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
+main = "src/entry.ts"
+compatibility_date = "2024-04-03"
+
+[[durable_objects.bindings]]
+name = "TODAY_VISITS"
+class_name = "TodayVisitsMemory"
+
+[[migrations]]
+tag = "today-visits-memory-v1"
+new_sqlite_classes = ["TodayVisitsMemory"]
 
 [[d1_databases]]
 binding = "DB"
@@ -46,6 +54,10 @@ crons = ["*/5 * * * *", "0 19 * * *"]
 
 [env.test]
 name = "ellie-test"
+
+[[env.test.durable_objects.bindings]]
+name = "TODAY_VISITS"
+class_name = "TodayVisitsMemory"
 
 [[env.test.d1_databases]]
 binding = "DB"
