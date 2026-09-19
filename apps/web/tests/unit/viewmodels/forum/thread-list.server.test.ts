@@ -252,6 +252,18 @@ describe("loadThreadListPaged", () => {
 	});
 
 	// ── prefix badge plumbing (#9 slice 4) ─────────────────────────
+	it("fetches threads while badge configuration is pending", async () => {
+		let release!: (value: boolean) => void;
+		const badge = new Promise<boolean>((resolve) => {
+			release = resolve;
+		});
+		const result = loadThreadListPaged({ forumId: 1, includeTypeNameBadge: badge });
+		for (let i = 0; i < 8; i++) await Promise.resolve();
+		expect(mockForumApi.getPage).toHaveBeenCalledOnce();
+		release(false);
+		expect((await result).items).toHaveLength(1);
+	});
+
 	describe("includeTypeNameBadge", () => {
 		const threadsWithType = [{ ...mockThreads[0], typeName: "求购" }];
 

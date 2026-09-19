@@ -1,24 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // React `cache()` is mocked to identity so we don't dedupe across cases
 // (each `getCached*` call goes through to the underlying loader).
 vi.mock("react", () => ({ cache: (fn: (...args: unknown[]) => unknown) => fn }));
-vi.mock("@/lib/forum-api", () => ({ forumApi: { get: vi.fn() } }));
+vi.mock("@/lib/forum-api", () => ({ forumApi: { get: vi.fn(), getAll: vi.fn() } }));
 
 import { forumApi } from "@/lib/forum-api";
-import {
-	getCachedForumSettings,
-	getCachedPageSize,
-	getCachedPostsPerPage,
-	getCachedPublicSettings,
-} from "@/lib/forum-cache";
+
+let { getCachedForumSettings, getCachedPageSize, getCachedPostsPerPage, getCachedPublicSettings } =
+	await import("@/lib/forum-cache");
 
 const mockGet = forumApi.get as ReturnType<typeof vi.fn>;
 
 describe("forum-settings (via lib/forum-cache)", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
+	beforeEach(async () => {
+		vi.resetAllMocks();
+		vi.resetModules();
+		vi.useFakeTimers();
+		({ getCachedForumSettings, getCachedPageSize, getCachedPostsPerPage, getCachedPublicSettings } =
+			await import("@/lib/forum-cache"));
 	});
+	afterEach(() => vi.useRealTimers());
 
 	describe("getCachedForumSettings", () => {
 		it("returns parsed settings from API", async () => {
@@ -70,6 +72,46 @@ describe("forum-settings (via lib/forum-cache)", () => {
 		});
 	});
 
+	it("shares settings across pagination and raw reads until the five-minute boundary", async () => {
+		mockGet.mockResolvedValue({ data: { "general.pagination.page_size": 30 } });
+		const raw = await getCachedPublicSettings();
+		raw["general.pagination.page_size"] = 99;
+		expect(await getCachedPageSize()).toBe(30);
+		await vi.advanceTimersByTimeAsync(299_999);
+		expect(await getCachedPageSize()).toBe(30);
+		expect(mockGet).toHaveBeenCalledTimes(1);
+		mockGet.mockResolvedValue({ data: { "general.pagination.page_size": 40 } });
+		await vi.advanceTimersByTimeAsync(1);
+		expect(await getCachedPageSize()).toBe(40);
+		expect(mockGet).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retain a failed settings fetch", async () => {
+		mockGet.mockRejectedValueOnce(new Error("offline"));
+		expect(await getCachedPageSize()).toBe(20);
+		mockGet.mockResolvedValue({ data: { "general.pagination.page_size": 35 } });
+		expect(await getCachedPageSize()).toBe(35);
+		expect(mockGet).toHaveBeenCalledTimes(2);
+	});
+
+	it("caches public forum summaries for one hour and isolates caller mutations", async () => {
+		const { getCachedForumList, getCachedForumAncestors } = await import("@/lib/forum-cache");
+		vi.mocked(forumApi.getAll).mockResolvedValue({ data: [{ id: 1, name: "Original" }] } as never);
+		const first = await getCachedForumList();
+		first[0].name = "Mutated";
+		await vi.advanceTimersByTimeAsync(3_599_999);
+		expect((await getCachedForumList())[0].name).toBe("Original");
+		expect(forumApi.getAll).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(1);
+		await getCachedForumList();
+		expect(forumApi.getAll).toHaveBeenCalledTimes(2);
+		// Authorization context remains request-scoped (React cache is identity here).
+		mockGet.mockResolvedValue({ data: { forum: { id: 1 }, ancestors: [] } });
+		await getCachedForumAncestors(1);
+		await getCachedForumAncestors(1);
+		expect(mockGet).toHaveBeenCalledTimes(2);
+	});
+
 	describe("getCachedPageSize", () => {
 		it("returns pageSize from settings", async () => {
 			mockGet.mockResolvedValue({ data: { "general.pagination.page_size": 50 } });
@@ -92,7 +134,7 @@ describe("forum-settings (via lib/forum-cache)", () => {
 			expect(result).toEqual(rawData);
 		});
 
-		it("uses Worker freshness without a second Next.js revalidation window", async () => {
+		it("loads the public settings endpoint", async () => {
 			mockGet.mockResolvedValue({ data: {} });
 			await getCachedPublicSettings();
 			expect(mockGet).toHaveBeenCalledWith("/api/v1/settings");

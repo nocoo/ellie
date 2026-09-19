@@ -1,16 +1,8 @@
-/**
- * Server-only forum settings loader (unwrapped).
- *
- * Phase B: this file is pure-loader / pure-helpers only. RSC render-pass
- * dedupe and the `getCachedPageSize` / `getCachedPostsPerPage`
- * convenience wrappers live in `lib/forum-cache.ts`. Do not import React
- * `cache()` here — the static guard
- * (`tests/unit/architecture/no-adhoc-cache.test.ts`) forbids it.
- */
+/** Pure pagination settings projection; shared I/O lives in forum-cache.ts. */
 
 import "server-only";
 
-import { forumApi } from "./forum-api";
+import type { SettingsMap } from "./public-settings";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,10 +12,6 @@ export interface ForumSettings {
 	pageSize: number;
 	postsPerPage: number;
 	maxPostLength: number;
-}
-
-interface SettingsResponse {
-	[key: string]: string | number | boolean | object;
 }
 
 // ---------------------------------------------------------------------------
@@ -38,29 +26,12 @@ const DEFAULT_MAX_POST_LENGTH = 50000;
 // Loader
 // ---------------------------------------------------------------------------
 
-/**
- * Fetch forum settings from the Worker API. Falls back to defaults on
- * any error. Pure async; no in-process cache here.
- */
-export async function fetchForumSettings(): Promise<ForumSettings> {
-	try {
-		const { data } = await forumApi.get<SettingsResponse>("/api/v1/settings", undefined);
-
-		return {
-			pageSize: parseNumber(data["general.pagination.page_size"], DEFAULT_PAGE_SIZE),
-			postsPerPage: parseNumber(data["general.pagination.posts_per_page"], DEFAULT_POSTS_PER_PAGE),
-			maxPostLength: parseNumber(
-				data["general.pagination.max_post_length"],
-				DEFAULT_MAX_POST_LENGTH,
-			),
-		};
-	} catch {
-		return {
-			pageSize: DEFAULT_PAGE_SIZE,
-			postsPerPage: DEFAULT_POSTS_PER_PAGE,
-			maxPostLength: DEFAULT_MAX_POST_LENGTH,
-		};
-	}
+export function parseForumSettings(data: SettingsMap): ForumSettings {
+	return {
+		pageSize: parseNumber(data["general.pagination.page_size"], DEFAULT_PAGE_SIZE),
+		postsPerPage: parseNumber(data["general.pagination.posts_per_page"], DEFAULT_POSTS_PER_PAGE),
+		maxPostLength: parseNumber(data["general.pagination.max_post_length"], DEFAULT_MAX_POST_LENGTH),
+	};
 }
 
 // ---------------------------------------------------------------------------

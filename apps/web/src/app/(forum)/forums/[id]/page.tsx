@@ -3,6 +3,7 @@
 import { canModerate, ForumType } from "@ellie/types";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ForumFloatingToolbar } from "@/components/forum/forum-floating-toolbar";
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
@@ -95,21 +96,19 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		.catch(() => [] as RecommendedThreadItem[]);
 
 	try {
-		// Fetch the type payload first so we can whitelist-normalize the
-		// typeId before passing it to the threads loader. This avoids a
-		// 400 round-trip when the URL carries a stale / disabled id.
-		threadTypes = await threadTypesPromise;
+		// Only a requested filter depends on the type whitelist. Badge config
+		// resolves alongside the list when there is no filter.
+		if (rawTypeId !== null) threadTypes = await threadTypesPromise;
 		const normalizedTypeId = normalizeTypeId(rawTypeId, threadTypes);
-
-		data = await loadThreadListPaged({
-			forumId,
-			page,
-			typeId: normalizedTypeId,
-			// Respect the per-forum `thread_types_prefix` switch: when off,
-			// suppress the prefix badge on every list row. `null` payload
-			// (loader fail-soft) keeps the historical default (badge on).
-			includeTypeNameBadge: shouldShowTypeNameBadge(threadTypes),
-		});
+		[data, threadTypes] = await Promise.all([
+			loadThreadListPaged({
+				forumId,
+				page,
+				typeId: normalizedTypeId,
+				includeTypeNameBadge: threadTypesPromise.then(shouldShowTypeNameBadge),
+			}),
+			threadTypesPromise,
+		]);
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
 		data = {
@@ -126,7 +125,6 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 
 	const self = await selfPromise;
 	const postsPerPage = await postsPerPagePromise;
-	const recommendedThreads = await recommendedThreadsPromise;
 
 	// Re-derive the effective typeId for URL builders: only set if the
 	// page actually filtered. After the catch path threadTypes may be
@@ -195,7 +193,9 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					)}
 
 					{/* Per-forum "推荐主题" card — below sub-forums, above thread list */}
-					<ForumRecommendedCard threads={recommendedThreads} />
+					<Suspense fallback={null}>
+						<RecommendedThreads threads={recommendedThreadsPromise} />
+					</Suspense>
 
 					{/* 主题分类 filter pills — only when forum enables listable categories. */}
 					{showFilter && threadTypes && (
@@ -285,4 +285,8 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			)}
 		</div>
 	);
+}
+
+async function RecommendedThreads({ threads }: { threads: Promise<RecommendedThreadItem[]> }) {
+	return <ForumRecommendedCard threads={await threads} />;
 }

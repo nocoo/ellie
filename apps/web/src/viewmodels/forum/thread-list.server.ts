@@ -94,7 +94,7 @@ export async function loadThreadListPaged(params: {
 	 * of denorm content. Defaults to `true` — callers that haven't
 	 * wired thread-types config yet keep the historical behavior.
 	 */
-	includeTypeNameBadge?: boolean;
+	includeTypeNameBadge?: boolean | Promise<boolean>;
 }): Promise<ThreadListPagedData> {
 	const page = params.page ?? 1;
 	// Get page size from settings
@@ -111,10 +111,11 @@ export async function loadThreadListPaged(params: {
 	}
 
 	// Parallel fetch: forum tree + threads (forums deduped via React cache)
-	const [forums, threadsRes, settings] = await Promise.all([
+	const [forums, threadsRes, settings, includeTypeNameBadge] = await Promise.all([
 		getCachedForumList(),
 		forumApi.getPage<Thread>("/api/v1/threads", threadsQuery),
 		fetchPublicSettings(),
+		params.includeTypeNameBadge,
 	]);
 
 	// Build forum tree and find current forum
@@ -133,7 +134,7 @@ export async function loadThreadListPaged(params: {
 		forum,
 		forums,
 		items: enrichThreads(threadsRes.data, {
-			includeTypeNameBadge: params.includeTypeNameBadge,
+			includeTypeNameBadge,
 		}),
 		page: threadsRes.meta.page ?? page,
 		pages: threadsRes.meta.pages ?? 1,

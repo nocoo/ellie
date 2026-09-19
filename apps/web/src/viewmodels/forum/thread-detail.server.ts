@@ -95,10 +95,70 @@ export async function loadThreadDetail(params: {
 				}),
 	]);
 
-	const context = await getCachedForumAncestors(thread.forumId).catch((error: unknown) => {
-		if (error instanceof ApiError && error.status === 404) return null;
-		throw error;
-	});
+	// Fetch attachments and authors in parallel; comments load only when expanded.
+	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests).
+	//
+	// Authors fall back to post.authorName; attachment failures are logged.
+	// Comments stay undefined until the reader expands them in the browser.
+	const postIds = postsRes.data.map((p) => p.id);
+	const authorIds = uniqueAuthorIds(postsRes.data);
+
+	const [context, batchAttachmentRes, batchAuthorRes, settings] = await Promise.all([
+		getCachedForumAncestors(thread.forumId).catch((error: unknown) => {
+			if (error instanceof ApiError && error.status === 404) return null;
+			throw error;
+		}),
+		// Batch attachment fetch: POST /api/v1/posts/attachments/batch
+		// No client-side fallback for attachments; log failure but keep the
+		// shape stable as `[]` so the post body still renders.
+		postIds.length > 0
+			? (jwt
+					? forumApi.postAuth<Attachment[]>(
+							"/api/v1/posts/attachments/batch",
+							{ threadId: params.threadId, postIds },
+							jwt,
+						)
+					: forumApi.post<Attachment[]>("/api/v1/posts/attachments/batch", {
+							threadId: params.threadId,
+							postIds,
+						})
+				)
+					.then((res) => res.data)
+					.catch((err) => {
+						console.warn(
+							"[thread-detail.server] posts/attachments/batch failed (rendering with [])",
+							{ threadId: params.threadId, postIds: postIds.length, err },
+						);
+						return [] as Attachment[];
+					})
+			: Promise.resolve([] as Attachment[]),
+		// Batch author fetch: GET /api/v1/users/batch?ids=1,2,3
+		// Failure → `undefined`. enrichPosts then constructs a minimal author
+		// stub from `post.authorId` + `post.authorName` so the `<Link href="/users/N">`
+		// still renders. We never invent sensitive fields (role, status, etc).
+		authorIds.length > 0
+			? forumApi
+					.getAll<PublicUser>("/api/v1/users/batch", {
+						ids: authorIds.join(","),
+					})
+					.then((res) => {
+						const map = new Map<number, User>();
+						for (const pu of res.data) {
+							map.set(pu.id, publicUserToUser(pu));
+						}
+						return map as Map<number, User> | undefined;
+					})
+					.catch((err) => {
+						console.warn(
+							"[thread-detail.server] users/batch failed (falling back to post.authorName)",
+							{ threadId: params.threadId, authorIds: authorIds.length, err },
+						);
+						return undefined;
+					})
+			: Promise.resolve(new Map<number, User>()),
+		fetchPublicSettings(),
+	]);
+
 	const forum = context?.forum ?? null;
 
 	// Build current user object for permission checks
@@ -165,65 +225,6 @@ export async function loadThreadDetail(params: {
 			)
 		: false;
 
-	// Fetch attachments and authors in parallel; comments load only when expanded.
-	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests).
-	//
-	// Authors fall back to post.authorName; attachment failures are logged.
-	// Comments stay undefined until the reader expands them in the browser.
-	const postIds = postsRes.data.map((p) => p.id);
-	const authorIds = uniqueAuthorIds(postsRes.data);
-
-	const [batchAttachmentRes, batchAuthorRes] = await Promise.all([
-		// Batch attachment fetch: POST /api/v1/posts/attachments/batch
-		// No client-side fallback for attachments; log failure but keep the
-		// shape stable as `[]` so the post body still renders.
-		postIds.length > 0
-			? (jwt
-					? forumApi.postAuth<Attachment[]>(
-							"/api/v1/posts/attachments/batch",
-							{ threadId: params.threadId, postIds },
-							jwt,
-						)
-					: forumApi.post<Attachment[]>("/api/v1/posts/attachments/batch", {
-							threadId: params.threadId,
-							postIds,
-						})
-				)
-					.then((res) => res.data)
-					.catch((err) => {
-						console.warn(
-							"[thread-detail.server] posts/attachments/batch failed (rendering with [])",
-							{ threadId: params.threadId, postIds: postIds.length, err },
-						);
-						return [] as Attachment[];
-					})
-			: Promise.resolve([] as Attachment[]),
-		// Batch author fetch: GET /api/v1/users/batch?ids=1,2,3
-		// Failure → `undefined`. enrichPosts then constructs a minimal author
-		// stub from `post.authorId` + `post.authorName` so the `<Link href="/users/N">`
-		// still renders. We never invent sensitive fields (role, status, etc).
-		authorIds.length > 0
-			? forumApi
-					.getAll<PublicUser>("/api/v1/users/batch", {
-						ids: authorIds.join(","),
-					})
-					.then((res) => {
-						const map = new Map<number, User>();
-						for (const pu of res.data) {
-							map.set(pu.id, publicUserToUser(pu));
-						}
-						return map as Map<number, User> | undefined;
-					})
-					.catch((err) => {
-						console.warn(
-							"[thread-detail.server] users/batch failed (falling back to post.authorName)",
-							{ threadId: params.threadId, authorIds: authorIds.length, err },
-						);
-						return undefined;
-					})
-			: Promise.resolve(new Map<number, User>()),
-	]);
-
 	const allAttachments = batchAttachmentRes;
 	const authorMap = batchAuthorRes ?? buildFallbackAuthorMap(postsRes.data);
 
@@ -239,7 +240,6 @@ export async function loadThreadDetail(params: {
 
 	// Build breadcrumbs from forum ancestors
 	const ancestors = context?.ancestors ?? [];
-	const settings = await fetchPublicSettings();
 	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
 	const breadcrumbs = buildThreadBreadcrumbsFromAncestors(
 		ancestors,

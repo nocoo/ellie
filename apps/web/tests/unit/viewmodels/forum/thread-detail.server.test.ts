@@ -83,6 +83,8 @@ vi.mock("@/lib/forum-breadcrumbs", () => ({
 
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
+import { getCachedForumAncestors } from "@/lib/forum-cache";
+import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 
 const mockForumApi = forumApi as any;
@@ -168,6 +170,24 @@ describe("loadThreadDetail", () => {
 			if (path.includes("post-comments/batch")) return Promise.resolve({ data: [] });
 			return Promise.resolve({ data: null });
 		});
+	});
+
+	it("starts attachments, authors and settings before the ancestor request settles", async () => {
+		let release!: (value: Awaited<ReturnType<typeof getCachedForumAncestors>>) => void;
+		vi.mocked(getCachedForumAncestors).mockReturnValueOnce(
+			new Promise((resolve) => {
+				release = resolve;
+			}),
+		);
+		const result = loadThreadDetail({ threadId: 1 });
+		for (let i = 0; i < 12; i++) await Promise.resolve();
+		expect(mockForumApi.post).toHaveBeenCalled();
+		expect(mockForumApi.getAll).toHaveBeenCalled();
+		expect(fetchPublicSettings).toHaveBeenCalled();
+		release({ forum: mockForums[0], ancestors: [] } as Awaited<
+			ReturnType<typeof getCachedForumAncestors>
+		>);
+		expect((await result).posts.length).toBeGreaterThan(0);
 	});
 
 	it("returns thread detail with posts, forum, and breadcrumbs", async () => {

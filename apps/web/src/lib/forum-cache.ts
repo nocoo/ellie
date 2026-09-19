@@ -10,8 +10,9 @@
  * repeated calls with the same arguments and read purpose share a request.
  * Thread metadata uses a separate loader so only the page read counts a view.
  *
- * Cross-request freshness is unaffected: `forum-api.ts` still passes
- * `cache: "no-store"`, so each new request re-loads from the Worker.
+ * Public settings and display-only forum summaries also share bounded
+ * cross-request snapshots. Content reads and authorization context still
+ * reach the Worker on each request; no user/session data is cached here.
  *
  * Enforced by `tests/unit/architecture/no-adhoc-cache.test.ts`.
  */
@@ -29,8 +30,9 @@ import {
 	fetchThreadById,
 	fetchThreadMetadata,
 } from "./forum-data";
-import { type ForumSettings, fetchForumSettings } from "./forum-settings";
+import { type ForumSettings, parseForumSettings } from "./forum-settings";
 import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
+import { createTtlCache } from "./ttl-cache";
 
 // ---------------------------------------------------------------------------
 // Forum data (deduplicated within the same RSC render pass)
@@ -38,7 +40,9 @@ import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 
 export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedThreadMetadata = cache(fetchThreadMetadata);
-export const getCachedForumList = cache(fetchForumList);
+// Single public snapshot per process. Never use this display data to authorize content.
+const forumSummaries = createTtlCache({ expirationMs: 60 * 60_000, load: fetchForumList });
+export const getCachedForumList = cache(async () => structuredClone(await forumSummaries.get()));
 export const getCachedForumNames = cache(fetchForumNames);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
@@ -48,8 +52,18 @@ export const getCachedRecommendedThreads = cache(loadRecommendedThreads);
 // Forum settings
 // ---------------------------------------------------------------------------
 
-export const getCachedForumSettings = cache(fetchForumSettings);
-export const getCachedPublicSettings = cache(fetchPublicSettingsRaw);
+const publicSettings = createTtlCache({ expirationMs: 5 * 60_000, load: fetchPublicSettingsRaw });
+export const getCachedPublicSettings = cache(async () =>
+	structuredClone(await publicSettings.get()),
+);
+export const getCachedForumSettings = cache(async () => {
+	try {
+		return parseForumSettings(await getCachedPublicSettings());
+	} catch {
+		// A failed fetch is never cached; defaults apply only to this render.
+		return parseForumSettings({});
+	}
+});
 
 /** Convenience: page size from cached settings. */
 export async function getCachedPageSize(): Promise<number> {

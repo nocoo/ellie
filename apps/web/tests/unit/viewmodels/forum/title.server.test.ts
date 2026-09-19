@@ -14,10 +14,25 @@ vi.mock("@/lib/forum-api", () => ({
 vi.mock("react", () => ({ cache: (fn: (...args: unknown[]) => unknown) => fn }));
 
 import { forumApi } from "@/lib/forum-api";
-import { getCachedForumList, getCachedForumNames, getCachedThreadById } from "@/lib/forum-cache";
-import { getForumTitle, getThreadTitle, getUserTitle } from "@/viewmodels/forum/title.server";
+
+let { getCachedForumList, getCachedForumNames, getCachedThreadById } = await import(
+	"@/lib/forum-cache"
+);
+let { getForumTitle, getThreadTitle, getUserTitle } = await import(
+	"@/viewmodels/forum/title.server"
+);
 
 const mockForumApi = forumApi as any;
+beforeEach(async () => {
+	vi.resetAllMocks();
+	vi.resetModules();
+	({ getCachedForumList, getCachedForumNames, getCachedThreadById } = await import(
+		"@/lib/forum-cache"
+	));
+	({ getForumTitle, getThreadTitle, getUserTitle } = await import(
+		"@/viewmodels/forum/title.server"
+	));
+});
 
 describe("getThreadTitle", () => {
 	it("returns thread subject", async () => {
@@ -40,10 +55,6 @@ describe("getUserTitle", () => {
 });
 
 describe("getForumTitle", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
 	it("returns forum name when found", async () => {
 		mockForumApi.getAll.mockResolvedValue({ data: [{ id: 5, name: "General" }] });
 		const result = await getForumTitle(5);
@@ -58,10 +69,6 @@ describe("getForumTitle", () => {
 });
 
 describe("render-pass loader routing", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
 	it("marks the title request as metadata and retains the page reading event", async () => {
 		mockForumApi.get.mockResolvedValue({ data: { subject: "Shared" } });
 
@@ -87,6 +94,7 @@ describe("render-pass loader routing", () => {
 		expect(title).toBe("Dev");
 		expect(forums).toEqual([{ id: 7, name: "Dev" }]);
 		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums");
+		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
 	});
 });
 
