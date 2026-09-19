@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-19
+
+### Changed
+
+- Cache monitoring captures a snapshot only when an administrator requests it. Opening the admin page reads the saved snapshot without scanning KV; routine cache reads, fills and D1 queries no longer collect monitoring samples or write monitoring rows.
+- Forum rendering shares public settings for five minutes, starts unfiltered thread lists alongside type configuration, and streams recommended threads independently. Thread details fetch ancestors, authors, attachments and display settings in parallel.
+- Thread generation tokens use bounded KV bulk reads. Entity misses skip redundant per-key reads, and guarded cache fills can finish after the response.
+- Full forum summaries keep their existing Worker expiry and mutation invalidation; the Web layer does not extend their lifetime or retain deleted, restricted or anonymized fields between requests.
+
+### Fixed
+
+- Large cold reads wait behind existing KV fills with bounded admission, retaining the original origin limits and timeout/delete barriers.
+- Reads that waited for admission cannot refill a batch captured before a completed mutation. Subsequent requests load the current value.
+
+### Deployment
+
+- No new D1 schema migration is introduced. Web, Admin, Worker and Rust versions are synchronized to v1.13.0.
+
 ## [1.12.0] - 2026-09-19
 
 ### Changed
