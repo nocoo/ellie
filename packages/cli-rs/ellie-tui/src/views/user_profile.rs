@@ -77,14 +77,11 @@ mod tests {
 			id: 1,
 			username: "alice".to_string(),
 			role: ellie_core::types::UserRole::User,
-			status: ellie_core::types::UserStatus::Active,
 			posts: 42,
 			threads: 7,
 			credits: 100,
-			email: None,
 			avatar: String::new(),
 			reg_date: 0,
-			last_login: 0,
 		};
 		terminal
 			.draw(|f| draw(f, f.area(), 1, Some(&user), &tc))
@@ -108,14 +105,11 @@ mod tests {
 			id: 1,
 			username: "alice".to_string(),
 			role: ellie_core::types::UserRole::User,
-			status: ellie_core::types::UserStatus::Active,
 			posts: 42,
 			threads: 7,
 			credits: 100,
-			email: None,
 			avatar: String::new(),
 			reg_date: 0,
-			last_login: 0,
 		};
 		terminal
 			.draw(|f| draw(f, f.area(), 99, Some(&user), &tc))

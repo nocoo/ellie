@@ -827,14 +827,11 @@ mod tests {
 			id: 99,
 			username: "stale".to_string(),
 			role: ellie_core::types::UserRole::User,
-			status: ellie_core::types::UserStatus::Active,
 			posts: 0,
 			threads: 0,
 			credits: 0,
-			email: None,
 			avatar: String::new(),
 			reg_date: 0,
-			last_login: 0,
 		});
 
 		app.forums = vec![dummy_forum(1, "F")];

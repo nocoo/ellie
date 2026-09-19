@@ -98,18 +98,15 @@ pub enum ForumType {
 
 // ─── Entity Structs ──────────────────────────────────────
 
+/// Public profile returned by the user endpoint; private account fields are excluded.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
 	pub id: u64,
 	pub username: String,
-	#[serde(default)]
-	pub email: Option<String>,
 	pub avatar: String,
-	pub status: UserStatus,
 	pub role: UserRole,
 	pub reg_date: u64,
-	pub last_login: u64,
 	pub threads: u64,
 	pub posts: u64,
 	pub credits: i64,
@@ -238,8 +235,20 @@ pub struct ErrorDetail {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiveResponse {
 	pub status: String,
-	pub environment: String,
-	pub timestamp: u64,
+	pub version: String,
+	pub component: String,
+	pub timestamp: String,
+	pub uptime: u64,
+	pub database: LiveDatabase,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub environment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LiveDatabase {
+	pub connected: bool,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub error: Option<String>,
 }
 
 /// Login response data.
@@ -310,12 +319,9 @@ mod tests {
 		let json = r#"{
 			"id": 123,
 			"username": "alice",
-			"email": "alice@example.com",
 			"avatar": "default.png",
-			"status": 0,
 			"role": 1,
 			"regDate": 1609459200,
-			"lastLogin": 1700000000,
 			"threads": 42,
 			"posts": 256,
 			"credits": 1000
@@ -323,15 +329,20 @@ mod tests {
 		let user: User = serde_json::from_str(json).unwrap();
 		assert_eq!(user.username, "alice");
 		assert_eq!(user.role, UserRole::Admin);
-		assert_eq!(user.status, UserStatus::Active);
-		assert_eq!(user.email, Some("alice@example.com".to_string()));
+		assert_eq!(user.id, 123);
+		assert_eq!(user.reg_date, 1609459200);
+		assert_eq!(user.posts, 256);
+		assert_eq!(user.threads, 42);
+		assert_eq!(user.credits, 1000);
 	}
 
 	#[test]
-	fn deserialize_user_without_email() {
+	fn public_user_does_not_serialize_private_account_fields() {
 		let json = r#"{
 			"id": 123,
 			"username": "alice",
+			"email": "private@example.com",
+			"password": "not-public",
 			"avatar": "default.png",
 			"status": 0,
 			"role": 1,
@@ -343,7 +354,10 @@ mod tests {
 		}"#;
 		let user: User = serde_json::from_str(json).unwrap();
 		assert_eq!(user.username, "alice");
-		assert_eq!(user.email, None);
+		let public = serde_json::to_value(user).unwrap();
+		for field in ["email", "status", "lastLogin", "password"] {
+			assert!(public.get(field).is_none(), "private field {field}");
+		}
 	}
 
 	#[test]
@@ -491,9 +505,40 @@ mod tests {
 
 	#[test]
 	fn deserialize_live_response() {
-		let json = r#"{ "status": "ok", "environment": "test", "timestamp": 1700000000 }"#;
+		let json = r#"{
+			"status": "ok", "version": "v1.11.7", "component": "ellie-worker",
+			"timestamp": "2026-09-19T00:00:00.000Z", "uptime": 123,
+			"database": { "connected": true }
+		}"#;
 		let live: LiveResponse = serde_json::from_str(json).unwrap();
-		assert_eq!(live.environment, "test");
+		assert_eq!(live.status, "ok");
+		assert_eq!(live.version, "v1.11.7");
+		assert_eq!(live.component, "ellie-worker");
+		assert_eq!(live.timestamp, "2026-09-19T00:00:00.000Z");
+		assert_eq!(live.uptime, 123);
+		assert!(live.database.connected);
+		assert!(live.database.error.is_none());
+		assert!(live.environment.is_none());
+		assert!(
+			serde_json::to_value(&live)
+				.unwrap()
+				.get("environment")
+				.is_none()
+		);
+	}
+
+	#[test]
+	fn deserialize_test_live_response() {
+		let json = r#"{
+			"status": "error", "version": "v1.11.7", "component": "ellie-worker",
+			"timestamp": "2026-09-19T00:00:00.000Z", "uptime": 0,
+			"database": { "connected": false, "error": "D1 unavailable" },
+			"environment": "test"
+		}"#;
+		let live: LiveResponse = serde_json::from_str(json).unwrap();
+		assert_eq!(live.environment.as_deref(), Some("test"));
+		assert!(!live.database.connected);
+		assert_eq!(live.database.error.as_deref(), Some("D1 unavailable"));
 	}
 
 	#[test]

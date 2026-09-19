@@ -74,6 +74,11 @@ impl ApiClient {
 			.http_status_as_error(false)
 			.build();
 		let agent: Agent = config.into();
+		Self::with_agent(base_url, api_key, agent)
+	}
+
+	/// Supply a transport with explicit isolation settings for local HTTP tests.
+	pub fn with_agent(base_url: String, api_key: String, agent: Agent) -> Self {
 		Self {
 			agent,
 			base_url,

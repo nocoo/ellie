@@ -23,6 +23,7 @@ bun test \
   "$PWD/tests/unit/migration-0041-schema.test.ts" \
   "$PWD/tests/unit/migration-0042-schema.test.ts" \
   "$PWD/tests/unit/migration-0043-schema.test.ts" \
+  "$PWD/tests/unit/migration-0045-schema.test.ts" \
   >"$blog" 2>&1 &
 b=$!
 

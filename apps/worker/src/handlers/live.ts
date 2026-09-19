@@ -42,6 +42,7 @@ export async function live(request: Request, env: Env): Promise<Response> {
 		timestamp,
 		uptime,
 		database,
+		...(env.ENVIRONMENT === "test" ? { environment: "test" } : {}),
 	};
 
 	return new Response(JSON.stringify(body), {
