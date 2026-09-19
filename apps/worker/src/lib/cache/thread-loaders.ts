@@ -203,7 +203,7 @@ export async function loadPostEntities(
 		await selectIds(
 			env,
 			ids,
-			(p) => `SELECT ${POST_COLUMNS} FROM posts WHERE id IN (${p}) AND thread_id = ?`,
+			(p) => `SELECT ${POST_COLUMNS} FROM posts NOT INDEXED WHERE id IN (${p}) AND thread_id = ?`,
 			[threadId],
 		),
 	);
@@ -593,7 +593,7 @@ export async function loadPostAccessBatch(
 	for (let start = 0; start < unique.length; start += 99) {
 		const batch = unique.slice(start, start + 99);
 		const result =
-			await env.DB.prepare(`SELECT id, thread_id, invisible, anonymous, author_id FROM posts
+			await env.DB.prepare(`SELECT id, thread_id, invisible, anonymous, author_id FROM posts NOT INDEXED
 			WHERE id IN (${batch.map(() => "?").join(",")}) AND thread_id = ? AND invisible = 0`)
 				.bind(...batch, threadId)
 				.all<PostAccess>();

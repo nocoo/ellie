@@ -59,7 +59,7 @@ function createMockDb(opts: {
 					})),
 				};
 			}
-			if (sql.includes("FROM posts WHERE id")) {
+			if (/FROM posts(?: NOT INDEXED)? WHERE id/.test(sql)) {
 				return {
 					bind: vi.fn(() => ({
 						first: vi.fn(() =>

@@ -207,7 +207,7 @@ async function loadMessageRows(
 	for (let start = 0; start < ids.length; start += 98) {
 		const part = ids.slice(start, start + 98);
 		const result = await env.DB.prepare(
-			`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id IN (${part.map(() => "?").join(",")}) AND (sender_id = ? OR receiver_id = ?)`,
+			`SELECT ${MESSAGE_COLUMNS} FROM messages NOT INDEXED WHERE id IN (${part.map(() => "?").join(",")}) AND (sender_id = ? OR receiver_id = ?)`,
 		)
 			.bind(...part, userId, userId)
 			.all<MessageRow>();
