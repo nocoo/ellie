@@ -13,7 +13,6 @@ import {
 	rebuildCatalogCache,
 	validateCatalogDescriptor,
 } from "../../../../src/lib/cache/catalog-read";
-import { __resetMetricsForTest } from "../../../../src/lib/cache/metrics";
 import { readingFixture } from "./thread-cache-fixture";
 
 describe("lib/cache/catalog-read", () => {
@@ -22,7 +21,6 @@ describe("lib/cache/catalog-read", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_700_000_000_000);
-		__resetMetricsForTest();
 		f = readingFixture();
 	});
 

@@ -40,7 +40,7 @@ describe("withEntityAuth", () => {
 		expect(res.status).toBe(200);
 		expect(handler).toHaveBeenCalledTimes(1);
 		// `withEntityAuth` now threads an optional `ctx` (third arg) so
-		// admin handlers can schedule async work (e.g. flushPendingNow).
+		// admin handlers can schedule async work (e.g. cache warming).
 		// When the caller omits ctx, handlers see `undefined`.
 		expect(handler).toHaveBeenCalledWith(req, env, undefined);
 	});

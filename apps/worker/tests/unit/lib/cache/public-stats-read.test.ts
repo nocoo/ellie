@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetMetricsForTest } from "../../../../src/lib/cache/metrics";
 import {
 	countPostsInDay,
 	getPublicStats,
@@ -15,7 +14,6 @@ describe("public-stats-read cache loader", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-30T10:00:00Z")); // 18:00 Shanghai
-		__resetMetricsForTest();
 		f = readingFixture();
 		f.thread(1);
 	});

@@ -19,7 +19,6 @@ import {
 	inspectCacheEntry,
 	rebuildCacheEntry,
 } from "../../../../src/lib/cache/manage";
-import { __resetMetricsForTest, swapSnapshot } from "../../../../src/lib/cache/metrics";
 import {
 	getMessages,
 	getUnreadCount,
@@ -47,7 +46,7 @@ function deferred<T>() {
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(1_700_000_000_000);
-	__resetMetricsForTest();
+
 	f = readingFixture();
 	f.thread(1);
 	f.post(1);
@@ -132,7 +131,7 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		expect(count).toBeDefined();
 		const countBefore = f.values.get(count.key);
 		f.calls.length = 0;
-		__resetMetricsForTest();
+
 		for (const entry of [page, count]) {
 			const inspected = await inspectCacheEntry(f.env, entry.key);
 			expect(inspected.valid).toBe(true);
@@ -167,9 +166,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		expect(f.calls[0].sql).toMatch(/COUNT\s*\(/i);
 		expect(f.values.get(page.key)).toBe(pageAfter);
 		expect(f.calls.every((call) => /^\s*SELECT\b/i.test(call.sql))).toBe(true);
-		expect([...swapSnapshot().keys()].some((key) => key.startsWith("thread:list\u0001"))).toBe(
-			false,
-		);
 
 		f.calls.length = 0;
 		const otherEntries = new Map([...f.values].filter(([key]) => key !== count.key));
@@ -215,11 +211,9 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			scope: "role:anon",
 		};
 		const summaryKey = await forumCacheKey(f.env, summaryDesc);
-
 		const inspectedSummary = await inspectCacheEntry(f.env, summaryKey);
 		expect(inspectedSummary.found).toBe(true);
 		expect(inspectedSummary.valid).toBe(true);
-
 		const rebuiltSummary = await rebuildCacheEntry(f.env, undefined, summaryKey);
 		expect(rebuiltSummary.tier).toBe("HOUR");
 		expect(rebuiltSummary.scope).toBe("role:anon");
@@ -237,7 +231,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 				"INSERT INTO forum_thread_types (id, forum_id, source_typeid, name, display_order, enabled, moderator_only) VALUES (1, 1, 10, 'Discussion', 1, 1, 0)",
 			)
 			.run();
-
 		await getCachedThreadTypes(f.env, undefined, 1);
 		const ttDesc: CacheDescriptor = {
 			family: "thread-types",
@@ -269,7 +262,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		await getDigestGroups(f.env, undefined, "digest:stats");
 		const digestDesc: CacheDescriptor = { family: "digest:stats", params: {}, scope: "internal" };
 		const digestKey = await catalogCacheKey(f.env, digestDesc);
-
 		const rebuiltDigest = await rebuildCacheEntry(f.env, undefined, digestKey);
 		expect(rebuiltDigest.tier).toBe("LONG");
 		expect(rebuiltDigest.scope).toBe("internal");
@@ -299,7 +291,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			scope: "user:20",
 		};
 		const unreadKey = await privateCacheKey(f.env, unreadDesc);
-
 		const inspectedUnread = await inspectCacheEntry(f.env, unreadKey);
 		expect(inspectedUnread.found).toBe(true);
 		expect(inspectedUnread.valid).toBe(true);
@@ -313,7 +304,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		// Seed pm:entity for user 20 (receiver)
 		const msgMap = await getMessages(f.env, undefined, 20, [101]);
 		expect(msgMap.get(101)?.subject).toBe("Hello Bob");
-
 		const entityDesc: CacheDescriptor = {
 			family: "pm:entity",
 			params: { userId: 20, id: 101 },
@@ -369,7 +359,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		};
 		await readAdminEntity(f.env, undefined, listDesc);
 		const listKey = await adminEntityCacheKey(f.env, listDesc);
-
 		const rebuiltList = await rebuildCacheEntry(f.env, undefined, listKey);
 		expect(rebuiltList.tier).toBe("SHORT");
 		expect(rebuiltList.scope).toBe("admin");
@@ -379,7 +368,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		const staffDesc: CacheDescriptor = { family: "admin:users:staff", params: {}, scope: "admin" };
 		await readAdminEntity(f.env, undefined, staffDesc);
 		const staffKey = await adminEntityCacheKey(f.env, staffDesc);
-
 		const rebuiltStaff = await rebuildCacheEntry(f.env, undefined, staffKey);
 		expect(rebuiltStaff.tier).toBe("SHORT");
 		expect(rebuiltStaff.scope).toBe("admin");
@@ -393,7 +381,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		};
 		await readAdminEntity(f.env, undefined, adminTtDesc);
 		const adminTtKey = await adminEntityCacheKey(f.env, adminTtDesc);
-
 		const rebuiltAdminTt = await rebuildCacheEntry(f.env, undefined, adminTtKey);
 		expect(rebuiltAdminTt.tier).toBe("SHORT");
 		expect(rebuiltAdminTt.scope).toBe("admin");
@@ -412,7 +399,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			handler_name: "",
 			created_at: 1_700_000_000,
 		});
-
 		const reportDesc: CacheDescriptor = {
 			family: "admin:display",
 			scope: "admin",
@@ -428,7 +414,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		};
 		await getAdminReport(f.env, undefined, reportDesc);
 		const reportKey = await adminReportCacheKey(f.env, reportDesc);
-
 		const rebuiltReport = await rebuildCacheEntry(f.env, undefined, reportKey);
 		expect(rebuiltReport.tier).toBe("SHORT");
 		expect(rebuiltReport.scope).toBe("admin");
@@ -459,7 +444,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			),
 			"admin",
 		);
-
 		const rebuiltMetrics = await rebuildCacheEntry(f.env, undefined, metricsKey);
 		expect(rebuiltMetrics.tier).toBe("SHORT");
 		expect(rebuiltMetrics.scope).toBe("admin");
@@ -520,7 +504,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 				),
 				"admin",
 			);
-
 			const rebuiltIp = await rebuildCacheEntry(f.env, undefined, ipKey);
 			expect(rebuiltIp.tier).toBe("LONG");
 			expect(rebuiltIp.scope).toBe("admin");
@@ -528,36 +511,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 		} finally {
 			globalThis.fetch = origFetch;
 		}
-	});
-
-	it("admin rebuild does not record business hit/miss metrics", async () => {
-		const desc: CacheDescriptor = {
-			family: "thread:entity",
-			params: { threadId: 1 },
-			scope: "internal",
-		};
-		const key = await (await import("../../../../src/lib/cache/thread-loaders")).readingCacheKey(
-			f.env,
-			desc,
-		);
-		await (await import("../../../../src/lib/cache/thread-loaders")).getThreadRows(
-			f.env,
-			undefined,
-			[1],
-		);
-
-		__resetMetricsForTest();
-		await rebuildCacheEntry(f.env, undefined, key);
-
-		const metrics = swapSnapshot();
-		const businessHitMiss = [...metrics.keys()].filter(
-			(name) =>
-				!name.includes("admin:") &&
-				(name.includes("\x01hit\x01") ||
-					name.includes("\x01miss\x01") ||
-					name.includes("\x01read\x01")),
-		);
-		expect(businessHitMiss).toHaveLength(0);
 	});
 
 	it("32 concurrent distinct management targets => 33rd throws BUSY and frees capacity on finish", async () => {
@@ -614,7 +567,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 			undefined,
 			[199],
 		);
-
 		await expect(deleteCacheEntry(f.env, k33)).rejects.toMatchObject({
 			code: "BUSY",
 			stage: "validate",

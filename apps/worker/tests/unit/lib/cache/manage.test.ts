@@ -8,7 +8,6 @@ import {
 	inspectCacheEntry,
 	rebuildCacheEntry,
 } from "../../../../src/lib/cache/manage";
-import { __resetMetricsForTest, swapSnapshot } from "../../../../src/lib/cache/metrics";
 import {
 	getThreadRows,
 	readingCacheKey,
@@ -45,7 +44,7 @@ async function seed() {
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(Date.UTC(2026, 8, 17));
-	__resetMetricsForTest();
+
 	f = readingFixture();
 	f.thread(1);
 	f.post(1);
@@ -133,7 +132,6 @@ describe("cache management uses the original descriptor and authoritative loader
 		f.sqlite.exec("UPDATE threads SET subject = 'Updated', views = 19 WHERE id = 1");
 		vi.setSystemTime(Date.now() + 10_000);
 		f.calls.length = 0;
-		__resetMetricsForTest();
 		const next = await rebuildCacheEntry(f.env, undefined, key);
 		expect(next).toMatchObject({
 			family: descriptor.family,
@@ -150,11 +148,6 @@ describe("cache management uses the original descriptor and authoritative loader
 		expect(f.sqlite.prepare("SELECT views FROM threads WHERE id = 1").get()).toMatchObject({
 			views: 19,
 		});
-		expect(
-			[...swapSnapshot().keys()].filter((name) =>
-				["hit", "miss", "read"].includes(name.split("\u0001")[1]),
-			),
-		).toEqual([]);
 	});
 	it("authoritative absence replaces a previous body with a scoped SHORT negative", async () => {
 		const key = await seed();

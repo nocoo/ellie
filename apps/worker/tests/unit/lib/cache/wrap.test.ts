@@ -1,6 +1,5 @@
 import { CACHE_TTL_SECONDS, type CacheTier } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetMetricsForTest, swapSnapshot } from "../../../../src/lib/cache/metrics";
 import {
 	CacheLoadLimitError,
 	cacheDelete,
@@ -45,7 +44,6 @@ function jsonKV() {
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(now);
-	__resetMetricsForTest();
 });
 afterEach(() => {
 	vi.useRealTimers();
@@ -306,13 +304,7 @@ describe("unified cache time and origin contract", () => {
 		expect(kv.put).not.toHaveBeenCalled();
 		expect(await cacheGetOrSet(env, undefined, "k", async () => 2, options)).toBe(2);
 	});
-	it("management metrics have a distinct source family", async () => {
-		const { env } = jsonKV();
-		await cacheGetOrSet(env, undefined, "k", async () => 1, { ...options, source: "admin" });
-		expect([...swapSnapshot().keys()].every((key) => key.startsWith("admin:thread:stats"))).toBe(
-			true,
-		);
-	});
+
 	it("envelope validation rejects invalid lifetimes and descriptors", () => {
 		const entry = createCacheEnvelope(1, options);
 		for (const invalid of [

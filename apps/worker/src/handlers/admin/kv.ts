@@ -1,7 +1,7 @@
 // Admin KV monitor — read + safe-mutation handlers backing the
 // `/admin/statistics/kv` page. All endpoints are gated by Key B at
-// the router level (`apiKey` middleware) and additionally by
-// `withEntityAuth` for the `auth: "admin"` flag.
+// the router level (`apiKey` middleware). `withEntityAuth` preserves
+// the common admin handler signature.
 //
 // Design contract (see thread #ellie-后端细节:bdcb7183 v3 plan):
 //
@@ -17,7 +17,7 @@
 //    - `valueSensitivity: "no-read"` → `getKey` refuses with
 //      `KV_KEY_VALUE_FORBIDDEN` even on otherwise public-name keys.
 //
-// 3. Audit log on every mutation (`writeAdminLog` actions
+// 3. Audit log on business-cache mutations (`writeAdminLog` actions
 //    `kv.bump_gen`, `kv.delete_key`). Audit details only carry the
 //    family + masked key + category — never the raw value.
 //
@@ -30,11 +30,9 @@
 //      with `list_complete: false`. Pagination terminates ONLY on
 //      `list_complete === true`.
 //
-// 5. The `metrics` endpoint reads completed hourly observations from
-//    `kv_cache_metrics_hour` (migration 0052). The in-isolate accumulator
-//    in `lib/cache/metrics.ts` flushes at most once per hour per isolate.
-//    Business, admin and D1 observations remain separate; short-lived
-//    auth/rate-limit state is not counted as business cache traffic.
+// 5. Overview reads the last administrator-triggered KV snapshot. Only
+//    POST snapshot scans metadata. Metrics exposes legacy observations;
+//    ordinary traffic no longer collects or persists monitoring counters.
 
 import {
 	type CacheParams,
@@ -45,13 +43,12 @@ import {
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import {
-	footprintFamilyName,
+	captureMonitorSnapshot,
 	getMonitorMetrics,
-	getMonitorOverview,
 	listExactMetadata,
 	loadMonitorMetrics,
-	loadMonitorOverview,
 	parseMonitorMetricsQuery,
+	readMonitorSnapshot,
 } from "../../lib/cache/admin-monitor-read";
 import {
 	bumpDigestGen,
@@ -71,7 +68,6 @@ import {
 	rebuildCacheEntry,
 	resolveCacheEntryKey,
 } from "../../lib/cache/manage";
-import { flushPendingNow, recordDelete, recordGauge } from "../../lib/cache/metrics";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
@@ -195,7 +191,6 @@ type CacheLifecycle =
 	| "restricted"
 	| "runtime-state"
 	| "diagnostic-snapshot";
-
 const UTF8 = new TextEncoder();
 const UNAVAILABLE_GEN = "!unavailable";
 
@@ -289,7 +284,6 @@ function readListMetadata(entry: { metadata?: unknown }): {
 function canInspectViaManage(spec: KvFamilySpec): boolean {
 	return !!spec.tier && spec.status === "shipped" && spec.valueSensitivity !== "no-read";
 }
-
 const KV_AUDIT_ACTIONS = ["kv.bump_gen", "kv.delete_key", "kv.rebuild", "kv.invalidate_group"];
 
 // ─── Body / param parsing ─────────────────────────────────────────
@@ -316,37 +310,25 @@ function readQuery(request: Request, key: string): string | null {
 // a small sample of (masked) key names. Counts are bounded by the
 // per-family list cap so a runaway prefix can't blow up the response.
 
-function recordObservedFootprint(
-	row: {
-		family: string;
-		count: number;
-		countKind: string;
-		footprint: { kind: string; bytes: number | null };
-		expiredCount?: number | null;
-		currentVersionCount?: number | null;
-	},
-	observedAt: number,
-): void {
-	if (Math.floor(observedAt / 60_000) !== Math.floor(Date.now() / 60_000)) return;
-	const family = footprintFamilyName(row.family);
-	if (row.countKind !== "unknown") recordGauge(family, "observed-keys", row.count, observedAt);
-	if (row.footprint.kind !== "unknown" && row.footprint.bytes !== null) {
-		recordGauge(family, "observed-bytes", row.footprint.bytes, observedAt);
-	}
-	if (row.countKind !== "unknown" && typeof row.expiredCount === "number")
-		recordGauge(family, "observed-expired", row.expiredCount, observedAt);
-	if (row.countKind !== "unknown" && typeof row.currentVersionCount === "number")
-		recordGauge(family, "observed-current", row.currentVersionCount, observedAt);
-}
-
 export const overview = withEntityAuth(
 	kvConfig,
-	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-		const enrolled = findFamily("monitor:overview")?.loader === "monitor";
-		const data = enrolled ? await getMonitorOverview(env, ctx) : await loadMonitorOverview(env);
-		for (const row of data.families) recordObservedFootprint(row, data.observedAt);
-		return jsonNoStoreResponse(data, origin);
+		const data = await readMonitorSnapshot(env);
+		return jsonNoStoreResponse(
+			data ?? { families: [], observedAt: null, source: "registry+kv-list-metadata" },
+			origin,
+		);
+	},
+);
+
+export const snapshot = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		return jsonNoStoreResponse(
+			await captureMonitorSnapshot(env),
+			request.headers.get("Origin") ?? undefined,
+		);
 	},
 );
 
@@ -356,7 +338,6 @@ export const overview = withEntityAuth(
 // masking to the key names; refuses entirely when `nameSensitivity ===
 // "hide"`. Returns expirations from the KV.list response (already an
 // absolute unix-second value when set).
-
 const LIST_PAGE_LIMIT = 100;
 const LIST_MAX_PAGES = 10;
 
@@ -403,7 +384,6 @@ async function collectOwnedKeys(
 	}
 	return { owned, cursor: nextCursor, listComplete };
 }
-
 const PARAMS_QUERY_MAX = 2048;
 const PARAMS_FIELD_MAX = 32;
 const SCOPE_QUERY_MAX = 128;
@@ -542,7 +522,6 @@ export const listFamily = withEntityAuth(
 		if (spec.nameSensitivity === "hide") {
 			return errorResponse("KV_KEY_NAME_HIDDEN", 403, { family: spec.family }, origin);
 		}
-
 		const locateKey = readQuery(request, "key");
 		const locateParams = parseCacheParams(readQuery(request, "params"));
 		const locateScope = parseScopeQuery(readQuery(request, "scope"));
@@ -572,26 +551,21 @@ export const listFamily = withEntityAuth(
 				throw err;
 			}
 		}
-
 		if (spec.keyKind === "exact") {
 			return listSingletonFamily(env, spec, origin);
 		}
-
 		const cursor = readQuery(request, "cursor") ?? undefined;
 		const limitRaw = readQuery(request, "limit");
 		const limit = Math.min(
 			Math.max(Number.parseInt(limitRaw ?? "", 10) || LIST_PAGE_LIMIT, 1),
 			LIST_PAGE_LIMIT,
 		);
-
 		const {
 			owned,
 			cursor: nextCursor,
 			listComplete,
 		} = await collectOwnedKeys(env, spec, limit, cursor);
-
 		const masked = await Promise.all(owned.slice(0, limit).map((k) => listedKeyRow(spec, k)));
-
 		return jsonNoStoreResponse(
 			{
 				family: spec.family,
@@ -811,7 +785,6 @@ async function inspectRawPayload(
 	} catch {
 		readFailed = true;
 	}
-
 	const expiration = value === null ? null : await probeExpirationFor(env, key);
 	const contentUtf8Bytes = value === null ? null : UTF8.encode(value).byteLength;
 	let parsedValue: unknown = value;
@@ -837,7 +810,6 @@ async function inspectRawPayload(
 		expiresAt: listMeta.expiresAt,
 		observedAt: Date.now(),
 	});
-
 	return {
 		family: spec.family,
 		key: ctx.maskedKey,
@@ -932,7 +904,6 @@ export const getKey = withEntityAuth(
 		const located = await resolveInspectKey(env, request, origin);
 		if (located instanceof Response) return located;
 		const { key } = located;
-
 		const spec = resolveFamilyForKey(key);
 		if (!spec) {
 			return errorResponse("KV_FAMILY_NOT_FOUND", 404, { key }, origin);
@@ -959,7 +930,6 @@ export const getKey = withEntityAuth(
 			}
 			return errorResponse("INTERNAL_ERROR", 500, { family: spec.family }, origin);
 		}
-
 		if (payload.status === "read-failed" || payload.status === "not-found") {
 			return jsonNoStoreResponse(payload, origin);
 		}
@@ -995,12 +965,10 @@ export const refresh = withEntityAuth(
 		const origin = request.headers.get("Origin") ?? undefined;
 		const body = await parseBody(request);
 		if (!body) return errorResponse("INVALID_BODY", 400, undefined, origin);
-
 		const familyParam = typeof body.family === "string" ? body.family : null;
 		if (!familyParam) return errorResponse("MISSING_FAMILY", 400, undefined, origin);
 		const spec = findFamily(familyParam);
 		if (!spec) return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
-
 		const action = body.action as { kind?: string } | undefined;
 		const kind = action?.kind;
 		if (!kind || kind !== spec.refresh.kind) {
@@ -1011,7 +979,6 @@ export const refresh = withEntityAuth(
 				origin,
 			);
 		}
-
 		const actor = resolveActor(request, env);
 
 		// Simple no-arg bump actions are dispatched via a shared table to
@@ -1053,7 +1020,7 @@ async function finishGroupBump(
 	gen: string,
 	newGen: string,
 	origin: string | undefined,
-	ctx: ExecutionContext | undefined,
+	_ctx: ExecutionContext | undefined,
 	extra: Record<string, unknown> = {},
 ): Promise<Response> {
 	if (isUnavailableGen(newGen)) {
@@ -1097,7 +1064,6 @@ async function finishGroupBump(
 					: null,
 		details: { family: spec.family, gen, newGen },
 	});
-	if (ctx) flushPendingNow(env, ctx);
 	return jsonNoStoreResponse(
 		{
 			ok: true,
@@ -1163,7 +1129,7 @@ async function refreshDeleteLiteral(
 	spec: ReturnType<typeof findFamily> & object,
 	action: { kind?: string } | undefined,
 	origin: string | undefined,
-	ctx: ExecutionContext | undefined,
+	_ctx: ExecutionContext | undefined,
 ): Promise<Response> {
 	const key = (action as { key?: unknown }).key;
 	if (typeof key !== "string" || key.length === 0) {
@@ -1177,7 +1143,6 @@ async function refreshDeleteLiteral(
 		return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
 	}
 	await env.KV.delete(key);
-	recordDelete(`admin:${targetSpec.family}`);
 	const masked = await maskKeyName(key, targetSpec);
 	await writeAdminLog(env, actor, {
 		action: "kv.delete_key",
@@ -1185,7 +1150,6 @@ async function refreshDeleteLiteral(
 		targetId: null,
 		details: { family: spec.family, maskedKey: masked },
 	});
-	if (ctx) flushPendingNow(env, ctx);
 	return jsonNoStoreResponse(
 		{
 			ok: true,
@@ -1206,7 +1170,7 @@ async function refreshDeleteUserMini(
 	spec: ReturnType<typeof findFamily> & object,
 	action: { kind?: string } | undefined,
 	origin: string | undefined,
-	ctx: ExecutionContext | undefined,
+	_ctx: ExecutionContext | undefined,
 ): Promise<Response> {
 	const userId = Number((action as { userId?: unknown }).userId);
 	if (!Number.isInteger(userId) || userId <= 0) {
@@ -1217,8 +1181,6 @@ async function refreshDeleteUserMini(
 	// `user:mini:<id>` key — NOT the planned-v2 `user:mini:v2:<id>`
 	// helper in `lib/cache/invalidate.ts:deleteUserMini` (that one is
 	// for the future v2 family and would silently miss the live row).
-	// `invalidateUserCache` already records `delete` against the
-	// `user:mini:v1` family; we don't double-count here.
 	await invalidateUserCache(env, userId, { strict: true });
 	await writeAdminLog(env, actor, {
 		action: "kv.delete_key",
@@ -1226,7 +1188,6 @@ async function refreshDeleteUserMini(
 		targetId: userId,
 		details: { family: spec.family },
 	});
-	if (ctx) flushPendingNow(env, ctx);
 	return jsonNoStoreResponse(
 		{
 			ok: true,
@@ -1244,9 +1205,8 @@ async function refreshDeleteUserMini(
 
 // ─── GET /api/admin/kv/metrics ────────────────────────────────────
 //
-// Hourly op-dimensioned series for one or all instrumented families.
-// Reads from `kv_cache_metrics_hour` (migration 0052), populated by the
-// in-isolate accumulator + ctx.waitUntil flush in `lib/cache/metrics.ts`.
+// Historical hourly op-dimensioned series. Continuous collection is retired.
+// Reads legacy observations from `kv_cache_metrics_hour`; collection has stopped.
 //
 // Query params:
 //   - `family` (optional): restrict to one registry family. When omitted
@@ -1260,7 +1220,7 @@ async function refreshDeleteUserMini(
 // `op` includes cache verbs plus optional D1 observation
 // (`d1-query | d1-rows-read | d1-rows-written | d1-duration-ms`) under
 // families `application:d1` and `admin:d1`. No extra SQL: those rows
-// already live in `kv_cache_metrics_hour` after the hourly observation flush.
+// remain in `kv_cache_metrics_hour` from the retired observation collector.
 // Hit-rate must ignore admin:* and D1 families.
 
 export const metrics = withEntityAuth(
@@ -1304,7 +1264,7 @@ export const metrics = withEntityAuth(
 
 export const deleteEntry = withEntityAuth(
 	kvConfig,
-	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const body = await parseBody(request);
 		if (!body) return errorResponse("INVALID_BODY", 400, undefined, origin);
@@ -1312,7 +1272,6 @@ export const deleteEntry = withEntityAuth(
 		const key = typeof body.key === "string" ? body.key : null;
 		if (!familyParam) return errorResponse("MISSING_FAMILY", 400, undefined, origin);
 		if (!key) return errorResponse("MISSING_KEY", 400, undefined, origin);
-
 		const spec = findFamily(familyParam);
 		if (!spec) return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
 		const targetSpec = resolveFamilyForKey(key);
@@ -1332,7 +1291,6 @@ export const deleteEntry = withEntityAuth(
 				origin,
 			);
 		}
-
 		const actor = resolveActor(request, env);
 		const masked = await maskKeyName(key, spec);
 		try {
@@ -1359,14 +1317,12 @@ export const deleteEntry = withEntityAuth(
 				origin,
 			);
 		}
-		recordDelete(`admin:${spec.family}`);
 		await writeAdminLog(env, actor, {
 			action: "kv.delete_key",
 			targetType: "kv_key",
 			targetId: null,
 			details: { family: spec.family, maskedKey: masked, outcome: "deleted" },
 		});
-		if (ctx) flushPendingNow(env, ctx);
 		return jsonNoStoreResponse(
 			{
 				outcome: "deleted",
@@ -1436,7 +1392,6 @@ export const rebuild = withEntityAuth(
 				origin,
 			);
 		}
-
 		const actor = resolveActor(request, env);
 		const masked = await maskKeyName(key, spec);
 		try {
@@ -1447,7 +1402,6 @@ export const rebuild = withEntityAuth(
 				targetId: null,
 				details: { family: spec.family, maskedKey: masked, outcome: "rebuilt" },
 			});
-			if (ctx) flushPendingNow(env, ctx);
 			return jsonNoStoreResponse(
 				{
 					outcome: "rebuilt",

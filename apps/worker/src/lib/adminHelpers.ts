@@ -16,7 +16,7 @@ import type { Env } from "./env";
  *
  * `ctx` is optional so existing CRUD handlers (which don't need it) keep
  * their two-argument shape. New handlers that need to schedule async
- * work (e.g. `flushPendingNow` after a KV bump/delete) accept the third
+ * work (e.g. cache warming) accept the third
  * `ExecutionContext` argument and the router passes it through.
  */
 export type AdminHandler = (

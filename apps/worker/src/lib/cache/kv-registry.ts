@@ -189,6 +189,21 @@ function businessFamily(
  * architecture-guard test does not need an extra allowlist for them.
  */
 export const KV_REGISTRY: readonly KvFamilySpec[] = [
+	{
+		family: "monitor:snapshot",
+		displayName: "管理员手动快照",
+		category: "stats",
+		status: "shipped",
+		keyKind: "exact",
+		listPrefix: "admin:kv:snapshot:v1",
+		pattern: "admin:kv:snapshot:v1",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Latest bounded metadata snapshot; replaced only by an explicit administrator capture.",
+	},
 	businessFamily(
 		"monitor:overview",
 		"缓存运行概览",

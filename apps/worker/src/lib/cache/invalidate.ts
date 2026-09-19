@@ -28,16 +28,13 @@ import {
 	threadMetaGenKey,
 	userPublicKey,
 } from "./keys";
-import { recordBump, recordKvOp } from "./metrics";
 import { cacheDelete } from "./wrap";
 
 async function bumpResource(env: Env, key: string, family: string): Promise<string> {
 	try {
 		const value = await bumpGen(env, key);
-		recordBump(family);
 		return value;
 	} catch {
-		recordKvOp(family, "invalidate-error");
 		console.warn(`[cache] invalidation failed family=${family}`);
 		return "!unavailable";
 	}

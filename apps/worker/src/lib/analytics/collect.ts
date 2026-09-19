@@ -21,11 +21,9 @@
 //     honor a forwarded user_id, etc.). The collector cannot be
 //     tricked by a header it never sees.
 //
-// Mirrors the same in-isolate accumulator + waitUntil flush pattern as
-// `cache/metrics.ts`. Both modules live for the lifetime of a Worker
-// isolate; both swap their bucket BEFORE handing it off to a sink so
-// that a sink failure loses at most one window's samples and never
-// double-counts on retry.
+// The accumulator lives for the lifetime of a Worker isolate and swaps
+// its bucket before handing it off to a sink via waitUntil. A sink failure
+// loses at most one window's samples and never double-counts on retry.
 
 import type { Env } from "../env";
 import type { AggregateRow, BotClass, PageViewSample, PathKind } from "./types";

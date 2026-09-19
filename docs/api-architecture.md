@@ -255,7 +255,7 @@ const data = await apiClient.get("/api/v1/example");
 
 The thread page requests `GET /api/v1/post-comments?postId=…&limit=all` only after the reader selects **查看点评**. The Next.js proxy forwards the current session and query parameters. `limit=all` returns the complete single-post collection using the existing 30-minute comments cache; omitted limits still default to 50 and numeric limits remain capped at 100. Worker checks current post/thread/forum access before every cached read. **查看全部** therefore includes comments beyond the former 50/100 limits, while successful writes appear immediately on the current page.
 
-## Admin statistics and hourly cache observations
+## Admin statistics and manual cache snapshots
 
 The v1.11.4 Admin statistics update keeps the Key B gate and the existing Next.js proxy routes. The dashboard requests statistics only after selecting **加载统计** (`/admin?statistics=1`); navigation links do not prefetch these reads.
 
@@ -273,9 +273,11 @@ The v1.11.4 Admin statistics update keeps the Key B gate and the existing Next.j
 
 A missing counter is `null`, a stored zero is `0`, and a failed or malformed read is an error. The old today/banned/forum total fields are removed. Standard Admin forum/thread/user reads use maintained counters and latest-content metadata; the user list no longer supplies `messagesCount` or `attachmentsCount`. Explicit calibration and destructive-action checks retain their current queries and authorization. Worker and Admin must be released together for this DTO change.
 
-`GET /api/admin/kv/metrics?minutes=1440&family=…` reads persisted observations from `kv_cache_metrics_hour`, with a default 24-hour window and a 60-minute minimum. It returns only completed hours, preserving `series[].tsMinute` as the epoch-minute timestamp of each hour's start, plus `intervalMinutes: 60`, `sampling: "best-effort"`, and `source: "application:kv_cache_metrics_hour"`. The page loads the selected tab on demand and never polls automatically. Business cache TTLs remain 60 / 1800 / 86400 seconds; hourly aggregation is a separate policy. Missing observations stay missing, and `coverage=complete` only means the query was not truncated.
+`GET /api/admin/kv/overview` reads the last administrator-triggered snapshot from `admin:kv:snapshot:v1`. With no saved snapshot it returns `{ families: [], observedAt: null, source: "registry+kv-list-metadata" }`. Opening the page, changing tabs and reading an old snapshot never scan KV or refresh its timestamp.
 
-Deploy the new Admin first; its totals cards can also read the old response during rollout. Migration `0052` must precede the Worker update. It creates the hourly store without scanning business tables or importing minute history; old minute rows retain their seven-day cleanup. See [cache architecture and budgets](20-worker-kv-reference.md#106-后台按需统计与小时观测v1114).
+`POST /api/admin/kv/snapshot` runs the existing bounded KV metadata scan and replaces that single saved JSON value. The Admin proxy enforces its normal session/CSRF rules and forwards Key B. Sensitive names remain masked/hidden, partial counts stay lower bounds, and missing size metadata stays unknown. A failed scan leaves the previous snapshot intact; an unconfirmed KV write is reported as an error. Successful captures return the generated data immediately; later reads from other regions follow KV's eventual consistency. Snapshots have no automatic expiry and do not populate D1 or change business caches.
+
+Continuous cache counters, the D1 observation wrapper, hourly metric writes and metric retention jobs have been removed. Existing business caching, view-count aggregation, authorization and administrator mutation audits remain active. The **历史观测** tab can explicitly read pre-existing `kv_cache_metrics_hour` data through `GET /api/admin/kv/metrics?minutes=1440&family=…`; no new samples or backfilled zeroes are generated. The snapshot itself cannot report historical hit rates, origin-load counts or error trends. Use Cloudflare's native analytics for platform D1 usage. No new schema migration is required.
 
 ### v1.12.0 访问统计调整
 

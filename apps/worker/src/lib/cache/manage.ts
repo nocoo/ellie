@@ -1,7 +1,6 @@
 import type { CacheDescriptor, CacheEnvelope, CacheTier } from "@ellie/types";
 import type { Env } from "../env";
 import { findFamily, type KvFamilySpec, resolveFamilyForKey } from "./kv-registry";
-import { recordKvOp } from "./metrics";
 import { acceptsCacheValue, createCacheEnvelope, isCacheEnvelope, putCacheEnvelope } from "./store";
 import { CacheLoadLimitError, runCacheMutation, settleCacheLoads } from "./wrap";
 
@@ -159,7 +158,6 @@ export async function inspectCacheEntry(env: Env, key: string): Promise<CacheIns
 	const spec = businessEntry(key);
 	let serialized: string | null;
 	try {
-		recordKvOp(`admin:${spec.family}`, "kv-get");
 		serialized = await env.KV.get(key);
 	} catch {
 		throw new CacheManagementError("READ_FAILED", "read", "Cache entry could not be read");
@@ -289,10 +287,8 @@ export async function rebuildCacheEntry(
 		await fence(env, key);
 		let data: unknown;
 		try {
-			recordKvOp(`admin:${spec.family}`, "load");
 			data = await load(env, ctx, descriptor);
 		} catch (error) {
-			recordKvOp(`admin:${spec.family}`, "load-error");
 			if (error instanceof CacheManagementError) throw error;
 			throw new CacheManagementError(
 				"LOAD_FAILED",
@@ -329,7 +325,6 @@ export async function rebuildCacheEntry(
 		try {
 			await putCacheEnvelope(env, key, envelope, "admin");
 		} catch {
-			recordKvOp(`admin:${spec.family}`, "write-error");
 			throw new CacheManagementError("WRITE_FAILED", "write", "Cache write was not confirmed");
 		}
 		return envelope;
@@ -337,11 +332,10 @@ export async function rebuildCacheEntry(
 }
 
 export async function deleteCacheEntry(env: Env, key: string): Promise<void> {
-	const spec = businessEntry(key);
+	businessEntry(key);
 	return mutate(env, key, "delete", async () => {
 		await fence(env, key);
 		try {
-			recordKvOp(`admin:${spec.family}`, "kv-delete");
 			await env.KV.delete(key);
 		} catch {
 			throw new CacheManagementError("DELETE_FAILED", "delete", "Cache deletion was not confirmed");

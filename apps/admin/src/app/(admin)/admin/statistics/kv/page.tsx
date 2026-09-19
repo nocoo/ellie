@@ -72,7 +72,6 @@ import {
 	mutationNotice,
 	type OccupancyPoint,
 	occupancyFromMetrics,
-	occupancyFromOverview,
 	physicalExpirationMs,
 	remainingMs,
 	sensitiveValueLabel,
@@ -885,26 +884,18 @@ export default function KvMonitorPage() {
 		return () => clearInterval(id);
 	}, []);
 
-	const loadOverview = useCallback(async () => {
+	const loadOverview = useCallback(async (capture = false) => {
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
-			const data = await readAdminKvJson<{ families: OverviewRow[]; observedAt?: number }>(
-				"/api/admin/kv/overview",
+			const data = await readAdminKvJson<{ families: OverviewRow[]; observedAt: number | null }>(
+				capture ? "/api/admin/kv/snapshot" : "/api/admin/kv/overview",
+				capture ? { method: "POST", body: {} } : {},
 			);
-			if (data.families.length === 0) {
-				setOverviewRows([]);
-				setOverviewError("未能获取缓存目录，请稍后重新加载。");
-				return;
-			}
 			setOverviewRows(data.families);
-			const observedAt = data.observedAt ?? Date.now();
+			const observedAt = data.observedAt ?? null;
 			setOverviewObservedAt(observedAt);
-			setOccupancy((prev) =>
-				mergeOccupancySnapshot(prev, occupancyFromOverview(data.families, observedAt)),
-			);
 		} catch (err) {
-			setOverviewRows([]);
 			setOverviewError(extractErrorMessage(err, "加载 KV 总览失败"));
 		} finally {
 			setOverviewLoading(false);
@@ -956,12 +947,14 @@ export default function KvMonitorPage() {
 	const refreshMonitor = useCallback(() => {
 		if (activeView === "trends") void loadMetrics();
 		else if (activeView === "operations") void loadOperations();
-		else void loadOverview();
+		else void loadOverview(true);
 	}, [activeView, loadOverview, loadMetrics, loadOperations]);
 
 	useEffect(() => {
-		refreshMonitor();
-	}, [refreshMonitor]);
+		if (activeView === "trends") void loadMetrics();
+		else if (activeView === "operations") void loadOperations();
+		else void loadOverview();
+	}, [activeView, loadMetrics, loadOperations, loadOverview]);
 
 	const fetchKeyPage = useCallback(
 		async (family: string, cursor: string | null, append: boolean) => {
@@ -1241,7 +1234,7 @@ function KvTrendsTab({
 	const empty = !metricsLoading && metricsRows.length === 0 && occupancy.length === 0;
 	const chart = !metricsLoading && (metricsRows.length > 0 || occupancy.length > 0);
 	return (
-		<TabsContent value="trends" aria-label="运行趋势" className="space-y-3">
+		<TabsContent value="trends" aria-label="历史观测" className="space-y-3">
 			<div className="flex flex-wrap gap-2">
 				{METRICS_WINDOWS.map((w) => (
 					<Button
@@ -1255,7 +1248,7 @@ function KvTrendsTab({
 				))}
 			</div>
 			<p className="text-xs text-basalt-muted-foreground">
-				每小时一个观测点，按需读取，不自动轮询。占用观察来自本页的总览读取，每小时保留一份，不回补历史。
+				连续采集已停止。这里只展示停用前保存的历史观测，新快照不包含命中率、回源次数和错误趋势。
 				{occupancy.length > 0 ? ` 已记录 ${occupancy.length} 个观察点。` : " 尚无占用观察点。"}
 			</p>
 			{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
@@ -1265,7 +1258,7 @@ function KvTrendsTab({
 						series={metricsRows}
 						occupancy={occupancy}
 						windowLabel={windowLabel}
-						source="应用小时观测"
+						source="停用前的历史观测"
 					/>
 				</LayerCard>
 			)}
@@ -1453,7 +1446,7 @@ function KvMonitorLayout(props: {
 						KV 缓存监控
 					</span>
 				}
-				description="查看生命周期、已授权内容和应用自己采集的运行趋势。刷新此条会重建，使一组失效只切换版本。"
+				description="手动生成缓存状态快照；打开页面仅查看上次结果。条目预览与管理操作仍按需执行。"
 				actions={
 					<Button
 						variant="outline"
@@ -1462,43 +1455,57 @@ function KvMonitorLayout(props: {
 						disabled={overviewLoading || metricsLoading || isBusy}
 					>
 						<RefreshCw className="mr-2 h-4 w-4" />
-						更新监控数据
+						{activeView === "trends"
+							? "刷新历史观测"
+							: activeView === "operations"
+								? "刷新操作记录"
+								: "生成快照"}
 					</Button>
 				}
 			/>
 
+			<p className="text-xs text-basalt-muted-foreground">
+				{overviewObservedAt
+					? `快照采集于 ${new Date(overviewObservedAt).toLocaleString("zh-CN")}，不自动更新。`
+					: "尚未生成快照，点击“生成快照”查看当前缓存状态。"}
+			</p>
+
 			<AdminMetrics
 				items={[
-					{
-						label: "已采集请求",
-						value: metricOrDash(
-							metricsLoading || metricsRows.length === 0,
-							metricsError,
-							totals.read,
-						),
-						icon: Activity,
-						hint: `${windowLabel} · 来源应用指标 · ${overviewObservedAt ? new Date(overviewObservedAt).toLocaleString() : ""}`,
-					},
-					{
-						label: "命中率",
-						value: metricOrDash(
-							metricsLoading || metricsRows.length === 0,
-							metricsError,
-							hitRateLabel(totals.hit, totals.miss),
-						),
-						icon: Gauge,
-						hint: "命中 ÷（命中 + 未命中）。不含 admin:* 与 D1 观测。",
-					},
-					{
-						label: "回源 / 错误",
-						value: metricOrDash(
-							metricsLoading || metricsRows.length === 0,
-							metricsError,
-							`${totals.miss} / ${totals.error}`,
-						),
-						icon: Activity,
-						hint: "回源是 miss；错误独立计数，不与 hit/miss 相加充请求量",
-					},
+					...(activeView === "trends"
+						? [
+								{
+									label: "历史采集请求",
+									value: metricOrDash(
+										metricsLoading || metricsRows.length === 0,
+										metricsError,
+										totals.read,
+									),
+									icon: Activity,
+									hint: `${windowLabel} · 停用前的历史观测`,
+								},
+								{
+									label: "历史命中率",
+									value: metricOrDash(
+										metricsLoading || metricsRows.length === 0,
+										metricsError,
+										hitRateLabel(totals.hit, totals.miss),
+									),
+									icon: Gauge,
+									hint: "命中 ÷（命中 + 未命中）。不含 admin:* 与 D1 观测。",
+								},
+								{
+									label: "历史回源 / 错误",
+									value: metricOrDash(
+										metricsLoading || metricsRows.length === 0,
+										metricsError,
+										`${totals.miss} / ${totals.error}`,
+									),
+									icon: Activity,
+									hint: "回源是 miss；错误独立计数，不与 hit/miss 相加充请求量",
+								},
+							]
+						: []),
 					{
 						label: "已观察条目 / 占用",
 						value: metricOrDash(
@@ -1514,9 +1521,9 @@ function KvMonitorLayout(props: {
 				]}
 			/>
 
-			{!metricsLoading && !metricsError && d1App.queries > 0 && (
+			{activeView === "trends" && !metricsLoading && !metricsError && d1App.queries > 0 && (
 				<p className="text-xs text-basalt-muted-foreground">
-					应用观测 D1
+					历史应用观测 D1
 					{d1App.rowsRead != null ? ` · 读 ${d1App.rowsRead.toLocaleString("zh-CN")} 行` : ""}
 					{d1App.rowsWritten != null ? ` · 写 ${d1App.rowsWritten.toLocaleString("zh-CN")} 行` : ""}
 					{` · ${d1App.queries} 次语句`}
@@ -1589,7 +1596,7 @@ function KvMonitorLayout(props: {
 							{[
 								{ value: "overview", label: "运行总览" },
 								{ value: "entries", label: "缓存条目" },
-								{ value: "trends", label: "运行趋势" },
+								{ value: "trends", label: "历史观测" },
 								{ value: "operations", label: "操作记录" },
 							].map((option) => (
 								<TabsTrigger key={option.value} value={option.value}>

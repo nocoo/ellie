@@ -170,7 +170,6 @@ describe("admin/kv — refresh dispatcher", () => {
 		);
 		expect(bad.status).toBe(400);
 		expect(mockBumpTLForum).not.toHaveBeenCalled();
-
 		const good = await kv.refresh(
 			refreshRequest({
 				family: "gen:thread:list:per-forum",
@@ -543,7 +542,7 @@ describe("admin/kv — overview presence + no gen seeding", () => {
 	it("annotates rows with presence and never writes gen tokens", async () => {
 		const env = makeEnv();
 		const req = createAdminRequest("GET", "/api/admin/kv/overview");
-		const res = await kv.overview(req, env);
+		const res = await kv.snapshot(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			data: {
@@ -568,7 +567,7 @@ describe("admin/kv — overview presence + no gen seeding", () => {
 		expect(refreshRow?.presence).toBe("absent");
 		// Overview may fill the monitor snapshot, but must never seed gen tokens.
 		const puts = (env.KV.put as ReturnType<typeof vi.fn>).mock.calls.map((call) => String(call[0]));
-		expect(puts.every((key) => key.startsWith("cache:v3:monitor:"))).toBe(true);
+		expect(puts.every((key) => key === "admin:kv:snapshot:v1")).toBe(true);
 		// Forum-tree row should expose gen value as null when missing.
 		const tree = body.data.families.find((f) => f.family === "forum:tree:v2");
 		expect(tree?.currentGens?.[0].value).toBeNull();
@@ -582,7 +581,7 @@ describe("admin/kv — overview presence + no gen seeding", () => {
 			}),
 		});
 		const req = createAdminRequest("GET", "/api/admin/kv/overview");
-		const res = await kv.overview(req, env);
+		const res = await kv.snapshot(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			data: { families: { family: string; count: number; sampleKeys: string[] }[] };
@@ -753,7 +752,7 @@ describe("admin/kv — overview", () => {
 	it("returns one row per registry family", async () => {
 		const env = makeEnv();
 		const req = createAdminRequest("GET", "/api/admin/kv/overview");
-		const res = await kv.overview(req, env);
+		const res = await kv.snapshot(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			data: {
@@ -771,49 +770,6 @@ describe("admin/kv — overview", () => {
 		// Hidden families never expose sample keys, even if present.
 		const refreshRow = body.data.families.find((f) => f.family === "refresh");
 		expect(refreshRow?.sampleKeys).toEqual([]);
-	});
-
-	it("does not stamp a later occupancy hour from a cached overview", async () => {
-		const { __resetMetricsForTest, swapSnapshot } = await import(
-			"../../../../src/lib/cache/metrics"
-		);
-		vi.useFakeTimers();
-		try {
-			const origin = Date.parse("2026-09-17T12:59:00Z");
-			vi.setSystemTime(origin);
-			__resetMetricsForTest();
-			const kvStore = createMockKV({ "settings:all": "{}" });
-			const env = makeEnv({ KV: kvStore });
-			const first = await kv.overview(createAdminRequest("GET", "/api/admin/kv/overview"), env);
-			expect(first.status).toBe(200);
-			const firstBody = (await first.json()) as { data: { observedAt: number } };
-			expect(firstBody.data.observedAt).toBe(origin);
-			const hourT = Math.floor(origin / 3_600_000);
-			const warm = swapSnapshot();
-			expect(
-				[...warm.keys()].some(
-					(key) => key.startsWith("footprint:") && key.includes(`\u0001${hourT}\u0001`),
-				),
-			).toBe(true);
-			vi.mocked(kvStore.list).mockClear();
-			vi.setSystemTime(origin + 61_000);
-			const second = await kv.overview(createAdminRequest("GET", "/api/admin/kv/overview"), env);
-			expect(second.status).toBe(200);
-			const secondBody = (await second.json()) as { data: { observedAt: number } };
-			expect(secondBody.data.observedAt).toBe(origin);
-			expect(kvStore.list).not.toHaveBeenCalled();
-			const laterHour = Math.floor((origin + 61_000) / 3_600_000);
-			expect(laterHour).not.toBe(hourT);
-			const hot = swapSnapshot();
-			expect(
-				[...hot.keys()].some(
-					(key) => key.startsWith("footprint:") && key.includes(`\u0001${laterHour}\u0001`),
-				),
-			).toBe(false);
-		} finally {
-			vi.useRealTimers();
-			__resetMetricsForTest();
-		}
 	});
 });
 
@@ -1026,10 +982,6 @@ describe("admin/kv — inspect lifecycle without side effects", () => {
 
 describe("admin/kv — per-entry delete vs group invalidate", () => {
 	it("deletes only the target business key and does not bump a generation", async () => {
-		const { __resetMetricsForTest, swapSnapshot } = await import(
-			"../../../../src/lib/cache/metrics"
-		);
-		__resetMetricsForTest();
 		const env = makeEnv({
 			KV: createMockKV({
 				"forum:tree:v2:anon:g1": '{"ok":true}',
@@ -1050,9 +1002,6 @@ describe("admin/kv — per-entry delete vs group invalidate", () => {
 		expect(mockBumpTree).not.toHaveBeenCalled();
 		expect(await env.KV.get("forum:tree:v2:anon:g1")).toBeNull();
 		expect(await env.KV.get("forum:tree:v2:member:g1")).not.toBeNull();
-		const keys = [...swapSnapshot().keys()];
-		expect(keys.some((key) => key.startsWith("admin:forum:tree:v2"))).toBe(true);
-		expect(keys.some((key) => key.startsWith("forum:tree:v2\u0001"))).toBe(false);
 	});
 
 	it("refuses runtime-state keys instead of deleting credentials", async () => {
@@ -1328,7 +1277,7 @@ describe("admin/kv — operations and metrics window", () => {
 describe("admin/kv — overview count kind", () => {
 	it("labels truncated family counts as at-least, never unknown as 0 bytes", async () => {
 		const env = makeEnv();
-		const res = await kv.overview(createAdminRequest("GET", "/api/admin/kv/overview"), env);
+		const res = await kv.snapshot(createAdminRequest("POST", "/api/admin/kv/snapshot", {}), env);
 		const body = (await res.json()) as {
 			data: {
 				families: {

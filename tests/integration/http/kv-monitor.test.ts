@@ -1,5 +1,6 @@
 // tests/integration/http/kv-monitor.test.ts — L2 Worker KV monitor admin
 // Covers the routes added in the kv-monitor track (commits A → C):
+//   POST /api/admin/kv/snapshot
 //   GET  /api/admin/kv/overview
 //   GET  /api/admin/kv/list
 //   GET  /api/admin/kv/get
@@ -12,7 +13,7 @@
 //   - Exercise the typed `KvRefreshAction` happy path against a no-arg
 //     bump (`forum:summary:v2` → `bump-forum-summary`) — safe to run in
 //     the test environment because it only writes to the gen key and
-//     records a `bump` metric; no business data is mutated.
+//     records an admin audit entry; no business data is mutated.
 //   - Assert sensitivity guards (`KV_KEY_NAME_HIDDEN`,
 //     `KV_ACTION_MISMATCH`) since they are the contract the admin UI
 //     relies on.
@@ -111,13 +112,24 @@ describe("L2: Worker Admin KV Monitor", () => {
 		);
 	});
 
+	test("snapshot capture rejects missing credentials and the forum API key", async () => {
+		for (const headers of [{}, { "X-API-Key": "" }]) {
+			const res = await workerFetch("/api/admin/kv/snapshot", { method: "POST", headers });
+			expect([401, 403]).toContain(res.status);
+		}
+	});
+
 	describe("GET /api/admin/kv/overview", () => {
 		test("returns 200 with registry-derived family rows", async () => {
+			const captured = await adminPost("/api/admin/kv/snapshot", {});
+			expect(captured.status).toBe(200);
+			const snapshot = (await captured.json()) as { data: { observedAt: number } };
 			const res = await adminGet("/api/admin/kv/overview");
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as {
-				data?: { families?: Array<{ family: string }> };
+				data?: { families?: Array<{ family: string }>; observedAt: number };
 			};
+			expect(body.data?.observedAt).toBe(snapshot.data.observedAt);
 			const families = body.data?.families ?? [];
 			expect(Array.isArray(families)).toBe(true);
 			expect(families.length).toBeGreaterThan(0);
@@ -193,8 +205,8 @@ describe("L2: Worker Admin KV Monitor", () => {
 				data?: { series?: Array<Record<string, unknown>> };
 			};
 			expect(Array.isArray(body.data?.series)).toBe(true);
-			// We do not assert non-empty — a fresh Worker isolate may not
-			// have flushed yet. Shape contract is: each row carries
+			// New collection is retired; existing history remains readable.
+			// Shape contract is: each row carries
 			// (family, tsMinute, op, count) and never the legacy
 			// {hits,misses,errors} wide shape.
 			for (const row of body.data?.series ?? []) {

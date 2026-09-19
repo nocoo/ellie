@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { rebuildCacheEntry } from "../../../../src/lib/cache/manage";
-import { __resetMetricsForTest } from "../../../../src/lib/cache/metrics";
 import { CacheLoadLimitError, runCacheMutation } from "../../../../src/lib/cache/wrap";
 import { getSettings, upsertSettings } from "../../../../src/lib/settings";
 import { readingFixture } from "./thread-cache-fixture";
@@ -20,7 +19,6 @@ function deferred<T>() {
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(1_700_000_000_000);
-	__resetMetricsForTest();
 	f = readingFixture();
 	f.thread(1);
 	f.post(1);

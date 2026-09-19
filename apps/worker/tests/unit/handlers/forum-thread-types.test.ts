@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getThreadTypes } from "../../../src/handlers/forum";
-import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
 import { createJwtForRole } from "../../helpers";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
@@ -10,7 +9,6 @@ describe("getThreadTypes handler", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_700_000_000_000);
-		__resetMetricsForTest();
 		f = readingFixture();
 	});
 

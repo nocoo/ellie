@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { searchThreads } from "../../../src/handlers/search";
-import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
 import { createJwtForRole } from "../../helpers";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
@@ -10,7 +9,6 @@ describe("search handlers", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_700_000_000_000);
-		__resetMetricsForTest();
 		f = readingFixture();
 	});
 

@@ -3,9 +3,6 @@
 import { setFlushSink } from "./lib/analytics/collect";
 import { memoryFlushSink } from "./lib/analytics/flushSink-memory";
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
-import { cleanupKvCacheMetricsMinute } from "./lib/cache/cleanup";
-import { observeD1 } from "./lib/cache/d1-observe";
-import { scheduleMetricsFlush } from "./lib/cache/metrics";
 import { CacheLoadLimitError } from "./lib/cache/wrap";
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
@@ -49,10 +46,7 @@ export default {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		const origin = request.headers.get("Origin") ?? undefined;
-		const env: Env = {
-			...bindings,
-			DB: observeD1(bindings.DB, path.startsWith("/api/admin/") ? "admin" : "business"),
-		};
+		const env = bindings;
 
 		// Configure CORS allowed origins from env (parsed once per request)
 		configureAllowedOrigins(env.ALLOWED_ORIGINS);
@@ -676,6 +670,9 @@ export default {
 			if (path === "/api/admin/kv/overview" && request.method === "GET") {
 				return await (await import("./handlers/admin/kv")).overview(request, env, ctx);
 			}
+			if (path === "/api/admin/kv/snapshot" && request.method === "POST") {
+				return await (await import("./handlers/admin/kv")).snapshot(request, env, ctx);
+			}
 			if (path === "/api/admin/kv/list" && request.method === "GET") {
 				return await (await import("./handlers/admin/kv")).listFamily(request, env, ctx);
 			}
@@ -865,8 +862,6 @@ export default {
 				{ message: err instanceof Error ? err.message : String(err) },
 				origin,
 			);
-		} finally {
-			scheduleMetricsFlush(env, ctx);
 		}
 	},
 
@@ -903,15 +898,7 @@ export default {
 						console.warn("[cron] cleanupLoginHistory failed", err);
 					}),
 				);
-				ctx.waitUntil(
-					cleanupKvCacheMetricsMinute(env).catch((err) => {
-						// Prune hourly and legacy minute observations older than
-						// DEFAULT_RETENTION_DAYS (7). Same operational-only
-						// failure contract — admin KV monitor only needs short
-						// history, anything older is dead weight.
-						console.warn("[cron] cleanupKvCacheMetricsMinute failed", err);
-					}),
-				);
+
 				return;
 			default:
 				// Unknown cron — log so an accidental wrangler.toml drift is

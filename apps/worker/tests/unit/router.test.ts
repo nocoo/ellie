@@ -224,10 +224,6 @@ vi.mock("../../src/lib/analytics/collect", () => ({
 	setFlushSink: vi.fn(),
 	resetFlushSink: vi.fn(),
 }));
-vi.mock("../../src/lib/cache/cleanup", () => ({
-	cleanupKvCacheMetricsMinute: vi.fn(async () => 0),
-	DEFAULT_RETENTION_DAYS: 7,
-}));
 // P5 internal ingest + admin today/visits handlers — keep router-only
 // scope; do not invoke the real handlers.
 vi.mock("../../src/handlers/internal/analyticsIngest", () => ({
@@ -781,13 +777,11 @@ describe("router (src/index.ts)", () => {
 			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
 		});
 
-		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory + cleanupKvCacheMetricsMinute via waitUntil", async () => {
+		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory without retired monitoring writes", async () => {
 			const onlineStats = await import("../../src/lib/online-stats");
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
-			const kvCleanup = await import("../../src/lib/cache/cleanup");
 			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
-			(kvCleanup.cleanupKvCacheMetricsMinute as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
 			const event = { cron: "0 19 * * *" } as ScheduledEvent;
@@ -796,9 +790,8 @@ describe("router (src/index.ts)", () => {
 
 			// All retention jobs are queued via waitUntil so a failure in
 			// one does not block the others (P5 reviewer pin).
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
 			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
-			expect(kvCleanup.cleanupKvCacheMetricsMinute).toHaveBeenCalledTimes(1);
 			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
 		});
 
@@ -825,34 +818,6 @@ describe("router (src/index.ts)", () => {
 			await Promise.all(tasks);
 
 			expect(warn).toHaveBeenCalledWith("[cron] cleanupLoginHistory failed", expect.any(Error));
-			warn.mockRestore();
-		});
-
-		it("swallows cleanupKvCacheMetricsMinute rejection independently of the other retention jobs", async () => {
-			const kvCleanup = await import("../../src/lib/cache/cleanup");
-			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-			(kvCleanup.cleanupKvCacheMetricsMinute as ReturnType<typeof vi.fn>).mockImplementationOnce(
-				async () => {
-					throw new Error("D1 outage");
-				},
-			);
-			const tasks: Promise<unknown>[] = [];
-			const ctx = {
-				waitUntil: vi.fn((p: Promise<unknown>) => {
-					tasks.push(p);
-				}),
-				passThroughOnException: vi.fn(),
-			} as unknown as ExecutionContext;
-			const env = makeEnv();
-			const event = { cron: "0 19 * * *" } as ScheduledEvent;
-
-			await worker.scheduled(event, env, ctx);
-			await Promise.all(tasks);
-
-			expect(warn).toHaveBeenCalledWith(
-				"[cron] cleanupKvCacheMetricsMinute failed",
-				expect.any(Error),
-			);
 			warn.mockRestore();
 		});
 

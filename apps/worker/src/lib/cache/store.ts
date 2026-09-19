@@ -7,15 +7,6 @@ import {
 } from "@ellie/types";
 import type { Env } from "../env";
 import { findFamily } from "./kv-registry";
-import {
-	recordError,
-	recordHit,
-	recordKvOp,
-	recordMiss,
-	recordRead,
-	recordWrite,
-	scheduleMetricsFlush,
-} from "./metrics";
 
 export interface CacheGetOrSetOptions<T> {
 	family: string;
@@ -27,12 +18,7 @@ export interface CacheGetOrSetOptions<T> {
 	expiresAt?: number;
 	source?: "business" | "admin";
 }
-
 const MAX_VALUE_BYTES = 2 * 1024 * 1024;
-
-export function metricFamily(options: CacheGetOrSetOptions<unknown>): string {
-	return options.source === "admin" ? `admin:${options.family}` : options.family;
-}
 
 export function bypassesCache(env: Env, key: string, family: string): boolean {
 	return (
@@ -160,7 +146,7 @@ export async function putCacheEnvelope(
 	env: Env,
 	key: string,
 	entry: CacheEnvelope,
-	source: "business" | "admin" = "business",
+	_source: "business" | "admin" = "business",
 ): Promise<void> {
 	if (!isCacheEnvelope(entry) || entry.expiresAt <= Date.now()) {
 		throw new RangeError("Cannot fill an expired or invalid cache snapshot");
@@ -176,7 +162,6 @@ export async function putCacheEnvelope(
 	const serialized = JSON.stringify(entry);
 	const sizeBytes = new TextEncoder().encode(serialized).byteLength;
 	if (sizeBytes > MAX_VALUE_BYTES) throw new RangeError("Cache value exceeds the admission limit");
-	recordKvOp(metricFamily({ ...entry, source }), "kv-put");
 	await env.KV.put(key, serialized, {
 		expirationTtl: getCacheTTL(entry.tier),
 		metadata: {
@@ -189,7 +174,6 @@ export async function putCacheEnvelope(
 			tier: entry.tier,
 		},
 	});
-	recordWrite(metricFamily({ ...entry, source }));
 }
 
 /** Read only; old raw payloads and expired envelopes are cache misses. */
@@ -199,19 +183,15 @@ export async function cacheRead<T>(
 	options: CacheGetOrSetOptions<T>,
 ): Promise<T | null> {
 	validateCacheOptions(options);
-	const family = metricFamily(options);
-	recordRead(family);
+
 	try {
-		if (!bypassesCache(env, key, options.family)) recordKvOp(family, "kv-get");
 		const raw = bypassesCache(env, key, options.family) ? null : await env.KV.get(key, "json");
 		if (acceptsCacheValue(raw, options)) {
-			recordHit(family);
 			return raw.data;
 		}
 	} catch {
-		recordError(family);
+		// Cache errors fall back to the authoritative source.
 	}
-	recordMiss(family);
 	return null;
 }
 
@@ -230,7 +210,6 @@ export async function cacheReadMany<T>(
 		const readable = batch.filter(({ key, setting }) => !bypassesCache(env, key, setting.family));
 		let values = new Map<string, unknown>();
 		try {
-			for (const { setting } of readable) recordKvOp(metricFamily(setting), "kv-get");
 			if (readable.length) {
 				const loaded = await env.KV.get(
 					readable.map(({ key }) => key),
@@ -240,17 +219,12 @@ export async function cacheReadMany<T>(
 				values = loaded;
 			}
 		} catch {
-			for (const { setting } of readable) recordError(metricFamily(setting));
+			// Cache errors fall back to the authoritative source.
 		}
 		for (const { key, setting } of batch) {
-			const family = metricFamily(setting);
-			recordRead(family);
 			const value = values.get(key);
 			if (acceptsCacheValue(value, setting)) {
-				recordHit(family);
 				result.set(key, value.data);
-			} else {
-				recordMiss(family);
 			}
 		}
 	}
@@ -259,7 +233,7 @@ export async function cacheReadMany<T>(
 
 export async function cacheWrite<T>(
 	env: Env,
-	ctx: ExecutionContext | undefined,
+	_ctx: ExecutionContext | undefined,
 	key: string,
 	data: T,
 	options: CacheGetOrSetOptions<T>,
@@ -270,10 +244,6 @@ export async function cacheWrite<T>(
 		await putCacheEnvelope(env, key, createCacheEnvelope(data, options), options.source);
 		return true;
 	} catch {
-		recordError(metricFamily(options));
-		recordKvOp(metricFamily(options), "write-error");
 		return false;
-	} finally {
-		if (ctx) scheduleMetricsFlush(env, ctx);
 	}
 }

@@ -1,19 +1,9 @@
 import type { Env } from "../env";
 import {
-	recordDelete,
-	recordError,
-	recordHit,
-	recordKvOp,
-	recordMiss,
-	recordRead,
-	scheduleMetricsFlush,
-} from "./metrics";
-import {
 	acceptsCacheValue,
 	bypassesCache,
 	type CacheGetOrSetOptions,
 	cacheWrite,
-	metricFamily,
 	validateCacheOptions,
 } from "./store";
 
@@ -39,7 +29,6 @@ interface PendingLoad {
 	work: Promise<unknown>;
 	cancelled: boolean;
 	settled: boolean;
-	outcome: "hit" | "miss";
 }
 
 function admitOriginLoad(env: Env): void {
@@ -132,13 +121,9 @@ export async function cacheGetOrSet<T>(
 	validateCacheOptions(options);
 	const pending = pendingLoads(env);
 	const taskKey = `${options.source ?? "business"}:${options.family}:${options.tier}:${options.scope ?? "public"}:${key}`;
-	const family = metricFamily(options);
-	recordRead(family);
 	const existing = pending.get(taskKey);
 	if (existing) {
 		const value = await existing.promise;
-		if (existing.outcome === "hit") recordHit(family);
-		else recordMiss(family);
 		return structuredClone(value) as T;
 	}
 	if (pending.size >= MAX_PENDING) throw new CacheLoadLimitError();
@@ -147,34 +132,22 @@ export async function cacheGetOrSet<T>(
 		work: Promise.resolve(),
 		cancelled: writeHolds.get(env.KV)?.has(key) ?? false,
 		settled: false,
-		outcome: "miss",
 	};
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const work = async (): Promise<T> => {
 		try {
-			if (!bypassesCache(env, key, options.family)) recordKvOp(family, "kv-get");
 			const value = bypassesCache(env, key, options.family) ? null : await env.KV.get(key, "json");
 			if (acceptsCacheValue(value, options)) {
-				task.outcome = "hit";
-				recordHit(family);
 				return value.data;
 			}
 		} catch {
-			recordError(family);
+			// Cache errors fall back to the authoritative source.
 		}
-		recordMiss(family);
 		admitOriginLoad(env);
-		recordKvOp(family, "load");
-		let fresh: T;
-		try {
-			fresh = await loader();
-			if (fresh === undefined || (options.validator && !options.validator(fresh))) {
-				throw new TypeError("Cache loader returned an invalid value");
-			}
-		} catch (error) {
-			recordError(family);
-			recordKvOp(family, "load-error");
-			throw error;
+
+		const fresh = await loader();
+		if (fresh === undefined || (options.validator && !options.validator(fresh))) {
+			throw new TypeError("Cache loader returned an invalid value");
 		}
 		if (!task.cancelled) await cacheWrite(env, ctx, key, fresh, options);
 		return fresh;
@@ -189,7 +162,6 @@ export async function cacheGetOrSet<T>(
 		task.settled = true;
 		clearTimeout(timer);
 		if (pending.get(taskKey) === task) pending.delete(taskKey);
-		if (ctx) scheduleMetricsFlush(env, ctx);
 	});
 	// A timeout releases the caller, never the origin's permit. A SQL/KV
 	// operation that is still running cannot be counted as completed work.
@@ -217,17 +189,14 @@ export async function settleCacheLoads(env: Env, key: string): Promise<void> {
 	}
 }
 
-export async function cacheDelete(env: Env, key: string, family: string): Promise<boolean> {
+export async function cacheDelete(env: Env, key: string, _family: string): Promise<boolean> {
 	try {
 		await runCacheMutation(env, key, async () => {
 			await settleCacheLoads(env, key);
-			recordKvOp(family, "kv-delete");
 			await env.KV.delete(key);
-			recordDelete(family);
 		});
 		return true;
 	} catch {
-		recordError(family);
 		return false;
 	}
 }

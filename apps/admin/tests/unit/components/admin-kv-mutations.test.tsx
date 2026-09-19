@@ -58,6 +58,49 @@ function readResponse(url: string, removed = false) {
 	});
 }
 
+it("reads the last snapshot on mount and captures only after an explicit click", async () => {
+	const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+		Response.json({
+			data:
+				init?.method === "POST"
+					? { families, observedAt: Date.now() }
+					: { families: [], observedAt: null },
+		}),
+	);
+	vi.stubGlobal("fetch", fetchMock);
+	render(<KvMonitorPage />);
+	await screen.findByText(/尚未生成快照/);
+	await waitFor(() =>
+		expect(screen.getByRole("button", { name: "生成快照" }).hasAttribute("disabled")).toBe(false),
+	);
+	expect(fetchMock).toHaveBeenCalledOnce();
+	expect(fetchMock.mock.calls[0][0]).toBe("/api/admin/kv/overview");
+	fireEvent.click(screen.getByRole("button", { name: "生成快照" }));
+	await screen.findByText("Settings cache");
+	expect(fetchMock.mock.calls[1]).toEqual([
+		"/api/admin/kv/snapshot",
+		expect.objectContaining({ method: "POST", body: "{}" }),
+	]);
+	expect(screen.queryByText("历史命中率")).toBeNull();
+	await screen.findByText(/快照采集于/);
+});
+
+it("keeps the previous snapshot visible when a new capture fails", async () => {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async (_url: string, init?: RequestInit) => {
+			if (init?.method === "POST") throw new Error("Snapshot unavailable");
+			return Response.json({ data: { families, observedAt: Date.now() } });
+		}),
+	);
+	render(<KvMonitorPage />);
+	await screen.findByText("Settings cache");
+	fireEvent.click(screen.getByRole("button", { name: "生成快照" }));
+	await screen.findByText(/Snapshot unavailable/);
+	expect(screen.getByText("Settings cache")).toBeTruthy();
+	expect(screen.getByRole("button", { name: "生成快照" }).hasAttribute("disabled")).toBe(false);
+});
+
 it("loads only the chosen view and never polls statistics as time or document visibility changes", async () => {
 	vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
 	const fetchMock = vi.fn(async (url: string) => readResponse(url));
@@ -70,7 +113,7 @@ it("loads only the chosen view and never polls statistics as time or document vi
 		document.dispatchEvent(new Event("visibilitychange"));
 	});
 	expect(fetchMock).toHaveBeenCalledOnce();
-	fireEvent.mouseDown(screen.getByRole("tab", { name: "运行趋势" }));
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "历史观测" }));
 	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 	expect(fetchMock.mock.calls[1][0]).toBe("/api/admin/kv/metrics?minutes=1440");
 	await act(async () => {
@@ -81,11 +124,11 @@ it("loads only the chosen view and never polls statistics as time or document vi
 	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 	expect(fetchMock.mock.calls[2][0]).toBe("/api/admin/kv/metrics?minutes=4320");
 	await waitFor(() =>
-		expect(screen.getByRole("button", { name: "更新监控数据" }).hasAttribute("disabled")).toBe(
+		expect(screen.getByRole("button", { name: "刷新历史观测" }).hasAttribute("disabled")).toBe(
 			false,
 		),
 	);
-	fireEvent.click(screen.getByRole("button", { name: "更新监控数据" }));
+	fireEvent.click(screen.getByRole("button", { name: "刷新历史观测" }));
 	await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
 	expect(fetchMock.mock.calls[3][0]).toBe("/api/admin/kv/metrics?minutes=4320");
 	fireEvent.mouseDown(screen.getByRole("tab", { name: "操作记录" }));
@@ -384,17 +427,18 @@ it("shows occupancy from observed overview snapshots without inventing history",
 	await screen.findByText(/4.0 KiB/);
 });
 
-it("treats an empty registry payload as unavailable, not a healthy empty cache", async () => {
+it("shows that an empty saved snapshot has not been captured yet", async () => {
 	vi.stubGlobal(
 		"fetch",
 		vi.fn(async (url: string) => {
 			const path = new URL(url, "http://localhost").pathname;
-			if (path.endsWith("overview")) return Response.json({ data: { families: [] } });
+			if (path.endsWith("overview"))
+				return Response.json({ data: { families: [], observedAt: null } });
 			return readResponse(url);
 		}),
 	);
 	render(<KvMonitorPage />);
-	await screen.findByText(/未能获取缓存目录/);
+	await screen.findByText(/尚未生成快照/);
 });
 
 it("keeps partial metrics visible and names the truncation instead of clearing the series", async () => {
@@ -417,7 +461,7 @@ it("keeps partial metrics visible and names the truncation instead of clearing t
 	);
 	render(<KvMonitorPage />);
 	await screen.findByText("Settings cache");
-	fireEvent.mouseDown(screen.getByRole("tab", { name: "运行趋势" }));
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "历史观测" }));
 	await screen.findByText("指标仅部分覆盖，结果已截断。");
 	expect(screen.getByTestId("metrics-series").textContent).toContain('"count":2');
 	expect(screen.getAllByText("—").length).toBeGreaterThan(0);
@@ -439,7 +483,7 @@ it("surfaces metrics-unavailable notes without inventing a zero hit rate", async
 	);
 	render(<KvMonitorPage />);
 	await screen.findByText("Settings cache");
-	fireEvent.mouseDown(screen.getByRole("tab", { name: "运行趋势" }));
+	fireEvent.mouseDown(screen.getByRole("tab", { name: "历史观测" }));
 	await screen.findByText("指标暂不可用，请稍后重新加载。");
 	expect(screen.getAllByText("—").length).toBeGreaterThan(0);
 	expect(screen.queryByText(/无请求/)).toBeNull();

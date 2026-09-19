@@ -1,6 +1,5 @@
 import { CACHE_SCHEMA_VERSION, CACHE_TTL_SECONDS } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetMetricsForTest } from "../../../../src/lib/cache/metrics";
 import {
 	acceptsCacheValue,
 	bypassesCache,
@@ -10,7 +9,6 @@ import {
 	cacheWrite,
 	createCacheEnvelope,
 	isCacheEnvelope,
-	metricFamily,
 	putCacheEnvelope,
 	validateCacheOptions,
 } from "../../../../src/lib/cache/store";
@@ -67,7 +65,6 @@ describe("lib/cache/store — core cache storage contract", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(BASE_NOW);
-		__resetMetricsForTest();
 	});
 
 	afterEach(() => {
@@ -75,17 +72,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 		vi.restoreAllMocks();
 	});
 
-	describe("metricFamily & bypassesCache", () => {
-		it("differentiates admin vs business metric family", () => {
-			expect(metricFamily({ family: "thread:stats", tier: "SHORT" })).toBe("thread:stats");
-			expect(metricFamily({ family: "thread:stats", tier: "SHORT", source: "admin" })).toBe(
-				"admin:thread:stats",
-			);
-			expect(metricFamily({ family: "thread:stats", tier: "SHORT", source: "business" })).toBe(
-				"thread:stats",
-			);
-		});
-
+	describe("bypassesCache", () => {
 		it("checks bypassesCache via !unavailable in key and CACHE_DISABLED_FAMILIES env", () => {
 			const { env } = makeStoreKV();
 			expect(bypassesCache(env, "thread:stats:1:!unavailable", "thread:stats")).toBe(true);

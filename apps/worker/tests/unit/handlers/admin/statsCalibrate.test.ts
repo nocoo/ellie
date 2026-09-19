@@ -6,7 +6,6 @@ import {
 	handleCalibrateGet,
 	handleCalibratePost,
 } from "../../../../src/handlers/admin/statsCalibrate";
-import { __resetMetricsForTest } from "../../../../src/lib/cache/metrics";
 import { shanghaiDateLocal, shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "../../lib/cache/thread-cache-fixture";
 
@@ -52,7 +51,6 @@ describe("admin/statsCalibrate", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-30T10:00:00Z"));
-		__resetMetricsForTest();
 		f = readingFixture();
 		f.thread(1);
 		const batch = f.env.DB.batch.bind(f.env.DB);

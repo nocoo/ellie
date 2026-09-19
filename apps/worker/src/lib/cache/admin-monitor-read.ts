@@ -14,6 +14,7 @@ export const METRICS_MINUTES_MAX = 10_080;
 export const METRICS_RECENT_MAX = 60;
 export const METRICS_ROW_CAP = 4000;
 export const FOOTPRINT_PREFIX = "footprint:";
+export const MONITOR_SNAPSHOT_KEY = "admin:kv:snapshot:v1";
 export const FOOTPRINT_OPS = [
 	"observed-keys",
 	"observed-bytes",
@@ -442,6 +443,23 @@ export async function loadMonitorOverview(env: Env): Promise<MonitorOverview> {
 		}
 	}
 	return { families, observedAt: now, source: "registry+kv-list-metadata" };
+}
+
+/** Opening Admin never scans or refreshes the saved observation. */
+export async function readMonitorSnapshot(env: Env): Promise<MonitorOverview | null> {
+	const value = await env.KV.get(MONITOR_SNAPSHOT_KEY, "json");
+	if (value === null) return null;
+	if (!isMonitorCacheData(descriptorForOverview(), value)) {
+		throw new Error("Saved cache snapshot is invalid; generate a new snapshot");
+	}
+	return value as MonitorOverview;
+}
+
+/** One explicit bounded scan, one KV write; preserve the previous snapshot on failure. */
+export async function captureMonitorSnapshot(env: Env): Promise<MonitorOverview> {
+	const data = await loadMonitorOverview(env);
+	await env.KV.put(MONITOR_SNAPSHOT_KEY, JSON.stringify(data));
+	return data;
 }
 
 /** Pure read of persisted, completed hourly observations. No business statistics SQL. */

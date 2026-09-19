@@ -2,7 +2,6 @@
 
 import { CACHE_SCHEMA_VERSION, getCacheTTL } from "@ellie/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
 import {
 	getUserProfiles,
 	invalidateUserCache,
@@ -13,9 +12,7 @@ import {
 } from "../../../src/lib/user-cache";
 import { createMockCtx, makeEnv } from "../../helpers";
 
-afterEach(() => {
-	__resetMetricsForTest();
-});
+afterEach(() => {});
 
 function makeValidMiniEnvelope(profile: UserMiniProfile) {
 	const now = Date.now();

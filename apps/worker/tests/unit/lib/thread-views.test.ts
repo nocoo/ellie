@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetMetricsForTest, swapSnapshot } from "../../../src/lib/cache/metrics";
 import { flushThreadViews, scheduleThreadViewIncrement } from "../../../src/lib/thread-views";
 import { readingFixture } from "./cache/thread-cache-fixture";
 
@@ -7,7 +6,7 @@ let f: ReturnType<typeof readingFixture>;
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(1_700_000_000_000);
-	__resetMetricsForTest();
+
 	f = readingFixture();
 });
 afterEach(() => {
@@ -36,13 +35,6 @@ describe("best-effort thread view aggregation", () => {
 			{ id: 2, views: 1 },
 		]);
 		expect(f.ctx.waitUntil).toHaveBeenCalledOnce();
-		const observations = [...swapSnapshot().entries()];
-		expect(
-			observations
-				.filter(([key]) => key.endsWith("view-event"))
-				.reduce((sum, [, count]) => sum + count, 0),
-		).toBe(101);
-		expect(observations.find(([key]) => key.endsWith("view-written"))?.[1]).toBe(101);
 	});
 	it("caps pending thread IDs and each SQL binding count", async () => {
 		f.sqlite.exec(
@@ -56,9 +48,6 @@ describe("best-effort thread view aggregation", () => {
 		expect(f.sqlite.prepare("SELECT SUM(views) AS count FROM threads").get()).toEqual({
 			count: 2048,
 		});
-		expect([...swapSnapshot().entries()].find(([key]) => key.endsWith("view-dropped"))?.[1]).toBe(
-			1,
-		);
 	});
 	it.each(["throw", "false"] as const)(
 		"drops unconfirmed %s outcomes without retrying ambiguous writes",
@@ -76,15 +65,12 @@ describe("best-effort thread view aggregation", () => {
 			await flushThreadViews(f.env);
 			await flushThreadViews(f.env);
 			expect(f.env.DB.prepare).toHaveBeenCalledOnce();
-			expect([...swapSnapshot().entries()].find(([key]) => key.endsWith("view-dropped"))?.[1]).toBe(
-				1,
-			);
 		},
 	);
 	it("ignores invalid IDs and never flushes empty state", async () => {
 		for (const id of [0, -1, NaN, Infinity, 1.5]) scheduleThreadViewIncrement(f.env, f.ctx, id);
 		await flushThreadViews(f.env);
-		expect(swapSnapshot().size).toBe(0);
+
 		expect(f.calls).toHaveLength(0);
 	});
 });

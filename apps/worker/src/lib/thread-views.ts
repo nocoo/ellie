@@ -2,7 +2,6 @@
 // completed 60-second windows. No timer assumes the isolate stays alive.
 // Isolate eviction can lose unflushed events; this is not durable accounting.
 import { CACHE_TTL_SECONDS } from "@ellie/types";
-import { recordKvOp } from "./cache/metrics";
 import type { Env } from "./env";
 
 const WINDOW_MS = CACHE_TTL_SECONDS.SHORT * 1000;
@@ -31,19 +30,10 @@ export async function flushThreadViews(env: Env): Promise<void> {
 					.bind(...batch.flat(), ...ids)
 					.run();
 			if (!result.success) throw new Error("View update failed");
-			recordKvOp(
-				"thread:views",
-				"view-written",
-				batch.reduce((sum, [, count]) => sum + count, 0),
-			);
 		} catch {
 			// Retrying an unknown write outcome could count it twice. The existing
-			// best-effort contract drops this batch and records the lost/unknown amount.
-			recordKvOp(
-				"thread:views",
-				"view-dropped",
-				batch.reduce((sum, [, count]) => sum + count, 0),
-			);
+			// best-effort contract drops this batch and logs the failure.
+
 			console.warn("[thread-views] view batch not confirmed", { threads: batch.length });
 		}
 	}
@@ -57,11 +47,8 @@ export function scheduleThreadViewIncrement(
 	if (!Number.isSafeInteger(threadId) || threadId <= 0) return;
 	const current = windows.get(env.KV) ?? { since: Date.now(), counts: new Map<number, number>() };
 	windows.set(env.KV, current);
-	recordKvOp("thread:views", "view-event");
 	if (current.counts.has(threadId) || current.counts.size < MAX_THREADS) {
 		current.counts.set(threadId, (current.counts.get(threadId) ?? 0) + 1);
-	} else {
-		recordKvOp("thread:views", "view-dropped");
 	}
 	if (Date.now() - current.since >= WINDOW_MS) ctx.waitUntil(flushThreadViews(env));
 }

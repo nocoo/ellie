@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicStats } from "../../../src/handlers/stats";
 import { stats } from "../../../src/handlers/stats";
-import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
 import { shanghaiTodayStartUnix } from "../../../src/lib/shanghaiTime";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
@@ -20,7 +19,6 @@ describe("public stats handler", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-30T10:00:00Z"));
-		__resetMetricsForTest();
 		f = readingFixture();
 		f.thread(1);
 	});

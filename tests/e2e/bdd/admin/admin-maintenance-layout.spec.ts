@@ -7,13 +7,18 @@ for (const width of [320, 375]) {
 	}) => {
 		await page.setViewportSize({ width, height: 812 });
 		let mutations = 0;
+		let snapshots = 0;
 		const metricsObservedAt = Date.parse("2026-09-16T12:00:00Z");
 		await page.route("**/api/admin/**", (route) => {
+			const path = new URL(route.request().url()).pathname;
+			if (path === "/api/admin/kv/snapshot" && route.request().method() === "POST") {
+				snapshots++;
+				return route.continue();
+			}
 			if (route.request().method() !== "GET") {
 				mutations++;
 				return route.abort("blockedbyclient");
 			}
-			const path = new URL(route.request().url()).pathname;
 			if (path === "/api/admin/stats/calibrate")
 				return route.fulfill({
 					json: {
@@ -78,6 +83,11 @@ for (const width of [320, 375]) {
 		);
 
 		await page.goto("/admin/statistics/kv");
+		const capture = page.getByRole("button", { name: "生成快照", exact: true });
+		await expect(capture).toBeEnabled();
+		expect(snapshots).toBe(0);
+		await capture.click();
+		await expect(page.getByText(/快照采集于/)).toBeVisible();
 		const overview = page.getByRole("region", { name: "KV 家族总览表格" });
 		await expect(overview.getByRole("table")).toBeVisible();
 		await overview.evaluate((element) => {
@@ -95,7 +105,7 @@ for (const width of [320, 375]) {
 		await expect(
 			overview.getByRole("button", { name: "使一组缓存失效", exact: true }).first(),
 		).toBeInViewport();
-		await page.getByRole("tab", { name: "运行趋势", exact: true }).click();
+		await page.getByRole("tab", { name: "历史观测", exact: true }).click();
 		const legend = page.getByRole("list", { name: "缓存运行趋势图例", exact: true });
 		await legend.scrollIntoViewIfNeeded();
 		await expect(legend.getByText("回填/失效失败", { exact: true })).toBeInViewport();
@@ -112,5 +122,6 @@ for (const width of [320, 375]) {
 			width,
 		);
 		expect(mutations).toBe(0);
+		expect(snapshots).toBe(1);
 	});
 }
