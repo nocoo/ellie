@@ -17,6 +17,7 @@ vi.mock("@/components/header-links", () => ({
 }));
 beforeEach(() => {
 	vi.useFakeTimers();
+	mocks.id = String(Number(mocks.id) + 1);
 	mocks.fetch.mockReset().mockResolvedValue(1);
 	Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
 });
@@ -55,4 +56,23 @@ it("checks once per ten minutes, pauses while hidden, and does not refetch on ea
 	cleanup();
 	await vi.advanceTimersByTimeAsync(600_000);
 	expect(mocks.fetch).toHaveBeenCalledTimes(3);
+});
+
+it("shares the polling deadline across page remounts and isolates accounts", async () => {
+	await act(async () => {
+		render(<MessageBadgeIcon />);
+	});
+	expect(mocks.fetch).toHaveBeenCalledTimes(1);
+	cleanup();
+	await vi.advanceTimersByTimeAsync(60_000);
+	await act(async () => {
+		render(<MessageBadgeIcon />);
+	});
+	expect(mocks.fetch).toHaveBeenCalledTimes(1);
+	cleanup();
+	mocks.id = "999";
+	await act(async () => {
+		render(<MessageBadgeIcon />);
+	});
+	expect(mocks.fetch).toHaveBeenCalledTimes(2);
 });

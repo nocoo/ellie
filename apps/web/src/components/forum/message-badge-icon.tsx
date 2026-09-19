@@ -19,6 +19,9 @@ import { fetchUnreadCount } from "@/viewmodels/forum/messages";
 
 // Passive checks are at most once per ten minutes, including tab refocus.
 const POLL_INTERVAL_MS = 600_000;
+// Browser effects alone populate this single-account snapshot. Route remounts
+// share the request as well as its result, so navigation cannot restart polling.
+let lastCheck: { userId: string; at: number; result: Promise<number> } | undefined;
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -34,25 +37,26 @@ export function MessageBadgeIcon() {
 		setUnreadCount(0);
 		if (!isCredentialsUser || !userId) return;
 		let cancelled = false;
-		let lastCheck = -Infinity;
 		let timer: ReturnType<typeof setTimeout>;
 		const check = () => {
 			clearTimeout(timer);
 			if (document.visibilityState !== "visible") return;
-			const remaining = POLL_INTERVAL_MS - (Date.now() - lastCheck);
-			if (remaining > 0) {
-				timer = setTimeout(check, remaining);
-				return;
+			if (
+				!lastCheck ||
+				lastCheck.userId !== userId ||
+				Date.now() - lastCheck.at >= POLL_INTERVAL_MS
+			) {
+				lastCheck = { userId, at: Date.now(), result: fetchUnreadCount() };
 			}
-			lastCheck = Date.now();
-			void fetchUnreadCount()
+
+			void lastCheck.result
 				.then((count) => {
 					if (!cancelled) setUnreadCount(count);
 				})
 				.catch(() => {
 					/* Retry at the next passive check. */
 				});
-			timer = setTimeout(check, POLL_INTERVAL_MS);
+			timer = setTimeout(check, Math.max(1, POLL_INTERVAL_MS - (Date.now() - lastCheck.at)));
 		};
 		check();
 		document.addEventListener("visibilitychange", check);
