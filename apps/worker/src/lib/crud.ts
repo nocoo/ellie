@@ -4,6 +4,7 @@
 
 import { errorResponse } from "../middleware/error";
 import {
+	adminCountQuery,
 	adminListQuery,
 	invalidateAdminEntityCache,
 	readAdminEntity,
@@ -367,11 +368,7 @@ export interface AdminEntityList {
 	paginated: boolean;
 }
 
-export async function loadEntityList(
-	config: EntityConfig,
-	env: Env,
-	query: string,
-): Promise<AdminEntityList> {
+function entityListSql(config: EntityConfig, query: string) {
 	const url = new URL("https://cache.internal/");
 	url.search = query;
 	const { whereClause, params } = buildWhereClause(config.filters, url);
@@ -394,14 +391,47 @@ export async function loadEntityList(
 		? `(SELECT ${config.columns} FROM ${config.table}) AS _t`
 		: `${config.table}${indexedRange ? ` INDEXED BY ${indexedRange.rangeIndex}` : ""}`;
 	const select = config.useSubqueryWrapper ? "*" : config.columns;
+	return { url, whereClause, params, from, select, sort };
+}
+
+export async function loadEntityCount(
+	config: EntityConfig,
+	env: Env,
+	query: string,
+): Promise<number> {
+	const { from, whereClause, params } = entityListSql(config, query);
+	const row = await env.DB.prepare(`SELECT COUNT(*) as total FROM ${from} ${whereClause}`)
+		.bind(...params)
+		.first<{ total: number }>();
+	if (!row || !Number.isSafeInteger(row.total) || row.total < 0)
+		throw new Error("Admin entity count could not be loaded");
+	return row.total;
+}
+
+export async function loadEntityList(
+	config: EntityConfig,
+	env: Env,
+	query: string,
+	ctx?: ExecutionContext,
+): Promise<AdminEntityList> {
+	const { url, whereClause, params, from, select, sort } = entityListSql(config, query);
 	const page = Number(url.searchParams.get("page") ?? 1);
 	const limit = Number(url.searchParams.get("limit") ?? 20);
 	const paginated = config.listPaginated !== false;
 	const [count, result] = await Promise.all([
 		paginated
-			? env.DB.prepare(`SELECT COUNT(*) as total FROM ${from} ${whereClause}`)
-					.bind(...params)
-					.first<{ total: number }>()
+			? registerAdminEntity(config)
+				? readAdminEntity<number>(
+						env,
+						ctx,
+						{
+							family: "admin:entity:count",
+							scope: "admin",
+							params: { entity: config.table, query: adminCountQuery(config, url.searchParams) },
+						},
+						() => loadEntityCount(config, env, query),
+					)
+				: loadEntityCount(config, env, query)
 			: null,
 		env.DB.prepare(
 			`SELECT ${select} FROM ${from} ${whereClause} ORDER BY ${sort}${paginated ? " LIMIT ? OFFSET ?" : ""}`,
@@ -415,7 +445,9 @@ export async function loadEntityList(
 		: result.results;
 	return {
 		items: rows.map((row) => config.mapper(row)),
-		total: count?.total ?? (paginated ? 0 : rows.length),
+		total: paginated
+			? Math.max(count ?? 0, rows.length ? (page - 1) * limit + rows.length : 0)
+			: rows.length,
 		page,
 		limit,
 		paginated,
@@ -446,7 +478,7 @@ export function createListHandler(config: EntityConfig) {
 			params: { entity: config.table, query },
 			scope: "admin",
 		};
-		const loader = () => loadEntityList(config, env, query);
+		const loader = () => loadEntityList(config, env, query, ctx);
 		const data = cached ? await readAdminEntity(env, ctx, descriptor, loader) : await loader();
 		return data.paginated
 			? paginatedNoStoreResponse(data.items, data.total, data.page, data.limit, origin)

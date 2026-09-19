@@ -148,7 +148,7 @@ describe("admin user handlers", () => {
 			expect(
 				calls.every((call) => !/FROM\s+(messages|attachments|posts|threads)\b/i.test(call.sql)),
 			).toBe(true);
-			expect(calls[0].params).toEqual(["%foo%"]);
+			expect(calls.find((call) => call.sql.includes("COUNT(*)"))?.params).toEqual(["%foo%"]);
 		});
 
 		it("empty user pages query no related statistics", async () => {

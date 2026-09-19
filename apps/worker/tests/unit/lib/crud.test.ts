@@ -671,7 +671,7 @@ describe("createListHandler", () => {
 		expect(res.status).toBe(200);
 	});
 
-	it("should handle countResult returning null (default total to 0)", async () => {
+	it("rejects missing counts instead of caching a fabricated zero", async () => {
 		const { db } = createMockDb({
 			// firstResults returns null by default when no match
 			allResults: {},
@@ -679,10 +679,9 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items"), env);
-		const body = await res.json();
-
-		expect(body.meta.total).toBe(0);
+		await expect(handler(makeRequest("/api/admin/test-items"), env)).rejects.toThrow(
+			"Admin entity count could not be loaded",
+		);
 	});
 
 	it("should forward Origin header as CORS origin", async () => {

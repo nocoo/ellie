@@ -372,6 +372,13 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		pattern: "user:stats:<id>",
 	},
 	businessFamily(
+		"admin:entity:count",
+		"后台筛选总数",
+		"HOUR",
+		"admin",
+		"Filter-only totals shared across pages and sorts; invalidated with administrative entity mutations.",
+	),
+	businessFamily(
 		"admin:entity:list",
 		"后台实体列表",
 		"SHORT",

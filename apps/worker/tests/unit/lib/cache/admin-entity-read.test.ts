@@ -421,3 +421,55 @@ describe("lib/cache/admin-entity-read — fault tolerance & errors", () => {
 		await expect(getAdminEntities(f.env, f.ctx, "users", [10])).rejects.toThrow();
 	});
 });
+
+it("shares filter totals across pages for one hour and invalidates after an admin mutation", async () => {
+	const { list } = await import("../../../../src/handlers/admin/user");
+	const { invalidateAdminEntityCache } = await import(
+		"../../../../src/lib/cache/admin-entity-read"
+	);
+	const read = async (query: string) =>
+		await (await list(createAdminRequest("GET", `/api/admin/users?${query}`), f.env)).json();
+	await read("page=1&limit=2&status=0");
+	await read("page=2&limit=1&status=00");
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(1);
+	expect(f.snapshots("admin:entity:count")[0]).toMatchObject({
+		tier: "HOUR",
+		params: { entity: "users", query: "status=0" },
+	});
+	vi.setSystemTime(Date.now() + 3_599_000);
+	await read("page=1&limit=3&status=0");
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(1);
+	vi.setSystemTime(Date.now() + 1_001);
+	await read("page=2&limit=3&status=0");
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(2);
+	await invalidateAdminEntityCache(f.env, "users");
+	await read("page=1&limit=2&status=0");
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(3);
+	await read("status=-1");
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(4);
+});
+it("validates and rebuilds count snapshots without reading any page rows", async () => {
+	const d = {
+		family: "admin:entity:count",
+		scope: "admin",
+		params: { entity: "users", query: "" },
+	};
+	expect(await rebuildAdminEntityCache(f.env, undefined, d)).toBe(5);
+	expect(f.calls).toHaveLength(1);
+	expect(isAdminEntityCacheData(d, 5)).toBe(true);
+	expect(isAdminEntityCacheData(d, -1)).toBe(false);
+	await expect(
+		adminEntityCacheKey(f.env, { ...d, params: { entity: "users", query: "page=2" } }),
+	).rejects.toThrow("Invalid admin list parameters");
+});
+
+it("keeps a newly populated last page visible even with an older cached total", async () => {
+	const { list } = await import("../../../../src/handlers/admin/user");
+	await list(createAdminRequest("GET", "/api/admin/users?limit=5"), f.env);
+	f.insert("users", { id: 99, username: "new-user" });
+	const res = await list(createAdminRequest("GET", "/api/admin/users?page=2&limit=5"), f.env);
+	const body = await res.json();
+	expect(body.data).toHaveLength(1);
+	expect(body.meta.total).toBe(6);
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(1);
+});

@@ -1,5 +1,11 @@
 import type { CacheDescriptor } from "@ellie/types";
-import { type EntityConfig, type FilterDef, loadEntityDetail, loadEntityList } from "../crud";
+import {
+	type EntityConfig,
+	type FilterDef,
+	loadEntityCount,
+	loadEntityDetail,
+	loadEntityList,
+} from "../crud";
 import type { Env } from "../env";
 import { bumpGen, getGen } from "./epoch";
 import { adminEntityGenKey, dataCacheKey } from "./keys";
@@ -252,6 +258,13 @@ export function adminListQuery(config: EntityConfig, input: URLSearchParams): st
 	).toString();
 }
 
+/** Count identity excludes pagination and sorting, sharing totals across all pages. */
+export function adminCountQuery(config: EntityConfig, input: URLSearchParams): string {
+	const values = new URLSearchParams(adminListQuery(config, input));
+	for (const field of ["page", "limit", "sort"]) values.delete(field);
+	return values.toString();
+}
+
 function validateParameters(
 	descriptor: CacheDescriptor,
 	config: EntityConfig | null,
@@ -276,15 +289,17 @@ function validateParameters(
 	)
 		throw new TypeError("Unknown admin entity");
 	const fields = Object.keys(descriptor.params).sort().join(",");
-	if (descriptor.family === "admin:entity:list") {
+	if (["admin:entity:list", "admin:entity:count"].includes(descriptor.family)) {
 		if (
 			!config ||
 			config.table !== descriptor.params.entity ||
 			fields !== "entity,query" ||
 			typeof descriptor.params.query !== "string" ||
 			(!allowLongQuery && descriptor.params.query.length > 4096) ||
-			adminListQuery(config, new URLSearchParams(descriptor.params.query)) !==
-				descriptor.params.query
+			(descriptor.family === "admin:entity:count" ? adminCountQuery : adminListQuery)(
+				config,
+				new URLSearchParams(descriptor.params.query),
+			) !== descriptor.params.query
 		) {
 			throw new TypeError("Invalid admin list parameters");
 		}
@@ -300,7 +315,7 @@ async function validate(
 ): Promise<EntityConfig | null> {
 	const config =
 		descriptor?.scope === "admin" &&
-		(descriptor.family === "admin:entity:list" || descriptor.family === "admin:entity:detail")
+		["admin:entity:list", "admin:entity:count", "admin:entity:detail"].includes(descriptor.family)
 			? await configuration(descriptor.params?.entity)
 			: null;
 	validateParameters(descriptor, config, allowLongQuery);
@@ -367,6 +382,8 @@ async function loadAdminEntity(
 		return rows.results.map(users.mapper);
 	}
 	if (!config) throw new TypeError("Admin entity reader is not registered");
+	if (descriptor.family === "admin:entity:count")
+		return loadEntityCount(config, env, String(descriptor.params.query));
 	return descriptor.family === "admin:entity:list"
 		? loadEntityList(config, env, String(descriptor.params.query))
 		: loadEntityDetail(config, env, Number(descriptor.params.id));
@@ -387,6 +404,7 @@ function isAdminEntityData(d: CacheDescriptor, value: unknown, allowLongQuery = 
 	} catch {
 		return false;
 	}
+	if (d.family === "admin:entity:count") return isCount(value);
 	if (value === null)
 		return d.family === "admin:entity:detail" || d.family === "admin:thread-types";
 	if (d.family === "admin:users:staff")
@@ -437,7 +455,7 @@ export async function readAdminEntity<T>(
 	loader?: () => Promise<T>,
 ): Promise<T> {
 	const longQuery =
-		descriptor.family === "admin:entity:list" &&
+		["admin:entity:list", "admin:entity:count"].includes(descriptor.family) &&
 		typeof descriptor.params.query === "string" &&
 		descriptor.params.query.length > 4096;
 	const config = longQuery ? await validate(descriptor, true) : null;
@@ -455,7 +473,7 @@ export async function readAdminEntity<T>(
 					: rebuildAdminEntityCache(env, ctx, descriptor)) as Promise<T>),
 		{
 			...descriptor,
-			tier: "SHORT",
+			tier: descriptor.family === "admin:entity:count" ? "HOUR" : "SHORT",
 			source: "admin",
 			validator: (value): value is T => isAdminEntityData(descriptor, value, longQuery),
 		},
