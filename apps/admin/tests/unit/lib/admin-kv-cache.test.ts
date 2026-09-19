@@ -26,6 +26,7 @@ import {
 	sensitiveValueLabel,
 	summarizeD1Observation,
 	summarizeFamilyOps,
+	TIER_SECONDS,
 	tierFromTtl,
 	totalsFromSummaries,
 	utf8ByteLength,
@@ -39,9 +40,11 @@ describe("utf8 bytes", () => {
 });
 
 describe("tierFromTtl", () => {
-	it("maps only the three legal tiers", () => {
+	it("maps all four legal tiers", () => {
 		expect(tierFromTtl(60)).toBe("SHORT");
 		expect(tierFromTtl(1800)).toBe("MEDIUM");
+		expect(tierFromTtl(3600)).toBe("HOUR");
+		expect(TIER_SECONDS.HOUR).toBe(3600);
 		expect(tierFromTtl(86400)).toBe("LONG");
 		expect(tierFromTtl(300)).toBeNull();
 		expect(tierFromTtl(900)).toBeNull();
@@ -314,6 +317,7 @@ describe("ttl bytes remaining and lifecycle extras", () => {
 		expect(formatTtl("variable")).toBe("按业务设置");
 		expect(formatTtl(60)).toContain("SHORT");
 		expect(formatTtl(1800)).toContain("MEDIUM");
+		expect(formatTtl(3600)).toBe("HOUR · 1h");
 		expect(formatTtl(86400)).toContain("LONG");
 		expect(formatTtl(90_000)).toBe("1d");
 		expect(formatTtl(7200)).toBe("2h");

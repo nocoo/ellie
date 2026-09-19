@@ -495,7 +495,7 @@ function OverviewTable({
 								<TableCell className="text-xs">
 									{formatTtl(row.ttl)}
 									<div className="text-basalt-muted-foreground">
-										{row.tier ?? tierFromTtl(row.ttl) ?? "未接入三档"}
+										{row.tier ?? tierFromTtl(row.ttl) ?? "未接入标准档位"}
 									</div>
 								</TableCell>
 								<TableCell>
@@ -1557,6 +1557,7 @@ function KvMonitorLayout(props: {
 					<option value="">全部档位</option>
 					<option value="SHORT">SHORT</option>
 					<option value="MEDIUM">MEDIUM</option>
+					<option value="HOUR">HOUR</option>
 					<option value="LONG">LONG</option>
 				</select>
 				<select

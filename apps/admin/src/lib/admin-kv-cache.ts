@@ -1,7 +1,7 @@
 // Pure helpers for the Admin KV cache-management UI (docs/20 §8).
 // No network. No Cloudflare Analytics. Unknown values stay unknown.
 
-import type { CacheTier } from "@ellie/types";
+import { CACHE_TTL_SECONDS, type CacheTier } from "@ellie/types";
 
 export const METRICS_INTERVAL_MINUTES = 60;
 export const COUNTDOWN_TICK_MS = 1_000;
@@ -33,11 +33,7 @@ export type Footprint =
 
 export type CountKind = "observed" | "at-least" | "unknown";
 
-export const TIER_SECONDS: Record<CacheTier, number> = {
-	SHORT: 60,
-	MEDIUM: 1800,
-	LONG: 86400,
-};
+export const TIER_SECONDS = CACHE_TTL_SECONDS;
 
 export const LIFECYCLE_LABEL: Record<CacheLifecycle, string> = {
 	valid: "有效",
@@ -65,6 +61,7 @@ export function contentUtf8Bytes(value: unknown): number {
 export function tierFromTtl(ttl: number | "sticky" | "variable"): CacheTier | null {
 	if (ttl === 60) return "SHORT";
 	if (ttl === 1800) return "MEDIUM";
+	if (ttl === 3600) return "HOUR";
 	if (ttl === 86400) return "LONG";
 	return null;
 }
@@ -75,6 +72,7 @@ export function formatTtl(ttl: number | "sticky" | "variable"): string {
 	const tier = tierFromTtl(ttl);
 	if (tier === "SHORT") return "SHORT · 60s";
 	if (tier === "MEDIUM") return "MEDIUM · 30m";
+	if (tier === "HOUR") return "HOUR · 1h";
 	if (tier === "LONG") return "LONG · 24h";
 	if (ttl >= 86400) return `${Math.round(ttl / 86400)}d`;
 	if (ttl >= 3600) return `${Math.round(ttl / 3600)}h`;
