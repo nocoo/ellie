@@ -1333,3 +1333,23 @@ test.describe("Feature: Admin Threads & Posts CRUD", () => {
 		await expect(guardItem).toBeDisabled();
 	});
 });
+
+test("explains an unscoped title search and recovers after adding an author", async ({
+	page,
+	loginAsAdmin,
+}) => {
+	await loginAsAdmin();
+	await page.goto("/admin/threads?search=Thread");
+	await expect(page.getByRole("alert")).toContainText("请先限定");
+	const author = page.getByPlaceholder("作者完整用户名...");
+	await author.fill("testuser");
+	const response = page.waitForResponse(
+		(r) =>
+			r.url().includes("/api/admin/threads?") &&
+			r.url().includes("authorName=testuser") &&
+			r.status() === 200,
+	);
+	await author.press("Enter");
+	await response;
+	await expect(page.getByRole("alert")).toHaveCount(0);
+});

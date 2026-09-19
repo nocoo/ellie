@@ -172,6 +172,7 @@ function ThreadsPageInner() {
 		limit: 100,
 	});
 	const [loading, setLoading] = useState(true);
+	const [listError, setListError] = useState<string | null>(null);
 	const [filters, setFilters] = useState<Record<string, string>>(() => ({
 		...emptyThreadsListFilters(),
 		...parseThreadsListQuery(searchParams),
@@ -212,6 +213,7 @@ function ThreadsPageInner() {
 	const fetchData = useCallback(
 		async (page = 1) => {
 			setLoading(true);
+			setListError(null);
 			try {
 				// Phase H.2 — route through the viewmodel so filter passthrough
 				// (incl. the boolean `highlighted` normalisation) is shared with
@@ -242,8 +244,10 @@ function ThreadsPageInner() {
 					total: res.meta?.total ?? 0,
 					limit: res.meta?.limit ?? 100,
 				});
-			} catch {
+			} catch (error) {
 				setData([]);
+				setListError(extractErrorMessage(error, "查询主题失败"));
+				setPagination((prev) => ({ ...prev, page: 1, total: 0, pages: 0 }));
 			} finally {
 				setLoading(false);
 			}
@@ -543,6 +547,8 @@ function ThreadsPageInner() {
 					onClearAll={handleClearFilters}
 				/>
 			</LayerCard>
+
+			{listError && <AdminInlineMessage variant="error" text={listError} />}
 
 			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
