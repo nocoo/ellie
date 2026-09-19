@@ -569,7 +569,7 @@ describe("lib/cache/user-read — history and search caching", () => {
 		expect(selfList.items).toHaveLength(2);
 	});
 
-	it("user search normalizes case and caches with SHORT tier", async () => {
+	it("user search normalizes case and caches with HOUR tier", async () => {
 		f.insert("users", { id: 301, username: "Charlie", email_verified_at: 1, role: 0 });
 
 		const res1 = await getUserSearchCached(f.env, f.ctx, "Cha", 5);

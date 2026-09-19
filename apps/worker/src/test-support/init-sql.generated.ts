@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: 23462879e763802c591aabf0fb8eba8c9198ecdcb665262a8b27f147f94bc476):
+ * Source migrations (sha256: 5428999d09c07371de626a74afdd927eba1e1f53261329b735dce114226200af):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -36,6 +36,7 @@
  *   - 0050_backfill_thread_anonymous.sql
  *   - 0051_idx_threads_forum_latest.sql
  *   - 0052_kv_cache_metrics_hour.sql
+ *   - 0053_read_query_indexes.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1684,9 +1685,18 @@ CREATE TABLE IF NOT EXISTS kv_cache_metrics_hour (
 );
 
 CREATE INDEX IF NOT EXISTS idx_kv_metrics_hour_ts ON kv_cache_metrics_hour(ts_hour DESC);
+
+-- ── 0053_read_query_indexes.sql ────────────────────────────────────────────
+-- Read-cost audit: prefix search, bounded attachment dates, and filtered digest lists.
+CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users(username COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_attachments_created ON attachments(created_at);
+CREATE INDEX IF NOT EXISTS idx_threads_forum_digest ON threads(forum_id, digest DESC, last_post_at DESC, id DESC) WHERE digest > 0 AND sticky >= 0;
+
+-- Bounded planner statistics maintenance after index changes (D1 recommendation).
+PRAGMA optimize;
 `;
 
-export const INIT_SQL_HASH = "23462879e763802c591aabf0fb8eba8c9198ecdcb665262a8b27f147f94bc476";
+export const INIT_SQL_HASH = "5428999d09c07371de626a74afdd927eba1e1f53261329b735dce114226200af";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1720,5 +1730,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0049_backfill_post_anonymous.sql",
 	"0050_backfill_thread_anonymous.sql",
 	"0051_idx_threads_forum_latest.sql",
-	"0052_kv_cache_metrics_hour.sql"
+	"0052_kv_cache_metrics_hour.sql",
+	"0053_read_query_indexes.sql"
 ] as const;

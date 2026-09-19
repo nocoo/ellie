@@ -211,7 +211,7 @@ describe("catalog query plan budget", () => {
 		expect(vi.mocked(f.env.KV.put).mock.calls).toHaveLength(puts);
 	});
 
-	it("does not force idx_threads_digest for per-forum or year digest filters", async () => {
+	it("uses digest subsets for per-forum and year filters", async () => {
 		f.calls.length = 0;
 		const forum = await loadCatalogPage(f.env, {
 			...sitewide,
@@ -219,7 +219,7 @@ describe("catalog query plan budget", () => {
 		});
 		expect(forum.items.length).toBeGreaterThan(0);
 		const forumSql = captured(f, (sql) => sql.includes("t.forum_id = ?")).sql;
-		expect(forumSql).not.toContain("INDEXED BY idx_threads_digest");
+		expect(forumSql).toContain("INDEXED BY idx_threads_forum_digest");
 
 		f.calls.length = 0;
 		const year = await loadCatalogPage(f.env, {
@@ -228,7 +228,7 @@ describe("catalog query plan budget", () => {
 		});
 		expect(year.items.length).toBeGreaterThan(0);
 		const yearSql = captured(f, (sql) => sql.includes("t.created_at >= ?")).sql;
-		expect(yearSql).not.toContain("INDEXED BY idx_threads_digest");
+		expect(yearSql).toContain("INDEXED BY idx_threads_digest");
 		expect(yearSql).not.toContain("threads_fts");
 	});
 });

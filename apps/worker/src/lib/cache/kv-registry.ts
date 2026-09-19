@@ -356,7 +356,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	businessFamily(
 		"user:search",
 		"用户搜索",
-		"SHORT",
+		"HOUR",
 		"user",
 		"Normalized prefix search; active users only.",
 	),

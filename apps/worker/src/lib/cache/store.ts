@@ -126,7 +126,9 @@ export function createCacheEnvelope<T>(
 	// Empty optional post data is a valid snapshot, not a missing resource.
 	const keepEmpty =
 		Array.isArray(data) &&
-		["post:attachments", "post:comments", "post:rating-rows"].includes(options.family);
+		["post:attachments", "post:comments", "post:rating-rows", "user:search"].includes(
+			options.family,
+		);
 	const tier = isNegative(data) && !keepEmpty ? "SHORT" : options.tier;
 	const loadedAt = Date.now();
 	return {

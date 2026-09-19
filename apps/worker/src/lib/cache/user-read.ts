@@ -57,7 +57,7 @@ const TIERS: Record<string, CacheTier> = {
 	"user:threads": "SHORT",
 	"user:posts": "SHORT",
 	"user:digest": "SHORT",
-	"user:search": "SHORT",
+	"user:search": "HOUR",
 };
 const STABLE_COLUMNS =
 	"id, username, avatar, avatar_path, role, reg_date, signature, group_title, group_stars, group_color, custom_title, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus";
@@ -482,7 +482,7 @@ export async function getUserSearchCached(
 		() => loadUserSearchFromDb(env, d.params.q, limit),
 		{
 			...d,
-			tier: "SHORT",
+			tier: "HOUR",
 			validator: (value): value is UserSearchResultItem[] => isUserCacheData(d, value),
 		},
 	);

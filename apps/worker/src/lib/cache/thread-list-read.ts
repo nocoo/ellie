@@ -202,8 +202,9 @@ export async function rebuildThreadListCache(
 			? `t.forum_id = ? AND t.sticky >= 0 AND t.sticky != ${STICKY_GLOBAL}`
 			: "t.forum_id = ? AND t.type_id = ? AND t.sticky >= 0";
 	const bindings = p.typeId === null ? [p.forumId] : [p.forumId, p.typeId];
+	const from = `threads t${p.typeId === null ? "" : " INDEXED BY idx_threads_forum_type"}`;
 	if (p.kind === "count") {
-		const result = await env.DB.prepare(`SELECT COUNT(*) as total FROM threads t WHERE ${where}`)
+		const result = await env.DB.prepare(`SELECT COUNT(*) as total FROM ${from} WHERE ${where}`)
 			.bind(...bindings)
 			.all<ThreadListCount>();
 		const count = result.results[0];
@@ -229,7 +230,7 @@ export async function rebuildThreadListCache(
 			: p.typeId === null
 				? [p.cursorSticky, p.cursorTime, p.cursorId]
 				: [p.cursorSticky, p.cursorSticky, p.cursorTime, p.cursorTime, p.cursorId];
-	const rows = await env.DB.prepare(`SELECT t.id, t.sticky, t.last_post_at FROM threads t
+	const rows = await env.DB.prepare(`SELECT t.id, t.sticky, t.last_post_at FROM ${from}
 			WHERE ${where}${cursor}
 			ORDER BY ${rank} DESC, t.last_post_at DESC, t.id DESC LIMIT ? OFFSET ?`)
 		.bind(...bindings, ...cursorBindings, p.limit, p.offset)

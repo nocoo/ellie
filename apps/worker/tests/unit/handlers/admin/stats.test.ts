@@ -35,6 +35,8 @@ describe("on-demand admin totals", () => {
 		counter("stats.total_members", "100");
 		counter("stats.total_threads", "2000000");
 		counter("stats.total_posts", "10000000");
+		for (let i = 0; i < 500; i++) counter(`unrelated.${i}`, "0");
+		f.sqlite.exec("ANALYZE settings");
 		f.thread(1);
 		f.post(1);
 		const response = await read();

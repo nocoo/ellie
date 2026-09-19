@@ -377,6 +377,7 @@ export const INDEXES = {
 	],
 
 	users: [
+		"CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users(username COLLATE NOCASE);",
 		"CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);",
 		"CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);",
 		// Mirrors migration 0029_email_normalized_unique_index.sql. The
@@ -392,6 +393,7 @@ export const INDEXES = {
 	],
 
 	threads: [
+		"CREATE INDEX IF NOT EXISTS idx_threads_forum_digest ON threads(forum_id, digest DESC, last_post_at DESC, id DESC) WHERE digest > 0 AND sticky >= 0;",
 		"CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, last_post_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id);",
 		"CREATE INDEX IF NOT EXISTS idx_threads_latest ON threads(last_post_at DESC);",
@@ -419,6 +421,7 @@ export const INDEXES = {
 	],
 
 	attachments: [
+		"CREATE INDEX IF NOT EXISTS idx_attachments_created ON attachments(created_at);",
 		"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id);",
 		"CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id);",
 	],

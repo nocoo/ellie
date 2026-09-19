@@ -317,8 +317,8 @@ export async function loadCatalogPage(env: Env, d: CacheDescriptor): Promise<Cat
 		}
 	}
 	const digestIndex =
-		d.family === "digest:list" && p.forumId === null && p.year === null
-			? "INDEXED BY idx_threads_digest "
+		d.family === "digest:list"
+			? `INDEXED BY ${p.forumId === null ? "idx_threads_digest" : "idx_threads_forum_digest"} `
 			: "";
 	const base = `FROM threads t ${digestIndex}${join} JOIN forums f ON f.id = t.forum_id WHERE ${where.join(" AND ")}`;
 	const totalTask =
