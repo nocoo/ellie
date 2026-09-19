@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Maintenance settings cache for five minutes without extending their lifetime on hits. Administrator identity and status checks remain current.
 - Today's page views aggregate across Worker instances in a shared, memory-only Durable Object, retaining the existing roughly 30-second collection batches. Reports read current memory instead of persisted snapshots; the PV D1 writer and cleanup job are retired.
 - Admin explains that temporary visits reset when the object is recycled, restarted or redeployed. Each daily instance holds up to 20,000 page targets and reports discarded samples when full. Page labels still resolve for the returned report page; UV remains unavailable.
+- Includes the dependency updates merged today, Rust public-profile/health response compatibility fixes, and migration 0045 coverage in the Bun test lane.
 
 ### Deployment
 

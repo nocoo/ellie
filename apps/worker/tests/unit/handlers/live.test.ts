@@ -38,6 +38,19 @@ describe("live handler", () => {
 			expect(data.database.connected).toBe(true);
 		});
 
+		it("should attest test mode only for a test Worker", async () => {
+			const response = await live(makeRequest(), env);
+			expect((await response.json()).environment).toBe("test");
+		});
+
+		it.each(["production", "development", ""])(
+			"should omit test attestation in %s",
+			async (environment) => {
+				const response = await live(makeRequest(), { ...env, ENVIRONMENT: environment });
+				expect(await response.json()).not.toHaveProperty("environment");
+			},
+		);
+
 		it("should include component field as ellie-worker", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
