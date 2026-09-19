@@ -98,18 +98,15 @@ pub enum ForumType {
 
 // ─── Entity Structs ──────────────────────────────────────
 
+/// Public profile returned by the user endpoint; private account fields are excluded.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
 	pub id: u64,
 	pub username: String,
-	#[serde(default)]
-	pub email: Option<String>,
 	pub avatar: String,
-	pub status: UserStatus,
 	pub role: UserRole,
 	pub reg_date: u64,
-	pub last_login: u64,
 	pub threads: u64,
 	pub posts: u64,
 	pub credits: i64,
@@ -322,12 +319,9 @@ mod tests {
 		let json = r#"{
 			"id": 123,
 			"username": "alice",
-			"email": "alice@example.com",
 			"avatar": "default.png",
-			"status": 0,
 			"role": 1,
 			"regDate": 1609459200,
-			"lastLogin": 1700000000,
 			"threads": 42,
 			"posts": 256,
 			"credits": 1000
@@ -335,15 +329,20 @@ mod tests {
 		let user: User = serde_json::from_str(json).unwrap();
 		assert_eq!(user.username, "alice");
 		assert_eq!(user.role, UserRole::Admin);
-		assert_eq!(user.status, UserStatus::Active);
-		assert_eq!(user.email, Some("alice@example.com".to_string()));
+		assert_eq!(user.id, 123);
+		assert_eq!(user.reg_date, 1609459200);
+		assert_eq!(user.posts, 256);
+		assert_eq!(user.threads, 42);
+		assert_eq!(user.credits, 1000);
 	}
 
 	#[test]
-	fn deserialize_user_without_email() {
+	fn public_user_does_not_serialize_private_account_fields() {
 		let json = r#"{
 			"id": 123,
 			"username": "alice",
+			"email": "private@example.com",
+			"password": "not-public",
 			"avatar": "default.png",
 			"status": 0,
 			"role": 1,
@@ -355,7 +354,10 @@ mod tests {
 		}"#;
 		let user: User = serde_json::from_str(json).unwrap();
 		assert_eq!(user.username, "alice");
-		assert_eq!(user.email, None);
+		let public = serde_json::to_value(user).unwrap();
+		for field in ["email", "status", "lastLogin", "password"] {
+			assert!(public.get(field).is_none(), "private field {field}");
+		}
 	}
 
 	#[test]
