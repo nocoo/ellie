@@ -6,11 +6,59 @@ import {
 	makeUnverifiedEnv,
 	unverifiedUserJwt,
 } from "../helpers/email-gate";
+import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 describe("post-comment handlers", () => {
 	// ─── list ───────────────────────────────────────────────────────
 
 	describe("list", () => {
+		it("returns all 101 comments on demand, with separate numeric caches and current permissions", async () => {
+			const f = readingFixture();
+			try {
+				f.thread(1);
+				f.post(1);
+				for (let id = 1; id <= 101; id++) {
+					f.insert("post_comments", {
+						id,
+						thread_id: 1,
+						post_id: 1,
+						author_id: 10,
+						author_name: "alice",
+						content: `comment-${id}`,
+						created_at: id,
+					});
+				}
+				const read = (limit = "") =>
+					postComment.list(
+						new Request(`https://test/api/v1/post-comments?postId=1${limit}`),
+						f.env,
+					);
+				for (const [query, size] of [
+					["", 50],
+					["&limit=100", 100],
+					["&limit=500", 100],
+					["&limit=all", 101],
+				] as const) {
+					const response = await read(query);
+					expect(response.status).toBe(200);
+					const body = (await response.json()) as { data: { id: number }[] };
+					expect(body.data).toHaveLength(size);
+					expect(body.data.at(-1)?.id).toBe(size);
+				}
+				f.calls.length = 0;
+				const warm = (await (await read("&limit=all")).json()) as { data: unknown[] };
+				expect(warm.data).toHaveLength(101);
+				expect(f.calls.some((call) => call.sql.includes("FROM post_comments"))).toBe(false);
+				f.sqlite.exec("UPDATE threads SET sticky = -1 WHERE id = 1");
+				expect((await read("&limit=all")).status).toBe(404);
+				f.sqlite.exec("UPDATE threads SET sticky = 0 WHERE id = 1");
+				f.sqlite.exec("UPDATE forums SET visibility = 'staff' WHERE id = 1");
+				expect((await read("&limit=all")).status).toBe(403);
+			} finally {
+				f.close();
+			}
+		});
+
 		it("should require postId param", async () => {
 			const env = makeEnv();
 			const request = new Request("https://api.example.com/api/v1/post-comments");

@@ -45,20 +45,23 @@ function makeGetRequest(url: string): Request {
 }
 
 describe("GET /api/v1/post-comments", () => {
-	it("forwards the session for comments in member and private forums", async () => {
-		getJwtMock.mockResolvedValue("session-jwt");
-		getAuthMock.mockResolvedValue({ data: [] });
-		const { GET } = await import("@/app/api/v1/post-comments/route");
-		const res = await GET(
-			makeGetRequest("https://web.example.com/api/v1/post-comments?postId=abc&limit=20"),
-		);
-		expect(res.status).toBe(200);
-		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/post-comments", "session-jwt", {
-			postId: "abc",
-			limit: "20",
-		});
-		expect(getMock).not.toHaveBeenCalled();
-	});
+	it.each(["20", "all"])(
+		"forwards the session and limit=%s for restricted forums",
+		async (limit) => {
+			getJwtMock.mockResolvedValue("session-jwt");
+			getAuthMock.mockResolvedValue({ data: [] });
+			const { GET } = await import("@/app/api/v1/post-comments/route");
+			const res = await GET(
+				makeGetRequest(`https://web.example.com/api/v1/post-comments?postId=abc&limit=${limit}`),
+			);
+			expect(res.status).toBe(200);
+			expect(getAuthMock).toHaveBeenCalledWith("/api/v1/post-comments", "session-jwt", {
+				postId: "abc",
+				limit,
+			});
+			expect(getMock).not.toHaveBeenCalled();
+		},
+	);
 
 	it("returns 400 INVALID_REQUEST when postId is missing", async () => {
 		const { GET } = await import("@/app/api/v1/post-comments/route");

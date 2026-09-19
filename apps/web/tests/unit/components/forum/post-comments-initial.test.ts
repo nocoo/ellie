@@ -155,8 +155,25 @@ describe("PostComments initialComments", () => {
 			expect(vi.mocked(apiClient.get)).toHaveBeenCalledTimes(1);
 			expect(vi.mocked(apiClient.get)).toHaveBeenCalledWith("/api/v1/post-comments", {
 				postId: 42,
+				limit: "all",
 			});
 		});
+	});
+
+	it("expands the complete deferred collection beyond 100 comments", async () => {
+		const comments = Array.from({ length: 101 }, (_, index) => ({
+			...sampleComments[0],
+			id: index + 1,
+			content: `Comment ${index + 1}`,
+		}));
+		vi.mocked(apiClient.get).mockResolvedValue({ data: comments } as any);
+		renderWithInitialComments();
+		expect(apiClient.get).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "查看点评" }));
+		fireEvent.click(await screen.findByRole("button", { name: "查看全部 101 条点评" }));
+		expect(screen.getByText("Comment 101")).toBeTruthy();
+		expect(screen.getAllByTestId("post-comment-time")).toHaveLength(101);
+		expect(apiClient.get).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders fetched comments in fallback mode", async () => {

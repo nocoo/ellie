@@ -144,7 +144,10 @@ export function PostComments({
 			// Use searchParams object form so the helper handles encoding and
 			// undefined/null filtering. Never string-concat user-supplied
 			// values into the URL.
-			const response = await apiClient.get<PostComment[]>("/api/v1/post-comments", { postId });
+			const response = await apiClient.get<PostComment[]>("/api/v1/post-comments", {
+				postId,
+				limit: "all",
+			});
 			setComments((previous) => [
 				...new Map([...response.data, ...previous].map((row) => [row.id, row])).values(),
 			]);

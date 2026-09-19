@@ -251,6 +251,10 @@ const data = await forumApi.get("/api/v1/example");
 const data = await apiClient.get("/api/v1/example");
 ```
 
+## Deferred post comments
+
+The thread page requests `GET /api/v1/post-comments?postId=…&limit=all` only after the reader selects **查看点评**. The Next.js proxy forwards the current session and query parameters. `limit=all` returns the complete single-post collection using the existing 30-minute comments cache; omitted limits still default to 50 and numeric limits remain capped at 100. Worker checks current post/thread/forum access before every cached read. **查看全部** therefore includes comments beyond the former 50/100 limits, while successful writes appear immediately on the current page.
+
 ## Admin statistics and hourly cache observations
 
 The v1.11.4 Admin statistics update keeps the Key B gate and the existing Next.js proxy routes. The dashboard requests statistics only after selecting **加载统计** (`/admin?statistics=1`); navigation links do not prefetch these reads.

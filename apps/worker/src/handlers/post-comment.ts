@@ -89,10 +89,11 @@ export async function list(request: Request, env: Env, ctx?: ExecutionContext): 
 		);
 	}
 
-	// Clamp limit
-	const clampedLimit = clampLimit(limitParam, { defaultLimit: 50, maxLimit: 100 });
+	// Deferred single-post reads need the same complete collection as batch reads.
+	const clampedLimit =
+		limitParam === "all" ? null : clampLimit(limitParam, { defaultLimit: 50, maxLimit: 100 });
 
-	if (!Number.isSafeInteger(clampedLimit))
+	if (clampedLimit !== null && !Number.isSafeInteger(clampedLimit))
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid limit" }, origin);
 	const rows = await getPostComments(env, ctx, [postIdNum], clampedLimit);
 	const comments = (rows.get(postIdNum) ?? []).map(toPostComment);
