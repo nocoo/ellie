@@ -384,6 +384,7 @@ async function loadAdminEntity(
 	env: Env,
 	descriptor: CacheDescriptor,
 	config: EntityConfig | null,
+	freshCount = false,
 ): Promise<unknown> {
 	if (descriptor.family === "admin:entity:list" && config?.table === "announcements")
 		return (await import("../../handlers/admin/announcement")).loadAdminAnnouncements(
@@ -409,7 +410,7 @@ async function loadAdminEntity(
 	if (descriptor.family === "admin:entity:count")
 		return loadEntityCount(config, env, String(descriptor.params.query));
 	return descriptor.family === "admin:entity:list"
-		? loadEntityList(config, env, String(descriptor.params.query))
+		? loadEntityList(config, env, String(descriptor.params.query), undefined, freshCount)
 		: loadEntityDetail(config, env, Number(descriptor.params.id));
 }
 
@@ -418,7 +419,7 @@ export async function rebuildAdminEntityCache(
 	_ctx: ExecutionContext | undefined,
 	descriptor: CacheDescriptor,
 ): Promise<unknown> {
-	return loadAdminEntity(env, descriptor, await validate(descriptor));
+	return loadAdminEntity(env, descriptor, await validate(descriptor), true);
 }
 
 function isAdminEntityData(d: CacheDescriptor, value: unknown, allowLongQuery = false): boolean {
@@ -491,10 +492,12 @@ export async function readAdminEntity<T>(
 		ctx,
 		key,
 		loader ??
-			(() =>
-				(longQuery
-					? loadAdminEntity(env, descriptor, config)
-					: rebuildAdminEntityCache(env, ctx, descriptor)) as Promise<T>),
+			(async () =>
+				loadAdminEntity(
+					env,
+					descriptor,
+					longQuery ? config : await validate(descriptor),
+				) as Promise<T>),
 		{
 			...descriptor,
 			tier: descriptor.family === "admin:entity:count" ? "HOUR" : "SHORT",

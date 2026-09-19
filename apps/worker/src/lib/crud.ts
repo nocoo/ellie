@@ -434,6 +434,7 @@ export async function loadEntityList(
 	env: Env,
 	query: string,
 	ctx?: ExecutionContext,
+	freshCount = false,
 ): Promise<AdminEntityList> {
 	const { url, whereClause, params, from, select, sort } = entityListSql(config, query);
 	const page = Number(url.searchParams.get("page") ?? 1);
@@ -441,7 +442,7 @@ export async function loadEntityList(
 	const paginated = config.listPaginated !== false;
 	const [count, result] = await Promise.all([
 		paginated
-			? registerAdminEntity(config)
+			? !freshCount && registerAdminEntity(config)
 				? readAdminEntity<number>(
 						env,
 						ctx,

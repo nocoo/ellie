@@ -473,3 +473,15 @@ it("keeps a newly populated last page visible even with an older cached total", 
 	expect(body.meta.total).toBe(6);
 	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(1);
 });
+
+it("explicitly rebuilding a list reads its authoritative total instead of the cached count", async () => {
+	const { list } = await import("../../../../src/handlers/admin/user");
+	const { rebuildCacheEntry } = await import("../../../../src/lib/cache/manage");
+	await list(createAdminRequest("GET", "/api/admin/users?limit=2"), f.env);
+	f.insert("users", { id: 99, username: "registered" });
+	f.calls.length = 0;
+	const entry = f.snapshots("admin:entity:list")[0];
+	const rebuilt = await rebuildCacheEntry(f.env, undefined, entry.key);
+	expect(rebuilt.data).toMatchObject({ total: 6 });
+	expect(f.calls.filter((c) => c.sql.includes("COUNT(*)"))).toHaveLength(1);
+});
