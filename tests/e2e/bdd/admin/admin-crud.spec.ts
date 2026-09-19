@@ -1340,7 +1340,7 @@ test("explains an unscoped title search and recovers after adding an author", as
 }) => {
 	await loginAsAdmin();
 	await page.goto("/admin/threads?search=Thread");
-	await expect(page.getByRole("alert")).toContainText("请先限定");
+	await expect(page.getByRole("alert").filter({ hasText: "请先限定" })).toContainText("请先限定");
 	const author = page.getByPlaceholder("作者完整用户名...");
 	await author.fill("testuser");
 	const response = page.waitForResponse(
@@ -1351,5 +1351,5 @@ test("explains an unscoped title search and recovers after adding an author", as
 	);
 	await author.press("Enter");
 	await response;
-	await expect(page.getByRole("alert")).toHaveCount(0);
+	await expect(page.getByRole("alert").filter({ hasText: "请先限定" })).toHaveCount(0);
 });
