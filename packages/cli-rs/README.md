@@ -95,8 +95,10 @@ theme = "default"
 # L1: Unit tests (132 tests)
 cargo test --workspace
 
-# L2: Integration tests (requires test Worker + env vars)
-ELLIE_API_URL=<test-url> ELLIE_API_KEY=<key> cargo test --test integration -- --ignored
+# L2: Integration tests (requires a disposable seeded local test Worker)
+ELLIE_API_URL=http://127.0.0.1:17031 ELLIE_API_KEY=<local-test-key> \
+  ELLIE_TEST_USERNAME=<fixture-user> ELLIE_TEST_PASSWORD=<fixture-password> \
+  cargo test --test integration -- --ignored
 
 # G1: Lint + format
 cargo clippy --workspace -- -D warnings
@@ -115,4 +117,4 @@ cargo fmt --all --check
 | L2 Integration | `cargo test --test integration -- --ignored` | All pass |
 | G1 Lint | `cargo clippy -- -D warnings` + `cargo fmt --check` | Zero warnings |
 | G2 Security | `osv-scanner` + `gitleaks` | Zero findings |
-| D1 Isolation | `GET /api/live` environment check | Must be "test" |
+| D1 Isolation | HTTP loopback IP origin + `GET /api/live` attestation | Must be "test"; proxies and redirects disabled |
