@@ -325,7 +325,7 @@ const userConfig: EntityConfig = {
 
 	// Public profiles and the private self profile share this user-scoped
 	// invalidation. Include private email fields in addition to display/gates.
-	afterUpdate: async (id, data, _existing, env, _origin) => {
+	afterUpdate: async (id, data, existing, env, _origin) => {
 		const cacheFields = [
 			// Identity / display
 			"username",
@@ -374,6 +374,12 @@ const userConfig: EntityConfig = {
 		const needsInvalidation = cacheFields.some((field) => data[field] !== undefined);
 		if (needsInvalidation) {
 			await invalidateUserCaches(env, id);
+		}
+		// Author-name filters resolve current users, so rename changes membership.
+		if (data.username !== undefined && data.username !== existing.username) {
+			await Promise.all(
+				["threads", "posts"].map((entity) => invalidateAdminEntityCache(env, entity)),
+			);
 		}
 	},
 };

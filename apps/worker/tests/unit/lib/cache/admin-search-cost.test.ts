@@ -64,3 +64,34 @@ it("uses indexed exact email, UID, literal prefix and same-IP filters", async ()
 	const res = await users(createAdminRequest("GET", "/api/admin/users?username=a_"), f.env);
 	expect((await res.json()).data).toEqual([]);
 });
+
+it.each([
+	[threads, "threads"],
+	[posts, "posts"],
+] as const)(
+	"invalidates author-name membership and totals immediately after a rename",
+	async (handler, entity) => {
+		const { update } = await import("../../../../src/handlers/admin/user");
+		f.thread(1);
+		f.thread(2);
+		f.post(1);
+		f.post(2);
+		const read = async (name: string) =>
+			await (
+				await handler(
+					createAdminRequest("GET", `/api/admin/${entity}?authorName=${name}&limit=1`),
+					f.env,
+				)
+			).json();
+		expect((await read("alice")).meta.total).toBe(2);
+		const changed = await update(
+			createAdminRequest("PATCH", "/api/admin/users/10", { username: "renamed" }),
+			f.env,
+		);
+		expect(changed.status).toBe(200);
+		const old = await read("alice");
+		expect(old.data).toEqual([]);
+		expect(old.meta.total).toBe(0);
+		expect((await read("renamed")).meta.total).toBe(2);
+	},
+);
