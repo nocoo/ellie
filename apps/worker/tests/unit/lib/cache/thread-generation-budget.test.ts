@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { list } from "../../../../src/handlers/thread";
 import { bumpThreadMetaGen } from "../../../../src/lib/cache/invalidate";
 import { getThreadRows, readingCacheKey } from "../../../../src/lib/cache/thread-loaders";
+import { getUserProfiles, invalidateUserCache } from "../../../../src/lib/user-cache";
 import { deferred, readingFixture } from "./thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
@@ -137,6 +138,40 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 		expect(response.status).toBe(200);
 		expect(((await response.json()) as { data: unknown[] }).data).toHaveLength(100);
 		await Promise.all(f.ctx._waitUntilPromises);
+	});
+
+	it("does not refill captured batch rows when invalidation finishes before admission", async () => {
+		for (let id = 1; id <= 100; id++) {
+			f.insert("users", { id: id + 1000, username: `before${id}` });
+			if (id > 2) f.thread(id);
+			f.sqlite.prepare("UPDATE threads SET author_id = ? WHERE id = ?").run(id + 1000, id);
+		}
+		const gate = deferred();
+		f.state.writeGate = gate.promise;
+		const request = list(
+			new Request("http://localhost/api/v1/threads?forumId=1&page=1&limit=100"),
+			f.env,
+			f.ctx,
+		);
+		try {
+			await vi.waitFor(() => expect(f.env.KV.put).toHaveBeenCalledTimes(256));
+			expect(
+				f.calls.some(
+					(call) => call.sql.includes("FROM users WHERE id IN") && call.params.includes(1030),
+				),
+			).toBe(true);
+			expect(vi.mocked(f.env.KV.put).mock.calls.some(([key]) => key === "user:mini:1030")).toBe(
+				false,
+			);
+			f.sqlite.prepare("UPDATE users SET username = ? WHERE id = ?").run("after30", 1030);
+			await invalidateUserCache(f.env, 1030, { strict: true });
+		} finally {
+			gate.resolve();
+		}
+		expect((await request).status).toBe(200);
+		await Promise.all(f.ctx._waitUntilPromises);
+		expect(f.values.has("user:mini:1030")).toBe(false);
+		expect((await getUserProfiles(f.env, undefined, [1030])).get(1030)?.username).toBe("after30");
 	});
 
 	it("a paused old load cannot fill the new thread meta generation", async () => {

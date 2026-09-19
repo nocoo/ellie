@@ -119,7 +119,7 @@ export async function cacheGetOrSet<T>(
 	ctx: ExecutionContext | undefined,
 	key: string,
 	loader: () => Promise<T>,
-	options: CacheGetOrSetOptions<T> & { knownMiss?: boolean },
+	options: CacheGetOrSetOptions<T> & { knownMiss?: boolean; skipFill?: boolean },
 ): Promise<T> {
 	validateCacheOptions(options);
 	const pending = pendingLoads(env);
@@ -145,8 +145,10 @@ export async function cacheGetOrSet<T>(
 			waitingByNamespace.set(env.KV, (waitingByNamespace.get(env.KV) ?? 1) - 1);
 		}
 		// A fill or mutation may have completed while waiting. Recheck both the
-		// shared task and KV instead of reusing an earlier bulk miss.
-		return cacheGetOrSet(env, ctx, key, loader, { ...options, knownMiss: false });
+		// shared task and KV instead of reusing an earlier bulk miss. A batch
+		// loader may already hold pre-mutation rows: return them to this in-flight
+		// reader if needed, but never persist them after an admission wait.
+		return cacheGetOrSet(env, ctx, key, loader, { ...options, knownMiss: false, skipFill: true });
 	}
 	const task: PendingLoad = {
 		promise: Promise.resolve(),
@@ -188,7 +190,7 @@ export async function cacheGetOrSet<T>(
 	const value = read();
 	task.work = value
 		.then(async (fresh) => {
-			if (shouldFill && !task.cancelled) {
+			if (shouldFill && !task.cancelled && !options.skipFill) {
 				task.filling = true;
 				await cacheWrite(env, ctx, key, fresh, options);
 			}
