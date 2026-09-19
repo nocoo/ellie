@@ -253,3 +253,12 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 4. **Audit Trail**: Implemented under the F batch (see §7 + [`docs/14a-audit-logs.md`](./14a-audit-logs.md)). Mutations in the covered families (user ban/nuke, report resolve/dismiss, thread/post content edits & deletes, forum/setting/ip_ban/censor_word/announcement CRUD) are recorded best-effort to `admin_logs`; sensitive keys are redacted by `sanitizeAdminLogDetails`. Attachment delete audit (F3-d) and maintenance-class mutations (statistics recalc, role/status batches, generic `user.update`) are not covered yet.
 
 5. **Dangerous Actions**: Always require confirmation dialogs
+
+
+## 查询成本约束（v1.13.1）
+
+- 用户搜索框支持用户名前缀、完整邮箱、`uid:123`。用户名中的 `%`、`_` 按字面量匹配。
+- 主题作者筛选使用完整用户名。标题包含搜索先选版块或作者；Worker API 也支持不超过 90 天的日期范围。正文包含搜索需限定主题、作者或日期范围。
+- 注册 IP / 最近登录 IP 精确筛选保留，通过非空 IP 索引查询。
+- 后台总数和总页数允许延迟一小时；换页不重复计数，记录页维持一分钟缓存，后台写入会失效相关缓存。
+- 论坛私信角标每十分钟检查一次，后台标签页暂停，站内导航沿用检查截止时间；打开私信页及主动操作仍即时请求。

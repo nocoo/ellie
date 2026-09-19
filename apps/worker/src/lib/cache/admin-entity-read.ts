@@ -6,6 +6,7 @@ import {
 	loadEntityDetail,
 	loadEntityList,
 } from "../crud";
+import { normalizeEmail } from "../email-verify";
 import type { Env } from "../env";
 import { bumpGen, getGen } from "./epoch";
 import { adminEntityGenKey, dataCacheKey } from "./keys";
@@ -205,6 +206,9 @@ const listShape = shape({
 });
 
 function normalizedFilterValue(filter: FilterDef, raw: string): string | undefined {
+	if (filter.type === "email") return normalizeEmail(raw) || undefined;
+	if (filter.type === "prefix" || filter.type === "username")
+		return raw.trim().replace(/[A-Z]/g, (c) => c.toLowerCase()) || undefined;
 	if (filter.type === "range" || filter.parse === "int" || filter.parse === "float") {
 		const value = filter.parse === "float" ? Number.parseFloat(raw) : Number.parseInt(raw, 10);
 		return Number.isFinite(value) ? String(value) : undefined;
@@ -234,6 +238,25 @@ function adminFilterValues(filters: readonly FilterDef[], input: URLSearchParams
 	return values;
 }
 
+function validateSearchScopes(config: EntityConfig, values: Record<string, string>) {
+	for (const filter of config.filters ?? []) {
+		if (!filter.scopeParams || !values[filter.param]) continue;
+		const scoped = filter.scopeParams.some((param) => {
+			const scope = config.filters?.find((f) => f.param === param);
+			return scope?.type === "username"
+				? !!values[param]
+				: Number.isSafeInteger(Number(values[param])) && Number(values[param]) > 0;
+		});
+		const dated = config.filters?.some((f) => {
+			if (!f.rangeIndex) return false;
+			const min = Number(values[f.minParam ?? `${f.param}Min`]);
+			const max = Number(values[f.maxParam ?? `${f.param}Max`] ?? Math.floor(Date.now() / 1000));
+			return min > 0 && max >= min && max - min <= 90 * 86400;
+		});
+		if (!scoped && !dated) throw new RangeError("SEARCH_SCOPE_REQUIRED");
+	}
+}
+
 /** Only query dimensions understood by the existing CRUD filter declarations. */
 export function adminListQuery(config: EntityConfig, input: URLSearchParams): string {
 	const values: Record<string, string> = {};
@@ -248,6 +271,7 @@ export function adminListQuery(config: EntityConfig, input: URLSearchParams): st
 	const sort = input.get("sort");
 	if (sort && Object.hasOwn(config.allowedSorts ?? {}, sort)) values.sort = sort;
 	Object.assign(values, adminFilterValues(config.filters ?? [], input));
+	validateSearchScopes(config, values);
 	if (config.table === "announcements") {
 		if (["true", "1"].includes(input.get("active") ?? "")) values.active = "1";
 		const forumId = Number.parseInt(input.get("forumId") ?? "", 10);

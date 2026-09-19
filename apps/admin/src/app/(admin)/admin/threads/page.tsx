@@ -70,8 +70,8 @@ function buildFilters(forums: Forum[]): FilterDef[] {
 			label: `${f.type === "sub" ? "  └ " : ""}${f.name}`,
 		}));
 	return [
-		{ key: "search", label: "搜索主题...", type: "search" },
-		{ key: "authorName", label: "作者名称...", type: "search" },
+		{ key: "search", label: "标题包含（先选版块或作者）", type: "search" },
+		{ key: "authorName", label: "作者完整用户名...", type: "search" },
 		{
 			key: "forumId",
 			label: "所在版块",

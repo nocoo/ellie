@@ -148,7 +148,7 @@ describe("admin user handlers", () => {
 			expect(
 				calls.every((call) => !/FROM\s+(messages|attachments|posts|threads)\b/i.test(call.sql)),
 			).toBe(true);
-			expect(calls.find((call) => call.sql.includes("COUNT(*)"))?.params).toEqual(["%foo%"]);
+			expect(calls.find((call) => call.sql.includes("COUNT(*)"))?.params).toEqual(["foo%"]);
 		});
 
 		it("empty user pages query no related statistics", async () => {
@@ -167,7 +167,7 @@ describe("admin user handlers", () => {
 			).toBe(true);
 		});
 
-		it("should filter by username (LIKE)", async () => {
+		it("should filter by username prefix", async () => {
 			const { db, calls } = createMockDb({
 				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
@@ -180,10 +180,10 @@ describe("admin user handlers", () => {
 
 			expect(res.status).toBe(200);
 			const likeCall = calls.find((c) => c.sql.includes("username LIKE"));
-			expect(likeCall?.params).toContain("%alice%");
+			expect(likeCall?.params).toContain("alice%");
 		});
 
-		it("should filter by email (LIKE)", async () => {
+		it("should filter by normalized exact email", async () => {
 			const { db, calls } = createMockDb({
 				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
@@ -195,8 +195,8 @@ describe("admin user handlers", () => {
 			);
 
 			expect(res.status).toBe(200);
-			const likeCall = calls.find((c) => c.sql.includes("email LIKE"));
-			expect(likeCall?.params).toContain("%test@example.com%");
+			const likeCall = calls.find((c) => c.sql.includes("email_normalized ="));
+			expect(likeCall?.params).toContain("test@example.com");
 		});
 
 		it("should filter by status", async () => {
@@ -390,7 +390,7 @@ describe("admin user handlers", () => {
 			expect(countCall?.sql).toContain("credits <= ?");
 			// AND-joined; bind order matches filter declaration order in
 			// userConfig (username → posts → credits).
-			expect(countCall?.params).toEqual(["%alice%", 10, 500]);
+			expect(countCall?.params).toEqual(["alice%", 10, 500]);
 		});
 
 		it("filters maintained counter columns directly without correlated recounts", async () => {

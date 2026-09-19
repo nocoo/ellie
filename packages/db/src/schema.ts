@@ -377,6 +377,8 @@ export const INDEXES = {
 	],
 
 	users: [
+		"CREATE INDEX IF NOT EXISTS idx_users_reg_ip_nonempty ON users(reg_ip) WHERE reg_ip != '';",
+		"CREATE INDEX IF NOT EXISTS idx_users_last_ip_nonempty ON users(last_ip) WHERE last_ip != '';",
 		"CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users(username COLLATE NOCASE);",
 		"CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);",
 		"CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);",

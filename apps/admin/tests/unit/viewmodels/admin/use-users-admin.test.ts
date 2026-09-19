@@ -45,6 +45,15 @@ describe("use-users-admin helpers", () => {
 			expect(params.get("username")).toBe("john");
 		});
 
+		it("routes explicit UID and email searches to exact filters", () => {
+			const uid = buildUserSearchParams(1, 20, makeFilters({ search: " UID:123 " }));
+			expect(uid.get("id")).toBe("123");
+			expect(uid.has("username")).toBe(false);
+			const email = buildUserSearchParams(1, 20, makeFilters({ search: " User@example.com " }));
+			expect(email.get("email")).toBe("User@example.com");
+			expect(email.has("username")).toBe(false);
+		});
+
 		it("omits username when search is empty", () => {
 			const params = buildUserSearchParams(1, 20, makeFilters());
 			expect(params.has("username")).toBe(false);

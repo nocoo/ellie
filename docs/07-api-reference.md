@@ -1553,6 +1553,10 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 
 获取主题列表（偏移分页）。
 
+标题包含搜索必须同时提供 `forumId`、`authorId`、完整 `authorName`，或 `createdAtMin` 至 `createdAtMax`（省略上限时按当前时间，跨度最多 90 天）；缺少有效范围返回 `SEARCH_SCOPE_REQUIRED`（400）。正文包含搜索规则相同，版块范围改为 `threadId`。
+
+通用后台列表的精确总数按实体及筛选条件缓存一小时，跨页、分页大小和排序共享；记录页仍缓存 60 秒。后台修改会失效相关缓存，普通业务产生的新数据最迟随缓存过期反映。
+
 | 属性 | 值 |
 |------|---|
 | 认证 | Key B |
@@ -1564,8 +1568,8 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 |------|------|----------|
 | `forumId` | integer | 精确 |
 | `authorId` | integer | 精确 |
-| `authorName` | string | LIKE |
-| `subject` | string | LIKE |
+| `authorName` | string | 完整用户名，ASCII 不区分大小写；转换为作者 ID 检索 |
+| `subject` | string | 标题包含；需同时限定版块、作者或 ≤90 天日期范围 |
 | `sticky` | integer | 精确 |
 | `closed` | integer | 精确 |
 | `digest` | integer | 精确 |
@@ -1658,8 +1662,8 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 |------|------|----------|
 | `threadId` | integer | 精确 |
 | `authorId` | integer | 精确 |
-| `authorName` | string | LIKE |
-| `content` | string | LIKE |
+| `authorName` | string | 完整用户名，ASCII 不区分大小写；转换为作者 ID 检索 |
+| `content` | string | 正文包含；需同时限定主题、作者或 ≤90 天日期范围 |
 | `sort` | string | 排序：`position_asc`（楼层升序）。默认 `id DESC` |
 
 ---
@@ -1725,8 +1729,10 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 
 | 参数 | 类型 | 匹配方式 |
 |------|------|----------|
-| `username` | string | LIKE |
-| `email` | string | LIKE |
+| `id` | integer | UID 精确匹配 |
+| `username` | string | 字面量前缀，ASCII 不区分大小写；`%`、`_` 不作通配符 |
+| `email` | string | 去首尾空格、转小写后精确匹配 `email_normalized` |
+| `regIp` / `lastIp` | string | 非空 IP 精确匹配 |
 | `status` | integer | 精确 |
 | `role` | integer | 精确 |
 

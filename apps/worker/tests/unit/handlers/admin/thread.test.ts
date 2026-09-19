@@ -64,7 +64,7 @@ describe("admin thread handlers", () => {
 			expect(authorIdCall?.params).toContain(123);
 		});
 
-		it("should search by authorName (LIKE)", async () => {
+		it("should search by the complete author username", async () => {
 			const { db, calls } = createMockDb({
 				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
@@ -74,8 +74,8 @@ describe("admin thread handlers", () => {
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
-			const likeCall = calls.find((c) => c.sql.includes("author_name LIKE"));
-			expect(likeCall?.params).toContain("%alice%");
+			const likeCall = calls.find((c) => c.sql.includes("author_id IN (SELECT id FROM users"));
+			expect(likeCall?.params).toContain("alice");
 		});
 
 		it("should search by subject (LIKE)", async () => {
@@ -84,7 +84,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = createAdminRequest("GET", "/api/admin/threads?subject=test");
+			const req = createAdminRequest("GET", "/api/admin/threads?forumId=1&subject=test");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);

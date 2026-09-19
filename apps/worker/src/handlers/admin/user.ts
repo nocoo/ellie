@@ -60,13 +60,14 @@ const userConfig: EntityConfig = {
 
 	// #36 filters
 	filters: [
-		{ param: "username", column: "username", type: "like" },
-		{ param: "email", column: "email", type: "like" },
+		{ param: "id", column: "id", type: "exact", parse: "int" },
+		{ param: "username", column: "username", type: "prefix" },
+		{ param: "email", column: "email_normalized", type: "email" },
 		{ param: "status", column: "status", type: "exact", parse: "int" },
 		{ param: "role", column: "role", type: "exact", parse: "int" },
 		// D3: same-IP query — exact match, no LIKE wildcards (PII surface).
-		{ param: "regIp", column: "reg_ip", type: "exact" },
-		{ param: "lastIp", column: "last_ip", type: "exact" },
+		{ param: "regIp", column: "reg_ip", type: "exact", nonempty: true },
+		{ param: "lastIp", column: "last_ip", type: "exact", nonempty: true },
 		// Batch E: 高级过滤器 — inclusive numeric ranges (Batch A `range`
 		// type). Default param naming `${param}Min`/`${param}Max` matches
 		// the admin AdminFilters key convention (Batch B). Date columns

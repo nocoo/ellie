@@ -264,7 +264,10 @@ export function buildUserSearchParams(
 	const params = new URLSearchParams();
 	params.set("page", String(page));
 	params.set("limit", String(limit));
-	if (filters.search) params.set("username", filters.search);
+	const search = filters.search.trim();
+	if (/^uid:\d+$/i.test(search)) params.set("id", search.slice(4));
+	else if (search.includes("@")) params.set("email", search);
+	else if (search) params.set("username", search);
 	if (filters.status) params.set("status", filters.status);
 	if (filters.role) params.set("role", filters.role);
 	if (filters.regIp) params.set("regIp", filters.regIp);

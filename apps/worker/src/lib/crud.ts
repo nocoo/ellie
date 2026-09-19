@@ -10,6 +10,7 @@ import {
 	readAdminEntity,
 	registerAdminEntity,
 } from "./cache/admin-entity-read";
+import { normalizeEmail } from "./email-verify";
 import type { Env } from "./env";
 import { parseIdFromPath } from "./parseId";
 import { jsonNoStoreResponse, paginatedNoStoreResponse } from "./response";
@@ -44,7 +45,11 @@ export interface FilterDef {
 	 *   which spans two columns. Column is ignored for this type; put the
 	 *   full parenthesised fragment in trueExpr/falseExpr.
 	 */
-	type: "exact" | "like" | "positive" | "range" | "expr";
+	type: "exact" | "prefix" | "email" | "username" | "like" | "positive" | "range" | "expr";
+	/** Contains search requires one of these indexed scopes or a bounded date range. */
+	scopeParams?: string[];
+	/** Match the nonempty partial index predicate. */
+	nonempty?: boolean;
 	/** Value parser — defaults to string passthrough (or `int` for `range`) */
 	parse?: "int" | "boolean" | "float";
 	/** Range only: query param for the lower bound (default `${param}Min`). */
@@ -223,6 +228,22 @@ function applyFilter(f: FilterDef, raw: string, conditions: string[], params: un
 		applyBooleanFilter(f, raw, conditions);
 		return;
 	}
+	if (f.type === "prefix") {
+		conditions.push(`${f.column} LIKE ? ESCAPE '\\'`);
+		params.push(`${raw.replace(/[%_\\]/g, "\\$&")}%`);
+		return;
+	}
+	if (f.type === "email") {
+		conditions.push(`${f.column} != '' AND ${f.column} = ?`);
+		params.push(normalizeEmail(raw));
+		return;
+	}
+	if (f.type === "username") {
+		conditions.push(`${f.column} IN (SELECT id FROM users WHERE username = ? COLLATE NOCASE)`);
+		params.push(raw);
+		return;
+	}
+	if (f.nonempty) conditions.push(`${f.column} != ''`);
 	if (f.type === "like") {
 		conditions.push(`${f.column} LIKE ?`);
 		params.push(`%${raw}%`);
@@ -470,8 +491,14 @@ export function createListHandler(config: EntityConfig) {
 		let query: string;
 		try {
 			query = adminListQuery(config, new URL(request.url).searchParams);
-		} catch {
-			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
+		} catch (error) {
+			const scopeRequired = error instanceof Error && error.message === "SEARCH_SCOPE_REQUIRED";
+			return errorResponse(
+				scopeRequired ? "SEARCH_SCOPE_REQUIRED" : "INVALID_REQUEST",
+				400,
+				scopeRequired ? undefined : { message: "Invalid page number" },
+				origin,
+			);
 		}
 		const descriptor = {
 			family: "admin:entity:list",

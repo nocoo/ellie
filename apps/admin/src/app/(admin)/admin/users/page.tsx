@@ -42,7 +42,7 @@ import type { User } from "@/viewmodels/admin/users";
 // ---------------------------------------------------------------------------
 
 const FILTERS: FilterDef[] = [
-	{ key: "search", label: "搜索用户...", type: "search" },
+	{ key: "search", label: "用户名前缀 / 邮箱 / uid:123", type: "search" },
 	{
 		key: "status",
 		label: "状态",

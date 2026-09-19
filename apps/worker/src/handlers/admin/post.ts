@@ -41,8 +41,13 @@ const postConfig: EntityConfig = {
 	filters: [
 		{ param: "threadId", column: "thread_id", type: "exact", parse: "int" },
 		{ param: "authorId", column: "author_id", type: "exact", parse: "int" },
-		{ param: "authorName", column: "author_name", type: "like" },
-		{ param: "content", column: "content", type: "like" },
+		{ param: "authorName", column: "author_id", type: "username" },
+		{
+			param: "content",
+			column: "content",
+			type: "like",
+			scopeParams: ["threadId", "authorId", "authorName"],
+		},
 		{ param: "isFirst", column: "is_first", type: "exact", parse: "int" },
 		{ param: "createdAt", column: "created_at", type: "range", rangeIndex: "idx_posts_created" },
 	],

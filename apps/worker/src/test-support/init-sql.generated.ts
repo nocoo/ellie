@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: 5428999d09c07371de626a74afdd927eba1e1f53261329b735dce114226200af):
+ * Source migrations (sha256: ccd4c4be522a1741d0f46de8db12cdba9fdd3f47fa0fe837cc18e70766a307d0):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -37,6 +37,7 @@
  *   - 0051_idx_threads_forum_latest.sql
  *   - 0052_kv_cache_metrics_hour.sql
  *   - 0053_read_query_indexes.sql
+ *   - 0054_same_ip_indexes.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1694,9 +1695,15 @@ CREATE INDEX IF NOT EXISTS idx_threads_forum_digest ON threads(forum_id, digest 
 
 -- Bounded planner statistics maintenance after index changes (D1 recommendation).
 PRAGMA optimize;
+
+-- ── 0054_same_ip_indexes.sql ────────────────────────────────────────────
+-- Preserve same-IP administration without scanning empty historical IP fields.
+CREATE INDEX IF NOT EXISTS idx_users_reg_ip_nonempty ON users(reg_ip) WHERE reg_ip != '';
+CREATE INDEX IF NOT EXISTS idx_users_last_ip_nonempty ON users(last_ip) WHERE last_ip != '';
+PRAGMA optimize;
 `;
 
-export const INIT_SQL_HASH = "5428999d09c07371de626a74afdd927eba1e1f53261329b735dce114226200af";
+export const INIT_SQL_HASH = "ccd4c4be522a1741d0f46de8db12cdba9fdd3f47fa0fe837cc18e70766a307d0";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1731,5 +1738,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0050_backfill_thread_anonymous.sql",
 	"0051_idx_threads_forum_latest.sql",
 	"0052_kv_cache_metrics_hour.sql",
-	"0053_read_query_indexes.sql"
+	"0053_read_query_indexes.sql",
+	"0054_same_ip_indexes.sql"
 ] as const;

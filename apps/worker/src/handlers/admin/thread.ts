@@ -89,8 +89,13 @@ const threadConfig: EntityConfig = {
 	filters: [
 		{ param: "forumId", column: "forum_id", type: "exact", parse: "int" },
 		{ param: "authorId", column: "author_id", type: "exact", parse: "int" },
-		{ param: "authorName", column: "author_name", type: "like" },
-		{ param: "subject", column: "subject", type: "like" },
+		{ param: "authorName", column: "author_id", type: "username" },
+		{
+			param: "subject",
+			column: "subject",
+			type: "like",
+			scopeParams: ["forumId", "authorId", "authorName"],
+		},
 		{ param: "sticky", column: "sticky", type: "exact", parse: "int" },
 		{ param: "closed", column: "closed", type: "exact", parse: "int" },
 		{ param: "digest", column: "digest", type: "exact", parse: "int" },

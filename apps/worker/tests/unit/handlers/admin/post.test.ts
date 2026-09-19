@@ -61,7 +61,7 @@ describe("admin post handlers", () => {
 			expect(authorIdCall?.params).toContain(123);
 		});
 
-		it("should search by authorName (LIKE)", async () => {
+		it("should search by the complete author username", async () => {
 			const { db, calls } = createMockDb({
 				allResults: { "FROM posts": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
@@ -73,8 +73,8 @@ describe("admin post handlers", () => {
 			);
 
 			expect(res.status).toBe(200);
-			const likeCall = calls.find((c) => c.sql.includes("author_name LIKE"));
-			expect(likeCall?.params).toContain("%alice%");
+			const likeCall = calls.find((c) => c.sql.includes("author_id IN (SELECT id FROM users"));
+			expect(likeCall?.params).toContain("alice");
 		});
 
 		it("should search by content (LIKE)", async () => {
@@ -84,7 +84,7 @@ describe("admin post handlers", () => {
 			});
 
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?content=test"),
+				new Request("https://api.example.com/api/admin/posts?threadId=1&content=test"),
 				adminEnv(db),
 			);
 

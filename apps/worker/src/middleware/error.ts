@@ -57,6 +57,7 @@ export function emailNotVerifiedResponse(origin?: string): Response {
 function getStatusMessage(code: string): string {
 	const messages: Record<string, string> = {
 		INVALID_REQUEST: "Invalid request parameters",
+		SEARCH_SCOPE_REQUIRED: "请先限定版块、主题、作者或不超过 90 天的日期范围，再搜索标题或正文",
 		UNAUTHORIZED: "Authentication required",
 		FORBIDDEN: "Access denied",
 		NOT_FOUND: "Resource not found",
