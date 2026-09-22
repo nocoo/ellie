@@ -54,15 +54,15 @@ it("ignores old recipient results after a newer search or after clearing input",
 	await act(async () => {
 		current([{ id: 2, username: "Bob" }]);
 	});
-	expect(screen.getByRole("button", { name: "Bob" })).toBeTruthy();
+	expect(screen.getByRole("option", { name: "Bob" })).toBeTruthy();
 	await act(async () => {
 		old([{ id: 1, username: "Alice" }]);
 	});
-	expect(screen.queryByRole("button", { name: "Alice" })).toBeNull();
-	fireEvent.click(screen.getByRole("button", { name: "Bob" }));
+	expect(screen.queryByRole("option", { name: "Alice" })).toBeNull();
+	fireEvent.click(screen.getByRole("option", { name: "Bob" }));
 	fireEvent.click(screen.getByRole("button", { name: "清除收信人" }));
 	expect((input as HTMLInputElement).value).toBe("");
-	expect(screen.queryByRole("button", { name: "Bob" })).toBeNull();
+	expect(screen.queryByRole("option", { name: "Bob" })).toBeNull();
 });
 
 it("sends a message once and prevents closing until its receipt arrives", async () => {

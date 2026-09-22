@@ -6,7 +6,7 @@
 
 import { Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
@@ -64,26 +64,33 @@ export function UserModActions({
 
 	// State
 	const [userStatus, setUserStatus] = useState<number | null>(null);
+	const [statusError, setStatusError] = useState<string | null>(null);
+	const activeUserId = useRef(userId);
+	activeUserId.current = userId;
 	const [modAction, setModAction] = useState<ModAction>(null);
 	const [modActionLoading, setModActionLoading] = useState(false);
+	const actionPending = useRef(false);
 	const [modActionMessage, setModActionMessage] = useState<ModActionMessage | null>(null);
 
 	// Fetch user status
 	const fetchUserStatus = useCallback(async () => {
 		if (!canManageUsers || isSelf) return;
+		setUserStatus(null);
+		setStatusError(null);
 		try {
 			const res = await apiClient.get<{ status: number }>(
 				`/api/v1/moderation/users/${userId}/status`,
 			);
-			setUserStatus(res.data.status);
+			if (activeUserId.current === userId) setUserStatus(res.data.status);
 		} catch {
-			setUserStatus(null);
+			if (activeUserId.current === userId) setStatusError("管理状态加载失败");
 		}
 	}, [userId, canManageUsers, isSelf]);
 
 	// Execute mod action
 	const executeModAction = useCallback(async () => {
-		if (!modAction) return;
+		if (!modAction || userStatus === null || actionPending.current) return;
+		actionPending.current = true;
 		const config = MOD_ACTION_CONFIG[modAction];
 		setModActionLoading(true);
 		setModActionMessage(null);
@@ -91,6 +98,7 @@ export function UserModActions({
 			await apiClient.post(config.endpoint(userId), {});
 			setModActionMessage({ type: "success", text: `${config.title}成功` });
 			toast.success(`${config.title}成功`);
+			setModAction(null);
 
 			// For nuke action, redirect to home page after a short delay
 			if (modAction === "nuke") {
@@ -112,10 +120,10 @@ export function UserModActions({
 			});
 			toast.error({ title: `${config.title}失败`, description });
 		} finally {
+			actionPending.current = false;
 			setModActionLoading(false);
-			setModAction(null);
 		}
-	}, [modAction, userId, fetchUserStatus, onActionComplete, router, toast]);
+	}, [modAction, userId, userStatus, fetchUserStatus, onActionComplete, router, toast]);
 
 	// Fetch status on mount
 	useEffect(() => {
@@ -137,16 +145,26 @@ export function UserModActions({
 			<UserModActionDropdown
 				userIsMuted={userIsMuted}
 				userIsBanned={userIsBanned}
-				onAction={setModAction}
+				onAction={(action) => {
+					setModActionMessage(null);
+					setModAction(action);
+				}}
 				align="end"
 				trigger={
 					variant === "icon" ? (
-						<Button variant="ghost" size="icon" className={cn("h-8 w-8", className)}>
+						<Button
+							variant="ghost"
+							size="icon"
+							disabled={userStatus === null || modActionLoading}
+							aria-label="管理用户"
+							className={cn("h-8 w-8", className)}
+						>
 							<Shield className="h-4 w-4" />
 						</Button>
 					) : (
 						<Button
 							variant="ghost"
+							disabled={userStatus === null || modActionLoading}
 							size={size}
 							className={cn("gap-1 text-muted-foreground", className)}
 						>
@@ -156,6 +174,16 @@ export function UserModActions({
 					)
 				}
 			/>
+			{statusError && (
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={() => void fetchUserStatus()}
+					className="text-destructive"
+				>
+					{statusError}，重试
+				</Button>
+			)}
 
 			{/* Confirmation dialog */}
 			{modAction && (

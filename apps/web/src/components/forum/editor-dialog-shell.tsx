@@ -6,7 +6,7 @@
  *
  * Owns: Dialog wrapper, bounded editor layout,
  * showCloseButton={false}, editor area with flex-1/min-h-0 layout
- * and Ctrl/Cmd+Enter submit shortcut, footer bar with hint text
+ * and footer bar with hint text
  * and cancel/submit buttons.
  *
  * Callers provide: header content (hero header, error banner,
@@ -67,6 +67,7 @@ interface EditorDialogShellProps {
 	canSubmit: boolean;
 	/** Whether a submission is in progress (disables cancel button) */
 	submitting: boolean;
+	busy?: boolean;
 	/** Cancel button handler */
 	onCancel: () => void;
 	/** Footer hint text (e.g. "按 Ctrl+Enter 快速发布") */
@@ -87,6 +88,7 @@ export function EditorDialogShell({
 	onSubmit,
 	canSubmit,
 	submitting,
+	busy = submitting,
 	onCancel,
 	footerHint,
 	submitLabel,
@@ -97,33 +99,14 @@ export function EditorDialogShell({
 		<EditorDialogFrame
 			open={open}
 			onOpenChange={(next) => {
-				if (!submitting) onOpenChange(next);
+				if (!busy) onOpenChange(next);
 			}}
 		>
 			{/* Scroll the form when a keyboard or landscape viewport leaves little height. */}
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
 				<div className="shrink-0">{header}</div>
 
-				{/* biome-ignore lint/a11y/useSemanticElements: <fieldset> would introduce form/reset semantics we don't want; this is a keyboard-shortcut host, not a form control. */}
-				<div
-					className="flex min-h-72 flex-1 flex-col px-5 py-4"
-					role="group"
-					aria-label="编辑器"
-					onKeyDown={(e) => {
-						if (
-							(e.ctrlKey || e.metaKey) &&
-							e.key === "Enter" &&
-							!e.nativeEvent.isComposing &&
-							canSubmit &&
-							!submitting
-						) {
-							e.preventDefault();
-							onSubmit();
-						}
-					}}
-				>
-					{children}
-				</div>
+				<div className="flex min-h-96 flex-1 flex-col px-5 py-4">{children}</div>
 			</div>
 
 			{/* Footer — stacks vertically on narrow screens, row at sm+ */}
@@ -131,12 +114,12 @@ export function EditorDialogShell({
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<p className="hidden text-xs text-muted-foreground sm:block">{footerHint}</p>
 					<div className="ml-auto flex items-center justify-end gap-2">
-						<Button variant="ghost" onClick={onCancel} disabled={submitting}>
+						<Button variant="ghost" onClick={onCancel} disabled={busy}>
 							取消
 						</Button>
 						<Button
 							onClick={onSubmit}
-							disabled={!canSubmit || submitting}
+							disabled={!canSubmit || busy}
 							className="gap-2"
 							aria-busy={submitting}
 						>

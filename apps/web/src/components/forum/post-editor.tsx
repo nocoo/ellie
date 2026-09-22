@@ -1,491 +1,98 @@
 "use client";
 
-// components/forum/post-editor.tsx — Rich text editor (Tiptap)
-// Ref: 04e §RichTextEditor — toolbar + editor + character count
-//
-// B3 changes (review msg=d57926b5):
-//   - Underline now actually works (extension-underline registered).
-//   - Image insert button uploads via `uploadPostImage` (Phase A
-//     `forum-browser-api` facade over `apiClient.upload`). The §5.4
-//     EMAIL_NOT_VERIFIED dialog is dispatched globally from
-//     `apiClient.upload` via the shared `throwForErrorBody` path; this
-//     component only renders inline error + toast, no re-dispatch.
-//   - Link popover replaces the old `window.prompt` flow. URL is
-//     sanitized (rejects javascript:/data:/vbscript:/file:) before
-//     handing it to Tiptap's setLink.
-//   - Toolbar uses lucide icons + tooltips and is grouped:
-//       Block(H2/H3/Quote/Code) | Inline(B/I/U) | List(UL/OL) | Insert(Link/Image/Emoji)
-//   - Wrapper drops the always-on `ring-1 ring-border` halo; uses a
-//     border that highlights on focus-within instead. The inner blue
-//     ProseMirror outline is killed via tailwind.css.
-
+import { renderContent } from "@ellie/shared/content";
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
-import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import { Selection, type Transaction } from "@tiptap/pm/state";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { Check, Eye, FilePenLine, Loader2, PenLine, X } from "lucide-react";
 import {
-	Bold as BoldIcon,
-	Code as CodeIcon,
-	Heading2 as Heading2Icon,
-	Heading3 as Heading3Icon,
-	Image as ImageIcon,
-	Italic as ItalicIcon,
-	Link as LinkIcon,
-	List as ListIcon,
-	ListOrdered as ListOrderedIcon,
-	Loader2 as LoaderIcon,
-	Quote as QuoteIcon,
-	Underline as UnderlineIcon,
-} from "lucide-react";
-import {
-	type FormEvent,
 	forwardRef,
 	useCallback,
 	useEffect,
+	useId,
 	useImperativeHandle,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
-import { UnifiedEmojiPicker } from "@/components/forum/unified-emoji-picker";
+import { PostEditorToolbar } from "@/components/forum/post-editor-toolbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { uploadPostImage } from "@/lib/forum-browser-api";
-import { emojiTokenToInsertion } from "@/viewmodels/forum/post-editor";
+import { cn } from "@/lib/utils";
 import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import type { DraftStatus } from "@/viewmodels/forum/use-composer-draft";
 
 export interface PostEditorProps {
 	initialContent?: string;
 	onSubmit: (html: string) => void;
+	onChange?: (html: string) => void;
+	onBusyChange?: (busy: boolean) => void;
+	draftStatus?: DraftStatus;
+	previewTitle?: string;
+	previewPrefix?: string;
 	placeholder?: string;
+	minLength?: number;
 	maxLength?: number;
 	disabled?: boolean;
 	submitting?: boolean;
 	canSubmit?: boolean;
-	/** Keep the character count while the surrounding dialog supplies submit controls. */
 	hideFooter?: boolean;
 }
 
 export interface PostEditorRef {
 	getHTML: () => string;
+	submit: () => void;
+	focus: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Toolbar toggle button (with tooltip)
-// ---------------------------------------------------------------------------
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+function validateImages(files: File[]): string | null {
+	for (const file of files) {
+		if (!IMAGE_TYPES.includes(file.type)) return "仅支持 JPG、PNG、WebP 和 GIF 图片";
+		if (file.size > 5 * 1024 * 1024) return `「${file.name}」超过 5 MB，请压缩后再上传`;
+	}
+	return null;
+}
 
-function ToolbarButton({
-	active,
-	onClick,
-	children,
-	title,
-	disabled,
-}: {
-	active?: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-	title: string;
-	disabled?: boolean;
-}) {
-	return (
-		<Tooltip>
-			<TooltipTrigger
-				render={
-					<button
-						type="button"
-						onClick={onClick}
-						aria-label={title}
-						aria-pressed={active}
-						disabled={disabled}
-						className={`inline-flex h-8 w-8 items-center justify-center rounded text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-							active ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-						}`}
-					>
-						{children}
-					</button>
-				}
-			/>
-			<TooltipContent>{title}</TooltipContent>
-		</Tooltip>
+async function uploadImage(file: File): Promise<string> {
+	const result = await uploadPostImage(file);
+	if (result.kind === "success") return result.url;
+	throw new Error(
+		result.kind === "email-not-verified" ? "请先验证邮箱后再上传图片" : result.message,
 	);
 }
 
-// ---------------------------------------------------------------------------
-// Link popover — URL + display text, sanitized before applying
-// ---------------------------------------------------------------------------
-
-function LinkPopover({ editor, disabled }: { editor: Editor; disabled: boolean }) {
-	const [open, setOpen] = useState(false);
-	const [url, setUrl] = useState("");
-	const [text, setText] = useState("");
-	const [error, setError] = useState<string | null>(null);
-
-	// Pre-fill from current selection / existing link when opening
-	const handleOpenChange = useCallback(
-		(next: boolean) => {
-			setOpen(next);
-			if (next) {
-				const existingHref = (editor.getAttributes("link").href as string | undefined) ?? "";
-				setUrl(existingHref);
-				const { from, to } = editor.state.selection;
-				const selected = editor.state.doc.textBetween(from, to, " ");
-				setText(selected);
-				setError(null);
-			}
-		},
-		[editor],
-	);
-
-	const handleSubmit = useCallback(
-		(e: FormEvent) => {
-			e.preventDefault();
-			const sanitized = sanitizeUrl(url);
-			if (!sanitized.url) {
-				setError("不支持的链接地址");
-				return;
-			}
-
-			const chain = editor.chain().focus().extendMarkRange("link");
-
-			const { from, to } = editor.state.selection;
-			const trimmedText = text.trim();
-			if (from === to && trimmedText.length > 0) {
-				// No selection: insert the display text and link it.
-				chain
-					.insertContent({
-						type: "text",
-						text: trimmedText,
-						marks: [{ type: "link", attrs: { href: sanitized.url } }],
-					})
-					.run();
-			} else {
-				chain.setLink({ href: sanitized.url }).run();
-			}
-			setOpen(false);
-		},
-		[editor, url, text],
-	);
-
-	const handleUnlink = useCallback(() => {
-		editor.chain().focus().unsetLink().run();
-		setOpen(false);
-	}, [editor]);
-
-	const isLinkActive = useEditorState({
-		editor,
-		selector: ({ editor }) => editor.isActive("link"),
-	});
-
-	return (
-		<Popover open={open && !disabled} onOpenChange={handleOpenChange}>
-			<Tooltip>
-				<TooltipTrigger
-					render={
-						<PopoverTrigger
-							render={
-								<button
-									type="button"
-									aria-label="插入链接"
-									disabled={disabled}
-									className={`inline-flex h-8 w-8 items-center justify-center rounded text-xs font-medium transition-colors ${
-										isLinkActive
-											? "bg-primary text-primary-foreground"
-											: "hover:bg-muted text-muted-foreground"
-									}`}
-								>
-									<LinkIcon className="h-4 w-4" />
-								</button>
-							}
-						/>
-					}
-				/>
-				<TooltipContent>插入链接</TooltipContent>
-			</Tooltip>
-			<PopoverContent align="start" className="w-80">
-				<form onSubmit={handleSubmit} className="flex flex-col gap-2">
-					<label className="text-xs text-muted-foreground" htmlFor="link-url">
-						链接地址
-					</label>
-					<Input
-						id="link-url"
-						type="text"
-						placeholder="https://example.com"
-						value={url}
-						onChange={(e) => {
-							setUrl(e.target.value);
-							setError(null);
-						}}
-						autoFocus
-					/>
-					<label className="text-xs text-muted-foreground" htmlFor="link-text">
-						显示文字（可选，未选中文本时使用）
-					</label>
-					<Input
-						id="link-text"
-						type="text"
-						placeholder="链接显示的文字"
-						value={text}
-						onChange={(e) => setText(e.target.value)}
-					/>
-					{error && <p className="text-xs text-destructive">{error}</p>}
-					<div className="flex items-center justify-between gap-2 pt-1">
-						{isLinkActive ? (
-							<Button type="button" size="sm" variant="ghost" onClick={handleUnlink}>
-								移除链接
-							</Button>
-						) : (
-							<span />
-						)}
-						<div className="flex gap-2">
-							<Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-								取消
-							</Button>
-							<Button type="submit" size="sm">
-								确定
-							</Button>
-						</div>
-					</div>
-				</form>
-			</PopoverContent>
-		</Popover>
-	);
+function imageErrorMessage(error: unknown): string {
+	return error instanceof Error && !(error instanceof TypeError)
+		? error.message
+		: "上传失败，请重试";
 }
 
-// ---------------------------------------------------------------------------
-// Image upload button — uploadPostImage (apiClient.upload) + §5.4 dispatch in apiClient
-// ---------------------------------------------------------------------------
-
-const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
-
-function ImageUploadButton({ editor, disabled }: { editor: Editor; disabled: boolean }) {
-	const toast = useForumToast();
-	const inputRef = useRef<HTMLInputElement | null>(null);
-	const [uploading, setUploading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-
-	const handleClick = useCallback(() => {
-		if (uploading || disabled) return;
-		setError(null);
-		inputRef.current?.click();
-	}, [uploading, disabled]);
-
-	const handleChange = useCallback(
-		async (e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0];
-			// Always reset so re-selecting the same file works again.
-			e.target.value = "";
-			if (!file || disabled || uploading) return;
-
-			setUploading(true);
-			setError(null);
-
-			try {
-				const parsed = await uploadPostImage(file);
-				if (parsed.kind === "success") {
-					editor.chain().focus().setImage({ src: parsed.url }).run();
-					toast.success("图片已上传");
-				} else if (parsed.kind === "email-not-verified") {
-					// `apiClient.upload` already dispatched the global §5.4 event.
-					setError("请先验证邮箱后再上传图片");
-					toast.error({ title: "图片上传失败", description: "请先验证邮箱后再上传图片" });
-				} else {
-					setError(parsed.message);
-					toast.error({ title: "图片上传失败", description: parsed.message });
-				}
-			} catch {
-				setError("上传失败，请重试");
-				toast.error({ title: "图片上传失败", description: "上传失败，请重试" });
-			} finally {
-				setUploading(false);
-			}
-		},
-		[editor, toast, disabled, uploading],
-	);
-
-	return (
-		<>
-			<Tooltip>
-				<TooltipTrigger
-					render={
-						<button
-							type="button"
-							onClick={handleClick}
-							disabled={uploading || disabled}
-							aria-label="插入图片"
-							className="inline-flex h-8 w-8 items-center justify-center rounded text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							{uploading ? (
-								<LoaderIcon className="h-4 w-4 animate-spin" />
-							) : (
-								<ImageIcon className="h-4 w-4" />
-							)}
-						</button>
-					}
-				/>
-				<TooltipContent>{error ? error : "插入图片"}</TooltipContent>
-			</Tooltip>
-			<input
-				ref={inputRef}
-				type="file"
-				accept={IMAGE_ACCEPT}
-				disabled={uploading || disabled}
-				onChange={handleChange}
-				className="hidden"
-			/>
-		</>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Toolbar — grouped: Block | Inline | List | Insert
-// ---------------------------------------------------------------------------
-
-function Toolbar({ editor, disabled }: { editor: Editor; disabled: boolean }) {
-	const active = useEditorState({
-		editor,
-		selector: ({ editor }) => ({
-			heading2: editor.isActive("heading", { level: 2 }),
-			heading3: editor.isActive("heading", { level: 3 }),
-			blockquote: editor.isActive("blockquote"),
-			codeBlock: editor.isActive("codeBlock"),
-			bold: editor.isActive("bold"),
-			italic: editor.isActive("italic"),
-			underline: editor.isActive("underline"),
-			bulletList: editor.isActive("bulletList"),
-			orderedList: editor.isActive("orderedList"),
-		}),
-	});
-	return (
-		<TooltipProvider delay={400}>
-			<fieldset
-				disabled={disabled}
-				className="flex min-w-0 flex-wrap items-center gap-0.5 border-b border-border bg-muted/20 px-2 py-1.5"
-			>
-				<legend className="sr-only">文本格式</legend>
-				{/* Block */}
-				<ToolbarButton
-					active={active.heading2}
-					onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-					title="标题 2"
-				>
-					<Heading2Icon className="h-4 w-4" />
-				</ToolbarButton>
-				<ToolbarButton
-					active={active.heading3}
-					onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-					title="标题 3"
-				>
-					<Heading3Icon className="h-4 w-4" />
-				</ToolbarButton>
-				<ToolbarButton
-					active={active.blockquote}
-					onClick={() => editor.chain().focus().toggleBlockquote().run()}
-					title="引用"
-				>
-					<QuoteIcon className="h-4 w-4" />
-				</ToolbarButton>
-				<ToolbarButton
-					active={active.codeBlock}
-					onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-					title="代码块"
-				>
-					<CodeIcon className="h-4 w-4" />
-				</ToolbarButton>
-
-				<span className="mx-1 h-4 w-px bg-border" />
-
-				{/* Inline */}
-				<ToolbarButton
-					active={active.bold}
-					onClick={() => editor.chain().focus().toggleBold().run()}
-					title="粗体"
-				>
-					<BoldIcon className="h-4 w-4" />
-				</ToolbarButton>
-				<ToolbarButton
-					active={active.italic}
-					onClick={() => editor.chain().focus().toggleItalic().run()}
-					title="斜体"
-				>
-					<ItalicIcon className="h-4 w-4" />
-				</ToolbarButton>
-				<ToolbarButton
-					active={active.underline}
-					onClick={() => editor.chain().focus().toggleUnderline().run()}
-					title="下划线"
-				>
-					<UnderlineIcon className="h-4 w-4" />
-				</ToolbarButton>
-
-				<span className="mx-1 h-4 w-px bg-border" />
-
-				{/* List */}
-				<ToolbarButton
-					active={active.bulletList}
-					onClick={() => editor.chain().focus().toggleBulletList().run()}
-					title="无序列表"
-				>
-					<ListIcon className="h-4 w-4" />
-				</ToolbarButton>
-				<ToolbarButton
-					active={active.orderedList}
-					onClick={() => editor.chain().focus().toggleOrderedList().run()}
-					title="有序列表"
-				>
-					<ListOrderedIcon className="h-4 w-4" />
-				</ToolbarButton>
-
-				<span className="mx-1 h-4 w-px bg-border" />
-
-				{/* Insert */}
-				<LinkPopover editor={editor} disabled={disabled} />
-				<ImageUploadButton editor={editor} disabled={disabled} />
-				{/*
-				 * Single emoji entry — `UnifiedEmojiPicker` opens onto the
-				 * forum-default smiley group (laugh / smile / cry / cool / …
-				 * the 16 numbered + 90 named entries in `SMILEY_PACKS.default`)
-				 * so the legacy Discuz vocabulary is what users see first.
-				 * Unicode emoji and a recent-used row are reachable via the
-				 * inner Forum / Emoji / Recent tabs.
-				 *
-				 * Insertion rule (req msg=017bd790): forum smiley codes
-				 * (`:laugh:` / `:1:` / `{:2_133:}` / `{:3_149:}`) get a
-				 * trailing space because `:` would otherwise collide with
-				 * the next typed character; Unicode emoji (`😀`) is
-				 * inserted as-is to preserve the pre-unification
-				 * EmojiPicker behavior. `emojiTokenToInsertion` is the
-				 * single source of truth for that split — see its tests.
-				 */}
-				<UnifiedEmojiPicker
-					disabled={disabled}
-					onSelect={(token) =>
-						editor.chain().focus().insertContent(emojiTokenToInsertion(token)).run()
-					}
-				/>
-			</fieldset>
-		</TooltipProvider>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// PostEditor
-// ---------------------------------------------------------------------------
-
-const MAX_LENGTH = 50000;
+const DRAFT_LABELS: Record<DraftStatus, string> = {
+	empty: "草稿自动保存在当前标签页",
+	saved: "草稿已保存 · 当前标签页",
+	restored: "已恢复当前标签页的草稿",
+	unavailable: "草稿未能保存，请勿关闭页面",
+};
 
 export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function PostEditor(
 	{
 		initialContent,
 		onSubmit,
-		placeholder = "输入内容...",
-		maxLength = MAX_LENGTH,
+		onChange,
+		onBusyChange,
+		draftStatus,
+		previewTitle,
+		previewPrefix = "",
+		placeholder = "写下你想分享的内容…",
+		minLength = 0,
+		maxLength = 50000,
 		disabled = false,
 		submitting = false,
 		canSubmit: canSubmitProp = true,
@@ -493,6 +100,21 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 	},
 	ref,
 ) {
+	const toast = useForumToast();
+	const statusId = useId();
+	const inputRef = useRef<HTMLInputElement>(null);
+	const submitRef = useRef<() => void>(() => {});
+	const uploadRef = useRef<(files: File[], position?: number) => Promise<void>>(async () => {});
+	const changeRef = useRef(onChange);
+	const busyChangeRef = useRef(onBusyChange);
+	changeRef.current = onChange;
+	busyChangeRef.current = onBusyChange;
+	const uploadingRef = useRef(false);
+	const [uploading, setUploading] = useState(false);
+	const [uploadLabel, setUploadLabel] = useState("");
+	const [uploadError, setUploadError] = useState<string | null>(null);
+	const [retryFiles, setRetryFiles] = useState<File[]>([]);
+	const [mode, setMode] = useState("write");
 	const editor = useEditor({
 		immediatelyRender: false,
 		extensions: [
@@ -500,107 +122,313 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 				heading: { levels: [2, 3, 4] },
 				link: {
 					openOnClick: false,
-					// Apply the same allow-list to paste / autolink / HTML parse
-					// paths so a `javascript:` URL pasted into the editor cannot
-					// reach the DOM. The popover already guards the manual flow.
 					isAllowedUri: (url) => sanitizeUrl(url).url !== null,
 					shouldAutoLink: (url) => sanitizeUrl(url).url !== null,
 				},
 			}),
-			Image.configure({
-				inline: false,
-				allowBase64: false,
-				HTMLAttributes: {
-					class: "max-w-full h-auto rounded-md",
-				},
-			}),
+			Image.configure({ inline: false, allowBase64: false }),
 			Placeholder.configure({ placeholder }),
 			CharacterCount.configure({ limit: maxLength }),
 		],
 		content: initialContent ?? "",
 		editable: !disabled && !submitting,
+		onUpdate: ({ editor }) => changeRef.current?.(editor.getHTML()),
 		editorProps: {
-			attributes: { role: "textbox", "aria-label": "正文", "aria-multiline": "true" },
+			attributes: {
+				role: "textbox",
+				"aria-label": "正文",
+				"aria-multiline": "true",
+				"aria-keyshortcuts": "Control+Enter Meta+Enter",
+				"aria-describedby": statusId,
+				class: "forum-content",
+			},
+			// Consume submission before ProseMirror's Mod-Enter hard-break command.
+			handleKeyDown: (_view, event) => handleSubmitShortcut(event, () => submitRef.current()),
+			handlePaste: (_view, event) => {
+				const files = Array.from(event.clipboardData?.files ?? []);
+				if (!files.length) return false;
+				event.preventDefault();
+				void uploadRef.current(files);
+				return true;
+			},
+			handleDrop: (view, event, _slice, moved) => {
+				const files = Array.from(event.dataTransfer?.files ?? []);
+				if (moved || !files.length) return false;
+				event.preventDefault();
+				const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+				void uploadRef.current(files, position);
+				return true;
+			},
 		},
 	});
 
 	useEffect(() => {
-		editor?.setEditable(!disabled && !submitting);
+		editor?.setEditable(!disabled && !submitting, false);
 	}, [editor, disabled, submitting]);
 
-	// Expose getHTML method via ref
+	const upload = useCallback(
+		async (files: File[], position?: number) => {
+			if (
+				!editor ||
+				editor.isDestroyed ||
+				disabled ||
+				submitting ||
+				uploadingRef.current ||
+				!files.length
+			)
+				return;
+			setRetryFiles([]);
+			const validationError = validateImages(files);
+			if (validationError) {
+				setUploadError(validationError);
+				toast.error({ title: "图片上传失败", description: validationError });
+				return;
+			}
+			uploadingRef.current = true;
+			setUploading(true);
+			setUploadError(null);
+			busyChangeRef.current?.(true);
+			let bookmark = (
+				position === undefined
+					? editor.state.selection
+					: Selection.near(editor.state.doc.resolve(position))
+			).getBookmark();
+			const mapBookmark = ({ transaction }: { transaction: Transaction }) => {
+				bookmark = bookmark.map(transaction.mapping);
+			};
+			editor.on("transaction", mapBookmark);
+			let index = 0;
+			try {
+				for (const file of files) {
+					setUploadLabel(`正在上传图片 ${index + 1} / ${files.length}…`);
+					const url = await uploadImage(file);
+					if (editor.isDestroyed) return;
+					const selection = bookmark.resolve(editor.state.doc);
+					editor.commands.insertContentAt(
+						{ from: selection.from, to: selection.to },
+						{ type: "image", attrs: { src: url } },
+						{ updateSelection: false },
+					);
+					index++;
+				}
+				toast.success(files.length === 1 ? "图片已上传" : `${files.length} 张图片已上传`);
+			} catch (error) {
+				if (editor.isDestroyed) return;
+				const message = imageErrorMessage(error);
+				setUploadError(message);
+				setRetryFiles(files.slice(index));
+				toast.error({ title: "图片上传失败", description: message });
+			} finally {
+				editor.off("transaction", mapBookmark);
+				uploadingRef.current = false;
+				setUploading(false);
+				busyChangeRef.current?.(false);
+			}
+		},
+		[editor, disabled, submitting, toast],
+	);
+	uploadRef.current = upload;
+
+	const handleSubmit = useCallback(() => {
+		if (!editor || disabled || submitting || !canSubmitProp) return;
+		if (uploadingRef.current) {
+			toast.info("图片正在上传，请完成后再发布");
+			return;
+		}
+		onSubmit(editor.getHTML());
+	}, [editor, disabled, submitting, canSubmitProp, onSubmit, toast]);
+	submitRef.current = handleSubmit;
+
 	useImperativeHandle(
 		ref,
 		() => ({
 			getHTML: () => editor?.getHTML() ?? "",
+			submit: handleSubmit,
+			focus: () => {
+				editor?.commands.focus();
+			},
 		}),
-		[editor],
+		[editor, handleSubmit],
 	);
 
-	const handleSubmit = useCallback(() => {
-		if (!editor || disabled || submitting || !canSubmitProp) return;
-		onSubmit(editor.getHTML());
-	}, [editor, disabled, submitting, canSubmitProp, onSubmit]);
-
-	const characterCount = useEditorState({
+	const document = useEditorState({
 		editor,
-		selector: ({ editor }) => editor?.storage.characterCount.characters() ?? 0,
+		selector: () => ({
+			count: editor?.storage.characterCount.characters() ?? 0,
+			html: editor?.getHTML() ?? "",
+			empty: editor?.isEmpty ?? true,
+		}),
 	});
+	const count = document?.count ?? 0;
+	const preview = useMemo(
+		() => (mode === "preview" ? renderContent(previewPrefix + (document?.html ?? "")) : ""),
+		[mode, previewPrefix, document?.html],
+	);
 
 	return (
-		<div className="flex h-full min-h-0 flex-col rounded-xl bg-card border border-border overflow-hidden">
-			{/* Toolbar */}
-			{editor && (
-				<div className="shrink-0">
-					<Toolbar editor={editor} disabled={disabled || submitting} />
+		<Tabs
+			value={mode}
+			onValueChange={(value) => setMode(String(value))}
+			className="composer flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-xl border border-border bg-card transition-shadow focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)]"
+		>
+			<div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+				<TabsList aria-label="编辑器模式" className="h-8">
+					<TabsTrigger value="write" className="gap-1.5 px-3">
+						<PenLine className="size-3.5" />
+						撰写
+					</TabsTrigger>
+					<TabsTrigger value="preview" className="gap-1.5 px-3">
+						<Eye className="size-3.5" />
+						预览
+					</TabsTrigger>
+				</TabsList>
+				<span className="hidden text-xs text-muted-foreground sm:block">
+					{mode === "preview" ? "发布后的阅读效果" : "支持粘贴或拖入图片 · 最大 5 MB"}
+				</span>
+			</div>
+			<TabsContent
+				value="write"
+				keepMounted
+				className="flex min-h-0 flex-1 flex-col data-hidden:hidden"
+			>
+				{editor && (
+					<PostEditorToolbar
+						editor={editor}
+						disabled={disabled || submitting}
+						uploading={uploading}
+						onImage={() => inputRef.current?.click()}
+					/>
+				)}
+				<input
+					ref={inputRef}
+					type="file"
+					multiple
+					accept={IMAGE_TYPES.join(",")}
+					disabled={uploading || disabled || submitting}
+					aria-label="上传图片文件"
+					tabIndex={-1}
+					className="hidden"
+					onChange={(event) => {
+						const files = Array.from(event.target.files ?? []);
+						event.target.value = "";
+						void upload(files);
+					}}
+				/>
+				{/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard focus is provided by the nested contenteditable */}
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: padding clicks extend the editor's focus surface */}
+				<div
+					className="tiptap-content-wrap flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto overscroll-contain"
+					onClick={(event) => {
+						if (
+							!editor ||
+							disabled ||
+							submitting ||
+							(event.target as HTMLElement).closest(".ProseMirror")
+						)
+							return;
+						editor.chain().focus("end").run();
+					}}
+				>
+					<EditorContent
+						editor={editor}
+						className="tiptap-content min-h-48 flex-1 px-4 py-4 text-base leading-7 sm:px-5"
+					/>
 				</div>
-			)}
-
-			{/* Editor area — grows to fill the dialog body, scrolls internally.
-			    A click anywhere in this region (including padding / empty
-			    whitespace below the last paragraph) should focus the tiptap
-			    editor at the end of the document, so the entire visible
-			    surface acts like one big input. Without this handler, only
-			    the actual ProseMirror text rows accept focus and clicks on
-			    the surrounding padding do nothing. Keyboard users already
-			    reach the editor via Tab — the click handler here is a
-			    pointer-only affordance that mirrors what tiptap's own
-			    surface does, so no key handler is needed. */}
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only focus shim; keyboard users reach the editor via Tab */}
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only focus shim; the ProseMirror surface inside is the real interactive element for keyboard users. */}
-			<div
-				className="tiptap-content-wrap flex flex-1 min-h-0 cursor-text flex-col overflow-y-auto"
-				onClick={(e) => {
-					if (!editor || disabled || submitting) return;
-					// If the click landed on the ProseMirror surface (or a
-					// child of it) tiptap already handles focus + caret
-					// placement. Only step in when the click is in the
-					// surrounding wrapper / padding so we don't fight the
-					// editor's own selection logic.
-					const target = e.target as HTMLElement | null;
-					if (target?.closest(".ProseMirror")) return;
-					editor.chain().focus("end").run();
+			</TabsContent>
+			<TabsContent
+				value="preview"
+				className="composer-preview min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5"
+				onKeyDown={(event) => {
+					handleSubmitShortcut(event.nativeEvent, handleSubmit);
 				}}
 			>
-				<EditorContent
-					editor={editor}
-					className="tiptap-content min-h-[180px] flex-1 px-4 py-3 text-base leading-7"
-				/>
-			</div>
-			<div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2">
-				<span className="text-xs text-muted-foreground">
-					{characterCount ?? 0} / {maxLength}
+				{previewTitle && (
+					<h2 className="mb-5 break-words text-xl font-semibold tracking-tight">{previewTitle}</h2>
+				)}
+				{document?.empty && !previewPrefix ? (
+					<div className="flex h-full min-h-36 flex-col items-center justify-center gap-3 text-muted-foreground">
+						<FilePenLine className="size-7 opacity-50" />
+						<p className="text-sm">写点内容，来看看发布后的效果</p>
+					</div>
+				) : (
+					<div
+						className="forum-content break-words text-base leading-7"
+						// biome-ignore lint/security/noDangerouslySetInnerHtml: renderContent sanitizes the preview with the published-post allowlist
+						dangerouslySetInnerHTML={{ __html: preview }}
+					/>
+				)}
+			</TabsContent>
+			{uploadError && (
+				<div
+					role="alert"
+					className="flex shrink-0 items-center gap-2 border-t border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+				>
+					<span className="flex-1">{uploadError}</span>
+					{retryFiles.length > 0 && (
+						<Button
+							variant="ghost"
+							size="sm"
+							disabled={uploading}
+							onClick={() => void upload(retryFiles)}
+						>
+							重试
+						</Button>
+					)}
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						aria-label="关闭上传提示"
+						onClick={() => setUploadError(null)}
+					>
+						<X className="size-3.5" />
+					</Button>
+				</div>
+			)}
+			<div
+				id={statusId}
+				className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border bg-muted/15 px-3 py-2 text-xs text-muted-foreground"
+			>
+				<span
+					className={cn(
+						"flex min-w-0 items-center gap-1.5",
+						draftStatus === "unavailable" && "text-destructive",
+					)}
+					role="status"
+				>
+					{uploading ? (
+						<>
+							<Loader2 className="size-3.5 animate-spin" />
+							{uploadLabel}
+						</>
+					) : draftStatus ? (
+						<>
+							{draftStatus === "saved" && <Check className="size-3.5 text-primary" />}
+							{DRAFT_LABELS[draftStatus]}
+						</>
+					) : (
+						"Enter 换行 · Ctrl+Enter 提交"
+					)}
+				</span>
+				<span
+					className={cn(
+						"ml-auto whitespace-nowrap tabular-nums",
+						count >= maxLength && "text-destructive",
+					)}
+				>
+					{minLength > 0 && count < minLength && <span className="mr-2">至少 {minLength} 字</span>}
+					{count} / {maxLength}
 				</span>
 				{!hideFooter && (
 					<Button
 						size="sm"
 						onClick={handleSubmit}
-						disabled={disabled || submitting || !canSubmitProp}
+						disabled={disabled || submitting || uploading || !canSubmitProp}
+						aria-busy={submitting}
 					>
 						{submitting ? "提交中..." : "提交"}
 					</Button>
 				)}
 			</div>
-		</div>
+		</Tabs>
 	);
 });

@@ -70,3 +70,15 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
   1. **新增 Worker handler 涉及新表时，必须同时创建 migration**
   2. **单独 apply migration（不 deploy）:** `bun run worker:migrate:prod`
   3. **部署检查清单:** Worker 代码改动 → `bun run worker:deploy`（已自动先 apply migrations，再 deploy）；纯 schema 改动且暂不 deploy → `bun run worker:migrate:prod`
+
+### 2026-09-23: Editor paragraph splitting failed in Chrome
+
+- A real browser reproduced Enter doing nothing and Ctrl+Enter changing content before submission. Chrome reported multiple `prosemirror-model` instances; the lockfile retained older nested model, transform and view packages after Tiptap updates.
+- Pin the ProseMirror runtime packages to one compatible version each and remove duplicate lockfile resolutions. Handle submission inside the editor before its hard-break keymap, with composition and held-key guards.
+- Existing component tests passed even while Chrome failed. Keep browser regressions for paragraph splitting, a caret inside existing text, exact submitted HTML, Windows/macOS keymaps and Chinese composition. Dependency updates affecting the editor require the browser checks as well as unit tests.
+
+### 2026-09-23: Composer drafts and responsive dialog duplication
+
+- Browser verification found two draft lifecycle errors: an editor could mount before session storage restoration, and Tiptap's default `setEditable` update event could recreate a draft immediately after successful publication cleared it. Wait for restoration before enabling the fields, disable synthetic updates when changing editability, and derive preview content from the live editor instance.
+- A single comment action opened two dialogs because desktop and mobile layouts both mounted `PostContent`, including its portal-based interactions. CSS hiding an ancestor does not hide a portal. Render one responsive content/action tree and vary only the author layout.
+- Keep behavior checks for reload restoration, exact preview content, successful draft cleanup, and one dialog per action at desktop and phone sizes. Simulated paste tests must await the browser's selection-change event before dispatching clipboard data; a synthetic keydown alone does not guarantee that ProseMirror has synchronized its selection and can produce a false insertion-position regression.

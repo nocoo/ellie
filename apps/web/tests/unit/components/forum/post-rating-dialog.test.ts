@@ -101,6 +101,17 @@ function renderDialog(props: Partial<Parameters<typeof PostRatingDialog>[0]> = {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("PostRatingDialog", () => {
+	it("rejects fractional scores instead of silently truncating them", () => {
+		renderDialog();
+		fireEvent.change(screen.getByRole("spinbutton", { name: "分值" }), {
+			target: { value: "1.5" },
+		});
+		const submit = screen.getByRole("button", { name: "提交评分" }) as HTMLButtonElement;
+		expect(submit.disabled).toBe(true);
+		fireEvent.click(submit);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("renders coins dimension by default and shows preset chips", () => {
 		renderDialog();
 		// The dimension tab "同钱" should be selected (button text)
@@ -234,5 +245,21 @@ describe("PostRatingDialog", () => {
 		fireEvent.change(dropdown, { target: { value: "优秀文章" } });
 		const textarea = screen.getByPlaceholderText(/请输入评分理由/) as HTMLTextAreaElement;
 		expect(textarea.value).toBe("优秀文章");
+	});
+
+	it("submits from the reason field on Ctrl+Enter and keeps the reason after failure", async () => {
+		fetchMock.mockRejectedValueOnce(new Error("offline"));
+		renderDialog();
+		fireEvent.click(screen.getByText("+5"));
+		const textarea = screen.getByPlaceholderText(/请输入评分理由/) as HTMLTextAreaElement;
+		fireEvent.change(textarea, { target: { value: "优秀文章" } });
+		fireEvent.keyDown(textarea, { key: "Enter" });
+		expect(fetchMock).not.toHaveBeenCalled();
+		fireEvent.keyDown(textarea, { key: "Enter", metaKey: true });
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+		});
+		expect(textarea.value).toBe("优秀文章");
+		expect(screen.getAllByText("网络错误，请重试").length).toBeGreaterThan(0);
 	});
 });

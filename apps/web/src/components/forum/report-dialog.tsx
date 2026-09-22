@@ -114,6 +114,7 @@ export function ReportDialog({
 	});
 	const [submitting, setSubmitting] = useState(false);
 	const submittingRef = useRef(false);
+	const successRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,6 +148,7 @@ export function ReportDialog({
 			});
 			setSubmitting(false);
 			submittingRef.current = false;
+			successRef.current = false;
 			setError(null);
 			setSuccess(false);
 		}
@@ -209,6 +211,7 @@ export function ReportDialog({
 				targetId,
 				reason: step.reason as ReportReason,
 			});
+			successRef.current = true;
 			setSuccess(true);
 			onSuccess?.();
 			toast.success("举报已提交");
@@ -229,26 +232,33 @@ export function ReportDialog({
 	// Step indicator helper
 	const getStepIcon = (_stepName: Step, state: "pending" | "loading" | "passed" | "failed") => {
 		if (state === "loading") {
-			return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+			return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />;
 		}
 		if (state === "passed") {
-			return <CheckCircle2 className="h-4 w-4 text-success" />;
+			return <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />;
 		}
 		if (state === "failed") {
-			return <AlertCircle className="h-4 w-4 text-destructive" />;
+			return <AlertCircle className="h-4 w-4 text-destructive" aria-hidden="true" />;
 		}
-		return <CircleDot className="h-4 w-4 text-muted-foreground" />;
+		return <CircleDot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				if (submittingRef.current && !successRef.current) return;
+				onOpenChange(next);
+			}}
+		>
 			<DialogContent
 				className="flex flex-col overflow-hidden sm:max-w-lg"
 				showCloseButton={!submitting}
+				aria-busy={submitting}
 			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Flag className="h-5 w-5 text-destructive" />
+						<Flag className="h-5 w-5 text-destructive" aria-hidden="true" />
 						{copy.title}
 					</DialogTitle>
 					<DialogDescription>请完成以下步骤提交举报</DialogDescription>
@@ -275,8 +285,11 @@ export function ReportDialog({
 					{/* Step 2: Captcha — REQUIRED. If CAP is not configured, fail-closed
 					    with an error so the user knows reporting is unavailable. */}
 					{step.permission === "passed" && !CAP_CONFIGURED && (
-						<div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-							<AlertCircle className="h-4 w-4 shrink-0" />
+						<div
+							role="alert"
+							className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"
+						>
+							<AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
 							<span>人机验证服务未就绪，暂时无法举报，请稍后再试或联系管理员。</span>
 						</div>
 					)}
@@ -304,9 +317,9 @@ export function ReportDialog({
 						<div className="space-y-2">
 							<div className="flex items-center gap-2 text-sm font-medium">
 								{step.reason ? (
-									<CheckCircle2 className="h-4 w-4 text-success" />
+									<CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
 								) : (
-									<CircleDot className="h-4 w-4 text-muted-foreground" />
+									<CircleDot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 								)}
 								<span>选择举报理由</span>
 							</div>
@@ -346,16 +359,21 @@ export function ReportDialog({
 
 					{/* Success message */}
 					{success && (
-						<div className="flex items-center gap-2 p-3 rounded-lg bg-success/15 dark:bg-success/20 text-success text-sm">
-							<CheckCircle2 className="h-4 w-4 shrink-0" />
+						<div
+							role="status"
+							className="flex items-center gap-2 p-3 rounded-lg bg-success/15 dark:bg-success/20 text-success text-sm"
+						>
+							<CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
 							<span>举报提交成功，感谢您的反馈</span>
 						</div>
 					)}
 
-					{/* Error message */}
 					{error && (
-						<div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-							<AlertCircle className="h-4 w-4 shrink-0" />
+						<div
+							role="alert"
+							className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"
+						>
+							<AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
 							<span>{error}</span>
 						</div>
 					)}
@@ -365,7 +383,11 @@ export function ReportDialog({
 					<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
 						{success ? "完成" : "取消"}
 					</Button>
-					<Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
+					<Button
+						onClick={() => void handleSubmit()}
+						disabled={!canSubmit || submitting}
+						aria-busy={submitting}
+					>
 						{success ? "已提交" : submitting ? "提交中..." : "提交举报"}
 					</Button>
 				</DialogFooter>

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -78,7 +78,7 @@ describe("ForumToast", () => {
 		expect(alert.textContent).toContain("提示信息");
 	});
 
-	it("auto-dismisses after 4000ms", () => {
+	it("auto-dismisses after 5000ms", () => {
 		const { result } = renderHook(() => useForumToast(), { wrapper });
 
 		act(() => {
@@ -88,7 +88,7 @@ describe("ForumToast", () => {
 		expect(screen.getByRole("alert")).toBeTruthy();
 
 		act(() => {
-			vi.advanceTimersByTime(4000);
+			vi.advanceTimersByTime(5000);
 		});
 
 		expect(screen.queryByRole("alert")).toBeNull();
@@ -133,5 +133,29 @@ describe("ForumToast", () => {
 
 		const alerts = screen.getAllByRole("alert");
 		expect(alerts.length).toBe(3);
+	});
+	it("keeps failures visible longer than success messages", () => {
+		const { result } = renderHook(() => useForumToast(), { wrapper });
+		act(() => {
+			result.current.error("Please retry");
+			result.current.success("Saved");
+		});
+		act(() => vi.advanceTimersByTime(5000));
+		expect(screen.getAllByRole("alert")).toHaveLength(1);
+		expect(screen.getByRole("alert").textContent).toContain("Please retry");
+		act(() => vi.advanceTimersByTime(4000));
+		expect(screen.queryByRole("alert")).toBeNull();
+	});
+
+	it("pauses expiry while the pointer is over the notifications", () => {
+		const { result } = renderHook(() => useForumToast(), { wrapper });
+		act(() => result.current.info("Read this"));
+		act(() => vi.advanceTimersByTime(3000));
+		fireEvent.mouseEnter(screen.getByRole("region", { name: "操作提示" }));
+		act(() => vi.advanceTimersByTime(10000));
+		expect(screen.getByRole("alert").textContent).toContain("Read this");
+		fireEvent.mouseLeave(screen.getByRole("region", { name: "操作提示" }));
+		act(() => vi.advanceTimersByTime(2001));
+		expect(screen.queryByRole("alert")).toBeNull();
 	});
 });

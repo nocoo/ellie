@@ -243,6 +243,8 @@ function EmailVerificationForm({
 
 	// Watch verified → fire onVerified once.
 	const verifiedFired = useRef(false);
+	const requestPending = useRef(false);
+	const correctionPending = useRef(false);
 	useEffect(() => {
 		if (state.kind === "verified" && !verifiedFired.current) {
 			verifiedFired.current = true;
@@ -256,7 +258,7 @@ function EmailVerificationForm({
 		extractCodeFields(state);
 
 	const handleSendCode = async () => {
-		if (isConfigError || isBusy) return;
+		if (isConfigError || isBusy || requestPending.current) return;
 		const preflightError = requestCodePreflight({
 			apiEndpoint: capApiEndpoint,
 			capToken,
@@ -268,6 +270,7 @@ function EmailVerificationForm({
 			resetCap();
 			return;
 		}
+		requestPending.current = true;
 		dispatch({ type: "send_start" });
 		try {
 			const data = await requestEmailVerificationCode(email);
@@ -286,11 +289,14 @@ function EmailVerificationForm({
 			dispatch({ type: "send_error", message: "网络错误，请稍后重试。" });
 			toast.error({ title: "验证码发送失败", description: "网络错误，请稍后重试。" });
 			resetCap();
+		} finally {
+			requestPending.current = false;
 		}
 	};
 
 	const handleVerify = async () => {
-		if (isConfigError || state.kind !== "code-sent") return;
+		if (isConfigError || state.kind !== "code-sent" || requestPending.current) return;
+		requestPending.current = true;
 		dispatch({ type: "verify_start" });
 		try {
 			await verifyEmailCode(email, code);
@@ -306,6 +312,8 @@ function EmailVerificationForm({
 			}
 			dispatch({ type: "verify_error", message: "网络错误，请稍后重试。" });
 			toast.error({ title: "邮箱验证失败", description: "网络错误，请稍后重试。" });
+		} finally {
+			requestPending.current = false;
 		}
 	};
 
@@ -317,7 +325,7 @@ function EmailVerificationForm({
 	};
 
 	const handleCorrect = async () => {
-		if (correctionBusy) return;
+		if (correctionBusy || correctionPending.current) return;
 		const trimmed = correctionEmail.trim();
 		if (!isValidEmailFormat(trimmed)) {
 			setCorrectionError("邮箱格式无效，请检查后重试。");
@@ -330,6 +338,7 @@ function EmailVerificationForm({
 			setCorrectionError("新邮箱与当前邮箱相同，无需纠错。");
 			return;
 		}
+		correctionPending.current = true;
 		setCorrectionBusy(true);
 		setCorrectionError(null);
 		try {
@@ -349,6 +358,7 @@ function EmailVerificationForm({
 				toast.error({ title: "邮箱纠错失败", description: message });
 			}
 		} finally {
+			correctionPending.current = false;
 			setCorrectionBusy(false);
 		}
 	};

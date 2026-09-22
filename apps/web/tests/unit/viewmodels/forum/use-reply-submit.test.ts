@@ -127,7 +127,7 @@ describe("buildQuotedContent", () => {
 		expect(result).toContain("blockquote");
 		expect(result).toContain("Alice");
 		expect(result).toContain("quote-header");
-		expect(result).toContain("<p>Original message</p>");
+		expect(result).toContain("&lt;p&gt;Original message&lt;/p&gt;");
 	});
 
 	it("includes time when provided", () => {
@@ -155,9 +155,16 @@ describe("buildQuotedContent", () => {
 		expect(buildQuotedContent("<p>Content</p>", "")).toBe("");
 	});
 
-	it("preserves HTML in quoted content", () => {
-		const result = buildQuotedContent("<p><strong>Bold</strong></p>", "Bob");
-		expect(result).toContain("<strong>Bold</strong>");
+	it("escapes plain quoted text, author and timestamp before building HTML", () => {
+		const result = buildQuotedContent(
+			'<img src=x onerror="alert(1)"> & text',
+			"<script>Bob</script>",
+			"<b>Now</b>",
+		);
+		expect(result).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; text");
+		expect(result).toContain("&lt;script&gt;Bob&lt;/script&gt;");
+		expect(result).toContain("&lt;b&gt;Now&lt;/b&gt;");
+		expect(result).not.toContain("<img");
 	});
 
 	it("ends with empty paragraph for cursor placement", () => {
@@ -191,6 +198,9 @@ describe("useReplySubmit state contracts", () => {
 // ---------------------------------------------------------------------------
 
 describe("error message integration", () => {
+	it("rejects visually empty non-breaking spaces", () => {
+		expect(validateReplyContent("<p>&nbsp;&nbsp;&nbsp;</p>").valid).toBe(false);
+	});
 	it("uses Chinese validation error for short content", () => {
 		const result = validateReplyContent("<p>A</p>");
 		expect(result.error).toBe("内容太短，请输入更多内容");

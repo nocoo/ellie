@@ -1,187 +1,116 @@
 "use client";
 
-// components/forum/forum-toast.tsx — Lightweight global toast system
-// No external dependencies. Provides ForumToastProvider + useForumToast().
-
-import { AlertCircle, CheckCircle, Info, X } from "lucide-react";
-import {
-	createContext,
-	type ReactNode,
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
-import { createPortal } from "react-dom";
+import { Toast } from "@base-ui/react/toast";
+import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 type ToastType = "success" | "error" | "info";
-
-interface ToastItem {
-	id: number;
-	type: ToastType;
-	title: string;
-	description?: string;
-}
-
 interface ToastOptions {
 	title: string;
 	description?: string;
 }
-
 interface ForumToastContextValue {
-	success: (titleOrOpts: string | ToastOptions) => void;
-	error: (titleOrOpts: string | ToastOptions) => void;
-	info: (titleOrOpts: string | ToastOptions) => void;
+	success: (options: string | ToastOptions) => void;
+	error: (options: string | ToastOptions) => void;
+	info: (options: string | ToastOptions) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Context
-// ---------------------------------------------------------------------------
-
 const ForumToastContext = createContext<ForumToastContextValue | null>(null);
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const AUTO_DISMISS_MS = 4000;
-const MAX_VISIBLE = 5;
-
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
-
 export function ForumToastProvider({ children }: { children: ReactNode }) {
-	const [toasts, setToasts] = useState<ToastItem[]>([]);
-	const nextId = useRef(0);
-
-	const addToast = useCallback((type: ToastType, titleOrOpts: string | ToastOptions) => {
-		const opts = typeof titleOrOpts === "string" ? { title: titleOrOpts } : titleOrOpts;
-		const id = nextId.current++;
-		setToasts((prev) => [...prev.slice(-(MAX_VISIBLE - 1)), { id, type, ...opts }]);
-		return id;
-	}, []);
-
-	const removeToast = useCallback((id: number) => {
-		setToasts((prev) => prev.filter((t) => t.id !== id));
-	}, []);
-
-	const ctx: ForumToastContextValue = useMemo(
-		() => ({
-			success: (o: string | ToastOptions) => addToast("success", o),
-			error: (o: string | ToastOptions) => addToast("error", o),
-			info: (o: string | ToastOptions) => addToast("info", o),
-		}),
-		[addToast],
-	);
-
 	return (
-		<ForumToastContext.Provider value={ctx}>
-			{children}
-			<ToastContainer toasts={toasts} onRemove={removeToast} />
-		</ForumToastContext.Provider>
+		<Toast.Provider timeout={5000} limit={4}>
+			<ForumToastContent>{children}</ForumToastContent>
+		</Toast.Provider>
 	);
 }
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
 
 export function useForumToast(): ForumToastContextValue {
-	const ctx = useContext(ForumToastContext);
-	if (!ctx) {
-		throw new Error("useForumToast must be used within ForumToastProvider");
-	}
-	return ctx;
+	const value = useContext(ForumToastContext);
+	if (!value) throw new Error("useForumToast must be used within ForumToastProvider");
+	return value;
 }
 
-// ---------------------------------------------------------------------------
-// Toast Container (fixed overlay)
-// ---------------------------------------------------------------------------
-
-function ToastContainer({
-	toasts,
-	onRemove,
-}: {
-	toasts: ToastItem[];
-	onRemove: (id: number) => void;
-}) {
-	const [mounted, setMounted] = useState(false);
-
-	useEffect(() => {
-		setMounted(true);
-	}, []);
-
-	if (!mounted || toasts.length === 0) return null;
-
-	return createPortal(
-		<div
-			aria-live="polite"
-			aria-atomic="false"
-			className="fixed top-4 inset-x-4 z-[9999] flex flex-col gap-2 pointer-events-none w-auto sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm"
-		>
-			{toasts.map((toast) => (
-				<ToastCard key={toast.id} toast={toast} onClose={() => onRemove(toast.id)} />
-			))}
-		</div>,
-		document.body,
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Single Toast Card
-// ---------------------------------------------------------------------------
-
-const iconMap: Record<ToastType, typeof CheckCircle> = {
-	success: CheckCircle,
-	error: AlertCircle,
-	info: Info,
+const icons = { success: CheckCircle2, error: AlertCircle, info: Info };
+const colors = {
+	success: "bg-success/10 text-success",
+	error: "bg-destructive/10 text-destructive",
+	info: "bg-primary/10 text-primary",
 };
 
-const styleMap: Record<ToastType, string> = {
-	success:
-		"border-green-500/30 bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-200",
-	error: "border-destructive/30 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200",
-	info: "border-blue-500/30 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200",
-};
-
-function ToastCard({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
-	const Icon = iconMap[toast.type];
-
-	// Auto-dismiss
-	useEffect(() => {
-		const timer = setTimeout(onClose, AUTO_DISMISS_MS);
-		return () => clearTimeout(timer);
-	}, [onClose]);
-
+function ForumToastContent({ children }: { children: ReactNode }) {
+	const { toasts, add } = Toast.useToastManager();
+	const value = useMemo(() => {
+		const notify = (type: ToastType, options: string | ToastOptions) => {
+			const content = typeof options === "string" ? { title: options } : options;
+			add({
+				...content,
+				type,
+				timeout: type === "error" ? 9000 : 5000,
+				priority: "low",
+			});
+		};
+		return {
+			success: (options: string | ToastOptions) => notify("success", options),
+			error: (options: string | ToastOptions) => notify("error", options),
+			info: (options: string | ToastOptions) => notify("info", options),
+		};
+	}, [add]);
 	return (
-		<div
-			role="alert"
-			className={cn(
-				"pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2.5 shadow-md animate-in fade-in slide-in-from-top-2 duration-200",
-				styleMap[toast.type],
-			)}
-		>
-			<Icon className="h-4 w-4 shrink-0 mt-0.5" />
-			<div className="min-w-0 flex-1">
-				<p className="text-sm font-medium">{toast.title}</p>
-				{toast.description && <p className="mt-0.5 text-xs opacity-80">{toast.description}</p>}
-			</div>
-			<button
-				type="button"
-				onClick={onClose}
-				className="shrink-0 rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-				aria-label="关闭"
-			>
-				<X className="h-3.5 w-3.5" />
-			</button>
-		</div>
+		<ForumToastContext.Provider value={value}>
+			{children}
+			<Toast.Portal>
+				<Toast.Viewport
+					aria-label="操作提示"
+					className="pointer-events-none fixed inset-x-3 top-3 z-[9999] flex flex-col gap-2 outline-none sm:inset-x-auto sm:right-5 sm:top-5 sm:w-96 sm:max-w-[calc(100vw-2.5rem)]"
+				>
+					{toasts.map((toast) => {
+						const type = (toast.type ?? "info") as ToastType;
+						const Icon = icons[type];
+						return (
+							<Toast.Root
+								key={toast.id}
+								toast={toast}
+								role="alert"
+								aria-live={type === "error" ? "assertive" : "polite"}
+								aria-hidden={!!toast.limited || toast.transitionStatus === "ending"}
+								swipeDirection={["right", "up"]}
+								className="forum-toast pointer-events-auto rounded-xl border border-border bg-card text-card-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring data-limited:hidden"
+							>
+								<Toast.Content className="flex items-start gap-3 p-3.5">
+									<span
+										className={cn(
+											"mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full",
+											colors[type],
+										)}
+									>
+										<Icon className="size-4" aria-hidden="true" />
+									</span>
+									<div className="min-w-0 flex-1 py-1">
+										<Toast.Title className="text-sm font-medium leading-5" />
+										{toast.description && (
+											<Toast.Description className="mt-1 break-words text-xs leading-5 text-muted-foreground" />
+										)}
+									</div>
+									<Toast.Close
+										render={
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												aria-label="关闭"
+												className="size-7 shrink-0 text-muted-foreground"
+											/>
+										}
+									>
+										<X className="size-3.5" aria-hidden="true" />
+									</Toast.Close>
+								</Toast.Content>
+							</Toast.Root>
+						);
+					})}
+				</Toast.Viewport>
+			</Toast.Portal>
+		</ForumToastContext.Provider>
 	);
 }

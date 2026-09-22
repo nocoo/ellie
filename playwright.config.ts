@@ -75,7 +75,7 @@ export default defineConfig({
 		},
 		{
 			name: "stateful",
-			testMatch: /\/bdd\/(content|social)\.spec\.ts$/,
+			testMatch: /\/bdd\/(content|social|editor|interactions)\.spec\.ts$/,
 			fullyParallel: false,
 			dependencies: ["stateless"], // Run after stateless completes
 			use: { ...devices["Desktop Chrome"] },

@@ -5,8 +5,8 @@
 // MVVM: This is the View layer. State and logic are in useThreadSubmit hook.
 
 import { PenLine, Send, XCircle } from "lucide-react";
-import { useRef } from "react";
-import { PostEditor } from "@/components/forum/post-editor";
+import { useRef, useState } from "react";
+import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
 import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -41,7 +41,8 @@ export function NewThreadDialog({
 	threadTypes = null,
 }: NewThreadDialogProps) {
 	const { canCreateThread } = useFeatureFlags();
-	const editorRef = useRef<{ getHTML: () => string } | null>(null);
+	const editorRef = useRef<PostEditorRef>(null);
+	const [uploading, setUploading] = useState(false);
 
 	const showPicker = shouldShowPicker(threadTypes);
 	const typeIdRequired = !!(showPicker && threadTypes?.required);
@@ -53,12 +54,10 @@ export function NewThreadDialog({
 		typeIdRequired,
 	});
 
-	// Reset state when dialog closes
+	const busy = state.submitting || uploading;
 	const handleOpenChange = (open: boolean) => {
-		if (state.submitting) return;
-		if (!open) {
-			actions.reset();
-		}
+		if (busy) return;
+		if (!open) actions.clearError();
 		onOpenChange(open);
 	};
 
@@ -83,8 +82,7 @@ export function NewThreadDialog({
 	}
 
 	const handleSubmit = () => {
-		const html = editorRef.current?.getHTML() ?? "";
-		actions.handleSubmit(html);
+		editorRef.current?.submit();
 	};
 
 	return (
@@ -98,7 +96,7 @@ export function NewThreadDialog({
 						title="发表新帖"
 						description={`发布到：${forumName}`}
 						onClose={() => handleOpenChange(false)}
-						closeDisabled={state.submitting}
+						closeDisabled={busy}
 					/>
 
 					{state.error && <DialogErrorBanner message={state.error} />}
@@ -111,7 +109,7 @@ export function NewThreadDialog({
 							onChange={actions.setTypeId}
 							required={typeIdRequired}
 							error={validation.typeIdError}
-							disabled={state.submitting}
+							disabled={state.submitting || !state.draftReady}
 						/>
 					)}
 
@@ -125,7 +123,7 @@ export function NewThreadDialog({
 								value={state.subject}
 								onChange={(e) => actions.setSubject(e.target.value)}
 								placeholder="输入主题标题..."
-								disabled={state.submitting}
+								disabled={state.submitting || !state.draftReady}
 								maxLength={100}
 								className="h-11 pr-16 text-base font-medium"
 							/>
@@ -140,23 +138,32 @@ export function NewThreadDialog({
 				</>
 			}
 			onSubmit={handleSubmit}
-			canSubmit={validation.canSubmit}
+			canSubmit={validation.canSubmit && state.draftReady}
 			submitting={state.submitting}
+			busy={busy}
 			onCancel={() => handleOpenChange(false)}
-			footerHint="Ctrl / ⌘ + Enter 快速发布"
+			footerHint="Enter 换行 · Ctrl+Enter 发布（Mac 也可 ⌘+Enter）"
 			submitLabel="发布主题"
 			submittingLabel="发布中..."
 			submitIcon={<Send className="h-4 w-4" />}
 		>
-			<PostEditor
-				ref={editorRef}
-				onSubmit={actions.handleSubmit}
-				placeholder="写下你的主题内容..."
-				maxLength={50000}
-				submitting={state.submitting}
-				canSubmit={validation.canSubmit}
-				hideFooter
-			/>
+			{state.draftReady && (
+				<PostEditor
+					ref={editorRef}
+					initialContent={state.content}
+					onChange={actions.setContent}
+					onBusyChange={setUploading}
+					draftStatus={state.draftStatus}
+					previewTitle={state.subject}
+					minLength={10}
+					onSubmit={actions.handleSubmit}
+					placeholder="写下你的主题内容..."
+					maxLength={50000}
+					submitting={state.submitting}
+					canSubmit={validation.canSubmit}
+					hideFooter
+				/>
+			)}
 		</EditorDialogShell>
 	);
 }

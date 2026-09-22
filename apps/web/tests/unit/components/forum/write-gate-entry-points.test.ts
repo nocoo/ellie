@@ -7,6 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ─── Write-gate mock (controllable) ─────────────────────────────────────────
 
 const mockWriteGatePreflight = vi.fn(() => Promise.resolve(false));
+vi.mock("@/components/forum/forum-toast", () => ({
+	useForumToast: () => ({ success: vi.fn(), error: vi.fn() }),
+}));
 vi.mock("@/viewmodels/forum/write-gate", () => ({
 	writeGatePreflight: (...args: any[]) => mockWriteGatePreflight(...args),
 }));
@@ -135,7 +138,8 @@ describe("PostCard write-gate integration", () => {
 				}),
 			);
 
-			// PostCard renders actionBar in both desktop + mobile layouts
+			expect(screen.getAllByTestId("post-content")).toHaveLength(1);
+			expect(screen.getAllByTestId("comments-section")).toHaveLength(1);
 			const reportBtns = screen.getAllByText("举报");
 			fireEvent.click(reportBtns[0]);
 

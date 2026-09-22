@@ -1,3 +1,103 @@
+.forum-content {
+	overflow-wrap: anywhere;
+	line-height: 1.75;
+}
+.forum-content :where(p, ul, ol, blockquote, pre, hr) {
+	margin-block: 0.75em;
+}
+.forum-content :where(p):empty {
+	min-height: 1.75em;
+}
+.forum-content > :first-child {
+	margin-top: 0;
+}
+.forum-content > :last-child {
+	margin-bottom: 0;
+}
+.forum-content :where(h1, h2, h3, h4, h5, h6) {
+	margin-block: 1.25em 0.5em;
+	font-weight: 650;
+	line-height: 1.4;
+	letter-spacing: -0.015em;
+}
+.forum-content h2 {
+	font-size: 1.5em;
+}
+.forum-content h3 {
+	font-size: 1.25em;
+}
+.forum-content h4 {
+	font-size: 1.125em;
+}
+.forum-content ul {
+	list-style-type: disc;
+	padding-inline-start: 1.5em;
+}
+.forum-content ol {
+	list-style-type: decimal;
+	padding-inline-start: 1.5em;
+}
+.forum-content ul ul {
+	list-style-type: circle;
+}
+.forum-content ol ol {
+	list-style-type: lower-alpha;
+}
+.forum-content li {
+	margin-block: 0.25em;
+}
+.forum-content li > :where(p, ul, ol) {
+	margin-block: 0.25em;
+}
+.forum-content blockquote {
+	border-inline-start: 3px solid hsl(var(--primary) / 0.45);
+	border-radius: 0 var(--radius) var(--radius) 0;
+	padding: 0.65em 1em;
+	background: hsl(var(--muted) / 0.65);
+	color: hsl(var(--muted-foreground));
+}
+.forum-content :where(code) {
+	border-radius: 0.25rem;
+	padding: 0.15em 0.35em;
+	background: hsl(var(--muted));
+	font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+	font-size: 0.875em;
+}
+.forum-content pre {
+	overflow-x: auto;
+	border: 1px solid hsl(var(--border));
+	border-radius: var(--radius);
+	padding: 1em;
+	background: hsl(var(--muted) / 0.65);
+	white-space: pre;
+	overflow-wrap: normal;
+}
+.forum-content pre code {
+	padding: 0;
+	background: transparent;
+	color: inherit;
+}
+.forum-content :where(a) {
+	color: hsl(var(--primary));
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+.forum-content a:hover {
+	text-decoration-thickness: 2px;
+}
+.forum-content :where(img):not(.smiley) {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	margin-block: 1em;
+	border-radius: var(--radius);
+}
+.forum-content hr {
+	border: 0;
+	border-top: 1px solid hsl(var(--border));
+	margin-block: 1.5em;
+}
+
 /* ==========================================================================
    Discuz Legacy Styles
    ========================================================================== */
@@ -50,10 +150,10 @@ div.quote .quote-header {
 	display: block;
 	margin-bottom: 0.5rem;
 	font-size: 0.8125rem;
-	color: #3b82f6;
+	color: hsl(var(--primary));
 }
 div.quote .quote-header a {
-	color: #3b82f6;
+	color: hsl(var(--primary));
 	text-decoration: none;
 }
 div.quote .quote-header a:hover {

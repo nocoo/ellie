@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/viewmodels/forum/write-gate", () => ({ writeGatePreflight: async () => false }));
 // Mock the viewmodel module
 vi.mock("@/viewmodels/forum/messages", async (importOriginal) => {
 	const actual = (await importOriginal()) as Record<string, unknown>;
@@ -114,10 +115,11 @@ describe("ComposeMessageDialog toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("对方已将你拉黑"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("发送失败"));
 			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("发送失败");
+			expect(errorToast?.textContent).toContain("对方已将你拉黑");
 		});
+		expect(getContentTextarea().value).toBe("Hello");
 	});
 
 	it("shows fallback error toast on send non-ApiError failure", async () => {
@@ -137,10 +139,11 @@ describe("ComposeMessageDialog toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("发送失败，请重试"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("发送失败"));
 			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("发送失败");
+			expect(errorToast?.textContent).toContain("发送失败，请重试");
 		});
+		expect(getContentTextarea().value).toBe("Hello");
 	});
 
 	it("does not show toast on local validation error (empty content)", async () => {
@@ -152,16 +155,32 @@ describe("ComposeMessageDialog toast integration", () => {
 			fireEvent.click(getSendButton());
 		});
 
-		// Inline error should exist
 		await waitFor(() => {
 			expect(screen.getByText("请输入站内信内容")).toBeTruthy();
 		});
-		// No toast should appear
-		const alerts = screen.queryAllByRole("alert");
-		const toastAlert = alerts.find(
-			(el) => el.textContent?.includes("发送失败") || el.textContent?.includes("请输入站内信内容"),
-		);
-		expect(toastAlert).toBeFalsy();
+		expect(screen.queryByText("发送失败")).toBeNull();
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
+
+	it.each([{ ctrlKey: true }, { metaKey: true }])(
+		"submits shortcut %o and ignores plain or repeated Enter",
+		async (modifier) => {
+			vi.mocked(sendMessage).mockResolvedValue({ id: 1, receiverId: 10 } as any);
+			renderDialog();
+			await act(async () => {});
+			const textarea = getContentTextarea();
+			fireEvent.change(textarea, { target: { value: "Hello" } });
+
+			fireEvent.keyDown(textarea, { key: "Enter" });
+			expect(sendMessage).not.toHaveBeenCalled();
+
+			fireEvent.keyDown(textarea, { key: "Enter", ...modifier, repeat: true });
+			expect(sendMessage).not.toHaveBeenCalled();
+
+			fireEvent.keyDown(textarea, { key: "Enter", ...modifier });
+			await waitFor(() => {
+				expect(sendMessage).toHaveBeenCalledTimes(1);
+			});
+		},
+	);
 });

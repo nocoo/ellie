@@ -171,10 +171,13 @@ describe("ReportDialog toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("您已经举报过这条回复了"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("举报提交失败"));
 			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("举报提交失败");
+			expect(errorToast?.textContent).toContain("您已经举报过这条回复了");
 		});
+		expect(screen.getByText("垃圾广告").closest("button")?.getAttribute("aria-pressed")).toBe(
+			"true",
+		);
 	});
 
 	it("shows error toast on non-ApiError failure (network error)", async () => {
@@ -199,9 +202,9 @@ describe("ReportDialog toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("网络错误，请重试"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("举报提交失败"));
 			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("举报提交失败");
+			expect(errorToast?.textContent).toContain("网络错误，请重试");
 		});
 	});
 });

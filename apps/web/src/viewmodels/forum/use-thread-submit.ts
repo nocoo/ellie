@@ -3,13 +3,14 @@
 
 "use client";
 
+import { contentToText } from "@ellie/shared/content";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
-import { stripHtmlTags } from "@/lib/text";
 import { mapCreateThreadTypeError } from "@/viewmodels/forum/thread-types";
+import { type DraftStatus, useComposerDraft } from "./use-composer-draft";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +20,9 @@ import { mapCreateThreadTypeError } from "@/viewmodels/forum/thread-types";
  * Thread submission state returned by useThreadSubmit
  */
 export interface ThreadSubmitState {
+	content: string;
+	draftStatus: DraftStatus;
+	draftReady: boolean;
 	/** Submission in progress */
 	submitting: boolean;
 	/** Error message (null if no error) */
@@ -37,6 +41,7 @@ export interface ThreadSubmitState {
  * Thread submission callbacks returned by useThreadSubmit
  */
 export interface ThreadSubmitCallbacks {
+	setContent: (content: string) => void;
 	/** Update subject */
 	setSubject: (subject: string) => void;
 	/** Select / clear 主题分类 typeId. Pass `null` to clear. */
@@ -132,7 +137,7 @@ export function validateSubject(
  * Pure function for testability.
  */
 export function validateContent(html: string, minLength = 10): { valid: boolean; error?: string } {
-	const strippedContent = stripHtmlTags(html).trim();
+	const strippedContent = contentToText(html);
 	if (strippedContent.length < minLength) {
 		return { valid: false, error: `内容太短，请输入更多内容（至少${minLength}个字符）` };
 	}
@@ -221,8 +226,17 @@ export function useThreadSubmit({
 	const toast = useForumToast();
 
 	// State
-	const [subject, setSubject] = useState("");
-	const [typeId, setTypeId] = useState<number | null>(null);
+	const {
+		draft,
+		status: draftStatus,
+		ready: draftReady,
+		update,
+		clear,
+	} = useComposerDraft(`thread:${forumId}`);
+	const { subject, typeId, content } = draft;
+	const setSubject = useCallback((subject: string) => update({ subject }), [update]);
+	const setTypeId = useCallback((typeId: number | null) => update({ typeId }), [update]);
+	const setContent = useCallback((content: string) => update({ content }), [update]);
 	const [submitting, setSubmitting] = useState(false);
 	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
@@ -255,10 +269,9 @@ export function useThreadSubmit({
 	}, []);
 
 	const reset = useCallback(() => {
-		setSubject("");
-		setTypeId(null);
+		clear();
 		setError(null);
-	}, []);
+	}, [clear]);
 
 	const handleSubmit = useCallback(
 		async (html: string) => {
@@ -342,12 +355,16 @@ export function useThreadSubmit({
 
 	return {
 		state: {
+			content,
+			draftStatus,
+			draftReady,
 			submitting,
 			error,
 			subject,
 			typeId,
 		},
 		actions: {
+			setContent,
 			setSubject,
 			setTypeId,
 			handleSubmit,
