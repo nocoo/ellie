@@ -1,6 +1,6 @@
 # Retrospective
 
-Accident narratives belong here. Keep only recurring project rules in `CLAUDE.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
+Accident narratives belong here. Keep only recurring project rules in `AGENTS.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
 
 The remote test setup below is historical. Current L2/L3 runners use local Wrangler; it is not an instruction to provision or execute remote tests.
 
