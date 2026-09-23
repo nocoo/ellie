@@ -204,4 +204,7 @@ observed cache behavior, not a projected percentage reduction as a measured resu
   single-URL purge.
 - No extra rule is needed on `t.no.mt`: JPEG/PNG objects already use native CDN
   caching; new R2 metadata supplies their immutable lifetime.
-- Live response verification is pending application deployment.
+- Release evidence is recorded in [v1.14.1](https://github.com/nocoo/ellie/releases/tag/v1.14.1):
+  exact revision CI, deployed health versions, and repeated live cache probes.
+  Rule creation alone does not verify the new TTLs; the response headers require
+  the matching application deployment.

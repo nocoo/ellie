@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-09-23
+
+### Changed
+
+- Cache successful UID avatar responses at the Cloudflare edge for 60 seconds while browsers revalidate. Cache hits avoid the Next.js origin, Worker and KV; errors and fallback images use `no-store`.
+- Display uploaded GUID avatar URLs immediately across the page, and store new avatar objects with one-year immutable cache metadata.
+- Give the favicon and theme script a one-hour edge lifetime, preserving immutable Next.js assets and existing Cloudflare image rules.
+- Record the KV investigation and phased edge-cache strategy in `docs/28-edge-cache-optimization.md`; shared page/data caching remains proposed.
+
+### Fixed
+
+- Exclude the exact theme script path from the login proxy so anonymous visitors receive JavaScript instead of a login redirect.
+
+### Deployment
+
+- No new database migration is introduced relative to v1.14.0.
+- Web, Admin, Worker and Rust package versions are synchronized to v1.14.1.
+
 ## [1.14.0] - 2026-09-23
 
 ### Added
