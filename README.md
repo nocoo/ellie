@@ -132,6 +132,7 @@ cargo test --locked --manifest-path packages/cli-rs/Cargo.toml --workspace
 
 - [文档索引](docs/README.md)：架构、功能与历史方案。
 - [Edge cache optimization plan](docs/28-edge-cache-optimization.md): phased Cloudflare response caching.
+- [Next.js memory statistics](docs/29-nextjs-memory-statistics.md): bounded display caches, approximate statistics and admin management.
 - [开发与部署指南](docs/25-development.md)：首次配置、运行时、TUI、迁移与测试前提。
 - [API 分层](docs/api-architecture.md)：浏览器、Next.js 代理和 Worker 的职责。
 - [Discuz 数据迁移](docs/03-migration.md)：迁移过程与源数据要求。

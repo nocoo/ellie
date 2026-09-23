@@ -1,5 +1,10 @@
 # Retrospective
 
+### 2026-09-23: Explicit Herdr pane targeting
+
+- A pane resize using `--current` resolved to a different focused workspace in this tool environment. Immediately restored that split to its prior ratio and resized the intended pane by its verified ID.
+- Use explicit verified pane IDs for all layout mutations in this session; do not assume inherited CLI context remains attached to the agent's pane.
+
 Accident narratives belong here. Keep only recurring project rules in `AGENTS.md`; cross-project lessons belong in global rules and deterministic checks in hooks/tests.
 
 The remote test setup below is historical. Current L2/L3 runners use local Wrangler; it is not an instruction to provision or execute remote tests.

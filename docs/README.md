@@ -4,7 +4,7 @@
 
 首次运行以 [25 · 本地开发与部署](25-development.md) 为入口。下方保留架构与功能设计；其中旧域名、远程测试步骤、CLI TOML 配置和「待实现」状态可能落后于当前代码，不作为安装依据。
 
-The current edge-first optimization plan is [28 · Edge cache optimization](28-edge-cache-optimization.md). [20 · Worker KV reference](20-worker-kv-reference.md) describes the existing cache design; document 28 defines the proposed next steps and their approval status.
+The edge optimization history is [28 · Edge cache optimization](28-edge-cache-optimization.md). The approved implementation direction for statistics is [29 · Next.js memory statistics](29-nextjs-memory-statistics.md). [20 · Worker KV reference](20-worker-kv-reference.md) describes the existing cache design; document 29 supersedes its blanket-cache policy for the migrated families.
 
 ## 架构概览
 
