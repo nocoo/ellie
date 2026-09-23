@@ -218,6 +218,9 @@
 		@apply bg-background;
 		color-scheme: light;
 	}
+	html:has([data-home-sections]) {
+		scroll-behavior: smooth;
+	}
 	html.dark {
 		color-scheme: dark;
 	}

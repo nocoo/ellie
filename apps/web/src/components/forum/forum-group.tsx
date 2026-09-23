@@ -3,8 +3,9 @@
 import type { ForumTreeNode } from "@ellie/types";
 import { ChevronDown, Layers3 } from "lucide-react";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import { ForumPanel } from "./forum-panel";
 import { SafeHtml } from "./safe-html";
@@ -12,9 +13,11 @@ import { SafeHtml } from "./safe-html";
 export function ForumGroup({ group }: { group: ForumTreeNode }) {
 	const layout = group.children.length > GRID_THRESHOLD ? "grid" : "wide";
 	const [collapsed, setCollapsed] = useState(false);
-	const panelId = useId();
 	return (
-		<section
+		<Collapsible
+			render={<section />}
+			open={!collapsed}
+			onOpenChange={(open) => setCollapsed(!open)}
 			id={`forum-group-${group.id}`}
 			className="scroll-mt-4 overflow-hidden rounded-xl border border-border bg-card"
 		>
@@ -38,29 +41,23 @@ export function ForumGroup({ group }: { group: ForumTreeNode }) {
 						<span className="shrink-0 text-xs text-muted-foreground tabular-nums">
 							{group.children.length} 个版块
 						</span>
-						<Button
-							variant="ghost"
-							size="icon-sm"
+						<CollapsibleTrigger
+							render={<Button variant="ghost" size="icon-sm" />}
 							aria-label={`${collapsed ? "展开" : "收起"}${group.name}`}
-							aria-expanded={!collapsed}
-							aria-controls={panelId}
-							onClick={() => setCollapsed(!collapsed)}
 						>
 							<ChevronDown
-								className={`size-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+								className={`size-4 transition-transform duration-200 motion-reduce:transition-none ${collapsed ? "-rotate-90" : ""}`}
 								aria-hidden="true"
 							/>
-						</Button>
+						</CollapsibleTrigger>
 					</>
 				)}
 			</div>
-			<div
-				id={panelId}
-				hidden={collapsed}
-				className={group.children.length ? "border-t border-border" : undefined}
-			>
-				<ForumPanel forums={group.children} layout={layout} />
-			</div>
-		</section>
+			<CollapsibleContent className="h-[var(--collapsible-panel-height)] overflow-hidden transition-[height,opacity] duration-200 ease-out data-starting-style:h-0 data-starting-style:opacity-0 data-ending-style:h-0 data-ending-style:opacity-0 motion-reduce:transition-none">
+				<div className={group.children.length ? "border-t border-border" : undefined}>
+					<ForumPanel forums={group.children} layout={layout} />
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
