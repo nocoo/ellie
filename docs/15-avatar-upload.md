@@ -34,7 +34,10 @@ ALTER TABLE users ADD COLUMN avatar_path TEXT NOT NULL DEFAULT '';
 ### Avatar Resolution
 
 ```
-Browser → /api/avatar/{uid}
+Browser → Cloudflare edge cache (60 seconds for successful images)
+           │ miss
+           ▼
+       /api/avatar/{uid}
            │
            ▼
        Next.js proxy
@@ -54,8 +57,6 @@ Browser → /api/avatar/{uid}
 - Fallbacks and failures: `no-store` in both browser and edge.
 - New GUID objects: immutable one-year cache metadata; uploads display the returned CDN URL immediately.
 - Cache Rules and operational evidence: [edge cache plan](28-edge-cache-optimization.md).
-- Fresh upload (?v=): no cache
-- API error: cache 5 minutes (prevents caching errors for a day)
 
 ### Posting Permission
 

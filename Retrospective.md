@@ -87,3 +87,4 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 
 - A broad test replacement accidentally applied immutable-avatar metadata expectations to post images. Focused tests caught the mistake before commit; the assertion was restricted to avatar uploads.
 - The installed Next.js release exports `unstable_doesMiddlewareMatch`, despite the application using the proxy convention. Read installed testing types before choosing experimental helper names; mock authentication when importing proxy configuration in unit tests.
+- Section-wide review also found obsolete cache bullets left beside the replacement policy. Remove contradictory historical statements when updating operational docs, and verify the full resulting section rather than only the changed lines.

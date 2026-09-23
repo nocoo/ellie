@@ -208,3 +208,15 @@ observed cache behavior, not a projected percentage reduction as a measured resu
   exact revision CI, deployed health versions, and repeated live cache probes.
   Rule creation alone does not verify the new TTLs; the response headers require
   the matching application deployment.
+
+### Release validation
+
+- Local release gates passed: 8,341 TypeScript unit tests with the repository's
+  existing coverage thresholds, 356 local API tests, lint, typecheck, Rust checks,
+  dependency scans and secret scans. Web/admin production builds also passed.
+  This is not certification of the handbook's still-planned full 6DQ contract.
+- Migration-first Worker deployment reported no pending migrations. Deployment
+  `e528b91a-567d-40fc-be86-b68a4ed0edc9` serves `/api/live` version `1.14.1`
+  with a connected database.
+- Tag `v1.14.1` points to release commit `7e0f53b4`. Subsequent documentation
+  corrections do not change the application code or move the published tag.
