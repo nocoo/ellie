@@ -2,6 +2,9 @@
 
 ## Authorization and status
 
+The implementation-only scope below was completed. Production release was
+subsequently authorized on 2026-09-24; see [release observation](30-memory-cache-release-observation.md).
+
 Documentation, implementation and local commits are authorized. Independent
 plan signoff was completed before implementation.
 Deployment, release and push are not authorized. Codex reviews before implementation;

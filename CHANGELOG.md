@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.2] - 2026-09-24
+
+### Changed
+
+- Move site statistics, forum summaries and list totals into bounded Next.js process memory; warm numeric reads avoid Worker and KV calls.
+- Batch approximate thread views and verified-member activity every five minutes with bounded lossy buffers, monotonic activity writes and explicit uncertain-write accounting.
+- Select each forum's latest visible nonanonymous topic and its author by creation time while preserving existing latest-reply labels and current visibility checks.
+- Keep requested list pages navigable with authoritative next-page detection and approximate cached totals.
+- Include upstream Next.js 16.3.6, Wrangler 4.136.3 and Cloudflare Workers types updates.
+
+### Added
+
+- Admin memory-cache monitoring and management for the concrete Web process, with bounded previews, clear/flush controls and restart instance fencing.
+- Dedicated authenticated statistics batch and reading endpoints, with bounded input and concurrent cache loading.
+
+### Removed
+
+- Application today-visits analytics and its Durable Object, online-presence KV writes and migrated statistics KV families.
+- Retired online IP/page/time admin fields and UI; business trends and login audit remain.
+
+### Deployment
+
+- Apply D1 migration 0055 and the TodayVisits Durable Object deletion migration before Web/Admin cutover.
+- Configure independent statistics-write and memory-management secrets plus Admin's internal Web origin.
+- Restart discards pending approximate statistics. Deploy Worker first to avoid simultaneous old/new view collectors.
+- Record the pre-release production baseline in `docs/30-memory-cache-release-observation.md`.
+- Web, Admin, Worker and Rust package versions are synchronized to v1.14.2.
+
 ## [1.14.1] - 2026-09-23
 
 ### Changed
