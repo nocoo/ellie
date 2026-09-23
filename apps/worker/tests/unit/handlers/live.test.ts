@@ -1,3 +1,4 @@
+import { VERSION } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import { live } from "../../../src/handlers/live";
 import type { Env } from "../../../src/lib/env";
@@ -29,6 +30,8 @@ describe("live handler", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 			expect(data.status).toBe("ok");
+			expect(data.version).toBe(VERSION);
+			expect(data.version).toMatch(/^\d+\.\d+\.\d+$/);
 		});
 
 		it("should include database.connected true", async () => {

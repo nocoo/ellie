@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-09-23
+
+### Added
+
+- Shared rich-text composition with compact formatting controls, rendered previews, tab-local drafts, and image selection, paste, drop, progress and retry.
+- Consistent pending states, retained failed input and actionable feedback across posts, replies, quotes, private messages, comments, ratings, reports and account actions.
+
+### Fixed
+
+- Enter now inserts a paragraph reliably. Ctrl+Enter submits without altering text or cursor content on Windows and macOS; Cmd+Enter also works on macOS. IME confirmation and held keys cannot accidentally submit.
+- Unified the ProseMirror runtime to prevent paragraph-splitting errors and removed duplicate responsive post/dialog mounts.
+- Preserved image insertion positions, draft restoration and cleanup, quoted text, and current recipient-search results.
+
+### Changed
+
+- Keep the home icon as the only icon in the primary navigation.
+- Default footer credits to 2003-2026 hexly.ai and Ellie with the current version, while preserving configured values. Center the skyline artwork and add space above it.
+- Return the plain release version from health APIs while retaining the v-prefixed version in the interface.
+- Include dependency maintenance, disabled default Worker and preview URLs, and the normalized AGENTS.md project handbook.
+
+### Deployment
+
+- No new database migration is introduced relative to v1.13.1.
+- Web, Admin, Worker and Rust package versions are synchronized to v1.14.0.
+
 ## [1.13.1] - 2026-09-20
 
 ### Changed

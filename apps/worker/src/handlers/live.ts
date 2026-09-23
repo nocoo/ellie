@@ -1,5 +1,5 @@
 // Health check handler for Cloudflare Worker
-import { VERSION_DISPLAY } from "@ellie/types";
+import { VERSION } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { corsHeaders } from "../middleware/cors";
 
@@ -37,7 +37,7 @@ export async function live(request: Request, env: Env): Promise<Response> {
 
 	const body = {
 		status: healthy ? "ok" : "error",
-		version: VERSION_DISPLAY,
+		version: VERSION,
 		component: "ellie-worker",
 		timestamp,
 		uptime,

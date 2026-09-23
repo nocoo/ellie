@@ -1,1 +1,1 @@
-export { VERSION_DISPLAY as APP_VERSION } from "@ellie/types";
+export { VERSION as APP_VERSION } from "@ellie/types";
