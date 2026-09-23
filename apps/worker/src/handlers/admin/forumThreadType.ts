@@ -14,9 +14,7 @@ import { invalidateAdminEntityCache, readAdminEntity } from "../../lib/cache/adm
 //     this admin layer so the create resolver never sees a "required
 //     but disabled" forum (the public resolver would silently drop it).
 //   • Same-commit minimal invalidation:
-//       – 4-switch update     → bumpForumTreeGen + bumpForumSummaryGen
-//                               (the latter also rolls forum:meta:v2
-//                               because meta keys embed `forum:summary:gen`).
+//       – 4-switch update     → bumpForumTreeGen
 //       – type create/update(name|displayOrder|enabled|moderator_only)
 //         /reorder/delete-or-soft-disable
 //                             → bumpForumTreeGen (Forum.threadTypes config
@@ -51,11 +49,7 @@ import { invalidateAdminEntityCache, readAdminEntity } from "../../lib/cache/adm
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import {
-	bumpForumSummaryGen,
-	bumpForumTreeGen,
-	bumpThreadListGen,
-} from "../../lib/cache/invalidate";
+import { bumpForumTreeGen, bumpThreadListGen } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import { confirmedBatch, confirmedRun } from "../../lib/d1-write";
 
@@ -1000,11 +994,6 @@ function diffForumConfig(
  *   thread_types_required=1 ⇒ thread_types_enabled=1.
  * Computed against the MERGED (existing + incoming) state so an admin
  * can toggle either side without having to re-send the other.
- *
- * Reviewer pin (msg 2935495a):
- *   Switch changes bump forum:tree:gen + forum:summary:gen (the latter
- *   also rolls forum:meta:v2 because meta keys embed `forum:summary:gen`
- *   — see lib/cache/invalidate.ts:bumpForumSummaryGen).
  */
 export const updateConfig = withEntityAuth(
 	threadTypeAuthConfig,
@@ -1091,15 +1080,8 @@ export const updateConfig = withEntityAuth(
 			const written = await confirmedRun(
 				env.DB.prepare(`UPDATE forums SET ${sets.join(", ")} WHERE id = ?`).bind(...binds),
 			);
-			// Forum.threadTypes config lives in forum:tree:v2; meta keys
-			// embed `forum:summary:gen` so bumping summary rolls meta too
-			// (see comment on bumpForumSummaryGen). The per-forum
-			// thread-list bump keeps the typeId-filter cache slice
-			// consistent in case the picker just got disabled. Also
-			// invalidate the public thread-types KV cache.
 			await Promise.all([
 				bumpForumTreeGen(env),
-				bumpForumSummaryGen(env),
 				bumpThreadListGen(env, forumId),
 				invalidateThreadTypesCache(env, forumId),
 				...adminCatalogEpochs(env, written, ["forums"]),

@@ -72,7 +72,7 @@ describe("administrator-triggered cache snapshot", () => {
 		try {
 			for (let hour = 0; hour < 3; hour++) {
 				await cacheGetOrSet(f.env, f.ctx, "snapshot-cost-check", async () => ({ count: 1 }), {
-					family: "thread:stats",
+					family: "user:stats",
 					tier: "SHORT",
 				});
 				await Promise.all(f.ctx._waitUntilPromises);

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	affectsForumDigest,
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpForumTreeGen,
 	bumpPostListGen,
 	bumpThreadListGen,
@@ -13,7 +12,6 @@ import {
 	FORUM_DIGEST_AFFECTING_COLUMNS,
 	invalidateForumReorderV2,
 	invalidateForumStructureV2,
-	invalidateForumSummaryV2,
 	invalidateForumUpdateV2,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
@@ -100,13 +98,6 @@ describe("cache/invalidate — gen bump helpers", () => {
 		expect(store.get("forum:tree:gen")).toBe(tok);
 	});
 
-	it("bumpForumSummaryGen writes forum:summary:gen", async () => {
-		const { kv, store } = inMemoryKV();
-		const env = makeEnv({ KV: kv });
-		const tok = await bumpForumSummaryGen(env);
-		expect(store.get("forum:summary:gen")).toBe(tok);
-	});
-
 	it("bumpThreadListGen scopes per forumId", async () => {
 		const { kv, store } = inMemoryKV();
 		const env = makeEnv({ KV: kv });
@@ -147,12 +138,12 @@ describe("cache/invalidate — gen bump helpers", () => {
 });
 
 describe("cache/invalidate — composite helpers", () => {
-	it("invalidateForumVolatileV2 bumps summary + per-forum thread list", async () => {
+	it("invalidateForumVolatileV2 bumps per-forum thread list", async () => {
 		const { kv, store } = inMemoryKV();
 		const env = makeEnv({ KV: kv });
 		await invalidateForumVolatileV2(env, 4);
 
-		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(store.has("forum:summary:gen")).toBe(false);
 		expect(store.get("thread:list:gen:4")?.length).toBeGreaterThan(0);
 	});
 
@@ -175,33 +166,23 @@ describe("cache/invalidate — composite helpers", () => {
 		expect(kv.put).not.toHaveBeenCalled();
 	});
 
-	it("invalidateForumSummaryV2 bumps ONLY forum:summary:gen", async () => {
-		const { kv, store } = inMemoryKV();
-		const env = makeEnv({ KV: kv });
-		await invalidateForumSummaryV2(env);
-
-		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
-		expect(store.has("forum:tree:gen")).toBe(false);
-		expect(store.has("digest:gen")).toBe(false);
-	});
-
-	it("invalidateForumStructureV2 bumps tree + summary + digest", async () => {
+	it("invalidateForumStructureV2 bumps tree + digest", async () => {
 		const { kv, store } = inMemoryKV();
 		const env = makeEnv({ KV: kv });
 		await invalidateForumStructureV2(env);
 
 		expect(store.get("forum:tree:gen")?.length).toBeGreaterThan(0);
-		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(store.has("forum:summary:gen")).toBe(false);
 		expect(store.get("digest:gen")?.length).toBeGreaterThan(0);
 	});
 
-	it("invalidateForumReorderV2 bumps tree + summary but NOT digest", async () => {
+	it("invalidateForumReorderV2 bumps tree but NOT digest", async () => {
 		const { kv, store } = inMemoryKV();
 		const env = makeEnv({ KV: kv });
 		await invalidateForumReorderV2(env);
 
 		expect(store.get("forum:tree:gen")?.length).toBeGreaterThan(0);
-		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(store.has("forum:summary:gen")).toBe(false);
 		expect(store.has("digest:gen")).toBe(false);
 	});
 
@@ -210,14 +191,14 @@ describe("cache/invalidate — composite helpers", () => {
 		const env1 = makeEnv({ KV: kv1 });
 		await invalidateForumUpdateV2(env1, { affectsDigest: true });
 		expect(s1.get("forum:tree:gen")?.length).toBeGreaterThan(0);
-		expect(s1.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(s1.has("forum:summary:gen")).toBe(false);
 		expect(s1.get("digest:gen")?.length).toBeGreaterThan(0);
 
 		const { kv: kv2, store: s2 } = inMemoryKV();
 		const env2 = makeEnv({ KV: kv2 });
 		await invalidateForumUpdateV2(env2, { affectsDigest: false });
 		expect(s2.get("forum:tree:gen")?.length).toBeGreaterThan(0);
-		expect(s2.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(s2.has("forum:summary:gen")).toBe(false);
 		expect(s2.has("digest:gen")).toBe(false);
 	});
 });

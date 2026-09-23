@@ -151,6 +151,7 @@ async function request<T>(
 		headers,
 		body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
 		cache: "no-store",
+		signal: opts.method === "GET" ? AbortSignal.timeout(15_000) : undefined,
 	});
 
 	const text = await res.text();

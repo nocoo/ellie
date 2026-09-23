@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
+import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/posts
 // Browser → Next.js → Worker (create post/reply)
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
 		};
 		const body = await request.json();
 		const result = await forumApi.postAuth<unknown>("/api/v1/posts", body, jwt, client);
+		invalidateDisplayAfterWrite({ forumSummaries: true, siteStats: true });
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
 		if (err instanceof ForumApiError) {

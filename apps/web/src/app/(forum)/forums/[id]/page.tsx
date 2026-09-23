@@ -119,6 +119,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			pages: 1,
 			total: 0,
 			limit: 100,
+			hasNext: false,
 			breadcrumbs: [],
 		};
 	}

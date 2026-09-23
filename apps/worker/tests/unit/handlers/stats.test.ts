@@ -64,48 +64,6 @@ describe("public stats handler", () => {
 			expect(data.peakDate).toBe("");
 		});
 
-		it("should write result to KV cache with SHORT tier and fixed 60s expiry", async () => {
-			f.sqlite.prepare("UPDATE settings SET value = '100' WHERE key = 'stats.total_threads'").run();
-			f.sqlite.prepare("UPDATE settings SET value = '200' WHERE key = 'stats.total_posts'").run();
-			f.sqlite.prepare("UPDATE settings SET value = '50' WHERE key = 'stats.total_members'").run();
-			f.sqlite.prepare("UPDATE settings SET value = '2' WHERE key = 'stats.yesterday_posts'").run();
-
-			const todayStart = shanghaiTodayStartUnix();
-			f.post(200, { created_at: todayStart + 10 });
-
-			const request = createRequest();
-			await stats(request, f.env, f.ctx);
-
-			expect(f.env.KV.put).toHaveBeenCalledTimes(1);
-			const putCall = (f.env.KV.put as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
-			expect(putCall[0]).toBe("public-stats");
-
-			const rawEnvelope = putCall[1] as string;
-			const envelope = JSON.parse(rawEnvelope);
-			expect(envelope.tier).toBe("SHORT");
-			expect(envelope.family).toBe("public-stats");
-			expect(envelope.data.todayPosts).toBe(1);
-			expect(envelope.data.totalMembers).toBe(50);
-			// Fixed SHORT TTL = 60 seconds
-			expect(putCall[2]).toMatchObject({ expirationTtl: 60 });
-		});
-
-		it("should return cached data without hitting DB", async () => {
-			const todayStart = shanghaiTodayStartUnix();
-			f.post(300, { created_at: todayStart + 10 });
-
-			const request = createRequest();
-			const res1 = await stats(request, f.env, f.ctx);
-			expect(res1.status).toBe(200);
-
-			const callsBefore = f.calls.length;
-			const res2 = await stats(request, f.env, f.ctx);
-			expect(res2.status).toBe(200);
-
-			// Cache hit: no extra DB calls
-			expect(f.calls.length).toBe(callsBefore);
-		});
-
 		it("should include meta with timestamp and requestId", async () => {
 			const request = createRequest();
 			const response = await stats(request, f.env, f.ctx);
@@ -116,40 +74,15 @@ describe("public stats handler", () => {
 			expect(typeof body.meta.requestId).toBe("string");
 		});
 
-		it("should return online stats from KV", async () => {
-			await f.env.KV.put("stats:online_count", "42");
-			await f.env.KV.put("stats:online_peak", JSON.stringify({ count: 100, date: "2026-05-29" }));
-
-			const request = createRequest();
-			const response = await stats(request, f.env, f.ctx);
-
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.totalOnline).toBe(42);
-			expect(body.data.peakOnline).toBe(0);
-			expect(body.data.peakDate).toBe("");
-		});
-
-		it("should handle cache envelope read failure gracefully and fall back to fresh load", async () => {
-			// Preload cache
-			await stats(createRequest(), f.env, f.ctx);
-
-			// Corrupt KV cache entry for "public-stats"
-			f.values.set("public-stats", "{not-valid-json");
-
+		it("reads active members from D1 and performs no KV I/O", async () => {
+			f.sqlite
+				.prepare("UPDATE users SET last_activity=? WHERE id=10")
+				.run(Math.floor(Date.now() / 1000));
 			const response = await stats(createRequest(), f.env, f.ctx);
 			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data).toBeDefined();
-		});
-
-		it("should handle KV write failure gracefully without breaking response", async () => {
-			f.state.writeError = true;
-
-			const response = await stats(createRequest(), f.env, f.ctx);
-			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data).toBeDefined();
+			expect((await response.json()).data.totalOnline).toBe(1);
+			expect(f.env.KV.get).not.toHaveBeenCalled();
+			expect(f.env.KV.put).not.toHaveBeenCalled();
 		});
 	});
 });

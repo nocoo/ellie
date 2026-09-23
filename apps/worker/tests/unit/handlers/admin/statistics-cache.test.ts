@@ -9,7 +9,6 @@ import {
 import { readAdminEntity } from "../../../../src/lib/cache/admin-entity-read";
 import {
 	adminEntityGenKey,
-	forumSummaryGenKey,
 	postListGenKey,
 	statsReportsGenKey,
 	threadListGenAllKey,
@@ -374,7 +373,6 @@ describe("derived values and precise invalidation scopes", () => {
 			});
 			expectEffects([
 				adminEntityGenKey("threads"),
-				forumSummaryGenKey(),
 				statsReportsGenKey(),
 				...(forumId === null
 					? [threadMetaGenKey(3), threadListGenAllKey()]
@@ -451,7 +449,7 @@ describe("derived values and precise invalidation scopes", () => {
 			threads: 0,
 			posts: 0,
 		});
-		expectEffects([forumSummaryGenKey(), statsReportsGenKey(), adminEntityGenKey("forums")]);
+		expectEffects([statsReportsGenKey(), adminEntityGenKey("forums")]);
 	});
 
 	it("post-forum repair deduplicates affected threads and their post epochs, preserving matched and orphan rows", async () => {
@@ -482,7 +480,6 @@ describe("derived values and precise invalidation scopes", () => {
 			postListGenKey(1),
 			threadMetaGenKey(2),
 			postListGenKey(2),
-			forumSummaryGenKey(),
 			statsReportsGenKey(),
 		]);
 	});
@@ -534,7 +531,6 @@ it.each(tickers)(
 					adminEntityGenKey("threads"),
 					...ids.map(threadMetaGenKey),
 					threadListGenAllKey(),
-					forumSummaryGenKey(),
 					statsReportsGenKey(),
 				]);
 				break;
@@ -545,13 +541,12 @@ it.each(tickers)(
 				);
 				break;
 			case "forums":
-				expectEffects([forumSummaryGenKey(), statsReportsGenKey(), adminEntityGenKey("forums")]);
+				expectEffects([statsReportsGenKey(), adminEntityGenKey("forums")]);
 				break;
 			case "post-forums":
 				expectEffects([
 					adminEntityGenKey("posts"),
 					...ids.flatMap((id) => [threadMetaGenKey(id), postListGenKey(id)]),
-					forumSummaryGenKey(),
 					statsReportsGenKey(),
 				]);
 				break;

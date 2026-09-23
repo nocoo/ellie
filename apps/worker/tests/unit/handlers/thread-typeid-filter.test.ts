@@ -30,6 +30,7 @@ describe("GET threads typeId filter", () => {
 	it.each(["", "&typeId=", "&typeId=0"])(
 		"absent/zero filter %s includes global announcements",
 		async (query) => {
+			f.sqlite.exec("UPDATE forums SET visibility = 'public' WHERE id = 2");
 			const response = await read(query);
 			expect(response.status).toBe(200);
 			expect((await response.json()).data.map((row: { id: number }) => row.id)).toEqual([3, 2, 1]);
@@ -68,21 +69,19 @@ describe("GET threads typeId filter", () => {
 		const body = await response.json();
 		expect(body.meta).toMatchObject({ total: 32, page: 2, limit: 25, pages: 2 });
 		expect(body.data.map((row: { id: number }) => row.id)).toEqual([9, 8, 7, 6, 5, 4, 1]);
-		const snapshots = [...f.snapshots("thread:list"), ...f.snapshots("thread:count")];
-		expect(snapshots).toHaveLength(2);
+		const snapshots = f.snapshots("thread:list");
+		expect(snapshots).toHaveLength(1);
+		expect(f.snapshots("thread:count")).toEqual([]);
 		expect(snapshots.find((entry) => entry.params.kind === "local")).toMatchObject({
 			tier: "SHORT",
-			params: { kind: "local", forumId: 1, typeId: 11, limit: 25, offset: 25 },
-		});
-		expect(snapshots.find((entry) => entry.params.kind === "count")).toMatchObject({
-			tier: "HOUR",
-			params: { kind: "count", forumId: 1, typeId: 11 },
-			data: { total: 32 },
+			params: { kind: "local", forumId: 1, typeId: 11, limit: 26, offset: 25 },
 		});
 		f.calls.length = 0;
 		expect((await (await read("&typeId=11&page=2&limit=25")).json()).data).toEqual(body.data);
-		// Current forum, current category, and one candidate access batch.
-		expect(f.calls).toHaveLength(3);
+		expect(f.calls).toHaveLength(5);
+		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(1);
+		expect(f.calls.filter((call) => call.sql.includes("t.replies, t.views"))).toHaveLength(1);
+		expect(f.calls.some((call) => call.sql.includes("ORDER BY"))).toBe(false);
 	});
 
 	it("checks current forum access before consulting a category or cached membership", async () => {

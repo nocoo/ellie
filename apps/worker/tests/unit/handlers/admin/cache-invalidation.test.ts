@@ -10,7 +10,6 @@ import { getById as readPost } from "../../../../src/handlers/post";
 import {
 	adminEntityGenKey,
 	digestGenKey,
-	forumSummaryGenKey,
 	forumTreeGenKey,
 	postAttachmentsGenKey,
 	postEntityGenKey,
@@ -209,7 +208,7 @@ describe("real SQL mutation invalidation", () => {
 				threadMetaGenKey(1),
 				recommendedGenKey(1),
 				...(field === "digest" ? [digestGenKey(), adminEntityGenKey("users")] : []),
-				...(field === "subject" ? [forumSummaryGenKey(), adminEntityGenKey("forums")] : []),
+				...(field === "subject" ? [adminEntityGenKey("forums")] : []),
 			]);
 			expect((await getThreadRows(f.env, undefined, [1])).get(1)?.[field]).toBe(value);
 			expect(
@@ -311,7 +310,6 @@ describe("real SQL mutation invalidation", () => {
 				threadMetaGenKey(1),
 				postListGenKey(1),
 				threadListGenKey(1),
-				forumSummaryGenKey(),
 				recommendedGenKey(1),
 				...(global ? [threadListGenAllKey()] : []),
 			]);
@@ -364,7 +362,6 @@ describe("real SQL mutation invalidation", () => {
 				threadMetaGenKey(1),
 				postListGenKey(1),
 				threadListGenKey(1),
-				forumSummaryGenKey(),
 				recommendedGenKey(1),
 				digestGenKey(),
 				threadListGenAllKey(),
@@ -409,7 +406,6 @@ describe("real SQL mutation invalidation", () => {
 			...ids.flatMap((id) => [threadMetaGenKey(id), postListGenKey(id)]),
 			threadListGenKey(1),
 			threadListGenKey(2),
-			forumSummaryGenKey(),
 			recommendedGenKey(1),
 			recommendedGenKey(2),
 		]);
@@ -453,7 +449,6 @@ describe("real SQL mutation invalidation", () => {
 				threadMetaGenKey(1),
 				postListGenKey(1),
 				threadListGenKey(1),
-				forumSummaryGenKey(),
 				recommendedGenKey(1),
 				digestGenKey(),
 				threadListGenAllKey(),
@@ -540,7 +535,6 @@ describe("real SQL mutation invalidation", () => {
 				postListGenKey(1),
 				threadListGenKey(1),
 				threadListGenKey(2),
-				forumSummaryGenKey(),
 				recommendedGenKey(1),
 				recommendedGenKey(2),
 				digestGenKey(),
@@ -597,7 +591,6 @@ describe("real SQL mutation invalidation", () => {
 			threadListGenKey(2),
 			threadListGenAllKey(),
 			forumTreeGenKey(),
-			forumSummaryGenKey(),
 			digestGenKey(),
 			recommendedGenKey(1),
 			recommendedGenKey(2),
@@ -624,7 +617,6 @@ describe("real SQL mutation invalidation", () => {
 			expectBumps([
 				adminEntityGenKey("forums"),
 				forumTreeGenKey(),
-				forumSummaryGenKey(),
 				digestGenKey(),
 				threadListGenKey(1),
 				recommendedGenKey(1),
@@ -648,7 +640,7 @@ describe("real SQL mutation invalidation", () => {
 		expect(f.sqlite.prepare("SELECT display_order FROM forums WHERE id = 200").get()).toMatchObject(
 			{ display_order: 1 },
 		);
-		expectBumps([forumTreeGenKey(), forumSummaryGenKey(), adminEntityGenKey("forums")]);
+		expectBumps([forumTreeGenKey(), adminEntityGenKey("forums")]);
 	});
 
 	it("a failed deletion transaction neither removes content nor bumps generations", async () => {
@@ -742,7 +734,6 @@ describe("user content invalidation uses the deletion snapshot", () => {
 				threadListGenKey(2),
 				threadListGenAllKey(),
 				digestGenKey(),
-				forumSummaryGenKey(),
 				recommendedGenKey(1),
 				recommendedGenKey(2),
 			])

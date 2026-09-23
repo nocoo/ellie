@@ -26,9 +26,9 @@ export type KvCategory =
 	| "gen" // sticky generation token (epoch.ts)
 	| "session" // refresh tokens, email verify
 	| "rate-limit" // login/register/check-username/email lockouts
-	| "stats" // public-stats, online_count
-	| "sticky-stats" // online_peak (no TTL)
-	| "throttle"; // activity_throttle, online presence marker
+	| "stats"
+	| "sticky-stats"
+	| "throttle";
 
 /**
  * Lifecycle of a key family.
@@ -78,7 +78,6 @@ export type KvValueSensitivity = "public" | "mask-value" | "no-read";
  */
 export type KvRefreshAction =
 	| { kind: "bump-forum-tree" }
-	| { kind: "bump-forum-summary" }
 	| { kind: "bump-thread-list-all" }
 	| { kind: "bump-thread-list-forum"; requires: ["forumId"] }
 	| { kind: "bump-thread-meta"; requires: ["threadId"] }
@@ -95,7 +94,7 @@ export type KvRefreshAction =
  *   This is the default for v2 cache families like `forum:tree:v2:`.
  * - `exact`: family owns exactly ONE literal key whose name equals
  *   `listPrefix`. This is required for singletons such as `settings:all`
- *   and `public-stats` so they don't accidentally swallow `settings:all:v2`
+ *   so they don't accidentally swallow `settings:all:v2`
  *   etc.
  */
 export type KvKeyKind = "prefix" | "exact";
@@ -112,15 +111,14 @@ export interface KvFamilySpec {
 	/**
 	 * Singleton vs prefix family. Defaults to `"prefix"` when unset.
 	 * Singleton (`exact`) means this family is one literal key whose name
-	 * equals `listPrefix` — used for `settings:all`, `public-stats`,
-	 * `stats:online_count`, `stats:online_peak`, gen tokens like
+	 * equals `listPrefix` — used for `settings:all`, gen tokens like
 	 * `forum:tree:gen`, and the global `thread:list:gen:all`.
 	 */
 	keyKind?: KvKeyKind;
 	/** Human-readable expected key pattern — for UI tooltip only. */
 	pattern: string;
 	/**
-	 * TTL in seconds. `"sticky"` means no TTL set (gen tokens, online_peak).
+	 * TTL in seconds. `"sticky"` means no TTL set (generation tokens).
 	 * `"variable"` means callers compute a TTL per write (e.g. email_verify
 	 * `remaining`).
 	 */
@@ -181,12 +179,9 @@ function businessFamily(
  * cache first, then gens, then auth/session/rate-limit, then stats,
  * then planned / dead-builder / historical at the bottom.
  *
- * NOTE on dead-builder-reserved entries (`settings:all:v2`,
- * `stats:public:v2`): the key builders exist in
- * `apps/worker/src/lib/cache/keys.ts` but have no live caller — they
- * are reserved for a future v2 schema migration. We list them here so
- * the UI does not flag count==0 as a regression, and so the
- * architecture-guard test does not need an extra allowlist for them.
+ * NOTE on dead-builder-reserved entries (`settings:all:v2`): the key
+ * builder exists in `apps/worker/src/lib/cache/keys.ts` but has no live
+ * caller. We list it so the UI does not flag count==0 as a regression.
  */
 export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	{
@@ -401,21 +396,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		{ kind: "bump-thread-meta", requires: ["threadId"] },
 	),
 	businessFamily(
-		"thread:stats",
-		"主题动态统计",
-		"SHORT",
-		"reading",
-		"Per-thread counters; ordinary views and replies use natural expiry.",
-	),
-	businessFamily(
-		"thread:count",
-		"版块主题总数与总页数",
-		"HOUR",
-		"reading",
-		"Hourly forum/type totals shared by all pages; mutations invalidate via the existing thread-list generations.",
-		{ kind: "bump-thread-list-forum", requires: ["forumId"] },
-	),
-	businessFamily(
 		"thread:list",
 		"主题分页与公告索引",
 		"SHORT",
@@ -513,37 +493,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		refresh: { kind: "bump-forum-tree" },
 		genKeys: ["forum:tree:gen"],
 		description: "Cached forum hierarchy per visibility bucket. Bumped by forum CRUD.",
-	},
-	{
-		family: "forum:summary:v2",
-		displayName: "Forum summary list",
-		category: "cache",
-		status: "shipped",
-		listPrefix: "forum:summary:v2:",
-		pattern: "forum:summary:v2:<bucket>:g<forumSummaryGen>",
-		ttl: 3600,
-		tier: "HOUR",
-		loader: "forum",
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "bump-forum-summary" },
-		genKeys: ["forum:summary:gen"],
-		description:
-			"Hourly forum display snapshots; summary gates share the one-hour budget and mutation generations.",
-	},
-	{
-		family: "forum:meta:v2",
-		displayName: "Forum meta (single-forum)",
-		category: "cache",
-		status: "historical",
-		listPrefix: "forum:meta:v2:",
-		pattern: "forum:meta:v2:<forumId>:<bucket>:g<forumSummaryGen>",
-		ttl: 86400,
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "none" },
-		genKeys: ["forum:summary:gen"],
-		description: "Single-forum meta read on the read-by-id miss path. Shares forum:summary:gen.",
 	},
 	{
 		family: "thread:list:v2",
@@ -687,53 +636,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description: "Single literal key holding admin settings JSON (lib/settings.ts).",
 	},
 	{
-		family: "public-stats",
-		displayName: "Public stats snapshot",
-		category: "stats",
-		status: "shipped",
-		listPrefix: "public-stats",
-		keyKind: "exact",
-		pattern: "public-stats",
-		ttl: 60,
-		tier: "SHORT",
-		loader: "peripheral",
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "delete-literal", requires: ["key"] },
-		description:
-			"Public stats endpoint cache (handlers/stats.ts). Refresh by deleting; next read re-warms.",
-	},
-	{
-		family: "stats:online_count",
-		displayName: "Online count",
-		category: "stats",
-		status: "shipped",
-		listPrefix: "stats:online_count",
-		keyKind: "exact",
-		pattern: "stats:online_count",
-		ttl: 300,
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "none" },
-		description:
-			"Aggregated count of `online:*` markers, recomputed every five minutes by lib/online-stats.ts.",
-	},
-	{
-		family: "stats:online_peak",
-		displayName: "Online peak (sticky)",
-		category: "sticky-stats",
-		status: "historical",
-		listPrefix: "stats:online_peak",
-		keyKind: "exact",
-		pattern: "stats:online_peak",
-		ttl: "sticky",
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "none" },
-		description:
-			"All-time online peak. Sticky (no TTL) — only ever rewritten when new peak observed.",
-	},
-	{
 		family: "stats:today_posts",
 		displayName: "Today's posts counter",
 		category: "stats",
@@ -762,35 +664,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		refresh: { kind: "none" },
 		description:
 			"YYYY-MM-DD in Asia/Shanghai. Used by cron to detect day rollover for stats:today_posts.",
-	},
-	// ─── Online presence + activity throttle ───────────────────────
-	{
-		family: "online:user",
-		displayName: "Online presence markers",
-		category: "throttle",
-		status: "shipped",
-		listPrefix: "online:",
-		pattern: "online:<userId>",
-		ttl: 900,
-		nameSensitivity: "mask",
-		valueSensitivity: "no-read",
-		refresh: { kind: "none" },
-		description:
-			"Per-user presence marker, refreshed at most every five minutes per user/isolate (middleware/online.ts). Suffix is a userId — masked.",
-	},
-	{
-		family: "activity_throttle",
-		displayName: "Activity throttle",
-		category: "throttle",
-		status: "historical",
-		listPrefix: "activity_throttle:",
-		pattern: "activity_throttle:<userId>",
-		ttl: 120,
-		nameSensitivity: "mask",
-		valueSensitivity: "no-read",
-		refresh: { kind: "none" },
-		description:
-			"Throttles per-user activity bumps (middleware/activity.ts). Suffix is userId — masked.",
 	},
 	// ─── Auth refresh tokens + email verify ────────────────────────
 	{
@@ -904,21 +777,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 			"Generation token for the schema-3 forum tree. Bumped by structural forum writes; the established family name is retained.",
 	},
 	{
-		family: "gen:forum:summary",
-		displayName: "Gen — forum:summary",
-		category: "gen",
-		status: "shipped",
-		listPrefix: "forum:summary:gen",
-		keyKind: "exact",
-		pattern: "forum:summary:gen",
-		ttl: "sticky",
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "bump-forum-summary" },
-		description:
-			"Generation token for the schema-3 forum summary. Ordinary create/reply/view events rely on SHORT expiration.",
-	},
-	{
 		family: "gen:thread:list:all",
 		displayName: "Gen — thread:list (global)",
 		category: "gen",
@@ -972,7 +830,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-thread-meta", requires: ["threadId"] },
-		description: "Per-thread generation for thread:entity and thread:stats snapshots.",
+		description: "Per-thread generation for thread:entity snapshots.",
 	},
 	{
 		family: "gen:post:list",
@@ -1032,21 +890,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		refresh: { kind: "none" },
 		description:
 			"Reserved for the v2 settings schema migration. Builder exists in keys.ts but no live caller — live key remains 'settings:all'.",
-	},
-	{
-		family: "stats:public:v2",
-		displayName: "Public stats (v2, dead-builder-reserved)",
-		category: "stats",
-		status: "dead-builder-reserved",
-		listPrefix: "stats:public:v2",
-		keyKind: "exact",
-		pattern: "stats:public:v2",
-		ttl: 60,
-		nameSensitivity: "public",
-		valueSensitivity: "public",
-		refresh: { kind: "none" },
-		description:
-			"Reserved for the v2 public-stats schema migration. Live key remains 'public-stats'.",
 	},
 ];
 
@@ -1109,8 +952,6 @@ export function resolveFamilyForKey(key: string): KvFamilySpec | null {
  */
 export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"forum:tree:v2:",
-	"forum:summary:v2:",
-	"forum:meta:v2:",
 	"thread:list:v2:",
 	"user:mini:",
 	"ip-lookup:",
@@ -1119,13 +960,8 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"recommended:threads:",
 	"thread-types:",
 	"settings:all",
-	"public-stats",
-	"stats:online_count",
-	"stats:online_peak",
 	"stats:today_posts",
 	"stats:today_date",
-	"online:",
-	"activity_throttle:",
 	"refresh:",
 	"email_verify:",
 	"email_verify_lock:",
@@ -1134,7 +970,6 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"reg-ip:",
 	"chk-usr-ip:",
 	"forum:tree:gen",
-	"forum:summary:gen",
 	"thread:list:gen:",
 	"thread:list:gen:all",
 	"digest:gen",

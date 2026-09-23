@@ -21,7 +21,6 @@ import {
 import { invalidateAdminEntityCache } from "../lib/cache/admin-entity-read";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpPostAttachmentsGen,
 	bumpPostEntityGen,
 	bumpThreadListGenAll,
@@ -185,7 +184,6 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 	];
 	if (restored)
 		invalidations.push(
-			bumpForumSummaryGen(env),
 			invalidateAdminEntityCache(env, "posts"),
 			invalidateAdminEntityCache(env, "forums"),
 		);
@@ -441,7 +439,6 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 		...["threads", "posts", "forums"].map((resource) => invalidateAdminEntityCache(env, resource)),
 		invalidateThreadReading(env, [id], { posts: true }),
 		invalidateThreadListForForums(env, [oldForumId, targetForumId]),
-		bumpForumSummaryGen(env),
 		invalidateRecommendedCache(env, oldForumId),
 		invalidateRecommendedCache(env, targetForumId),
 	];
@@ -1282,7 +1279,6 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 		invalidateAdminEntityCache(env, "users"),
 		invalidateThreadReading(env, result.affectedThreadIds, { posts: true }),
 		invalidateThreadListForForums(env, result.affectedForumIds),
-		bumpForumSummaryGen(env),
 		...result.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 	];
 	if (result.affectedThreadIds.length > 0) tail.push(invalidateAdminEntityCache(env, "threads"));

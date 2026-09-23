@@ -1,3 +1,4 @@
+import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
 import { proxyRoute } from "@/lib/forum-route-proxy";
 
 /**
@@ -8,5 +9,9 @@ export const DELETE = proxyRoute<{ id: string }>({
 	method: "DELETE",
 	path: ({ id }) => `/api/v1/me/threads/${id}`,
 	body: "empty",
+	transform: (result) => {
+		invalidateDisplayAfterWrite({ forumSummaries: true, threadCounts: true, siteStats: true });
+		return result;
+	},
 	debugTag: "me/threads/[id]/route",
 });

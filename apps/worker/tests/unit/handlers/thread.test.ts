@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create, getById, list } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
-import * as threadViews from "../../../src/lib/thread-views";
 import {
 	createJwtForRole,
 	createMockDb,
@@ -93,6 +92,7 @@ describe("thread handlers", () => {
 		});
 
 		it("keeps global announcements above category/forum pins and keyset pages roundtrip", async () => {
+			f.sqlite.exec("UPDATE forums SET visibility = 'public' WHERE id = 2");
 			f.thread(1, { forum_id: 2, sticky: 2, last_post_at: 1 });
 			f.thread(2, { sticky: 3, last_post_at: 9 });
 			f.thread(3, { sticky: 1, last_post_at: 10 });
@@ -191,27 +191,18 @@ describe("thread handlers", () => {
 			},
 		);
 
-		it("one authorized normal fetch records exactly one logical view", async () => {
-			const recordView = vi
-				.spyOn(threadViews, "scheduleThreadViewIncrement")
-				.mockImplementation(() => undefined);
-			f.thread(1);
-			expect((await readDetail()).status).toBe(200);
-			expect(recordView).toHaveBeenCalledExactlyOnceWith(f.env, f.ctx, 1);
-		});
-
-		it.each([
-			{ "X-Ellie-Read-Purpose": "metadata" },
-			{ "X-Ellie-Read-Purpose": "prefetch" },
-			{ "Sec-Purpose": "prefetch;prerender" },
-			{ Purpose: "prefetch" },
-		])("metadata and prefetch do not record views: %j", async (headers) => {
-			const recordView = vi
-				.spyOn(threadViews, "scheduleThreadViewIncrement")
-				.mockImplementation(() => undefined);
-			f.thread(1);
-			expect((await readDetail(1, headers)).status).toBe(200);
-			expect(recordView).not.toHaveBeenCalled();
+		it("authorized direct reads never write views", async () => {
+			f.thread(1, { views: 42 });
+			for (const headers of [
+				undefined,
+				{ "X-Ellie-Read-Purpose": "metadata" },
+				{ Purpose: "prefetch" },
+			]) {
+				const response = await readDetail(1, headers);
+				expect(response.status).toBe(200);
+				expect((await response.json()).data.views).toBe(42);
+			}
+			expect(f.calls.filter((call) => call.mode === "run")).toEqual([]);
 		});
 	});
 	describe("create", () => {

@@ -209,7 +209,7 @@ function checkReactCacheBoundary(rel: string, stripped: string): Violation[] {
 }
 
 function checkTtlBoundary(rel: string, stripped: string): Violation[] {
-	if (rel === TTL_CACHE_FILE) return [];
+	if (rel === TTL_CACHE_FILE || rel === "lib/memory-runtime.ts") return [];
 	const out: Violation[] = [];
 	for (const ident of TTL_IDENTIFIERS) {
 		const lines = findIdentifierLines(stripped, ident);

@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 describe("reusable reading loaders", () => {
-	it("splits stable entities from SHORT stats and does no hot content SELECTs", async () => {
+	it("keeps stable entities cached while reading current stats in one D1 batch", async () => {
 		const cold = await getThreadRows(f.env, undefined, [1]);
 		expect(cold.get(1)).toMatchObject({ subject: "Thread 1", replies: 2, views: 10 });
 		expect(f.calls).toHaveLength(2);
@@ -47,9 +47,13 @@ describe("reusable reading loaders", () => {
 		vi.setSystemTime(Date.now() + 59_999);
 		expect((await getThreadRows(f.env, undefined, [1])).get(1)).toMatchObject({
 			subject: "Thread 1",
-			replies: 2,
+			replies: 3,
+			views: 20,
 		});
-		expect(f.calls).toHaveLength(0);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).toContain("t.replies, t.views");
+		expect(f.calls[0].sql).not.toContain("t.subject");
+		f.calls.length = 0;
 		vi.setSystemTime(Date.now() + 1);
 		expect((await getThreadRows(f.env, undefined, [1])).get(1)).toMatchObject({
 			subject: "Thread 1",
@@ -61,6 +65,7 @@ describe("reusable reading loaders", () => {
 		expect((await getThreadRows(f.env, undefined, [1])).get(1)?.subject).toBe("Edited");
 		expect(f.snapshots("thread:entity")[0].tier).toBe("MEDIUM");
 		expect(f.snapshots("thread:entity")[0].data).not.toHaveProperty("replies");
+		expect(f.snapshots("thread:stats")).toEqual([]);
 	});
 
 	it.each([
@@ -399,11 +404,7 @@ describe("reusable reading loaders", () => {
 	it("rebuilds every family from validated params without cache I/O or side effects", async () => {
 		const descriptors: CacheDescriptor[] = [
 			{ family: "thread:list", scope: "internal", params: { kind: "announcements" } },
-			...["thread:entity", "thread:stats"].map((family) => ({
-				family,
-				scope: "internal",
-				params: { threadId: 1 },
-			})),
+			{ family: "thread:entity", scope: "internal", params: { threadId: 1 } },
 			...["post:entity", "post:attachments"].map((family) => ({
 				family,
 				scope: "internal",
@@ -437,6 +438,7 @@ describe("reusable reading loaders", () => {
 			},
 			{ family: "post:entity", scope: "internal", params: { postId: 1, credential: "secret" } },
 			{ family: "unknown", scope: "internal", params: { postId: 1 } },
+			{ family: "thread:stats", scope: "internal", params: { threadId: 1 } },
 		])
 			await expect(rebuildThreadCache(f.env, undefined, descriptor)).rejects.toThrow();
 		expect(f.calls).toHaveLength(0);

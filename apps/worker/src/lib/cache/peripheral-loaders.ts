@@ -2,7 +2,6 @@ import type { CacheDescriptor } from "@ellie/types";
 import type { Env } from "../env";
 import { fetchAllSettingsFromDb, isValidSettingsMap } from "../settings";
 import { isUserMiniProfile, loadUserMiniProfilesFromDb, userMiniCacheKey } from "../user-cache";
-import { isPublicStats, loadPublicStats } from "./public-stats-read";
 
 /** Small static loaders shared by live reads and management; no request identity or effects. */
 function validatedKey(descriptor: CacheDescriptor): string {
@@ -17,7 +16,7 @@ function validatedKey(descriptor: CacheDescriptor): string {
 			throw new TypeError("Invalid mini profile descriptor");
 		return userMiniCacheKey(Number(params.id));
 	}
-	if (Object.keys(params).length !== 0 || (family !== "settings:all" && family !== "public-stats"))
+	if (Object.keys(params).length !== 0 || family !== "settings:all")
 		throw new TypeError("Invalid peripheral cache descriptor");
 	return family;
 }
@@ -31,7 +30,6 @@ export function isPeripheralCacheData(descriptor: CacheDescriptor, value: unknow
 		return false;
 	}
 	if (descriptor.family === "settings:all") return isValidSettingsMap(value);
-	if (descriptor.family === "public-stats") return isPublicStats(value);
 	return value === null || (isUserMiniProfile(value) && value.id === descriptor.params.id);
 }
 export async function rebuildPeripheralCache(
@@ -41,7 +39,6 @@ export async function rebuildPeripheralCache(
 ): Promise<unknown> {
 	await peripheralCacheKey(env, descriptor);
 	if (descriptor.family === "settings:all") return fetchAllSettingsFromDb(env);
-	if (descriptor.family === "public-stats") return loadPublicStats(env);
 	return (
 		(await loadUserMiniProfilesFromDb(env, [Number(descriptor.params.id)])).get(
 			Number(descriptor.params.id),

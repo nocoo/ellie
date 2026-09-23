@@ -19,7 +19,7 @@
  *     call retries.
  *   - `clear(key?)` empties one entry (or all entries when called with no
  *     key / `undefined`). Any in-flight load that resolves AFTER `clear`
- *     is invalidated by a per-key generation token: its result is
+ *     is invalidated by removing its flight identity: its result is
  *     returned to existing awaiters but is NOT written back into the
  *     cache, so the next `get()` will re-load.
  *   - The "no key" ergonomics for caches with a single value: callers can
@@ -74,21 +74,7 @@ export function createTtlCache<T, K = void>(opts: TtlCacheOptions<T, K>): TtlCac
 	const { expirationMs, load } = opts;
 	const now = opts.now ?? Date.now;
 	const entries = new Map<string, Entry<T>>();
-	// In-flight loads tracked by a per-call flight ID so we can detect
-	// "this flight was superseded by a `clear`" without comparing Promise
-	// references (which would be a self-reference at construction time).
-	let nextFlightId = 0;
-	const inFlight = new Map<string, { id: number; promise: Promise<T> }>();
-	// Per-key generation token. Incremented on every `clear` (single key
-	// or full clear). An in-flight load captures the token at start; if
-	// the token has changed by resolve time, its result is returned to
-	// the awaiters but is NOT written into `entries` — the cache was
-	// invalidated mid-flight.
-	const generations = new Map<string, number>();
-
-	function bumpGeneration(k: string): void {
-		generations.set(k, (generations.get(k) ?? 0) + 1);
-	}
+	const inFlight = new Map<string, { id: symbol; promise: Promise<T> }>();
 
 	return {
 		get(key?: K, callOpts?: { signal?: AbortSignal }): Promise<T> {
@@ -100,12 +86,11 @@ export function createTtlCache<T, K = void>(opts: TtlCacheOptions<T, K>): TtlCac
 			const flight = inFlight.get(k);
 			if (flight) return flight.promise;
 
-			const generationAtStart = generations.get(k) ?? 0;
-			const flightId = ++nextFlightId;
+			const flightId = Symbol();
 			const promise = (async () => {
 				try {
 					const value = await load(key, callOpts);
-					if ((generations.get(k) ?? 0) === generationAtStart) {
+					if (inFlight.get(k)?.id === flightId) {
 						entries.set(k, { value, expiresAt: now() + expirationMs });
 					}
 					return value;
@@ -125,15 +110,11 @@ export function createTtlCache<T, K = void>(opts: TtlCacheOptions<T, K>): TtlCac
 		},
 		clear(key?: K): void {
 			if (key === undefined) {
-				for (const k of new Set([...entries.keys(), ...inFlight.keys()])) {
-					bumpGeneration(k);
-				}
 				entries.clear();
 				inFlight.clear();
 				return;
 			}
 			const k = normalizeKey<K>(key);
-			bumpGeneration(k);
 			entries.delete(k);
 			inFlight.delete(k);
 		},

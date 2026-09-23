@@ -1,11 +1,20 @@
 // Thread handlers for Cloudflare Worker
 
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
-import { canViewForumVisibility, decodeGenericCursor, type Thread } from "@ellie/types";
 import {
+	canViewForumVisibility,
+	decodeGenericCursor,
+	parseIncludeTotal,
+	parseThreadCountQuery,
+	type Thread,
+} from "@ellie/types";
+import {
+	countLocalThreads,
 	getThreadListPage,
 	isThreadCursor,
+	readGlobalAnnouncements,
 	type ThreadCursor,
+	type ThreadListMember,
 } from "../lib/cache/thread-list-read";
 import {
 	getThreadRows,
@@ -26,7 +35,6 @@ import { getQueryParam } from "../lib/queryString";
 import { jsonListResponse, jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { incrementStatsOnThreadCreate } from "../lib/stats-counter";
-import { scheduleThreadViewIncrement } from "../lib/thread-views";
 import { coerceTypeIdInput, resolveAndValidateTypeId } from "../lib/threadType";
 import { getUserProfiles } from "../lib/user-cache";
 import {
@@ -162,8 +170,18 @@ interface D1ThreadRowLike {
 	is_author_first_thread?: number;
 }
 
-/** GET /api/v1/threads - All legal keyset/offset pages share reusable entities. */
-export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+function openThreadList(request: Request):
+	| Response
+	| {
+			origin: string | undefined;
+			rawUrl: string;
+			forumId: number;
+			cursorStr: string | null;
+			pageParam: string | null;
+			limit: number;
+			page: number;
+			typeInput: ReturnType<typeof coerceTypeIdInput>;
+	  } {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const rawUrl = request.url;
 	const forumIdParam = getQueryParam(rawUrl, "forumId");
@@ -189,6 +207,14 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	if (typeInput.kind === "ok" && !Number.isSafeInteger(typeInput.value)) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid typeId" }, origin);
 	}
+	return { origin, rawUrl, forumId, cursorStr, pageParam, limit, page, typeInput };
+}
+
+/** GET /api/v1/threads - All legal keyset/offset pages share reusable entities. */
+export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+	const opened = openThreadList(request);
+	if (opened instanceof Response) return opened;
+	const { origin, rawUrl, forumId, cursorStr, pageParam, limit, page, typeInput } = opened;
 
 	// The gate is current even when forum or membership snapshots are warm.
 	const [user, forum] = await Promise.all([
@@ -212,38 +238,43 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 					enabled: forum.thread_types_enabled === 1,
 				})
 			: ({ kind: "noTypeRequested" } as const);
+	const includeParsed = parseIncludeTotal(getQueryParam(rawUrl, "includeTotal"));
+	if (!includeParsed.ok) {
+		return errorResponse("INVALID_REQUEST", 400, { message: includeParsed.message }, origin);
+	}
+	const wantsOffset = Boolean(pageParam) && !cursorStr;
+	if (
+		type.kind === "invalid" &&
+		wantsOffset &&
+		!includeParsed.value &&
+		(type.reason === "notFound" || type.reason === "forumDisabled")
+	) {
+		return jsonResponse([], origin, { page, limit, hasNext: false });
+	}
 	if (type.kind === "invalid")
 		return errorResponse("INVALID_REQUEST", 400, { message: type.message }, origin);
 	const typeId = type.kind === "ok" ? type.row.id : null;
 	const cursor = cursorStr ? decodeGenericCursor<ThreadCursor>(cursorStr, isThreadCursor) : null;
-	const includeTotal = !!pageParam && !cursorStr;
+	const includeTotal = wantsOffset && includeParsed.value;
 	const query = { forumId, limit, page, cursor, typeId, includeTotal };
-	let pageData = await getThreadListPage(env, ctx, query);
+	const eligible = typeId === null ? await eligibleGlobalAnnouncements(env, ctx, user) : undefined;
+	let pageData = await getThreadListPage(env, ctx, query, false, eligible);
+	const membership = pageData.window ?? pageData.items;
 	let access = await loadThreadAccessBatch(
 		env,
-		pageData.items.map((item) => item.id),
+		membership.map((item) => item.id),
 	);
-	const allowed = (id: number): boolean => {
-		const row = access.get(id);
-		return (
-			!!row &&
-			row.sticky >= 0 &&
-			threadAccessStatus(row, user) === null &&
-			(typeId === null
-				? row.forum_id === forumId || row.sticky === STICKY_GLOBAL
-				: row.forum_id === forumId && row.type_id === typeId)
-		);
-	};
-	if (pageData.items.some((item) => !allowed(item.id))) {
-		// A deleted/hidden/moved candidate cannot reveal a title, author or
-		// stale restricted count. Re-select once, without a client bypass flag.
-		pageData = await getThreadListPage(env, ctx, query, true);
+	const allowed = (id: number) => memberVisible(access.get(id), user, forumId, typeId);
+	if (membership.some((item) => !allowed(item.id))) {
+		pageData = await getThreadListPage(env, ctx, query, true, eligible);
 		access = await loadThreadAccessBatch(
 			env,
-			pageData.items.map((item) => item.id),
+			(pageData.window ?? pageData.items).map((item) => item.id),
 		);
 	}
-	const ids = pageData.items.filter((item) => allowed(item.id)).map((item) => item.id);
+	const visible = (pageData.window ?? pageData.items).filter((item) => allowed(item.id));
+	const ids = visible.slice(0, limit).map((item) => item.id);
+	const hasNext = visible.length > limit;
 	const rows = await getThreadRows(env, ctx, ids);
 	const projected = ids.flatMap((id) => {
 		const row = rows.get(id);
@@ -259,7 +290,90 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		if (pageData.total === null) throw new Error("Missing page total");
 		return paginatedResponse(items, pageData.total, page, limit, origin);
 	}
+	if (wantsOffset) return jsonResponse(items, origin, { page, limit, hasNext });
 	return jsonListResponse(items, origin, pageData.nextCursor);
+}
+
+/** GET /api/v1/threads/count — same composition as the offset page total. */
+export async function count(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const parsed = parseThreadCountQuery(new URL(request.url).searchParams);
+	if (!parsed.ok) return errorResponse("INVALID_REQUEST", 400, { message: parsed.message }, origin);
+	const { forumId } = parsed.value;
+	const [user, forum] = await Promise.all([
+		optionalAuthVerified(request, env),
+		env.DB.prepare("SELECT status, visibility, thread_types_enabled FROM forums WHERE id = ?")
+			.bind(forumId)
+			.first<{ status: number; visibility: string; thread_types_enabled: number }>(),
+	]);
+	if (!isForumActive(forum)) return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	if (!canViewForumVisibility(forum.visibility as ForumVisibility, buildVisibilityContext(user))) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this forum" },
+			origin,
+		);
+	}
+	let typeId: number | null = null;
+	if (parsed.value.typeId !== undefined) {
+		const type = await resolveAndValidateTypeId(env, forumId, parsed.value.typeId, {
+			enabled: forum.thread_types_enabled === 1,
+		});
+		if (type.kind === "invalid") {
+			if (type.reason === "notFound" || type.reason === "forumDisabled") {
+				return jsonResponse({ total: 0 }, origin);
+			}
+			return errorResponse("INVALID_REQUEST", 400, { message: type.message }, origin);
+		}
+		typeId = type.kind === "ok" ? type.row.id : null;
+	}
+	const local = await countLocalThreads(env, forumId, typeId);
+	const globals = typeId === null ? (await eligibleGlobalAnnouncements(env, _ctx, user)).length : 0;
+	return jsonResponse({ total: local + globals }, origin);
+}
+
+function memberVisible(
+	row:
+		| (Awaited<ReturnType<typeof loadThreadAccessBatch>> extends Map<number, infer T> ? T : never)
+		| undefined,
+	user: Awaited<ReturnType<typeof optionalAuthVerified>>,
+	forumId: number,
+	typeId: number | null,
+): boolean {
+	if (!row || row.sticky < 0 || threadAccessStatus(row, user) !== null) return false;
+	if (
+		row.sticky === STICKY_GLOBAL &&
+		!canViewForumVisibility(row.visibility as ForumVisibility, buildVisibilityContext(user))
+	) {
+		return false;
+	}
+	return typeId === null
+		? row.forum_id === forumId || row.sticky === STICKY_GLOBAL
+		: row.forum_id === forumId && row.type_id === typeId;
+}
+
+async function eligibleGlobalAnnouncements(
+	env: Env,
+	ctx: ExecutionContext,
+	user: Awaited<ReturnType<typeof optionalAuthVerified>>,
+): Promise<ThreadListMember[]> {
+	const snapshot = await readGlobalAnnouncements(env, ctx);
+	if (!snapshot.items.length) return [];
+	const access = await loadThreadAccessBatch(
+		env,
+		snapshot.items.map((item) => item.id),
+	);
+	const viewer = buildVisibilityContext(user);
+	return snapshot.items.filter((item) => {
+		const row = access.get(item.id);
+		return (
+			!!row &&
+			row.status === 1 &&
+			row.sticky === STICKY_GLOBAL &&
+			canViewForumVisibility(row.visibility as ForumVisibility, viewer)
+		);
+	});
 }
 
 /** Helper to enrich threads with user cache (only used when KV cache is enabled) */
@@ -307,20 +421,6 @@ export async function getById(
 	let thread = toThread(projectCurrentThread(row, access), toViewer(user));
 	if (access.sticky === STICKY_MODERATED) thread.moderationStatus = "pending_review";
 	thread = (await enrichThreadsWithUserCacheFromList([thread], env, ctx))[0] ?? thread;
-	const purpose = request.headers.get("X-Ellie-Read-Purpose");
-	const prefetch = (
-		request.headers.get("Sec-Purpose") ??
-		request.headers.get("Purpose") ??
-		""
-	).includes("prefetch");
-	if (
-		access.sticky !== STICKY_MODERATED &&
-		purpose !== "metadata" &&
-		purpose !== "prefetch" &&
-		!prefetch
-	) {
-		scheduleThreadViewIncrement(env, ctx, id);
-	}
 	return jsonResponse(thread, origin);
 }
 

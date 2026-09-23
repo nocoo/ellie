@@ -16,7 +16,7 @@ import {
 	type HeaderUserInfo,
 } from "@/viewmodels/forum/header";
 import { fetchPublicSettings, getBool, getStr } from "@/viewmodels/forum/settings.server";
-import type { SiteStats } from "@/viewmodels/forum/stats.server";
+import { loadSiteStats } from "@/viewmodels/forum/stats.server";
 
 export const dynamic = "force-dynamic";
 
@@ -98,10 +98,10 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 	);
 }
 
-/** Load site-wide stats from Worker API. Returns defaults on failure. */
+/** Load bounded site statistics; return display defaults on failure. */
 async function loadStats(): Promise<HeaderStats> {
 	try {
-		const { data } = await forumApi.get<SiteStats>("/api/v1/stats");
+		const data = await loadSiteStats();
 		return {
 			todayPosts: data.todayPosts,
 			yesterdayPosts: data.yesterdayPosts,

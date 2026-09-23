@@ -164,7 +164,7 @@ describe("admin/statsCalibrate", () => {
 	});
 
 	describe("POST /api/admin/stats/calibrate action=apply_real", () => {
-		it("applies real COUNT values to settings and invalidates public-stats cache via cacheDelete", async () => {
+		it("applies real COUNT values to settings without touching retired public-stats cache", async () => {
 			await f.env.KV.put("public-stats", JSON.stringify({ cached: true }));
 			f.post(20, { created_at: 100 });
 
@@ -192,13 +192,12 @@ describe("admin/statsCalibrate", () => {
 			expect(posts.value).toBe("1");
 			expect(members.value).toBe("5");
 
-			// public-stats cache deleted
-			expect(await f.env.KV.get("public-stats")).toBeNull();
+			expect(f.env.KV.delete).not.toHaveBeenCalledWith("public-stats");
 		});
 	});
 
 	describe("POST /api/admin/stats/calibrate action=apply_offsets", () => {
-		it("applies offset adjustments to counters and invalidates public-stats cache", async () => {
+		it("applies offset adjustments to counters without touching retired public-stats cache", async () => {
 			await f.env.KV.put("public-stats", JSON.stringify({ cached: true }));
 			f.sqlite.prepare("UPDATE settings SET value = '10' WHERE key = 'stats.total_threads'").run();
 			f.sqlite.prepare("UPDATE settings SET value = '20' WHERE key = 'stats.total_posts'").run();
@@ -226,7 +225,7 @@ describe("admin/statsCalibrate", () => {
 			expect(Number(threads.value)).toBe(15);
 			expect(Number(posts.value)).toBe(10);
 
-			expect(await f.env.KV.get("public-stats")).toBeNull();
+			expect(f.env.KV.delete).not.toHaveBeenCalledWith("public-stats");
 		});
 
 		it("rejects invalid offsets", async () => {

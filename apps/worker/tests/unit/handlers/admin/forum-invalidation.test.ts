@@ -15,7 +15,6 @@ vi.mock("../../../../src/lib/cache/invalidate", async (importOriginal) => {
 		invalidateForumStructureV2: vi.fn(async () => {}),
 		invalidateForumReorderV2: vi.fn(async () => {}),
 		invalidateForumUpdateV2: vi.fn(async () => {}),
-		invalidateForumSummaryV2: vi.fn(async () => {}),
 	};
 });
 

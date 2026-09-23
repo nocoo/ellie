@@ -60,14 +60,6 @@ export function forumTreeKey(bucket: VisibilityBucket, gen: string): string {
 	return `forum:tree:${SCHEMA}:${bucket}:g${gen}`;
 }
 
-export function forumSummaryKey(bucket: VisibilityBucket, gen: string): string {
-	return `forum:summary:${SCHEMA}:${bucket}:g${gen}`;
-}
-
-export function forumMetaKey(forumId: number, bucket: VisibilityBucket, gen: string): string {
-	return `forum:meta:${SCHEMA}:${forumId}:${bucket}:g${gen}`;
-}
-
 // ─── Thread domain ─────────────────────────────────────────────────
 
 /**
@@ -150,10 +142,6 @@ export function settingsAllKey(): string {
 	return `settings:all:${SCHEMA}`;
 }
 
-export function statsPublicKey(): string {
-	return `stats:public:${SCHEMA}`;
-}
-
 // ─── Generation key inventory ──────────────────────────────────────
 //
 // Generation keys live in their own short namespace. They store an opaque
@@ -161,10 +149,6 @@ export function statsPublicKey(): string {
 
 export function forumTreeGenKey(): string {
 	return "forum:tree:gen";
-}
-
-export function forumSummaryGenKey(): string {
-	return "forum:summary:gen";
 }
 
 export function threadListGenKey(forumId: number): string {

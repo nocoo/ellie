@@ -53,9 +53,8 @@ DOVE_WEBHOOK_TOKEN=
 # leaking anonymous calls.
 IP_LOOKUP_API_KEY=
 
-# Shared secret for the P5 analytics page-view ingest endpoint at
-# POST /api/internal/analytics/ingest. The web proxy forwards this as
-# X-Ingest-Key. When unset the worker returns 503 INGEST_NOT_CONFIGURED
-# and the web proxy silently drops samples (ingest is opportunistic and
-# never blocks navigation).
-ANALYTICS_INGEST_KEY=
+
+# Dedicated writer for POST /api/internal/statistics/batch.
+# Must match apps/web WEB_STATISTICS_WRITE_KEY. Key A/B cannot authorize it.
+# Set in production with: wrangler secret put WEB_STATISTICS_WRITE_KEY
+WEB_STATISTICS_WRITE_KEY=

@@ -17,6 +17,7 @@ import {
 	type UserRole,
 	UserStatus,
 } from "@ellie/types";
+import { headers } from "next/headers";
 import { ApiError } from "@/lib/api-error";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
@@ -25,6 +26,7 @@ import {
 	getCachedForumAncestors,
 	getCachedPostsPerPage,
 	getCachedThreadById,
+	recordThreadView,
 } from "@/lib/forum-cache";
 import type { ForumContext } from "@/lib/forum-data";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
@@ -57,6 +59,22 @@ export interface ThreadDetailPageData {
 	canEditSubject: boolean;
 	/** Current user info (for permission checks in client components) */
 	currentUser: User | null;
+}
+
+/**
+ * Identifiable prefetches must not count (doc/29): the router prefetch
+ * header plus standard purpose / sec-purpose hints. A full page request
+ * counts exactly once via the request-scoped `recordThreadView`.
+ */
+async function isPrefetchRender(): Promise<boolean> {
+	const headerList = await headers();
+	if (headerList.get("x-ellie-prefetch") === "1") return true;
+	return [headerList.get("purpose"), headerList.get("sec-purpose")].some((purpose) =>
+		purpose
+			?.toLowerCase()
+			.split(/[\s,;]+/)
+			.includes("prefetch"),
+	);
 }
 
 export async function loadThreadDetail(params: {
@@ -249,13 +267,24 @@ export async function loadThreadDetail(params: {
 		homeLabel,
 	);
 
+	// Successful page boundary (doc/29): thread, posts, context, attachments
+	// and authors all resolved. Count exactly one view per request — the
+	// runtime buffers the increment and the UI shows this request's returned
+	// base + 1. Identifiable prefetches and pending-review reads (sticky < 0)
+	// do not count.
+	const counted = thread.sticky >= 0 && !(await isPrefetchRender());
+	if (counted) {
+		recordThreadView(thread.id);
+	}
+	const displayThread = counted ? { ...thread, views: thread.views + 1 } : thread;
+
 	return {
-		thread,
+		thread: displayThread,
 		forum,
 		posts,
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
-		total: thread.replies,
+		total: displayThread.replies,
 		breadcrumbs,
 		canModerateForum,
 		canManageThread: canManage,

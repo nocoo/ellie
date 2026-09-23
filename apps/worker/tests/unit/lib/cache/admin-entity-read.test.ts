@@ -344,8 +344,8 @@ describe("lib/cache/admin-entity-read — getAdminEntities batch queries & limit
 	});
 });
 
-describe("lib/cache/admin-entity-read — user detail handler with online overlay", () => {
-	it("admin getById reuses cached user entity while keeping online overlay fresh", async () => {
+describe("lib/cache/admin-entity-read — user detail handler", () => {
+	it("admin getById reuses cached user entities without retired online reads", async () => {
 		const req = createAdminRequest("GET", "/api/admin/users/10");
 
 		// Run 1: cold load without online activity
@@ -363,15 +363,16 @@ describe("lib/cache/admin-entity-read — user detail handler with online overla
 			JSON.stringify({ ip: "198.51.100.1", page: "/forum", ts: 1_700_000_000 - 30 }),
 		);
 
-		// Run 2: hot user cache hit, but online overlay is dynamically read fresh
+		// Retired snapshots must not affect a hot entity read.
 		const res2 = await getUserById(req, f.env, f.ctx);
 		expect(res2.status).toBe(200);
 		const body2 = (await res2.json()) as {
 			data: { id: number; onlineIp?: string; onlinePage?: string };
 		};
 		expect(body2.data.id).toBe(10);
-		expect(body2.data.onlineIp).toBe("198.51.100.1");
-		expect(body2.data.onlinePage).toBe("/forum");
+		expect(body2.data.onlineIp).toBeUndefined();
+		expect(body2.data.onlinePage).toBeUndefined();
+		expect(vi.mocked(f.env.KV.get).mock.calls.some(([key]) => key === "online:10")).toBe(false);
 
 		// User row was NOT re-queried from D1
 		const userQueries = f.calls.slice(callsBefore).filter((c) => c.sql.includes("FROM users"));

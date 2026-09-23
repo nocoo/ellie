@@ -83,19 +83,22 @@ those to the real names below (all gitignored) and fill in values.
 | `EMAIL_VERIFY_HMAC_KEY` | optional | HMAC for 6-digit email codes (docs/17). Without it `/auth/email/*` → 503 |
 | `DOVE_WEBHOOK_TOKEN` | optional | Dove mail relay bearer. Non-secret Dove config lives in `wrangler.toml [vars]` |
 | `IP_LOOKUP_API_KEY` | optional | Upstream IP-lookup key for admin panel. Without it → 503 |
-| `ANALYTICS_INGEST_KEY` | optional | Shared with `apps/web/.env.local`. P5 page-view ingest bridge |
+| `WEB_STATISTICS_WRITE_KEY` | for statistics writes | Shared with Web only; independent statistics batch secret |
 
 ### Web (`apps/web/.env.local`)
 
 `AUTH_SECRET`, `AUTH_URL`, `WORKER_API_URL`, `FORUM_API_KEY`,
 `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_CAP_API_ENDPOINT`,
-`ANALYTICS_INGEST_KEY` (optional). See `.env.local.example` for details.
+`WEB_STATISTICS_WRITE_KEY`, `MEMORY_CACHE_ADMIN_KEY`. The first matches Worker;
+the second matches Admin for process management. Missing keys disable their
+respective internal operations. See `.env.local.example` for details.
 
 ### Admin (`apps/admin/.env.local`)
 
 `AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`
 (admin is Google-only), `ADMIN_EMAILS` (allowlist), `WORKER_API_URL`,
-`ADMIN_API_KEY`. See `.env.local.example` for details.
+`ADMIN_API_KEY`, `MEMORY_CACHE_ADMIN_KEY`, `WEB_MEMORY_ADMIN_URL` (the configured
+internal Web origin). See `.env.local.example` for details.
 
 ### Key A vs Key B
 

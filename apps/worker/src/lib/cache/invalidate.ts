@@ -15,7 +15,6 @@ import { bumpGen } from "./epoch";
 import {
 	dataCacheKey,
 	digestGenKey,
-	forumSummaryGenKey,
 	forumTreeGenKey,
 	pmUserGenKey,
 	postAttachmentsGenKey,
@@ -107,10 +106,6 @@ export async function bumpForumTreeGen(env: Env): Promise<string> {
 	return bumpResource(env, forumTreeGenKey(), "forum:tree:v2");
 }
 
-export async function bumpForumSummaryGen(env: Env): Promise<string> {
-	return bumpResource(env, forumSummaryGenKey(), "forum:summary:v2");
-}
-
 export async function bumpThreadListGen(env: Env, forumId: number): Promise<string> {
 	return bumpResource(env, threadListGenKey(forumId), "thread:list");
 }
@@ -182,42 +177,25 @@ export async function bumpDigestGen(env: Env): Promise<string> {
 // write categories. Handlers call a single helper instead of re-listing
 // the gen keys, so the matrix is enforced in code rather than per-call.
 
-/**
- * Bump only `forum:summary:gen`. Use when a mutation changes counts /
- * last-post / today-thread metadata for forums but does not have a
- * precise forumId in scope (and so cannot bump a per-forum thread-list
- * gen). For callsites that DO know the forumId and want thread-list
- * fan-out, use `invalidateForumVolatileV2` instead.
- */
-export async function invalidateForumSummaryV2(env: Env): Promise<void> {
-	await bumpForumSummaryGen(env);
-}
-
-/**
- * Bump everything that depends on the forum-summary aggregates after a
- * confirmed edit/delete in `forumId`: `forum:summary:gen` plus the
- * per-forum `thread:list:gen`. Ordinary create/reply uses natural expiry
- * instead (docs/20 §5).
- */
+/** Bump the per-forum thread-list generation after a confirmed edit or delete. */
 export async function invalidateForumVolatileV2(env: Env, forumId: number): Promise<void> {
-	await Promise.all([bumpForumSummaryGen(env), bumpThreadListGen(env, forumId)]);
+	await bumpThreadListGen(env, forumId);
 }
 
 /**
  * Bump every gen affected by a forum create / delete / merge: the
- * structural tree, the per-bucket summary aggregates, AND the digest
+ * structural tree and the digest
  * gen because the set of forums visible to digest filters changes when
  * a forum is added or removed. For `update`, callers must use
  * `invalidateForumUpdateV2` which decides per-field whether digest is
- * affected. For `reorder`, use `invalidateForumReorderV2` (tree +
- * summary, NOT digest).
+ * affected. For `reorder`, use `invalidateForumReorderV2` (tree, NOT digest).
  */
 export async function invalidateForumStructureV2(env: Env): Promise<void> {
-	await Promise.all([bumpForumTreeGen(env), bumpForumSummaryGen(env), bumpDigestGen(env)]);
+	await Promise.all([bumpForumTreeGen(env), bumpDigestGen(env)]);
 }
 
 /**
- * Bump tree + summary, and conditionally digest, for a forum update.
+ * Bump tree, and conditionally digest, for a forum update.
  * Digest gen is bumped only when one of the digest-filter-affecting
  * fields changed: `name`, `status`, `visibility`, `parent_id`, `type`.
  * Other field changes (description, icon, moderators, display_order…)
@@ -228,7 +206,7 @@ export async function invalidateForumUpdateV2(
 	env: Env,
 	changes: { affectsDigest: boolean },
 ): Promise<void> {
-	const ops: Promise<unknown>[] = [bumpForumTreeGen(env), bumpForumSummaryGen(env)];
+	const ops: Promise<unknown>[] = [bumpForumTreeGen(env)];
 	if (changes.affectsDigest) ops.push(bumpDigestGen(env));
 	await Promise.all(ops);
 }
@@ -264,11 +242,11 @@ export function affectsForumDigest(data: Record<string, unknown>): boolean {
 }
 
 /**
- * Bump tree + summary for a `display_order` reorder. Digest filters are
+ * Bump tree for a `display_order` reorder. Digest filters are
  * untouched by reorder so we deliberately do NOT bump digest gen.
  */
 export async function invalidateForumReorderV2(env: Env): Promise<void> {
-	await Promise.all([bumpForumTreeGen(env), bumpForumSummaryGen(env)]);
+	await bumpForumTreeGen(env);
 }
 
 export async function invalidateMessageUsers(env: Env, userIds: readonly number[]): Promise<void> {

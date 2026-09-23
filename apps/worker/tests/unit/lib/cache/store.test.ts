@@ -15,8 +15,8 @@ import {
 import { createMockCtx, makeEnv } from "../../../helpers";
 
 const BASE_NOW = 1_700_000_000_000;
-const threadStatsOpts: CacheGetOrSetOptions<{ id: number }> = {
-	family: "thread:stats",
+const userStatsOpts: CacheGetOrSetOptions<{ id: number }> = {
+	family: "user:stats",
 	tier: "SHORT",
 	scope: "public",
 	params: { id: 1 },
@@ -75,11 +75,11 @@ describe("lib/cache/store — core cache storage contract", () => {
 	describe("bypassesCache", () => {
 		it("checks bypassesCache via !unavailable in key and CACHE_DISABLED_FAMILIES env", () => {
 			const { env } = makeStoreKV();
-			expect(bypassesCache(env, "thread:stats:1:!unavailable", "thread:stats")).toBe(true);
-			expect(bypassesCache(env, "thread:stats:1", "thread:stats")).toBe(false);
+			expect(bypassesCache(env, "user:stats:1:!unavailable", "user:stats")).toBe(true);
+			expect(bypassesCache(env, "user:stats:1", "user:stats")).toBe(false);
 
-			const disabledEnv = makeEnv({ CACHE_DISABLED_FAMILIES: "thread:stats,forum:tree:v2" });
-			expect(bypassesCache(disabledEnv, "thread:stats:1", "thread:stats")).toBe(true);
+			const disabledEnv = makeEnv({ CACHE_DISABLED_FAMILIES: "user:stats,forum:tree:v2" });
+			expect(bypassesCache(disabledEnv, "user:stats:1", "user:stats")).toBe(true);
 			expect(bypassesCache(disabledEnv, "forum:tree:v2:key", "forum:tree:v2")).toBe(true);
 			expect(bypassesCache(disabledEnv, "settings:all", "settings:all")).toBe(false);
 		});
@@ -87,7 +87,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 
 	describe("validateCacheOptions", () => {
 		it("validates registered family, tier matching, valid params and string scope", () => {
-			expect(() => validateCacheOptions(threadStatsOpts)).not.toThrow();
+			expect(() => validateCacheOptions(userStatsOpts)).not.toThrow();
 
 			// Unknown family
 			expect(() =>
@@ -97,10 +97,10 @@ describe("lib/cache/store — core cache storage contract", () => {
 				}),
 			).toThrow("A registered cache family and serializable parameters are required");
 
-			// Tier mismatch (thread:stats is SHORT in registry, passing LONG fails)
+			// Tier mismatch (user:stats is SHORT in registry, passing LONG fails)
 			expect(() =>
 				validateCacheOptions({
-					family: "thread:stats",
+					family: "user:stats",
 					tier: "LONG",
 				}),
 			).toThrow("A registered cache family and serializable parameters are required");
@@ -108,7 +108,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			// Invalid params (non-primitive values)
 			expect(() =>
 				validateCacheOptions({
-					family: "thread:stats",
+					family: "user:stats",
 					tier: "SHORT",
 					params: { obj: { nested: true } as unknown as string },
 				}),
@@ -117,7 +117,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			// Invalid scope (non-string)
 			expect(() =>
 				validateCacheOptions({
-					family: "thread:stats",
+					family: "user:stats",
 					tier: "SHORT",
 					scope: 123 as unknown as string,
 				}),
@@ -126,7 +126,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			// Non-finite expiresAt
 			expect(() =>
 				validateCacheOptions({
-					...threadStatsOpts,
+					...userStatsOpts,
 					expiresAt: Number.NaN,
 				}),
 			).toThrow(RangeError);
@@ -135,9 +135,9 @@ describe("lib/cache/store — core cache storage contract", () => {
 
 	describe("createCacheEnvelope & isNegative downgrade to SHORT", () => {
 		it("creates envelope with correct logical timestamps and schema version", () => {
-			const envelope = createCacheEnvelope({ id: 1 }, threadStatsOpts);
+			const envelope = createCacheEnvelope({ id: 1 }, userStatsOpts);
 			expect(envelope.schemaVersion).toBe(CACHE_SCHEMA_VERSION);
-			expect(envelope.family).toBe("thread:stats");
+			expect(envelope.family).toBe("user:stats");
 			expect(envelope.tier).toBe("SHORT");
 			expect(envelope.loadedAt).toBe(BASE_NOW);
 			expect(envelope.expiresAt).toBe(BASE_NOW + CACHE_TTL_SECONDS.SHORT * 1000);
@@ -146,10 +146,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 
 		it("caps expiresAt by options.expiresAt if earlier than tier TTL", () => {
 			const earlyExpiry = BASE_NOW + 15_000; // 15 seconds < 60 seconds
-			const envelope = createCacheEnvelope(
-				{ id: 1 },
-				{ ...threadStatsOpts, expiresAt: earlyExpiry },
-			);
+			const envelope = createCacheEnvelope({ id: 1 }, { ...userStatsOpts, expiresAt: earlyExpiry });
 			expect(envelope.expiresAt).toBe(earlyExpiry);
 		});
 
@@ -188,13 +185,13 @@ describe("lib/cache/store — core cache storage contract", () => {
 		});
 
 		it("throws when loader returns undefined or fails validator", () => {
-			expect(() => createCacheEnvelope(undefined, threadStatsOpts)).toThrow(TypeError);
+			expect(() => createCacheEnvelope(undefined, userStatsOpts)).toThrow(TypeError);
 
 			expect(() =>
 				createCacheEnvelope(
 					{ id: "not-a-number" as unknown as number },
 					{
-						...threadStatsOpts,
+						...userStatsOpts,
 						validator: (v: unknown): v is { id: number } =>
 							typeof (v as { id: number })?.id === "number",
 					},
@@ -209,7 +206,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			expect(isCacheEnvelope(123)).toBe(false);
 			expect(isCacheEnvelope("string")).toBe(false);
 
-			const valid = createCacheEnvelope({ id: 1 }, threadStatsOpts);
+			const valid = createCacheEnvelope({ id: 1 }, userStatsOpts);
 			expect(isCacheEnvelope(valid)).toBe(true);
 
 			// Wrong schemaVersion
@@ -233,58 +230,56 @@ describe("lib/cache/store — core cache storage contract", () => {
 		});
 
 		it("acceptsCacheValue verifies expiry against current wall time without extending TTL", () => {
-			const envelope = createCacheEnvelope({ id: 1 }, threadStatsOpts);
-			expect(acceptsCacheValue(envelope, threadStatsOpts)).toBe(true);
+			const envelope = createCacheEnvelope({ id: 1 }, userStatsOpts);
+			expect(acceptsCacheValue(envelope, userStatsOpts)).toBe(true);
 
 			// 1ms before expiry
 			vi.setSystemTime(envelope.expiresAt - 1);
-			expect(acceptsCacheValue(envelope, threadStatsOpts)).toBe(true);
+			expect(acceptsCacheValue(envelope, userStatsOpts)).toBe(true);
 
 			// At expiry boundary
 			vi.setSystemTime(envelope.expiresAt);
-			expect(acceptsCacheValue(envelope, threadStatsOpts)).toBe(false);
+			expect(acceptsCacheValue(envelope, userStatsOpts)).toBe(false);
 
 			// After expiry
 			vi.setSystemTime(envelope.expiresAt + 1000);
-			expect(acceptsCacheValue(envelope, threadStatsOpts)).toBe(false);
+			expect(acceptsCacheValue(envelope, userStatsOpts)).toBe(false);
 
 			// Future loadedAt (clock skew)
 			vi.setSystemTime(BASE_NOW - 1000);
-			expect(acceptsCacheValue(envelope, threadStatsOpts)).toBe(false);
+			expect(acceptsCacheValue(envelope, userStatsOpts)).toBe(false);
 		});
 
 		it("acceptsCacheValue rejects mismatched family, scope, params, tier, or validator", () => {
-			const envelope = createCacheEnvelope({ id: 1 }, threadStatsOpts);
+			const envelope = createCacheEnvelope({ id: 1 }, userStatsOpts);
 
 			// Family mismatch
 			expect(
 				acceptsCacheValue(envelope, {
-					...threadStatsOpts,
+					...userStatsOpts,
 					family: "thread:entity" as unknown as string,
 				}),
 			).toBe(false);
 
 			// Scope mismatch
-			expect(acceptsCacheValue(envelope, { ...threadStatsOpts, scope: "admin" })).toBe(false);
+			expect(acceptsCacheValue(envelope, { ...userStatsOpts, scope: "admin" })).toBe(false);
 
 			// Param mismatch (different value or different key)
-			expect(acceptsCacheValue(envelope, { ...threadStatsOpts, params: { id: 2 } })).toBe(false);
-			expect(acceptsCacheValue(envelope, { ...threadStatsOpts, params: { other: 1 } })).toBe(false);
-			expect(acceptsCacheValue(envelope, { ...threadStatsOpts, params: { id: 1, extra: 2 } })).toBe(
+			expect(acceptsCacheValue(envelope, { ...userStatsOpts, params: { id: 2 } })).toBe(false);
+			expect(acceptsCacheValue(envelope, { ...userStatsOpts, params: { other: 1 } })).toBe(false);
+			expect(acceptsCacheValue(envelope, { ...userStatsOpts, params: { id: 1, extra: 2 } })).toBe(
 				false,
 			);
 
 			// Validator failure
-			expect(acceptsCacheValue(envelope, { ...threadStatsOpts, validator: () => false })).toBe(
-				false,
-			);
+			expect(acceptsCacheValue(envelope, { ...userStatsOpts, validator: () => false })).toBe(false);
 		});
 	});
 
 	describe("putCacheEnvelope & metadata tracking", () => {
 		it("writes serialized envelope and precise metadata without changing logical timestamps", async () => {
 			const { env, kv, store, metadataStore, putOptionsStore } = makeStoreKV();
-			const envelope = createCacheEnvelope({ id: 1 }, threadStatsOpts);
+			const envelope = createCacheEnvelope({ id: 1 }, userStatsOpts);
 
 			await putCacheEnvelope(env, "k1", envelope);
 
@@ -299,7 +294,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			const meta = metadataStore.get("k1") as Record<string, unknown>;
 			expect(meta).toMatchObject({
 				schemaVersion: CACHE_SCHEMA_VERSION,
-				family: "thread:stats",
+				family: "user:stats",
 				loadedAt: BASE_NOW,
 				expiresAt: BASE_NOW + CACHE_TTL_SECONDS.SHORT * 1000,
 				tier: "SHORT",
@@ -310,7 +305,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 
 		it("rejects expired envelope or invalid envelope before writing", async () => {
 			const { env, kv } = makeStoreKV();
-			const envelope = createCacheEnvelope({ id: 1 }, threadStatsOpts);
+			const envelope = createCacheEnvelope({ id: 1 }, userStatsOpts);
 
 			// Time travels past expiry
 			vi.setSystemTime(envelope.expiresAt + 1);
@@ -331,7 +326,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			const envelope = createCacheEnvelope(
 				{ big: bigString },
 				{
-					family: "thread:stats",
+					family: "user:stats",
 					tier: "SHORT",
 				},
 			);
@@ -348,31 +343,31 @@ describe("lib/cache/store — core cache storage contract", () => {
 			const key = "k_read";
 
 			// Miss
-			const miss = await cacheRead(env, key, threadStatsOpts);
+			const miss = await cacheRead(env, key, userStatsOpts);
 			expect(miss).toBeNull();
 
 			// Write
-			const written = await cacheWrite(env, undefined, key, { id: 42 }, threadStatsOpts);
+			const written = await cacheWrite(env, undefined, key, { id: 42 }, userStatsOpts);
 			expect(written).toBe(true);
 
 			// Hit
-			const hit = await cacheRead(env, key, threadStatsOpts);
+			const hit = await cacheRead(env, key, userStatsOpts);
 			expect(hit).toEqual({ id: 42 });
 
 			// Expired hit returns null
 			vi.setSystemTime(BASE_NOW + 61_000);
-			const expired = await cacheRead(env, key, threadStatsOpts);
+			const expired = await cacheRead(env, key, userStatsOpts);
 			expect(expired).toBeNull();
 		});
 
 		it("cacheWrite bypasses when family is disabled and handles KV write errors gracefully", async () => {
-			const disabledEnv = makeEnv({ CACHE_DISABLED_FAMILIES: "thread:stats" });
+			const disabledEnv = makeEnv({ CACHE_DISABLED_FAMILIES: "user:stats" });
 			const success = await cacheWrite(
 				disabledEnv,
 				undefined,
 				"k_disabled",
 				{ id: 1 },
-				threadStatsOpts,
+				userStatsOpts,
 			);
 			expect(success).toBe(false);
 
@@ -385,7 +380,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			} as unknown as KVNamespace;
 			const errEnv = makeEnv({ KV: failingKV });
 
-			const writeResult = await cacheWrite(errEnv, undefined, "k_fail", { id: 1 }, threadStatsOpts);
+			const writeResult = await cacheWrite(errEnv, undefined, "k_fail", { id: 1 }, userStatsOpts);
 			expect(writeResult).toBe(false);
 		});
 	});
@@ -399,13 +394,13 @@ describe("lib/cache/store — core cache storage contract", () => {
 			for (let i = 1; i <= 120; i++) {
 				const k = `key_${i}`;
 				keys.push(k);
-				const envRow = createCacheEnvelope({ id: i }, { ...threadStatsOpts, params: { id: i } });
+				const envRow = createCacheEnvelope({ id: i }, { ...userStatsOpts, params: { id: i } });
 				store.set(k, JSON.stringify(envRow));
 			}
 
 			const results = await cacheReadMany(env, keys, (k) => {
 				const id = Number.parseInt(k.replace("key_", ""), 10);
-				return { ...threadStatsOpts, params: { id } };
+				return { ...userStatsOpts, params: { id } };
 			});
 
 			expect(results.size).toBe(120);
@@ -419,7 +414,7 @@ describe("lib/cache/store — core cache storage contract", () => {
 			} as unknown as KVNamespace;
 			const errEnv = makeEnv({ KV: badKV });
 
-			const results = await cacheReadMany(errEnv, ["k1", "k2"], threadStatsOpts);
+			const results = await cacheReadMany(errEnv, ["k1", "k2"], userStatsOpts);
 			expect(results.size).toBe(0);
 		});
 	});

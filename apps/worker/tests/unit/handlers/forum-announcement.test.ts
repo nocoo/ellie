@@ -274,7 +274,7 @@ describe("PATCH /api/v1/forums/:id/announcement — sanitize + persist + invalid
 		expect(updateCall?.params[0]).toBe("");
 	});
 
-	it("bumps forum:tree:gen and forum:summary:gen (announcement update)", async () => {
+	it("bumps the forum tree without retired summary writes", async () => {
 		const token = await makeToken(1);
 		const { db } = createMockDb({
 			firstResults: { ...mockAuthRow(1), ...mockUserRow(1, 1, "admin"), ...mockForumRow(1, "") },
@@ -290,7 +290,7 @@ describe("PATCH /api/v1/forums/:id/announcement — sanitize + persist + invalid
 		const puts = (kv.put as { mock: { calls: [string, string][] } }).mock.calls;
 		const keys = puts.map(([k]) => k);
 		expect(keys).toContain("forum:tree:gen");
-		expect(keys).toContain("forum:summary:gen");
+		expect(keys).not.toContain("forum:summary:gen");
 		// Digest gen NOT bumped — announcement is non-digest-affecting.
 		expect(keys).not.toContain("digest:gen");
 	});

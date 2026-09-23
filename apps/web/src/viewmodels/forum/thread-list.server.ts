@@ -1,5 +1,7 @@
 // viewmodels/forum/thread-list.server.ts — Server-only data loader for thread list
-// Calls Worker API (GET /api/v1/forums + GET /api/v1/threads).
+// Doc/29: offset reads use includeTotal=false (page/limit/hasNext); the total
+// comes from the authoritative reading-contract count cached per bucket, and
+// the displayed page count is a lower bound that never clamps a real page.
 
 import "server-only";
 
@@ -12,11 +14,18 @@ import {
 	type Thread,
 } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
+import { getWorkerJwt } from "@/lib/forum-auth";
 import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getCachedForumList, getCachedPageSize } from "@/lib/forum-cache";
+import { getCachedForumStructure, getCachedPageSize } from "@/lib/forum-cache";
+import { loadThreadCount } from "@/lib/forum-reading";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { fetchPublicSettings, getStr } from "./settings.server";
-import { enrichThreads, type ThreadDisplayItem, type ThreadSort } from "./thread-list";
+import {
+	enrichThreads,
+	lowerBoundPages,
+	type ThreadDisplayItem,
+	type ThreadSort,
+} from "./thread-list";
 
 export interface ThreadListData {
 	forum: ForumTreeNode | null;
@@ -31,9 +40,16 @@ export interface ThreadListPagedData {
 	forums: Forum[];
 	items: ThreadDisplayItem[];
 	page: number;
+	/**
+	 * Lower-bound page count (doc/29): at least the current page, one more
+	 * while hasNext holds, and never below the cached authoritative total.
+	 */
 	pages: number;
+	/** Authoritative count from the reading contract (cached per bucket). */
 	total: number;
 	limit: number;
+	/** Whether the offset read saw a following page. */
+	hasNext: boolean;
 	breadcrumbs: BreadcrumbItem[];
 }
 
@@ -45,20 +61,27 @@ export async function loadThreadList(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<ThreadListData> {
+	const jwt = await getWorkerJwt();
 	// Get page size from settings
 	const defaultLimit = await getCachedPageSize();
 
-	// Parallel fetch: forum tree + threads (forums deduped via React cache)
-	const [forums, threadsRes] = await Promise.all([
-		getCachedForumList(),
-		forumApi.getCursor<Thread>("/api/v1/threads", {
-			forumId: params.forumId,
-			limit: params.limit ?? defaultLimit,
-			cursor: params.cursor,
-		}),
+	const [structure, threadsRes] = await Promise.all([
+		getCachedForumStructure(jwt),
+		jwt
+			? forumApi.getCursorAuth<Thread>("/api/v1/threads", jwt, {
+					forumId: params.forumId,
+					limit: params.limit ?? defaultLimit,
+					cursor: params.cursor,
+				})
+			: forumApi.getCursor<Thread>("/api/v1/threads", {
+					forumId: params.forumId,
+					limit: params.limit ?? defaultLimit,
+					cursor: params.cursor,
+				}),
 	]);
 
-	// Build forum tree and find current forum
+	const forums = structure.forums;
+	const total = await loadThreadCount(params.forumId, null, structure.bucket, jwt);
 	const tree = buildForumTree(forums);
 	const visible = tree
 		.map((node) => filterVisibleForums(node))
@@ -70,7 +93,7 @@ export async function loadThreadList(params: {
 		items: enrichThreads(threadsRes.data),
 		nextCursor: threadsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
-		total: forum?.threads ?? threadsRes.data.length,
+		total,
 	};
 }
 
@@ -97,26 +120,41 @@ export async function loadThreadListPaged(params: {
 	includeTypeNameBadge?: boolean | Promise<boolean>;
 }): Promise<ThreadListPagedData> {
 	const page = params.page ?? 1;
+	const jwt = await getWorkerJwt();
 	// Get page size from settings
 	const defaultLimit = await getCachedPageSize();
 	const limit = params.limit ?? defaultLimit;
 
-	const threadsQuery: Record<string, number> = {
+	const threadsQuery: Record<string, number | string | boolean> = {
 		forumId: params.forumId,
 		page,
 		limit,
+		includeTotal: false,
 	};
 	if (params.typeId != null && params.typeId > 0) {
 		threadsQuery.typeId = params.typeId;
 	}
 
-	// Parallel fetch: forum tree + threads (forums deduped via React cache)
-	const [forums, threadsRes, settings, includeTypeNameBadge] = await Promise.all([
-		getCachedForumList(),
-		forumApi.getPage<Thread>("/api/v1/threads", threadsQuery),
+	// Parallel start: forum structure, the offset page itself, settings and
+	// badge config. Only the authoritative count waits for a successful list.
+	const threadsCall = jwt
+		? forumApi.getAuth<Thread[]>("/api/v1/threads", jwt, threadsQuery)
+		: forumApi.get<Thread[]>("/api/v1/threads", threadsQuery);
+	const [structure, threadsRes, settings, includeTypeNameBadge] = await Promise.all([
+		getCachedForumStructure(jwt),
+		threadsCall,
 		fetchPublicSettings(),
 		params.includeTypeNameBadge,
 	]);
+	const offsetMeta = threadsRes.meta as { page?: number; limit?: number; hasNext?: boolean };
+	const resolvedPage = offsetMeta.page ?? page;
+	const resolvedLimit = offsetMeta.limit ?? limit;
+	const hasNext = offsetMeta.hasNext === true;
+
+	// Authoritative count, cached per Worker-authorized bucket. The page
+	// read above already succeeded, so this is a post-gate count hit.
+	const total = await loadThreadCount(params.forumId, params.typeId ?? null, structure.bucket, jwt);
+	const forums = structure.forums;
 
 	// Build forum tree and find current forum
 	const tree = buildForumTree(forums);
@@ -136,10 +174,11 @@ export async function loadThreadListPaged(params: {
 		items: enrichThreads(threadsRes.data, {
 			includeTypeNameBadge,
 		}),
-		page: threadsRes.meta.page ?? page,
-		pages: threadsRes.meta.pages ?? 1,
-		total: threadsRes.meta.total ?? 0,
-		limit: threadsRes.meta.limit ?? limit,
+		page: resolvedPage,
+		pages: lowerBoundPages(resolvedPage, resolvedLimit, total, hasNext),
+		total,
+		limit: resolvedLimit,
+		hasNext,
 		breadcrumbs,
 	};
 }

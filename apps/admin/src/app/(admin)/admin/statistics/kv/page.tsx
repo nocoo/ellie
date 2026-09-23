@@ -207,13 +207,9 @@ function rowActions(row: OverviewRow): FamilyActions {
 	return {
 		inspect: row.nameSensitivity !== "hide",
 		rebuild: false,
-		deleteEntry:
-			row.family === "settings:all" ||
-			row.family === "public-stats" ||
-			row.family === "user:mini:v1",
+		deleteEntry: row.family === "settings:all" || row.family === "user:mini:v1",
 		invalidateGroup:
 			row.family === "forum:tree:v2" ||
-			row.family === "forum:summary:v2" ||
 			row.family === "gen:thread:list:all" ||
 			row.family === "gen:digest",
 		restriction: null,
@@ -224,8 +220,6 @@ function groupInvalidateAction(row: OverviewRow): { kind: string } | null {
 	switch (row.family) {
 		case "forum:tree:v2":
 			return { kind: "bump-forum-tree" };
-		case "forum:summary:v2":
-			return { kind: "bump-forum-summary" };
 		case "gen:thread:list:all":
 			return { kind: "bump-thread-list-all" };
 		case "gen:digest":

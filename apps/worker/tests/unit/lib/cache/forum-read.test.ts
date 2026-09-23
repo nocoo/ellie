@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	forumCacheKey,
+	getForumSummaryV2,
 	getForums,
 	getForumTreeV2,
 	loadForumSnapshot,
 	rebuildForumCache,
 } from "../../../../src/lib/cache/forum-read";
-import { bumpForumSummaryGen } from "../../../../src/lib/cache/invalidate";
 import { KV_REGISTRY } from "../../../../src/lib/cache/kv-registry";
 import { inspectCacheEntry, rebuildCacheEntry } from "../../../../src/lib/cache/manage";
+import { shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "./thread-cache-fixture";
 
 describe("forum origin budgets and pure rebuild", () => {
@@ -17,13 +18,48 @@ describe("forum origin budgets and pure rebuild", () => {
 		f = readingFixture();
 	});
 	afterEach(() => f.close());
+	it.each([
+		"UPDATE threads SET anonymous_author=1 WHERE id=52",
+		"UPDATE threads SET sticky=-1 WHERE id=52",
+		"UPDATE threads SET forum_id=2 WHERE id=52",
+		"DELETE FROM threads WHERE id=52",
+	])("reselects after a candidate changes during snapshot loading: %s", async (sql) => {
+		f.thread(51, { created_at: 10 });
+		f.thread(52, { created_at: 20 });
+		const result = await getForumSummaryV2(f.env, f.ctx, "anon", async () => {
+			const snapshot = await loadForumSnapshot(f.env);
+			f.sqlite.exec(sql);
+			return snapshot;
+		});
+		expect(result[1].lastThreadId).toBe(51);
+		expect(result[1].lastPosterId).toBe(10);
+		expect([...f.values.keys()].some((key) => key.includes("summary"))).toBe(false);
+	});
+
+	it("hides a replacement moved to a restricted forum before its final gate", async () => {
+		f.thread(51, { created_at: 10 });
+		f.thread(52, { created_at: 20 });
+		const result = await getForumSummaryV2(f.env, f.ctx, "anon", async () => {
+			const snapshot = await loadForumSnapshot(f.env);
+			f.sqlite.exec("UPDATE threads SET anonymous_author=1 WHERE id=52");
+			f.state.afterRead = async (sql) => {
+				if (sql.includes("WHERE f.id IN")) {
+					f.sqlite.exec("UPDATE threads SET forum_id=2 WHERE id=51");
+				}
+			};
+			return snapshot;
+		});
+		expect(result[1].lastThreadId).toBe(0);
+		expect(result[1].lastPosterId).toBe(0);
+		expect(result[1].lastThreadSubject).toBe("");
+	});
 	it("chooses the higher ID on same-second ties with one indexed query per forum", async () => {
-		f.thread(100, { last_post_at: 1700000000 });
-		f.thread(200, { last_post_at: 1700000000 });
+		f.thread(100, { created_at: 1700000000, last_post_at: 1 });
+		f.thread(200, { created_at: 1700000000, last_post_at: 1 });
 		const rows = await loadForumSnapshot(f.env);
 		expect(rows.find((row) => row.id === 1)?.lastThreadId).toBe(200);
 		expect(f.calls).toHaveLength(2);
-		expect(f.calls[0].sql).toContain("ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1");
+		expect(f.calls[0].sql).toContain("ORDER BY t.created_at DESC, t.id DESC LIMIT 1");
 	});
 	it("250 moderator IDs load only misses in bounded user batches", async () => {
 		const ids = Array.from({ length: 250 }, (_, i) => i + 100);
@@ -54,7 +90,8 @@ describe("forum origin budgets and pure rebuild", () => {
 		expect(await getForums(f.env, undefined, "anon")).toEqual(first);
 		f.calls.length = 0;
 		for (let i = 0; i < 20; i++) expect(await getForums(f.env, undefined, "anon")).toEqual(first);
-		expect(f.calls).toHaveLength(0);
+		expect(f.calls.length).toBeGreaterThan(0);
+		expect(f.calls.every((call) => /anonymous_author|GROUP BY forum_id/.test(call.sql))).toBe(true);
 		expect(baseline).toBeGreaterThan(2);
 		expect(f.calls.every((call) => call.mode === "all")).toBe(true);
 	});
@@ -87,7 +124,7 @@ describe("forum origin budgets and pure rebuild", () => {
 
 	it("uses partial covering index and created_at index without temporary b-trees or full forum scans", async () => {
 		// Populate realistic distribution: old threads (past cutoff) and new threads
-		const cutoff = Math.floor(Date.now() / 1000) - 86400;
+		const cutoff = shanghaiTodayStartUnix();
 		for (let id = 1000; id <= 1050; id++) {
 			f.thread(id, {
 				forum_id: 1,
@@ -135,7 +172,7 @@ describe("forum origin budgets and pure rebuild", () => {
 
 		expect(
 			latestExplain.some((step) =>
-				step.detail.includes("SEARCH t USING INDEX idx_threads_forum_latest"),
+				step.detail.includes("SEARCH t USING INDEX idx_threads_forum_visible_created"),
 			),
 		).toBe(true);
 		expect(latestExplain.some((step) => step.detail.includes("USE TEMP B-TREE FOR ORDER BY"))).toBe(
@@ -157,49 +194,45 @@ describe("forum origin budgets and pure rebuild", () => {
 		expect(todayExplain.some((step) => step.detail.includes("idx_threads_forum"))).toBe(false);
 	});
 
-	it("replaces missing candidates with fallback LAST_ID maintaining sticky and tie-breaker contract", async () => {
+	it("reads current visible topics with the creation-time tie-breaker after hiding a topic", async () => {
 		// Populate initial candidate threads
-		f.thread(301, { forum_id: 1, last_post_at: 1700000000, sticky: 0 });
-		f.thread(302, { forum_id: 1, last_post_at: 1700000000, sticky: 0 }); // tie-breaker by id DESC: 302
-		f.thread(303, { forum_id: 1, last_post_at: 1700000005, sticky: -1 }); // hidden
+		f.thread(301, { forum_id: 1, created_at: 1700000000, last_post_at: 1700000010, sticky: 0 });
+		f.thread(302, { forum_id: 1, created_at: 1700000000, last_post_at: 1700000000, sticky: 0 });
+		f.thread(303, { forum_id: 1, created_at: 1700000005, sticky: -1 });
 
-		// Warm getForums to seed forum summary cache with 302 as newest candidate
 		const forums1 = await getForums(f.env, f.ctx, "anon");
 		expect(forums1.find((m) => m.id === 1)?.lastThreadId).toBe(302);
 
 		// Now remove/hide the cached newest thread (302) by setting sticky = -1 (or moving forum_id)
 		f.sqlite.prepare("UPDATE threads SET sticky = -1 WHERE id = 302").run();
-		await bumpForumSummaryGen(f.env);
 
 		// Add another candidate with same timestamp as 301 but lower id, to verify tie-breaking on fallback
-		f.thread(300, { forum_id: 1, last_post_at: 1700000000, sticky: 0 });
+		f.thread(300, { forum_id: 1, created_at: 1700000000, last_post_at: 1700000020, sticky: 0 });
 
 		f.calls.length = 0;
 
-		// Second getForums call: summary cache is warm with lastThreadId: 302,
-		// but currentCandidates sees 302 sticky < 0, triggering replaceMissingCandidates fallback.
 		const forums2 = await getForums(f.env, f.ctx, "anon");
 		const f1After = forums2.find((m) => m.id === 1);
 
-		// The fallback must re-run LAST_ID for forum 1 and pick 301 (since 302 is hidden, 301 > 300 on same timestamp)
+		// The fresh query chooses the next visible topic, breaking creation-time ties by ID.
 		expect(f1After?.lastThreadId).toBe(301);
 
-		// Verify fallback query was executed using idx_threads_forum_latest
-		const fallbackCall = f.calls.find((c) =>
+		// Verify the current-topic query uses the covering order index.
+		const topicCall = f.calls.find((c) =>
 			c.sql.includes("FROM forums f LEFT JOIN threads t ON t.id"),
 		);
-		expect(fallbackCall).toBeDefined();
+		expect(topicCall).toBeDefined();
 
-		const fallbackExplain = f.sqlite
-			.prepare(`EXPLAIN QUERY PLAN ${fallbackCall?.sql}`)
-			.all(...(fallbackCall?.params ?? [])) as { detail: string }[];
+		const topicExplain = f.sqlite
+			.prepare(`EXPLAIN QUERY PLAN ${topicCall?.sql}`)
+			.all(...(topicCall?.params ?? [])) as { detail: string }[];
 		expect(
-			fallbackExplain.some((step) =>
-				step.detail.includes("SEARCH t USING INDEX idx_threads_forum_latest"),
+			topicExplain.some((step) =>
+				step.detail.includes("SEARCH t USING INDEX idx_threads_forum_visible_created"),
 			),
 		).toBe(true);
-		expect(
-			fallbackExplain.some((step) => step.detail.includes("USE TEMP B-TREE FOR ORDER BY")),
-		).toBe(false);
+		expect(topicExplain.some((step) => step.detail.includes("USE TEMP B-TREE FOR ORDER BY"))).toBe(
+			false,
+		);
 	});
 });

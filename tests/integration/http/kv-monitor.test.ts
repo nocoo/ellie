@@ -11,7 +11,7 @@
 //   - Hit each route at least once with Key B (admin) so the L2 strict
 //     coverage audit registers them as covered.
 //   - Exercise the typed `KvRefreshAction` happy path against a no-arg
-//     bump (`forum:summary:v2` → `bump-forum-summary`) — safe to run in
+//     bump (`forum:tree:v2` → `bump-forum-tree`) — safe to run in
 //     the test environment because it only writes to the gen key and
 //     records an admin audit entry; no business data is mutated.
 //   - Assert sensitivity guards (`KV_KEY_NAME_HIDDEN`,
@@ -133,18 +133,18 @@ describe("L2: Worker Admin KV Monitor", () => {
 			const families = body.data?.families ?? [];
 			expect(Array.isArray(families)).toBe(true);
 			expect(families.length).toBeGreaterThan(0);
-			expect(families.map((f) => f.family)).toContain("forum:summary:v2");
+			expect(families.map((f) => f.family)).toContain("forum:tree:v2");
 		});
 	});
 
 	describe("GET /api/admin/kv/list", () => {
 		test("returns 200 + keys array for a public family", async () => {
-			const res = await adminGet("/api/admin/kv/list?family=forum:summary:v2&limit=5");
+			const res = await adminGet("/api/admin/kv/list?family=forum:tree:v2&limit=5");
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as {
 				data?: { family?: string; keys?: unknown[]; listComplete?: boolean };
 			};
-			expect(body.data?.family).toBe("forum:summary:v2");
+			expect(body.data?.family).toBe("forum:tree:v2");
 			expect(Array.isArray(body.data?.keys)).toBe(true);
 			expect(typeof body.data?.listComplete).toBe("boolean");
 		});
@@ -174,7 +174,7 @@ describe("L2: Worker Admin KV Monitor", () => {
 	describe("POST /api/admin/kv/refresh", () => {
 		test("rejects action kind that does not match the family", async () => {
 			const res = await adminPost("/api/admin/kv/refresh", {
-				family: "forum:summary:v2",
+				family: "forum:tree:v2",
 				action: { kind: "bump-thread-list-all" },
 			});
 			expect(res.status).toBe(400);
@@ -182,10 +182,10 @@ describe("L2: Worker Admin KV Monitor", () => {
 			expect(body.error?.code).toBe("KV_ACTION_MISMATCH");
 		});
 
-		test("happy path: bump-forum-summary returns ok+newGen", async () => {
+		test("happy path: bump-forum-tree returns ok+newGen", async () => {
 			const res = await adminPost("/api/admin/kv/refresh", {
-				family: "forum:summary:v2",
-				action: { kind: "bump-forum-summary" },
+				family: "forum:tree:v2",
+				action: { kind: "bump-forum-tree" },
 			});
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as {

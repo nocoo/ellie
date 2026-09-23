@@ -1,5 +1,51 @@
 # Ellie API Architecture
 
+## Next.js memory statistics (phase 2)
+
+[Design and implementation status](29-nextjs-memory-statistics.md) define this
+change. Application display caches and lossy statistical buffers reside in the
+Web Next.js process. D1 remains authoritative; Worker content authorization is
+not replaced by memory state.
+
+The admin memory-management path is Browser → authenticated Admin BFF
+(`/api/admin/memory-cache`) → Web (`/api/internal/memory-cache`) over the configured
+internal service origin. It does not traverse Worker or KV. Admin retains session,
+whitelist and CSRF checks. Web separately requires `X-Ellie-Memory-Key`, checks
+instance identity on mutations and never caches management responses.
+
+Web submits bounded view/activity batches to Worker
+`POST /api/internal/statistics/batch`, authenticated by the independent
+`X-Ellie-Statistics-Key`. Forum Key A and Admin Key B do not grant this capability.
+This endpoint permits statistical increments only, never arbitrary user updates.
+Views are additive and best effort; activity timestamps are monotonic and checked
+against existing active users. All normal forum business writes retain their
+existing authentication and persistence contracts.
+
+Reading endpoints use Key A and optional existing caller authentication:
+
+- `GET /api/v1/threads?forumId&page&limit&includeTotal=false&typeId?` returns
+  offset data and `meta.page/limit/hasNext`, without `total/pages`. Empty requested
+  pages are preserved. Cursor reads are unchanged; omitted or true includeTotal
+  retains the existing exact-total response.
+- `GET /api/v1/threads/count?forumId&typeId?` returns `{data:{total}}` using the
+  current caller's forum gate and the same eligible topic/announcement composition.
+- `GET /api/v1/forums?view=structure` returns caller-visible Forum metadata with
+  zeroed summary fields and `meta.bucket`, skipping aggregate/latest-topic reads.
+- `GET /api/v1/forums/summaries` returns `ForumSummaryTopic[]` and `meta.bucket`.
+  Latest topics are nonanonymous, sticky >= 0, ordered by creation time then ID.
+  Default forum-list lastThread/lastPoster fields now use that topic and its author.
+- `GET /api/v1/forums/summary-gates?topics=1,2,3` accepts 1..256 unique positive
+  IDs and returns current authorization fields only. Hidden and absent topics are
+  both omitted. Cached summaries must pass these gates before display.
+
+Count and gate queries reject unknown/repeated parameters and malformed IDs.
+Regular Worker envelopes retain generated `meta.timestamp` and `meta.requestId`.
+The batch and memory-management envelopes are defined separately in shared types.
+
+See document 29 for removed analytics/presence endpoints, paging semantics,
+safe current-content checks and coordinated deployment requirements. The phase 2
+management API observes one configured Web instance, not an aggregate of replicas.
+
 ## Overview
 
 Ellie uses a **three-layer API architecture**:
@@ -279,8 +325,14 @@ A missing counter is `null`, a stored zero is `0`, and a failed or malformed rea
 
 Continuous cache counters, the D1 observation wrapper, hourly metric writes and metric retention jobs have been removed. Existing business caching, view-count aggregation, authorization and administrator mutation audits remain active. The **历史观测** tab can explicitly read pre-existing `kv_cache_metrics_hour` data through `GET /api/admin/kv/metrics?minutes=1440&family=…`; no new samples or backfilled zeroes are generated. The snapshot itself cannot report historical hit rates, origin-load counts or error trends. Use Cloudflare's native analytics for platform D1 usage. No new schema migration is required.
 
-### v1.12.0 访问统计调整
+### Retired application visit analytics
 
-`GET /api/admin/analytics/today/visits` 和 `/list` 保留 PV、页面排行与机器人分类，改为读取当日共享内存；采集约 30 秒合并一次，实例回收、重启或部署后清零，不再写入 D1 或持久化报表快照。已撤下的访问人数相关字段 `activeUsers`、`anonPresent`、`uniqueUsers` 返回 `null`（未采集），不得解释为零人；登录审计的去重人数不受影响。
+The phase 2 implementation removes `/api/admin/analytics/today/visits`, its list
+route, `/api/internal/analytics/ingest`, the TodayVisitsMemory Durable Object,
+and `ANALYTICS_INGEST_KEY`. The Admin audit tab and visit cards are removed;
+business trends and login audit remain. Legacy visits snapshots have no rebuild
+or supported family-management path. Existing keys may expire naturally.
 
-后台 KV 管理可查看、删除部署前遗留的访问统计缓存，但拒绝重建 visits KPI 和页面排行快照，避免将共享内存统计重新持久化。其他统计的缓存管理不变。
+See [Next.js memory statistics](29-nextjs-memory-statistics.md) for the replacement
+view/activity semantics and local implementation status. These changes require
+coordinated Worker/Web/Admin deployment; local verification is not deployment.

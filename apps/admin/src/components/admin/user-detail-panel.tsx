@@ -482,35 +482,6 @@ export function UserDetailPanel({
 								</div>
 							</DescriptionList.Item>
 						</DescriptionList>
-
-						{/* G.5: current online soft signal — only shown when worker
-						    attached a fresh `online:<uid>` KV snapshot (TTL ≤15min).
-						    Whole block hides when the user is not currently online. */}
-						{user.onlineIp && user.onlineIp.trim().length > 0 && (
-							<div className="space-y-2">
-								<div className="text-xs text-basalt-muted-foreground">
-									最近在线记录 · 15 分钟内的活动信号
-								</div>
-								<DescriptionList columns={1}>
-									<DescriptionList.Item term="当前 IP">
-										<div className="flex flex-wrap items-center gap-1">
-											<span className="min-w-0 break-all font-mono">{fmtIp(user.onlineIp)}</span>
-											<IpLookupInline ip={user.onlineIp} />
-										</div>
-									</DescriptionList.Item>
-									{user.onlinePage && (
-										<DescriptionList.Item term="当前页面">
-											<div className="break-all font-mono">{user.onlinePage}</div>
-										</DescriptionList.Item>
-									)}
-									{user.onlineTs && user.onlineTs > 0 && (
-										<DescriptionList.Item term="心跳时间">
-											{fmtTimestamp(user.onlineTs)}
-										</DescriptionList.Item>
-									)}
-								</DescriptionList>
-							</div>
-						)}
 					</LayerCard.Well>
 				</LayerCard>
 

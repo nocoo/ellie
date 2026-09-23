@@ -9,17 +9,13 @@ import { invalidateStatisticsReports } from "../../lib/cache/invalidate";
 // created" rather than "currently visible".
 
 import { withEntityAuth } from "../../lib/adminHelpers";
-import { getPublicStats } from "../../lib/cache/public-stats-read";
-import { cacheDelete } from "../../lib/cache/wrap";
+import { loadPublicStats } from "../../lib/cache/public-stats-read";
 import type { EntityConfig } from "../../lib/crud";
 import { confirmedBatch } from "../../lib/d1-write";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { shanghaiDateLocal } from "../../lib/shanghaiTime";
 import { errorResponse } from "../../middleware/error";
-
-// KV key for public stats cache
-const PUBLIC_STATS_CACHE_KEY = "public-stats";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -87,10 +83,7 @@ async function writeCounters(env: Env, statements: D1PreparedStatement[]): Promi
 	if (written.some((row) => row.meta?.changes !== 1)) {
 		throw new Error("Statistics writes were not confirmed");
 	}
-	await Promise.all([
-		cacheDelete(env, PUBLIC_STATS_CACHE_KEY, "public-stats"),
-		invalidateStatisticsReports(env),
-	]);
+	await invalidateStatisticsReports(env);
 }
 
 async function handleRunStats(env: Env, origin?: string): Promise<Response> {
@@ -194,7 +187,7 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 		real: null,
 	}));
 
-	const snapshot = await getPublicStats(env, undefined, "admin");
+	const snapshot = await loadPublicStats(env);
 
 	const response: CalibrateGetResponse = {
 		counters,

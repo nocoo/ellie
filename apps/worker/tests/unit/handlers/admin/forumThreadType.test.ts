@@ -1,17 +1,3 @@
-// F (Phase 2) — admin CRUD for `forum_thread_types` + 4-switch config.
-//
-// Reviewer pins covered:
-//   • required ⇒ enabled invariant rejects bad combos at admin layer.
-//   • enabled-set / display_order / name changes bump the per-forum
-//     thread-list gen so the public picker / typeId-filter cache stays
-//     consistent (msg 2935495a).
-//   • Switch updates bump forum:tree:gen + forum:summary:gen (the
-//     latter rolls forum:meta:v2 because meta keys embed
-//     `forum:summary:gen`; see invalidate.ts:bumpForumSummaryGen).
-//   • Delete with referencing threads soft-disables (enabled=0) and
-//     fires the same invalidation as a hard delete.
-//   • sourceTypeid surfaced on admin payloads only.
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../../src/lib/cache/invalidate", async (importOriginal) => {
@@ -19,7 +5,6 @@ vi.mock("../../../../src/lib/cache/invalidate", async (importOriginal) => {
 	return {
 		...actual,
 		bumpForumTreeGen: vi.fn(async () => "g"),
-		bumpForumSummaryGen: vi.fn(async () => "g"),
 		bumpThreadListGen: vi.fn(async () => "g"),
 	};
 });
@@ -41,15 +26,10 @@ import {
 	updateConfig,
 } from "../../../../src/handlers/admin/forumThreadType";
 import { writeAdminLog } from "../../../../src/lib/adminLog";
-import {
-	bumpForumSummaryGen,
-	bumpForumTreeGen,
-	bumpThreadListGen,
-} from "../../../../src/lib/cache/invalidate";
+import { bumpForumTreeGen, bumpThreadListGen } from "../../../../src/lib/cache/invalidate";
 import { createMockDb, makeEnv } from "../../../helpers";
 
 const mockTree = bumpForumTreeGen as ReturnType<typeof vi.fn>;
-const mockSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockList = bumpThreadListGen as ReturnType<typeof vi.fn>;
 const mockAudit = writeAdminLog as ReturnType<typeof vi.fn>;
 
@@ -172,7 +152,6 @@ describe("thread type writes must be confirmed before cache invalidation", () =>
 				),
 			).rejects.toThrow("not confirmed");
 			expect(mockTree).not.toHaveBeenCalled();
-			expect(mockSummary).not.toHaveBeenCalled();
 			expect(mockList).not.toHaveBeenCalled();
 			expect(mockAudit).not.toHaveBeenCalled();
 			expect(env.KV.delete).not.toHaveBeenCalled();
@@ -816,7 +795,7 @@ describe("admin/forumThreadType.updateConfig", () => {
 		expect(res.status).toBe(400);
 	});
 
-	it("happy path: bumps tree + summary + thread-list", async () => {
+	it("happy path: bumps tree + thread-list", async () => {
 		const { db, calls } = createMockDb({
 			firstResults: { "FROM forums WHERE id": forumGateRow({ enabled: 0, required: 0 }) },
 		});
@@ -837,7 +816,6 @@ describe("admin/forumThreadType.updateConfig", () => {
 		expect(upd?.sql).toMatch(/thread_types_listable = \?/);
 
 		expect(mockTree).toHaveBeenCalledTimes(1);
-		expect(mockSummary).toHaveBeenCalledTimes(1);
 		expect(mockList).toHaveBeenCalledWith(expect.anything(), 1);
 	});
 
@@ -856,7 +834,6 @@ describe("admin/forumThreadType.updateConfig", () => {
 		expect(res.status).toBe(200);
 		expect(calls.find((c) => c.sql.includes("UPDATE forums SET"))).toBeUndefined();
 		expect(mockTree).not.toHaveBeenCalled();
-		expect(mockSummary).not.toHaveBeenCalled();
 		expect(mockList).not.toHaveBeenCalled();
 	});
 

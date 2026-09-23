@@ -4,7 +4,6 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
-	bumpForumSummaryGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
 	invalidateStatisticsReports,
@@ -144,8 +143,7 @@ function tickResultToResponse(result: TickResult, origin: string | undefined): R
 //
 // `done` transition handles cache invalidation in `finalize` (runs
 // outside the lease so a slow KV bump can't strand the lease). Cache
-// bump is gated on `updated > 0` so initialize-only / empty-table runs
-// don't churn the summary cache.
+// invalidation is gated on `updated > 0`.
 
 interface ForumBatchRow {
 	id: number;
@@ -328,13 +326,8 @@ export const forumsTicker: StatsJobTicker = {
 	},
 
 	finalize: async (env, payload) => {
-		// Cache invalidation (docs/20 §5 row "admin statistics
-		// recalc-forums"): bump forum:summary:gen only when the sweep
-		// actually rewrote at least one forum row. A no-op sweep (empty
-		// forums table) has no side effects.
 		if (payload.updated > 0) {
 			await Promise.all([
-				bumpForumSummaryGen(env),
 				invalidateStatisticsReports(env),
 				invalidateAdminEntityCache(env, "forums"),
 			]);
@@ -620,16 +613,9 @@ export const threadsTicker: StatsJobTicker = {
 	},
 
 	finalize: async (env, payload) => {
-		// Cache invalidation (docs/20 §5 row "admin statistics
-		// recalc-threads"): bump forum:summary:gen (last-post / counts
-		// may have shifted as a side-effect of recalculating thread
-		// last-post). For thread:list:v2, bump per-forum gen when
-		// scoped to a single forum, else fall back to the global
-		// `thread:list:gen:all`.
 		if (payload.updated === 0) return;
 		const params = readRecalcThreadsParams(payload);
 		await Promise.all([
-			bumpForumSummaryGen(env),
 			invalidateStatisticsReports(env),
 			invalidateAdminEntityCache(env, "threads"),
 			params.forumId !== null ? bumpThreadListGen(env, params.forumId) : bumpThreadListGenAll(env),
@@ -846,8 +832,7 @@ export const recalcUsers = withEntityAuth(
 //   - `processed` diverges from `updated`: `processed = posts scanned`
 //     (real walked count, matches cursor); `updated = mismatched posts
 //     actually written`. The card must surface both.
-//   - finalize bumps `forum:summary:gen` only when `updated > 0`. If the
-//     full sweep found no mismatches, no cache invalidation is needed.
+//   - finalize invalidates admin caches only when rows changed.
 
 interface PostBatchRow {
 	id: number;
@@ -969,14 +954,8 @@ export const postForumsTicker: StatsJobTicker = {
 	},
 
 	finalize: async (env, payload) => {
-		// Cache invalidation (docs/20 §5 row "admin statistics
-		// recalc-post-forums"): bump forum:summary:gen ONLY when the
-		// sweep actually corrected at least one post. A full sweep that
-		// found nothing wrong has no side effects — skip the bump so
-		// healthy systems don't churn the summary cache every nightly run.
 		if (payload.updated > 0) {
 			await Promise.all([
-				bumpForumSummaryGen(env),
 				invalidateStatisticsReports(env),
 				invalidateAdminEntityCache(env, "posts"),
 			]);

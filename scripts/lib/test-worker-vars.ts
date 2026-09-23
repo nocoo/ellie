@@ -22,7 +22,7 @@ export const TEST_WORKER_VARS: Readonly<Record<string, string>> = Object.freeze(
 	API_KEY: "test-api-key",
 	ADMIN_API_KEY: "test-admin-api-key",
 	JWT_SECRET: "test-secret-key-for-jwt-hs256",
-	ANALYTICS_INGEST_KEY: "test-analytics-ingest-key",
+	WEB_STATISTICS_WRITE_KEY: "test-web-statistics-write-key",
 	// Required: overrides prod [vars] in apps/worker/wrangler.toml so the
 	// worker runs in test mode (D1 isolation guard, /api/live reporting,
 	// any handler reading env.ENVIRONMENT).

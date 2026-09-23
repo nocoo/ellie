@@ -24,7 +24,10 @@ export { getAllowedOrigins, validateOrigin } from "@/lib/csrf";
 // ---------------------------------------------------------------------------
 
 function jsonError(status: number, code: string, message: string) {
-	return NextResponse.json({ error: { code, message } }, { status });
+	return NextResponse.json(
+		{ error: { code, message } },
+		{ status, headers: { "Cache-Control": "no-store" } },
+	);
 }
 
 // ---------------------------------------------------------------------------

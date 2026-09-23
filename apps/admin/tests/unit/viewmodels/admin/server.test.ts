@@ -14,13 +14,13 @@ const mockGet = adminApi.get as ReturnType<typeof vi.fn>;
 describe("dashboard.server", () => {
 	it("preserves available activity when a source fails", async () => {
 		mockGet.mockImplementation((path: string) =>
-			path.endsWith("visits")
+			path.endsWith("logins")
 				? Promise.reject(new Error("Unavailable"))
 				: Promise.resolve({ data: { totalAttempts: 10 } }),
 		);
 		const activity = await fetchDashboardActivity();
-		expect(activity.visits).toBeNull();
-		expect(activity.logins?.totalAttempts).toBe(10);
+		expect(activity.logins).toBeNull();
+		expect(activity.threads?.metric ?? activity.posts?.metric ?? "ok").toBe("ok");
 	});
 	it("fetchDashboardStats calls adminApi.get", async () => {
 		mockGet.mockResolvedValue({

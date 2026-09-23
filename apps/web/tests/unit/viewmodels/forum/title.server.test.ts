@@ -88,12 +88,12 @@ describe("render-pass loader routing", () => {
 
 		// generateMetadata → getForumTitle → getCachedForumList → forumApi.getAll
 		const title = await getForumTitle(7);
-		// page loader → getCachedForumList → forumApi.getAll (same function, deduped by React cache at runtime)
-		const forums = await getCachedForumList();
+		// page loader → getCachedForumList → structure view (same function, deduped by React cache at runtime)
+		const forums = await getCachedForumList(null);
 
 		expect(title).toBe("Dev");
 		expect(forums).toEqual([{ id: 7, name: "Dev" }]);
-		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums");
+		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums", { view: "structure" });
 		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
 	});
 });

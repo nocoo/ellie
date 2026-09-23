@@ -33,6 +33,7 @@ const ALLOWLIST: readonly string[] = [
 	"lib/api-client.ts",
 	// server-only Worker client (Key A injection)
 	"lib/forum-api.ts",
+	"lib/memory-runtime.ts",
 	// NextAuth login/refresh — sits below the abstraction
 	"auth.ts",
 	// middleware feature-flag pull (Phase B target)

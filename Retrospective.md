@@ -1,5 +1,15 @@
 # Retrospective
 
+### 2026-09-23: Verify role enums before review guidance
+
+- During cache integration review, the coordinator inferred Admin's numeric role
+  from a test seed and sent an incorrect correction to an implementing agent.
+  Reading the actual enum and visibility bucket helper disproved that assumption;
+  the correction was withdrawn immediately and the new HTTP tests now use UserRole.
+- Treat fixture usernames as labels, not permission definitions. Read the shared
+  enum and authoritative visibility mapping before writing role-sensitive tests or
+  directing another agent to change access logic.
+
 ### 2026-09-23: Explicit Herdr pane targeting
 
 - A pane resize using `--current` resolved to a different focused workspace in this tool environment. Immediately restored that split to its prior ratio and resized the intended pane by its verified ID.
@@ -93,3 +103,8 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 - A broad test replacement accidentally applied immutable-avatar metadata expectations to post images. Focused tests caught the mistake before commit; the assertion was restricted to avatar uploads.
 - The installed Next.js release exports `unstable_doesMiddlewareMatch`, despite the application using the proxy convention. Read installed testing types before choosing experimental helper names; mock authentication when importing proxy configuration in unit tests.
 - Section-wide review also found obsolete cache bullets left beside the replacement policy. Remove contradictory historical statements when updating operational docs, and verify the full resulting section rather than only the changed lines.
+
+### 2026-09-23: Standalone verification build ownership
+
+- The memory-runtime harness initially assumed a root Wrangler binary instead of reusing the Worker workspace path. After correcting it, a concurrent typecheck detected stale Admin route types and rebuilt both apps while the harness copied Web standalone output, causing a missing-file error before startup.
+- Finish the root typecheck and its possible builds before copying standalone artifacts. Treat typecheck as a potential build until route freshness is confirmed; serialize all consumers and producers of `.next`.

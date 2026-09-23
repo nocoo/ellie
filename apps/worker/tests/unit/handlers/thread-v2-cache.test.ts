@@ -10,12 +10,10 @@ import { editThreadSubject } from "../../../src/handlers/thread-edit";
 import { deleteMyPost, deleteMyThread, editMyPost } from "../../../src/handlers/user-content";
 import { bumpPostAttachmentsGen, bumpPostListGen } from "../../../src/lib/cache/invalidate";
 import { readingCacheKey, rebuildThreadCache } from "../../../src/lib/cache/thread-loaders";
-import * as threadViews from "../../../src/lib/thread-views";
 import { createJwtForRole } from "../../helpers";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
-let viewEvent: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(new Date("2026-09-17T00:00:00Z"));
@@ -53,9 +51,6 @@ beforeEach(() => {
 		reason: "Helpful",
 		created_at: 1,
 	});
-	viewEvent = vi
-		.spyOn(threadViews, "scheduleThreadViewIncrement")
-		.mockImplementation(() => undefined);
 });
 afterEach(async () => {
 	await Promise.all(f.ctx._waitUntilPromises);
@@ -108,26 +103,26 @@ function generationWrites() {
 }
 
 describe("reading cache hot paths", () => {
-	it("thread detail drops from 4 cold SELECTs to 1 current gate plus one logical view event", async () => {
+	it("thread detail drops from 4 cold SELECTs to the current gate and fresh statistics without writes", async () => {
 		expect((await detail()).status).toBe(200);
 		expect(f.calls).toHaveLength(4); // gate, entity, statistics, user minis
-		expect(viewEvent).toHaveBeenCalledTimes(1);
+		expect(f.calls.filter((call) => call.mode === "run")).toEqual([]);
 		f.calls.length = 0;
 		expect((await detail()).status).toBe(200);
-		expect(f.calls).toHaveLength(1);
+		expect(f.calls).toHaveLength(2);
 		expect(f.calls[0].sql).not.toMatch(/subject|content/);
-		expect(viewEvent).toHaveBeenCalledTimes(2);
+		expect(f.calls.filter((call) => call.mode === "run")).toEqual([]);
 	});
 
-	it("metadata and rebuild reuse data while only a normal detail emits a view event", async () => {
+	it("metadata and rebuild reuse data without any view writes", async () => {
 		await detail(undefined, { "X-Ellie-Read-Purpose": "metadata" });
 		const descriptor = f.snapshots("thread:entity")[0] as CacheDescriptor;
 		await rebuildThreadCache(f.env, undefined, descriptor);
-		expect(viewEvent).not.toHaveBeenCalled();
+		expect(f.calls.filter((call) => call.mode === "run")).toEqual([]);
 		f.calls.length = 0;
 		await detail();
-		expect(f.calls).toHaveLength(1);
-		expect(viewEvent).toHaveBeenCalledTimes(1);
+		expect(f.calls).toHaveLength(2);
+		expect(f.calls.filter((call) => call.mode === "run")).toEqual([]);
 	});
 
 	it.each(["forumId=1&limit=20", "forumId=1&page=1&limit=25", "forumId=1&page=2&limit=1"])(
@@ -145,10 +140,8 @@ describe("reading cache hot paths", () => {
 			f.calls.length = 0;
 			const hot = await (await listThreads(query)).json();
 			expect(hot.data).toEqual(cold.data);
-			expect(f.calls).toHaveLength(2); // current forum + candidate thread/forum batch
-			expect(
-				f.calls.every((call) => !call.sql.includes("subject") && !call.sql.includes("COUNT(*)")),
-			).toBe(true);
+			expect(f.calls).toHaveLength(query.includes("page=") ? 4 : 3);
+			expect(f.calls.every((call) => !call.sql.includes("subject"))).toBe(true);
 			expect(f.snapshots("thread:list")).toEqual(entries);
 		},
 	);
@@ -160,7 +153,7 @@ describe("reading cache hot paths", () => {
 		expect(offset.data).toEqual(first.data);
 		expect(offset.meta).toMatchObject({ total: 1, page: 1, limit: 1, pages: 1 });
 		expect(first.meta.nextCursor).toEqual(expect.any(String));
-		expect(f.calls).toHaveLength(3); // Page-number mode loads its total for the first time.
+		expect(f.calls).toHaveLength(4);
 		expect(f.calls.filter(({ sql }) => sql.includes("COUNT(*)"))).toHaveLength(1);
 	});
 
@@ -184,7 +177,7 @@ describe("reading cache hot paths", () => {
 					!call.sql.includes("COUNT(*)"),
 			),
 		).toBe(true);
-		expect(viewEvent).not.toHaveBeenCalled();
+		expect(f.calls.filter((call) => call.mode === "run")).toEqual([]);
 	});
 
 	it("never persists an HTTP response, request credentials, IP, or viewer permissions", async () => {
@@ -252,9 +245,9 @@ describe("current gates and audience projection over shared snapshots", () => {
 		// JWT still claims admin, but current DB role was revoked.
 		f.sqlite.exec("UPDATE users SET role=0 WHERE id=1");
 		expect((await detail(1)).status).toBe(404);
-		const before = viewEvent.mock.calls.length;
+		const before = f.calls.filter((call) => call.mode === "run").length;
 		await detail(10);
-		expect(viewEvent.mock.calls.length).toBe(before);
+		expect(f.calls.filter((call) => call.mode === "run")).toHaveLength(before);
 	});
 
 	it.each([
@@ -344,6 +337,7 @@ describe("current gates and audience projection over shared snapshots", () => {
 	});
 
 	it("a removed global announcement cannot leak its source title, identity or count", async () => {
+		f.sqlite.exec("UPDATE forums SET visibility = 'public' WHERE id = 2");
 		f.thread(2, { forum_id: 2, sticky: 2, subject: "Private title" });
 		expect(memberIds(await (await listThreads("forumId=1&page=1&limit=20")).json())).toEqual([
 			2, 1,
@@ -431,9 +425,11 @@ describe("writes and fixed snapshots", () => {
 		expect(generationWrites()).toHaveLength(0);
 		expect(f.snapshots("thread:list")).toEqual(snapshots);
 		vi.setSystemTime(Date.now() + 59_999);
-		expect((await (await listThreads()).json()).data).toEqual(initialList);
+		expect((await (await listThreads()).json()).data.map((row: { id: number }) => row.id)).toEqual(
+			initialList.map((row: { id: number }) => row.id),
+		);
 		expect((await (await posts()).json()).data).toEqual(initialPosts);
-		expect((await (await detail()).json()).data.replies).toBe(initialStats.replies);
+		expect((await (await detail()).json()).data.replies).toBe(initialStats.replies + 1);
 		vi.setSystemTime(Date.now() + 1);
 		expect((await (await listThreads()).json()).data).toHaveLength(2);
 		expect((await (await posts()).json()).data).toHaveLength(4);

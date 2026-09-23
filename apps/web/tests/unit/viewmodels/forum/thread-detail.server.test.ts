@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Doc/29: these legacy loader tests run as non-counting renders (router
+// prefetch marker) so views stay at the returned base; counting behavior is
+// covered by tests/unit/viewmodels/thread-detail-view.test.ts.
+vi.mock("next/headers", () => ({
+	headers: vi.fn(async () => new Headers({ "x-ellie-prefetch": "1" })),
+}));
+
 vi.mock("@/lib/forum-api", () => ({
 	forumApi: {
 		get: vi.fn(),

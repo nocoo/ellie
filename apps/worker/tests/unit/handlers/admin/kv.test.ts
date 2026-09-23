@@ -42,7 +42,6 @@ vi.mock("../../../../src/lib/cache/invalidate", async () => {
 	return {
 		...actual,
 		bumpForumTreeGen: vi.fn(async () => "newgen-tree"),
-		bumpForumSummaryGen: vi.fn(async () => "newgen-summary"),
 		bumpThreadListGen: vi.fn(async (_e: unknown, fid: number) => `newgen-tl-${fid}`),
 		bumpThreadListGenAll: vi.fn(async () => "newgen-tl-all"),
 		bumpThreadMetaGen: vi.fn(async () => "newgen-tm"),
@@ -59,7 +58,6 @@ import * as kv from "../../../../src/handlers/admin/kv";
 import { writeAdminLog } from "../../../../src/lib/adminLog";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpForumTreeGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
@@ -69,7 +67,6 @@ import { createAdminRequest, createMockKV, makeEnv } from "../../../helpers";
 
 const mockAudit = writeAdminLog as ReturnType<typeof vi.fn>;
 const mockBumpTree = bumpForumTreeGen as ReturnType<typeof vi.fn>;
-const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockBumpTLForum = bumpThreadListGen as ReturnType<typeof vi.fn>;
 const mockBumpTLAll = bumpThreadListGenAll as ReturnType<typeof vi.fn>;
 const mockBumpDigest = bumpDigestGen as ReturnType<typeof vi.fn>;
@@ -131,7 +128,7 @@ describe("admin/kv — refresh dispatcher", () => {
 		);
 	});
 
-	it("bump-forum-summary calls bumpForumSummaryGen and audits", async () => {
+	it("rejects management actions for retired summary KV family", async () => {
 		const env = makeEnv();
 		const res = await kv.refresh(
 			refreshRequest({
@@ -140,8 +137,8 @@ describe("admin/kv — refresh dispatcher", () => {
 			}),
 			env,
 		);
-		expect(res.status).toBe(200);
-		expect(mockBumpSummary).toHaveBeenCalledOnce();
+		expect(res.status).toBe(404);
+		expect(mockAudit).not.toHaveBeenCalled();
 	});
 
 	it("thread:list:v2 rejects bump-thread-list-all (mismatch — global op lives on gen family)", async () => {
@@ -397,7 +394,7 @@ describe("admin/kv — listFamily", () => {
 
 	it("singleton family returns empty when missing", async () => {
 		const env = makeEnv();
-		const req = createAdminRequest("GET", "/api/admin/kv/list?family=public-stats");
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=settings:all");
 		const res = await kv.listFamily(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { data: { keys: unknown[] } };
@@ -576,8 +573,8 @@ describe("admin/kv — overview presence + no gen seeding", () => {
 	it("counts non-singleton family with masked sample keys", async () => {
 		const env = makeEnv({
 			KV: createMockKV({
-				"online:1": JSON.stringify({ at: 1 }),
-				"online:2": JSON.stringify({ at: 2 }),
+				"email_verify:1": JSON.stringify({ at: 1 }),
+				"email_verify:2": JSON.stringify({ at: 2 }),
 			}),
 		});
 		const req = createAdminRequest("GET", "/api/admin/kv/overview");
@@ -586,10 +583,10 @@ describe("admin/kv — overview presence + no gen seeding", () => {
 		const body = (await res.json()) as {
 			data: { families: { family: string; count: number; sampleKeys: string[] }[] };
 		};
-		const onlineRow = body.data.families.find((f) => f.family === "online:user");
+		const onlineRow = body.data.families.find((f) => f.family === "email_verify");
 		expect(onlineRow?.count).toBe(2);
-		// `online:user` is mask, so sample keys must be hashed not raw.
-		expect(onlineRow?.sampleKeys.every((k) => k.startsWith("online:u_"))).toBe(true);
+		// `email_verify` is mask, so sample keys must be hashed not raw.
+		expect(onlineRow?.sampleKeys.every((k) => k.startsWith("email_verify:u_"))).toBe(true);
 	});
 });
 
@@ -691,8 +688,8 @@ describe("admin/kv — getKey misc", () => {
 	});
 
 	it("returns raw string when value is not JSON", async () => {
-		const env = makeEnv({ KV: createMockKV({ "stats:online_count": "42" }) });
-		const req = createAdminRequest("GET", "/api/admin/kv/get?key=stats:online_count");
+		const env = makeEnv({ KV: createMockKV({ "settings:all": "42" }) });
+		const req = createAdminRequest("GET", "/api/admin/kv/get?key=settings:all");
 		const res = await kv.getKey(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { data: { value: unknown; valueMasked: boolean } };

@@ -215,14 +215,10 @@ async function threadMetaGens(env: Env, ids: readonly number[]): Promise<Map<num
 	return new Map(unique.map((id) => [id, tokens.get(threadMetaGenKey(id)) as string]));
 }
 
-async function threadResourceCacheKey(
-	family: "thread:entity" | "thread:stats",
-	threadId: number,
-	gen: string,
-): Promise<string> {
-	const descriptor = { family, params: { threadId }, scope: SCOPE };
+async function threadResourceCacheKey(threadId: number, gen: string): Promise<string> {
+	const descriptor = { family: "thread:entity", params: { threadId }, scope: SCOPE };
 	validateThreadCacheDescriptor(descriptor);
-	return dataCacheKey(family, { threadId }, SCOPE, { resource: gen });
+	return dataCacheKey("thread:entity", { threadId }, SCOPE, { resource: gen });
 }
 
 export async function getThreadRows(
@@ -231,8 +227,6 @@ export async function getThreadRows(
 	ids: readonly number[],
 ): Promise<Map<number, ReadingRow>> {
 	const gens = await threadMetaGens(env, ids);
-	const cacheKey = (family: "thread:entity" | "thread:stats") => (id: number) =>
-		threadResourceCacheKey(family, id, gens.get(id) as string);
 	const [entities, stats] = await Promise.all([
 		readEntities(env, ctx, ids, {
 			family: "thread:entity",
@@ -240,16 +234,9 @@ export async function getThreadRows(
 			params: (threadId) => ({ threadId }),
 			load: (missing) => loadThreadEntities(env, missing),
 			empty: () => null,
-			cacheKey: cacheKey("thread:entity"),
+			cacheKey: (id) => threadResourceCacheKey(id, gens.get(id) as string),
 		}),
-		readEntities(env, ctx, ids, {
-			family: "thread:stats",
-			tier: "SHORT",
-			params: (threadId) => ({ threadId }),
-			load: (missing) => loadThreadStats(env, missing),
-			empty: () => null,
-			cacheKey: cacheKey("thread:stats"),
-		}),
+		loadThreadStats(env, uniqueIds(ids)),
 	]);
 	const rows = new Map<number, ReadingRow>();
 	for (const [id, entity] of entities) {
@@ -626,7 +613,7 @@ function hasExactParams(params: CacheDescriptor["params"], fields: string[]): bo
 }
 
 export function validateThreadCacheDescriptor(descriptor: CacheDescriptor): void {
-	if (descriptor.family === "thread:list" || descriptor.family === "thread:count") {
+	if (descriptor.family === "thread:list") {
 		validateThreadListDescriptor(descriptor);
 		return;
 	}
@@ -634,8 +621,7 @@ export function validateThreadCacheDescriptor(descriptor: CacheDescriptor): void
 	const p = descriptor.params;
 	if (typeof p !== "object" || p === null || Array.isArray(p))
 		throw new Error("Invalid reading cache parameters");
-	const threadFamily =
-		descriptor.family === "thread:entity" || descriptor.family === "thread:stats";
+	const threadFamily = descriptor.family === "thread:entity";
 	if (descriptor.family === "post:page") {
 		validatePostPageParams(p);
 		return;
@@ -679,21 +665,12 @@ export function isThreadCacheData(descriptor: CacheDescriptor, value: unknown): 
 	}
 	const p = descriptor.params;
 	switch (descriptor.family) {
-		case "thread:count":
 		case "thread:list":
 			return isThreadListCacheData(descriptor, value);
 		case "thread:entity":
 			return (
 				value === null ||
 				(isRow(value) && value.id === p.threadId && typeof value.subject === "string")
-			);
-		case "thread:stats":
-			return (
-				value === null ||
-				(isRow(value) &&
-					value.id === p.threadId &&
-					Number.isFinite(value.replies) &&
-					Number.isFinite(value.views))
 			);
 		case "post:entity":
 			return (
@@ -761,11 +738,10 @@ export function isThreadCacheData(descriptor: CacheDescriptor, value: unknown): 
 /** Same KV-only key derivation for live reads and management version checks. */
 export async function readingCacheKey(env: Env, descriptor: CacheDescriptor): Promise<string> {
 	validateThreadCacheDescriptor(descriptor);
-	if (descriptor.family === "thread:list" || descriptor.family === "thread:count")
-		return threadListCacheKey(env, descriptor);
+	if (descriptor.family === "thread:list") return threadListCacheKey(env, descriptor);
 	const { family, params, scope } = descriptor;
 	const gens: Record<string, string> = {};
-	if (family === "thread:entity" || family === "thread:stats") {
+	if (family === "thread:entity") {
 		gens.resource = await getGen(env, threadMetaGenKey(params.threadId as number));
 	} else if (family === "post:page") {
 		gens.thread = await getGen(env, postListGenKey(params.threadId as number));
@@ -789,8 +765,7 @@ export async function rebuildThreadCache(
 	ctx: ExecutionContext | undefined,
 	descriptor: CacheDescriptor,
 ): Promise<unknown> {
-	if (descriptor.family === "thread:list" || descriptor.family === "thread:count")
-		return rebuildThreadListCache(env, ctx, descriptor);
+	if (descriptor.family === "thread:list") return rebuildThreadListCache(env, ctx, descriptor);
 	validateThreadCacheDescriptor(descriptor);
 	const p = descriptor.params;
 	const postId = p.postId as number;
@@ -798,8 +773,6 @@ export async function rebuildThreadCache(
 	switch (descriptor.family) {
 		case "thread:entity":
 			return (await loadThreadEntities(env, [threadId])).get(threadId) ?? null;
-		case "thread:stats":
-			return (await loadThreadStats(env, [threadId])).get(threadId) ?? null;
 		case "post:entity":
 			return (await loadPostEntities(env, [postId], threadId)).get(postId) ?? null;
 		case "post:page":

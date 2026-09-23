@@ -240,6 +240,8 @@ describe("cache management uses the original descriptor and authoritative loader
 	});
 	it("delete waits for an earlier rebuild and leaves other entries and D1 unchanged", async () => {
 		const key = await seed();
+		await getPublicUsers(f.env, undefined, [10], "public");
+		const untouched = new Map([...f.values].filter(([name]) => name !== key));
 		const entered = deferred<void>();
 		const finish = deferred<void>();
 		f.state.afterRead = async () => {
@@ -253,7 +255,7 @@ describe("cache management uses the original descriptor and authoritative loader
 		await rebuilding;
 		await deleting;
 		expect(f.values.has(key)).toBe(false);
-		expect(f.snapshots("thread:stats")).toHaveLength(1);
+		expect(f.values).toEqual(untouched);
 		expect(f.sqlite.prepare("SELECT COUNT(*) AS count FROM threads").get()).toMatchObject({
 			count: 1,
 		});

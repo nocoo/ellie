@@ -467,123 +467,28 @@ describe("admin user handlers", () => {
 			expect(body.error.details.message).toBe("Invalid user ID");
 		});
 
-		// ─── G.5: online:<uid> KV soft-signal enrichment ──────────
-
-		describe("online enrichment", () => {
-			const nowSec = Math.floor(Date.now() / 1000);
-
-			function envWithKV(db: D1Database, kvData: Record<string, string>) {
-				return makeEnv({ DB: db, KV: createMockKV(kvData) });
-			}
-
-			it("attaches onlineIp/onlinePage/onlineTs when KV holds a fresh snapshot", async () => {
-				const { db } = createMockDb({
-					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
-				});
-				const env = envWithKV(db, {
+		it("does not read retired online snapshots or expose their fields", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+			});
+			const env = makeEnv({
+				DB: db,
+				KV: createMockKV({
 					"online:42": JSON.stringify({
 						uid: 42,
 						ip: "203.0.113.7",
 						page: "/thread/123",
-						ts: nowSec - 30,
+						ts: Math.floor(Date.now() / 1000),
 					}),
-				});
-
-				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
-				const body = await res.json();
-
-				expect(res.status).toBe(200);
-				expect(body.data.onlineIp).toBe("203.0.113.7");
-				expect(body.data.onlinePage).toBe("/thread/123");
-				expect(body.data.onlineTs).toBe(nowSec - 30);
+				}),
 			});
-
-			it("omits online fields when ts is older than 15min TTL window", async () => {
-				const { db } = createMockDb({
-					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
-				});
-				const env = envWithKV(db, {
-					"online:42": JSON.stringify({
-						uid: 42,
-						ip: "203.0.113.7",
-						page: "/thread/123",
-						ts: nowSec - 901, // > 900s TTL
-					}),
-				});
-
-				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
-				const body = await res.json();
-
-				expect(res.status).toBe(200);
-				expect(body.data.onlineIp).toBeUndefined();
-				expect(body.data.onlinePage).toBeUndefined();
-				expect(body.data.onlineTs).toBeUndefined();
-			});
-
-			it("omits online fields when KV value fails shape guard (ip not string)", async () => {
-				const { db } = createMockDb({
-					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
-				});
-				const env = envWithKV(db, {
-					"online:42": JSON.stringify({ uid: 42, ip: 12345, page: "/x", ts: nowSec }),
-				});
-
-				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
-				const body = await res.json();
-
-				expect(res.status).toBe(200);
-				expect(body.data.onlineIp).toBeUndefined();
-			});
-
-			it("omits online fields when KV value is corrupt JSON", async () => {
-				const { db } = createMockDb({
-					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
-				});
-				const env = envWithKV(db, { "online:42": "not-json{{" });
-
-				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
-				const body = await res.json();
-
-				expect(res.status).toBe(200);
-				expect(body.data.onlineIp).toBeUndefined();
-			});
-
-			it("omits online fields when ts is in the future (G.5.1: clock-skew/poked guard)", async () => {
-				const { db } = createMockDb({
-					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
-				});
-				const env = envWithKV(db, {
-					"online:42": JSON.stringify({
-						uid: 42,
-						ip: "203.0.113.7",
-						page: "/thread/123",
-						ts: nowSec + 600,
-					}),
-				});
-
-				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
-				const body = await res.json();
-
-				expect(res.status).toBe(200);
-				expect(body.data.onlineIp).toBeUndefined();
-				expect(body.data.onlinePage).toBeUndefined();
-				expect(body.data.onlineTs).toBeUndefined();
-			});
-
-			it("omits online fields when KV miss", async () => {
-				const { db } = createMockDb({
-					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
-				});
-				const env = envWithKV(db, {});
-
-				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
-				const body = await res.json();
-
-				expect(res.status).toBe(200);
-				expect(body.data.onlineIp).toBeUndefined();
-				expect(body.data.onlinePage).toBeUndefined();
-				expect(body.data.onlineTs).toBeUndefined();
-			});
+			const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
+			const body = await res.json();
+			expect(res.status).toBe(200);
+			expect(body.data.onlineIp).toBeUndefined();
+			expect(body.data.onlinePage).toBeUndefined();
+			expect(body.data.onlineTs).toBeUndefined();
+			expect(vi.mocked(env.KV.get).mock.calls.some(([key]) => key === "online:42")).toBe(false);
 		});
 	});
 

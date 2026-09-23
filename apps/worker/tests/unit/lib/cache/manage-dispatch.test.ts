@@ -9,11 +9,7 @@ import {
 	getCachedThreadTypes,
 	getDigestGroups,
 } from "../../../../src/lib/cache/catalog-read";
-import {
-	forumCacheKey,
-	getForumSummaryV2,
-	getForumTreeV2,
-} from "../../../../src/lib/cache/forum-read";
+import { forumCacheKey, getForumTreeV2 } from "../../../../src/lib/cache/forum-read";
 import {
 	deleteCacheEntry,
 	inspectCacheEntry,
@@ -25,7 +21,6 @@ import {
 	type MessageRow,
 	privateCacheKey,
 } from "../../../../src/lib/cache/private-read";
-import { getThreadListPage } from "../../../../src/lib/cache/thread-list-read";
 import {
 	cacheGetOrSet,
 	createCacheEnvelope,
@@ -59,123 +54,7 @@ afterEach(() => {
 });
 
 describe("manage-dispatch — static manager key/load/validator dispatch per loader group", () => {
-	it.each(["kpi", "list"])(
-		"allows inspecting/deleting legacy visits %s but never rebuilds it into KV",
-		async (operation) => {
-			const descriptor: CacheDescriptor = {
-				family: "admin:analytics",
-				scope: "admin",
-				params: {
-					resource: "visits",
-					operation,
-					date: "2023-11-15",
-					...(operation === "list" ? { pathKind: null, page: 1, limit: 20 } : {}),
-				},
-			};
-			const legacyData =
-				operation === "kpi"
-					? {
-							now: 1_700_000_000,
-							dateLocal: "2023-11-15",
-							totalViews: 12,
-							humanViews: 12,
-							botSearchViews: 0,
-							botOtherViews: 0,
-							unknownViews: 0,
-							distinctTargets: 1,
-							activeUsers: 2,
-							anonPresent: 0,
-							byPathKind: [],
-						}
-					: { rows: [], page: 1, limit: 20, total: 0 };
-			const key = await adminReportCacheKey(f.env, descriptor);
-			const stored = JSON.stringify(
-				createCacheEnvelope(legacyData, { ...descriptor, tier: "MEDIUM" }),
-			);
-			f.values.set(key, stored);
-			const actorLookup = vi.fn(() => {
-				throw new Error("Rebuild must not read the visits actor");
-			});
-			f.env.TODAY_VISITS = {
-				getByName: actorLookup,
-			} as unknown as typeof f.env.TODAY_VISITS;
-			expect(await inspectCacheEntry(f.env, key)).toMatchObject({
-				found: true,
-				envelope: { data: legacyData },
-			});
-			await expect(rebuildCacheEntry(f.env, undefined, key)).rejects.toMatchObject({
-				code: "LOAD_FAILED",
-				stage: "load",
-			});
-			expect(f.values.get(key)).toBe(stored);
-			expect(f.env.KV.put).not.toHaveBeenCalled();
-			expect(actorLookup).not.toHaveBeenCalled();
-			expect(f.calls).toHaveLength(0);
-			await deleteCacheEntry(f.env, key);
-			expect(f.values.has(key)).toBe(false);
-			expect(f.env.KV.put).not.toHaveBeenCalled();
-		},
-	);
-
-	it("inspects, rebuilds and deletes thread-list counts independently of page snapshots", async () => {
-		await getThreadListPage(f.env, undefined, {
-			forumId: 1,
-			typeId: null,
-			page: 1,
-			limit: 20,
-			cursor: null,
-		});
-		const page = f.snapshots("thread:list").find((entry) => entry.params.kind === "local");
-		const count = f.snapshots("thread:count").find((entry) => entry.params.kind === "count");
-		expect(page).toBeDefined();
-		expect(count).toBeDefined();
-		const countBefore = f.values.get(count.key);
-		f.calls.length = 0;
-
-		for (const entry of [page, count]) {
-			const inspected = await inspectCacheEntry(f.env, entry.key);
-			expect(inspected.valid).toBe(true);
-			expect(inspected.envelope).toMatchObject({
-				tier: entry === count ? "HOUR" : "SHORT",
-				scope: "internal",
-			});
-			expect(entry.expiresAt - entry.loadedAt).toBe(entry === count ? 3_600_000 : 60_000);
-		}
-		expect(f.calls).toHaveLength(0);
-
-		vi.setSystemTime(Date.now() + 30_000);
-		f.thread(2);
-		const rebuiltPage = await rebuildCacheEntry(f.env, undefined, page.key);
-		expect(rebuiltPage.data).toEqual({
-			items: [
-				{ id: 2, sticky: 0, last_post_at: 2 },
-				{ id: 1, sticky: 0, last_post_at: 1 },
-			],
-		});
-		expect(f.calls).toHaveLength(1);
-		expect(f.calls[0].sql).not.toMatch(/COUNT\s*\(/i);
-		expect(f.values.get(count.key)).toBe(countBefore);
-		const pageAfter = f.values.get(page.key);
-
-		f.calls.length = 0;
-		const rebuiltCount = await rebuildCacheEntry(f.env, undefined, count.key);
-		expect(rebuiltCount.data).toEqual({ total: 2 });
-		expect(rebuiltCount.tier).toBe("HOUR");
-		expect(rebuiltCount.expiresAt - rebuiltCount.loadedAt).toBe(3_600_000);
-		expect(f.calls).toHaveLength(1);
-		expect(f.calls[0].sql).toMatch(/COUNT\s*\(/i);
-		expect(f.values.get(page.key)).toBe(pageAfter);
-		expect(f.calls.every((call) => /^\s*SELECT\b/i.test(call.sql))).toBe(true);
-
-		f.calls.length = 0;
-		const otherEntries = new Map([...f.values].filter(([key]) => key !== count.key));
-		await deleteCacheEntry(f.env, count.key);
-		expect(f.calls).toHaveLength(0);
-		expect(f.values.has(count.key)).toBe(false);
-		expect(f.values).toEqual(otherEntries);
-	});
-
-	it("dispatches forum loader (forum:tree:v2 and forum:summary:v2)", async () => {
+	it("dispatches forum loader (forum:tree:v2)", async () => {
 		// Seed forum:tree:v2
 		await getForumTreeV2(f.env, undefined, "anon");
 		const treeDesc: CacheDescriptor = {
@@ -202,21 +81,6 @@ describe("manage-dispatch — static manager key/load/validator dispatch per loa
 				(m) => m.name === "Public Forum Updated",
 			),
 		).toBe(true);
-
-		// Seed forum:summary:v2
-		await getForumSummaryV2(f.env, undefined, "anon");
-		const summaryDesc: CacheDescriptor = {
-			family: "forum:summary:v2",
-			params: { bucket: "anon" },
-			scope: "role:anon",
-		};
-		const summaryKey = await forumCacheKey(f.env, summaryDesc);
-		const inspectedSummary = await inspectCacheEntry(f.env, summaryKey);
-		expect(inspectedSummary.found).toBe(true);
-		expect(inspectedSummary.valid).toBe(true);
-		const rebuiltSummary = await rebuildCacheEntry(f.env, undefined, summaryKey);
-		expect(rebuiltSummary.tier).toBe("HOUR");
-		expect(rebuiltSummary.scope).toBe("role:anon");
 	});
 
 	it("dispatches catalog loader (thread-types, digest:stats)", async () => {

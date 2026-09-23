@@ -7,7 +7,6 @@ import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpPostAttachmentsGen,
 	bumpPostEntityGen,
 	bumpPostListGen,
@@ -284,7 +283,6 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 		...deletable.flatMap((p) => [bumpPostEntityGen(env, p.id), bumpPostAttachmentsGen(env, p.id)]),
 		invalidateThreadReading(env, threadIds, { posts: true }),
 		invalidateThreadListForForums(env, affectedForumIds),
-		bumpForumSummaryGen(env),
 		...affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 		writeAdminLog(env, resolveActor(request, env), {
 			action: "post.batch_delete",

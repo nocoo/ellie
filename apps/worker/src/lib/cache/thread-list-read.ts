@@ -39,7 +39,7 @@ export interface ThreadListCount {
 
 export interface ThreadListMembership extends ThreadListItems, ThreadListCount {}
 
-export type ThreadListCacheData = ThreadListItems | ThreadListCount;
+export type ThreadListCacheData = ThreadListItems | ThreadListMembership;
 
 export function isThreadCursor(value: Partial<ThreadCursor>): boolean {
 	return (
@@ -95,34 +95,36 @@ function followsCursor(row: ThreadListMember, cursor: ThreadCursor): boolean {
 /** Validate persisted parameters again before a management rebuild. */
 export function validateThreadListDescriptor(descriptor: CacheDescriptor): void {
 	const p = descriptor.params;
-	if (
-		descriptor.family !== (p.kind === "count" ? "thread:count" : "thread:list") ||
-		descriptor.scope !== "internal"
-	) {
+	if (descriptor.family !== "thread:list" || descriptor.scope !== "internal") {
 		throw new Error("Unsupported thread-list cache descriptor");
 	}
 	if (typeof p !== "object" || p === null || Array.isArray(p))
 		throw new Error("Invalid thread-list cache parameters");
 	if (p.kind === "announcements" && Object.hasOwn(p, "kind") && Object.keys(p).length === 1) return;
-	const keys =
-		p.kind === "count"
-			? ["kind", "forumId", "typeId"]
-			: ["kind", "forumId", "typeId", "limit", "offset", "cursorSticky", "cursorTime", "cursorId"];
+	const keys = [
+		"kind",
+		"forumId",
+		"typeId",
+		"limit",
+		"offset",
+		"cursorSticky",
+		"cursorTime",
+		"cursorId",
+	];
 	if (
 		Object.keys(p).length !== keys.length ||
 		keys.some((key) => !Object.hasOwn(p, key)) ||
-		(p.kind !== "local" && p.kind !== "count") ||
+		p.kind !== "local" ||
 		!Number.isSafeInteger(p.forumId) ||
 		Number(p.forumId) <= 0 ||
 		(p.typeId !== null && (!Number.isSafeInteger(p.typeId) || Number(p.typeId) <= 0))
 	) {
 		throw new Error("Invalid thread-list cache parameters");
 	}
-	if (p.kind === "count") return;
 	if (
 		!Number.isSafeInteger(p.limit) ||
 		Number(p.limit) < 1 ||
-		Number(p.limit) > 100 ||
+		Number(p.limit) > 101 ||
 		!Number.isSafeInteger(p.offset) ||
 		Number(p.offset) < 0
 	) {
@@ -151,7 +153,6 @@ export function isThreadListCacheData(
 		return false;
 	}
 	const p = descriptor.params;
-	if (p.kind === "count") return isCount(value) && Object.keys(value).length === 1;
 	if (!isItems(value)) return false;
 	if (new Set(value.items.map((row) => row.id)).size !== value.items.length) return false;
 	if (p.kind === "announcements") {
@@ -203,15 +204,6 @@ export async function rebuildThreadListCache(
 			: "t.forum_id = ? AND t.type_id = ? AND t.sticky >= 0";
 	const bindings = p.typeId === null ? [p.forumId] : [p.forumId, p.typeId];
 	const from = `threads t${p.typeId === null ? "" : " INDEXED BY idx_threads_forum_type"}`;
-	if (p.kind === "count") {
-		const result = await env.DB.prepare(`SELECT COUNT(*) as total FROM ${from} WHERE ${where}`)
-			.bind(...bindings)
-			.all<ThreadListCount>();
-		const count = result.results[0];
-		if (!result.success || result.results.length !== 1 || !isThreadListCacheData(descriptor, count))
-			throw new Error("Thread-list count query failed");
-		return count;
-	}
 	// Untyped membership excludes global pins. Native order stops after the
 	// needed timestamp groups; tuple cursors also seek past earlier groups.
 	const rank =
@@ -265,18 +257,48 @@ async function readSnapshot(
 	});
 	return cacheGetOrSet(env, ctx, key, () => rebuildThreadListCache(env, ctx, descriptor), {
 		...descriptor,
-		tier: descriptor.params.kind === "count" ? "HOUR" : "SHORT",
+		tier: "SHORT",
 		validator: (value): value is ThreadListCacheData => isThreadListCacheData(descriptor, value),
 	});
 }
 
 /** All legal limits, filters, keyset cursors and offset pages are cached. */
+export async function readGlobalAnnouncements(
+	env: Env,
+	ctx: ExecutionContext | undefined,
+	fresh = false,
+): Promise<ThreadListMembership> {
+	const descriptor: CacheDescriptor = {
+		family: "thread:list",
+		scope: "internal",
+		params: { kind: "announcements" },
+	};
+	const announcements = fresh
+		? await rebuildThreadListCache(env, ctx, descriptor)
+		: await readSnapshot(env, ctx, descriptor, {
+				all: await getGen(env, threadListGenAllKey()),
+				forum: "0",
+			});
+	if (!isItems(announcements) || !isCount(announcements)) {
+		throw new Error("Invalid announcement snapshot");
+	}
+	return announcements;
+}
+
 export async function getThreadListPage(
 	env: Env,
 	ctx: ExecutionContext | undefined,
 	query: ThreadListQuery,
 	fresh = false,
-): Promise<ThreadListItems & { total: number | null; nextCursor: string | null }> {
+	eligibleAnnouncements?: ThreadListMember[],
+): Promise<
+	ThreadListItems & {
+		window: ThreadListMember[];
+		total: number | null;
+		nextCursor: string | null;
+		hasNext: boolean;
+	}
+> {
 	const { forumId, limit, typeId, cursor, page } = query;
 	if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger((page - 1) * limit)) {
 		throw new Error("Invalid thread-list page");
@@ -295,19 +317,25 @@ export async function getThreadListPage(
 	// Global membership is shared between forums. Nothing from this snapshot
 	// is copied into the local cache, so composition cannot renew its lifetime.
 	const announcements =
-		typeId === null
-			? await read({
-					family: "thread:list",
-					scope: "internal",
-					params: { kind: "announcements" },
-				})
-			: { items: [], total: 0 };
+		typeId !== null
+			? { items: [], total: 0 }
+			: eligibleAnnouncements
+				? { items: eligibleAnnouncements, total: eligibleAnnouncements.length }
+				: await read({
+						family: "thread:list",
+						scope: "internal",
+						params: { kind: "announcements" },
+					});
 	if (!isItems(announcements) || !isCount(announcements))
 		throw new Error("Invalid announcement snapshot");
 	const offset = cursor ? 0 : (page - 1) * limit;
-	const globals = cursor
-		? announcements.items.filter((row) => followsCursor(row, cursor))
-		: announcements.items.slice(offset);
+	const need = limit + 1;
+	const globals = (
+		cursor
+			? announcements.items.filter((row) => followsCursor(row, cursor))
+			: announcements.items.slice(offset)
+	).slice(0, need);
+	const localNeed = need - globals.length;
 	const descriptor: CacheDescriptor = {
 		family: "thread:list",
 		scope: "internal",
@@ -315,32 +343,52 @@ export async function getThreadListPage(
 			kind: "local",
 			forumId,
 			typeId,
-			limit,
+			limit: Math.max(localNeed, 1),
 			offset: Math.max(0, offset - announcements.total),
 			cursorSticky: cursor?.sticky ?? null,
 			cursorTime: cursor?.lastPostAt ?? null,
 			cursorId: cursor?.id ?? null,
 		},
 	};
-	// Counts are shared by every page/cursor/limit and expire independently.
-	// Only this response combines them; neither snapshot copies the other.
 	const [local, count] = await Promise.all([
-		read(descriptor),
-		query.includeTotal === false
-			? null
-			: read({
-					family: "thread:count",
-					scope: "internal",
-					params: { kind: "count", forumId, typeId },
-				}),
+		localNeed > 0 ? read(descriptor) : Promise.resolve({ items: [] }),
+		query.includeTotal === false ? null : countLocalThreads(env, forumId, typeId),
 	]);
-	if (!isItems(local) || (count !== null && !isCount(count)))
-		throw new Error("Invalid thread-list snapshot");
-	const items = [...globals, ...local.items].slice(0, limit);
+	if (!isItems(local)) throw new Error("Invalid thread-list snapshot");
+	const composed = [...globals, ...(localNeed === 0 ? [] : local.items)].slice(0, need);
+	const items = composed.slice(0, limit);
 	const nextCursor = buildNextCursor(items, limit, (row) => ({
 		sticky: stickyRank(row.sticky),
 		lastPostAt: row.last_post_at,
 		id: row.id,
 	}));
-	return { items, total: count === null ? null : announcements.total + count.total, nextCursor };
+	return {
+		items,
+		window: composed,
+		total: count === null ? null : announcements.total + count,
+		nextCursor,
+		hasNext: composed.length > limit,
+	};
+}
+
+/** Local rows only. Global announcements are filtered by the caller before adding. */
+export async function countLocalThreads(
+	env: Env,
+	forumId: number,
+	typeId: number | null,
+): Promise<number> {
+	const localWhere =
+		typeId === null
+			? `t.forum_id = ? AND t.sticky >= 0 AND t.sticky != ${STICKY_GLOBAL}`
+			: "t.forum_id = ? AND t.type_id = ? AND t.sticky >= 0";
+	const localFrom = `threads t${typeId === null ? "" : " INDEXED BY idx_threads_forum_type"}`;
+	const bindings = typeId === null ? [forumId] : [forumId, typeId];
+	const local = await env.DB.prepare(
+		`SELECT COUNT(*) AS total FROM ${localFrom} WHERE ${localWhere}`,
+	)
+		.bind(...bindings)
+		.first<{ total: number }>();
+	if (!local || !Number.isSafeInteger(local.total) || local.total < 0)
+		throw new Error("Thread count was not returned");
+	return local.total;
 }

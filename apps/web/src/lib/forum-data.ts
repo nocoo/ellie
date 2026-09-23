@@ -9,7 +9,14 @@
 
 import "server-only";
 
-import type { Forum, ForumVisibility, ModeratorInfo, Thread } from "@ellie/types";
+import {
+	type Forum,
+	type ForumVisibility,
+	isReadingBucket,
+	type ModeratorInfo,
+	type ReadingBucket,
+	type Thread,
+} from "@ellie/types";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { forumApi } from "./forum-api";
 
@@ -30,6 +37,31 @@ export async function fetchThreadMetadata(threadId: number): Promise<Thread> {
 export async function fetchForumList(): Promise<Forum[]> {
 	const { data } = await forumApi.getAll<Forum>("/api/v1/forums");
 	return data;
+}
+
+export interface ForumStructure {
+	/** Static metadata; every summary field is zeroed by the Worker. */
+	forums: Forum[];
+	/** Worker-authorized reading bucket for this response, when provided. */
+	bucket: ReadingBucket | null;
+}
+
+/**
+ * Static forum structure (`/api/v1/forums?view=structure`) — the doc/29
+ * source for tree/breadcrumb/names. Skips the retired summary aggregates;
+ * display numbers come from the reading contract instead. The caller's JWT
+ * is forwarded so member/staff/admin forums resolve for signed-in viewers.
+ */
+export async function fetchForumStructure(jwt: string | null): Promise<ForumStructure> {
+	const call = jwt
+		? forumApi.getAuth<Forum[]>("/api/v1/forums", jwt, { view: "structure" })
+		: forumApi.getAll<Forum>("/api/v1/forums", { view: "structure" });
+	const { data, meta } = await call;
+	const bucket = ((meta ?? {}) as { bucket?: unknown }).bucket;
+	return {
+		forums: data,
+		bucket: typeof bucket === "string" && isReadingBucket(bucket) ? bucket : null,
+	};
 }
 
 /** Name chips do not need counters, latest threads or their authors. */

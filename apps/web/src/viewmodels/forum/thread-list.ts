@@ -58,6 +58,25 @@ export interface ThreadListState {
 // ---------------------------------------------------------------------------
 
 /**
+ * Lower-bound displayed page count (doc/29): at least the current page,
+ * one more while hasNext holds, and never below the cached authoritative
+ * total. A real requested page is never clamped down to a stale total, and
+ * an empty final page keeps its number so the previous page stays reachable.
+ */
+export function lowerBoundPages(
+	page: number,
+	limit: number,
+	total: number,
+	hasNext: boolean,
+): number {
+	const safePage = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
+	const safeLimit = Number.isFinite(limit) && limit >= 1 ? Math.floor(limit) : 1;
+	const safeTotal = Number.isFinite(total) && total >= 0 ? Math.floor(total) : 0;
+	const fromTotal = Math.max(1, Math.ceil(safeTotal / safeLimit));
+	return Math.max(fromTotal, safePage, hasNext ? safePage + 1 : 1);
+}
+
+/**
  * Enrich a raw Thread array with computed badges and highlight styles.
  *
  * `includeTypeNameBadge` controls whether the leading prefix badge is

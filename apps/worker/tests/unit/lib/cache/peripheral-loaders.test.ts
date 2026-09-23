@@ -86,11 +86,6 @@ describe("lib/cache/peripheral-loaders", () => {
 				params: {},
 				scope: "public",
 			});
-			const key2 = await peripheralCacheKey(f.env, {
-				family: "public-stats",
-				params: {},
-				scope: "public",
-			});
 			const key3 = await peripheralCacheKey(f.env, {
 				family: "user:mini:v1",
 				params: { id: 10 },
@@ -98,7 +93,6 @@ describe("lib/cache/peripheral-loaders", () => {
 			});
 
 			expect(key1).toBe("settings:all");
-			expect(key2).toBe("public-stats");
 			expect(key3).toBe("user:mini:10");
 			expect(f.calls.length).toBe(callsBefore);
 		});
@@ -121,18 +115,15 @@ describe("lib/cache/peripheral-loaders", () => {
 			expect(result["site.name"]).toBe("Ellie Forum");
 		});
 
-		it("rebuilds public-stats from settings and posts", async () => {
-			const result = (await rebuildPeripheralCache(f.env, f.ctx, {
-				family: "public-stats",
-				params: {},
-				scope: "public",
-			})) as Record<string, unknown>;
-
-			expect(result).toBeDefined();
-			expect(result).toHaveProperty("todayPosts");
-			expect(result).toHaveProperty("totalPosts");
-			expect(result).toHaveProperty("totalThreads");
-			expect(result).toHaveProperty("totalMembers");
+		it("rejects retired public statistics cache rebuilds", async () => {
+			await expect(
+				rebuildPeripheralCache(f.env, f.ctx, {
+					family: "public-stats",
+					params: {},
+					scope: "public",
+				}),
+			).rejects.toThrow("Invalid peripheral cache descriptor");
+			expect(f.calls).toEqual([]);
 		});
 
 		it("rebuilds user:mini:v1 for existing and missing users", async () => {

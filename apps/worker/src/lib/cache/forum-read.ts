@@ -7,7 +7,8 @@ import {
 	type ForumVisibility,
 } from "@ellie/types";
 import type { Env } from "../env";
-import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds, toForum } from "../mappers";
+import { parseModeratorIds, toForum } from "../mappers";
+import { shanghaiTodayStartUnix } from "../shanghaiTime";
 import { getUserProfiles } from "../user-cache";
 import { getGen, UNAVAILABLE_CACHE_GENERATION } from "./epoch";
 import {
@@ -15,23 +16,14 @@ import {
 	buildForumSummaryPayload,
 	buildForumTreePayload,
 	type ForumAggregateV2,
-	type ForumSummaryPayloadV2,
 	type ForumTreeNodeV2,
 	type ForumTreePayloadV2,
-	isForumSummaryPayload,
 	isForumTreePayload,
 } from "./forum";
-import {
-	forumSummaryGenKey,
-	forumSummaryKey,
-	forumTreeGenKey,
-	forumTreeKey,
-	type VisibilityBucket,
-} from "./keys";
+import { forumTreeGenKey, forumTreeKey, type VisibilityBucket } from "./keys";
 import { cacheGetOrSet } from "./wrap";
 
 export const FORUM_TREE_TTL = CACHE_TTL_SECONDS.HOUR;
-export const FORUM_SUMMARY_TTL = CACHE_TTL_SECONDS.HOUR;
 export interface ForumSnapshotRow extends Forum {
 	moderatorIds: string;
 }
@@ -56,7 +48,6 @@ interface GateSnapshot<T> {
 // ponytail: per-isolate hints avoid hot SQL without another KV payload family.
 // Cold isolates reload; authoritative content/write authorization stays separate.
 const forumGates = new WeakMap<KVNamespace, GateSnapshot<CurrentForum>>();
-const latestGates = new WeakMap<KVNamespace, Map<string, GateSnapshot<Candidate>>>();
 
 function canCacheGates(env: Env, version: string, family: string): boolean {
 	return (
@@ -87,30 +78,28 @@ export async function loadForumStructure(env: Env): Promise<ForumSnapshotRow[]> 
 
 /** One indexed newest-thread lookup per forum within a single SQL statement. */
 const LAST_ID =
-	"(SELECT t.id FROM threads t INDEXED BY idx_threads_forum_latest WHERE t.forum_id = f.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC, t.id DESC LIMIT 1)";
+	"(SELECT t.id FROM threads t INDEXED BY idx_threads_forum_visible_created WHERE t.forum_id = f.id AND t.sticky >= 0 AND t.anonymous_author = 0 ORDER BY t.created_at DESC, t.id DESC LIMIT 1)";
 const LAST_THREAD_COLUMNS = `t.id AS last_thread_id, t.subject AS last_thread_subject,
- t.last_post_at, t.last_poster, t.last_poster_id, t.anonymous_last_poster,
+ t.created_at AS last_post_at, t.author_id AS last_poster_id, t.anonymous_author,
  u.username AS last_poster_name, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path`;
 const LAST_THREAD_JOINS = `LEFT JOIN threads t ON t.id = ${LAST_ID}
- LEFT JOIN users u ON u.id = t.last_poster_id`;
+ LEFT JOIN users u ON u.id = t.author_id AND t.anonymous_author = 0`;
 
 /** Display-only copies; current gates below still mask newly anonymous replies. */
 function lastThreadFields(row: Record<string, unknown>) {
-	const anonymous = row.anonymous_last_poster === 1;
+	if (row.anonymous_author === 1) return lastThreadFields({});
 	return {
 		lastThreadId: Number(row.last_thread_id ?? 0),
-		lastThreadSubject: String(row.last_thread_subject ?? ""),
+		lastThreadSubject: String(row.last_thread_subject ?? "").slice(0, 200),
 		lastPostAt: Number(row.last_post_at ?? 0),
-		lastPoster: anonymous
-			? ANONYMOUS_AUTHOR_NAME
-			: String(row.last_poster_name ?? row.last_poster ?? ""),
-		lastPosterId: anonymous ? 0 : Number(row.last_poster_id ?? 0),
-		lastPosterAvatar: anonymous ? "" : String(row.last_poster_avatar ?? ""),
-		lastPosterAvatarPath: anonymous ? "" : String(row.last_poster_avatar_path ?? ""),
+		lastPoster: String(row.last_poster_name ?? "").slice(0, 64),
+		lastPosterId: Number(row.last_poster_id ?? 0),
+		lastPosterAvatar: String(row.last_poster_avatar ?? ""),
+		lastPosterAvatarPath: String(row.last_poster_avatar_path ?? ""),
 	};
 }
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
-	const cutoff = Math.floor(Date.now() / 1000) - 86400;
+	const cutoff = shanghaiTodayStartUnix();
 	const [forums, counts] = await Promise.all([
 		env.DB.prepare(
 			`SELECT f.id, f.status, f.visibility, f.threads, f.posts, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS}`,
@@ -176,11 +165,8 @@ export async function forumCacheKey(env: Env, d: CacheDescriptor): Promise<strin
 		Object.keys(d.params).length !== 1
 	)
 		throw new TypeError("Invalid forum cache descriptor");
-	if (d.family === "forum:tree:v2")
-		return forumTreeKey(bucket as VisibilityBucket, await getGen(env, forumTreeGenKey()));
-	if (d.family === "forum:summary:v2")
-		return forumSummaryKey(bucket as VisibilityBucket, await getGen(env, forumSummaryGenKey()));
-	throw new TypeError("Unsupported forum cache family");
+	if (d.family !== "forum:tree:v2") throw new TypeError("Unsupported forum cache family");
+	return forumTreeKey(bucket as VisibilityBucket, await getGen(env, forumTreeGenKey()));
 }
 export function isForumCacheData(d: CacheDescriptor, value: unknown): boolean {
 	if (d.family === "forum:tree:v2")
@@ -196,25 +182,15 @@ export function isForumCacheData(d: CacheDescriptor, value: unknown): boolean {
 					Array.isArray(row.moderatorList),
 			)
 		);
-	return (
-		d.family === "forum:summary:v2" &&
-		isForumSummaryPayload(value) &&
-		value.bucket === d.params.bucket &&
-		Object.values(value.aggregates).every((row) =>
-			[row.threads, row.posts, row.todayThreads, row.lastThreadId].every(Number.isFinite),
-		)
-	);
+	return false;
 }
 export async function rebuildForumCache(
 	env: Env,
 	_ctx: ExecutionContext | undefined,
 	d: CacheDescriptor,
-): Promise<ForumTreePayloadV2 | ForumSummaryPayloadV2> {
+): Promise<ForumTreePayloadV2> {
 	await forumCacheKey(env, d);
-	const bucket = d.params.bucket as VisibilityBucket;
-	return d.family === "forum:tree:v2"
-		? buildForumTreePayload(await loadForumStructure(env), bucket)
-		: buildForumSummaryPayload(await loadForumSnapshot(env), bucket);
+	return buildForumTreePayload(await loadForumStructure(env), d.params.bucket as VisibilityBucket);
 }
 export async function getForumTreeV2(
 	env: Env,
@@ -268,37 +244,22 @@ interface Candidate {
 	id: number;
 	forum_id: number;
 	sticky: number;
-	anonymous_last_poster: number;
+	anonymous_author: number;
+	author_id: number;
 }
 async function currentCandidates(env: Env, ids: number[]): Promise<Map<number, Candidate>> {
-	if (!ids.length) return new Map();
-	const version = await getGen(env, forumSummaryGenKey());
-	const cacheable = canCacheGates(env, version, "forum:summary:v2");
-	const key = [...ids].sort((a, b) => a - b).join(",");
-	let snapshots = latestGates.get(env.KV);
-	const cached = snapshots?.get(key);
-	if (cacheable && cached?.version === version && cached.expiresAt > Date.now())
-		return new Map(cached.rows);
 	const rows = new Map<number, Candidate>();
 	for (let start = 0; start < ids.length; start += 100) {
 		const part = ids.slice(start, start + 100);
 		const result = await env.DB.prepare(
-			`SELECT id, forum_id, sticky, anonymous_last_poster FROM threads WHERE id IN (${part.map(() => "?").join(",")})`,
+			`SELECT id, forum_id, sticky, anonymous_author, author_id FROM threads WHERE id IN (${part.map(() => "?").join(",")})`,
 		)
 			.bind(...part)
 			.all<Candidate>();
 		if (!result.success) throw new Error("Current last-thread permissions could not be loaded");
 		for (const row of result.results) rows.set(row.id, row);
 	}
-	if (cacheable) {
-		if (!snapshots) {
-			snapshots = new Map();
-			latestGates.set(env.KV, snapshots);
-		}
-		if (snapshots.size >= 32) snapshots.clear();
-		snapshots.set(key, { version, expiresAt: Date.now() + FORUM_SUMMARY_TTL * 1000, rows });
-	}
-	return new Map(rows);
+	return rows;
 }
 async function replaceMissingCandidates(
 	env: Env,
@@ -308,7 +269,14 @@ async function replaceMissingCandidates(
 	const missing = Object.entries(aggregates)
 		.filter(([id, row]) => {
 			const gate = gates.get(row.lastThreadId);
-			return row.lastThreadId > 0 && (!gate || gate.forum_id !== Number(id) || gate.sticky < 0);
+			return (
+				row.lastThreadId > 0 &&
+				(!gate ||
+					gate.forum_id !== Number(id) ||
+					gate.sticky < 0 ||
+					gate.anonymous_author === 1 ||
+					gate.author_id !== row.lastPosterId)
+			);
 		})
 		.map(([id]) => Number(id));
 	for (let start = 0; start < missing.length; start += 100) {
@@ -334,37 +302,28 @@ async function replaceMissingCandidates(
 function composeLastThread(
 	aggregate: ForumAggregateV2,
 	gate: Candidate | undefined,
+	forumId: number,
 ): ForumAggregateV2 {
-	if (!gate || gate.sticky < 0) return { ...aggregate, ...lastThreadFields({}) };
-	if (gate.anonymous_last_poster !== 1) return aggregate;
-	return {
-		...aggregate,
-		lastPoster: ANONYMOUS_AUTHOR_NAME,
-		lastPosterId: 0,
-		lastPosterAvatar: "",
-		lastPosterAvatarPath: "",
-	};
+	if (
+		!gate ||
+		gate.sticky < 0 ||
+		gate.anonymous_author === 1 ||
+		gate.forum_id !== forumId ||
+		gate.author_id !== aggregate.lastPosterId
+	) {
+		return { ...aggregate, ...lastThreadFields({}) };
+	}
+	return aggregate;
 }
 export async function getForumSummaryV2(
 	env: Env,
-	ctx: ExecutionContext | undefined,
+	_ctx: ExecutionContext | undefined,
 	bucket: VisibilityBucket,
 	loadSnapshot = () => loadForumSnapshot(env),
 	checked?: Map<number, CurrentForum>,
 ): Promise<Record<number, ForumAggregateV2>> {
-	const d = { family: "forum:summary:v2", params: { bucket }, scope: `role:${bucket}` };
-	const [key, current] = await Promise.all([forumCacheKey(env, d), checked ?? currentForums(env)]);
-	const payload = await cacheGetOrSet(
-		env,
-		ctx,
-		key,
-		async () => buildForumSummaryPayload(await loadSnapshot(), bucket),
-		{
-			...d,
-			tier: "HOUR",
-			validator: (value): value is ForumSummaryPayloadV2 => isForumCacheData(d, value),
-		},
-	);
+	const current = checked ?? (await currentForums(env));
+	const payload = buildForumSummaryPayload(await loadSnapshot(), bucket);
 	const aggregates = Object.fromEntries(
 		Object.entries(payload.aggregates).filter(([id]) => visible(current.get(Number(id)), bucket)),
 	) as Record<number, ForumAggregateV2>;
@@ -380,7 +339,7 @@ export async function getForumSummaryV2(
 	return Object.fromEntries(
 		Object.entries(aggregates).map(([id, agg]) => [
 			id,
-			composeLastThread(agg, gates.get(agg.lastThreadId)),
+			composeLastThread(agg, gates.get(agg.lastThreadId), Number(id)),
 		]),
 	);
 }
@@ -456,4 +415,67 @@ export async function getForumMetaV2(
 		summary,
 	)[0];
 	return forum ? { kind: "ok", forum } : { kind: "notFound" };
+}
+
+export function toForumSummaries(
+	aggregates: Record<number, ForumAggregateV2>,
+): import("@ellie/types").ForumSummaryTopic[] {
+	return Object.entries(aggregates)
+		.map(([id, row]) => ({
+			forumId: Number(id),
+			threads: row.threads,
+			posts: row.posts,
+			todayThreads: row.todayThreads,
+			topicId: row.lastThreadId,
+			topicSubject: row.lastThreadSubject,
+			topicCreatedAt: row.lastPostAt,
+			authorId: row.lastPosterId,
+			authorName: row.lastPoster,
+			authorAvatar: row.lastPosterAvatar,
+			authorAvatarPath: row.lastPosterAvatarPath,
+		}))
+		.sort((a, b) => a.forumId - b.forumId);
+}
+
+export async function loadSummaryGates(
+	env: Env,
+	topicIds: readonly number[],
+	bucket: VisibilityBucket,
+): Promise<import("@ellie/types").ForumSummaryGate[]> {
+	if (!topicIds.length) return [];
+	const gates: import("@ellie/types").ForumSummaryGate[] = [];
+	for (let start = 0; start < topicIds.length; start += 100) {
+		const part = topicIds.slice(start, start + 100);
+		const result = await env.DB.prepare(
+			`SELECT t.id AS topic_id, t.forum_id, t.sticky, t.anonymous_author, t.author_id,
+			 f.status AS forum_status, f.visibility
+			 FROM threads t JOIN forums f ON f.id = t.forum_id
+			 WHERE t.id IN (${part.map(() => "?").join(",")})`,
+		)
+			.bind(...part)
+			.all<{
+				topic_id: number;
+				forum_id: number;
+				sticky: number;
+				anonymous_author: number;
+				author_id: number;
+				forum_status: number;
+				visibility: ForumVisibility;
+			}>();
+		if (!result.success) throw new Error("Summary gates could not be loaded");
+		for (const row of result.results) {
+			if (row.forum_status !== 1 || row.sticky < 0 || row.anonymous_author !== 0) continue;
+			if (!canViewForumVisibility(row.visibility, bucketToVisibilityContext(bucket))) continue;
+			gates.push({
+				topicId: row.topic_id,
+				forumId: row.forum_id,
+				forumStatus: row.forum_status,
+				visibility: row.visibility,
+				sticky: row.sticky,
+				anonymousAuthor: row.anonymous_author,
+				authorId: row.author_id,
+			});
+		}
+	}
+	return gates;
 }

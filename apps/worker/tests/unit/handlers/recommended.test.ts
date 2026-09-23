@@ -1,16 +1,3 @@
-// Tests for the "推荐主题" handlers (migration 0045):
-//
-//   GET    /api/v1/forums/:id/recommended-threads      public list (capped 6, thread_id DESC)
-//   POST   /api/v1/moderation/threads/:id/recommend    moderator add (INSERT OR IGNORE, idempotent)
-//   DELETE /api/v1/moderation/threads/:id/recommend    moderator remove (idempotent 200)
-//
-// Cache invalidation freeze (reviewer msg d9c01f23):
-//   addRecommend / removeRecommend MUST bump only `thread:meta:gen:<id>`
-//   and MUST NOT bump `forum:summary:gen` or `thread:list:gen:*` — the
-//   recommend list endpoint is uncached (independent D1 query) and the
-//   forum summary / page-1 thread-list payloads do not change when the
-//   recommended flag flips.
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../src/lib/cache/invalidate", async () => {
@@ -20,7 +7,6 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 	return {
 		...actual,
 		bumpThreadMetaGen: vi.fn(async () => "g"),
-		bumpForumSummaryGen: vi.fn(async () => "g"),
 		invalidateForumVolatileV2: vi.fn(async () => {}),
 	};
 });
@@ -30,16 +16,11 @@ import {
 	listRecommendedThreads,
 	removeRecommend,
 } from "../../../src/handlers/recommended";
-import {
-	bumpForumSummaryGen,
-	bumpThreadMetaGen,
-	invalidateForumVolatileV2,
-} from "../../../src/lib/cache/invalidate";
+import { bumpThreadMetaGen, invalidateForumVolatileV2 } from "../../../src/lib/cache/invalidate";
 import { createJwt } from "../../../src/lib/jwt";
 import { createMockDb, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
-const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockInvVolV2 = invalidateForumVolatileV2 as ReturnType<typeof vi.fn>;
 
 async function makeToken(role: number, userId = 1): Promise<string> {
@@ -343,7 +324,7 @@ describe("DELETE recommend — auth + RBAC + idempotence", () => {
 // ─── Cache-invalidation freeze (reviewer msg d9c01f23) ──────────
 
 describe("recommend toggle invalidation — ONLY thread:meta:gen", () => {
-	it("POST bumps thread:meta:gen exactly once, never forum summary / volatile", async () => {
+	it("POST bumps thread:meta:gen exactly once, never forum volatile", async () => {
 		const token = await makeToken(1);
 		const { db } = createMockDb({
 			firstResults: {
@@ -358,14 +339,10 @@ describe("recommend toggle invalidation — ONLY thread:meta:gen", () => {
 		expect(res.status).toBe(200);
 		expect(mockBumpThreadMeta).toHaveBeenCalledTimes(1);
 		expect(mockBumpThreadMeta).toHaveBeenCalledWith(env, 100);
-		// Reviewer pin: must NOT widen invalidation to forum-summary or
-		// thread-list. These would needlessly invalidate page-1 thread
-		// list payloads and forum tree/summary caches that did not change.
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 		expect(mockInvVolV2).not.toHaveBeenCalled();
 	});
 
-	it("DELETE bumps thread:meta:gen exactly once, never forum summary / volatile", async () => {
+	it("DELETE bumps thread:meta:gen exactly once, never forum volatile", async () => {
 		const token = await makeToken(1);
 		const { db } = createMockDb({
 			firstResults: {
@@ -380,7 +357,6 @@ describe("recommend toggle invalidation — ONLY thread:meta:gen", () => {
 		expect(res.status).toBe(200);
 		expect(mockBumpThreadMeta).toHaveBeenCalledTimes(1);
 		expect(mockBumpThreadMeta).toHaveBeenCalledWith(env, 100);
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 		expect(mockInvVolV2).not.toHaveBeenCalled();
 	});
 
@@ -398,7 +374,6 @@ describe("recommend toggle invalidation — ONLY thread:meta:gen", () => {
 		const res = await addRecommend(modRequest("POST", 100, token), env);
 		expect(res.status).toBe(403);
 		expect(mockBumpThreadMeta).not.toHaveBeenCalled();
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 		expect(mockInvVolV2).not.toHaveBeenCalled();
 	});
 });

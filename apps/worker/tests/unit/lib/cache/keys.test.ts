@@ -4,9 +4,6 @@ import {
 	digestGenKey,
 	digestListKey,
 	digestStatsKey,
-	forumMetaKey,
-	forumSummaryGenKey,
-	forumSummaryKey,
 	forumTreeGenKey,
 	forumTreeKey,
 	pmInboxKey,
@@ -14,7 +11,6 @@ import {
 	postListGenKey,
 	postListKey,
 	settingsAllKey,
-	statsPublicKey,
 	threadListGenAllKey,
 	threadListGenKey,
 	threadListKey,
@@ -28,14 +24,6 @@ describe("cache/keys — v2 schema", () => {
 	it("forumTreeKey embeds bucket and gen", () => {
 		expect(forumTreeKey("anon", "abc")).toBe("forum:tree:v2:anon:gabc");
 		expect(forumTreeKey("admin", "xyz")).toBe("forum:tree:v2:admin:gxyz");
-	});
-
-	it("forumSummaryKey embeds bucket and gen", () => {
-		expect(forumSummaryKey("member", "g1")).toBe("forum:summary:v2:member:gg1");
-	});
-
-	it("forumMetaKey embeds forumId, bucket, gen", () => {
-		expect(forumMetaKey(42, "staff", "t1")).toBe("forum:meta:v2:42:staff:gt1");
 	});
 
 	it("threadListKey embeds forumId, default sort, limit, p1 marker, and two gens", () => {
@@ -81,14 +69,12 @@ describe("cache/keys — v2 schema", () => {
 		expect(pmUnreadKey(11)).toBe("pm:unread:v2:11");
 	});
 
-	it("settingsAllKey / statsPublicKey are stable singletons", () => {
+	it("settingsAllKey is a stable singleton", () => {
 		expect(settingsAllKey()).toBe("settings:all:v2");
-		expect(statsPublicKey()).toBe("stats:public:v2");
 	});
 
 	it("generation key inventory", () => {
 		expect(forumTreeGenKey()).toBe("forum:tree:gen");
-		expect(forumSummaryGenKey()).toBe("forum:summary:gen");
 		expect(threadListGenKey(3)).toBe("thread:list:gen:3");
 		expect(threadListGenAllKey()).toBe("thread:list:gen:all");
 		expect(threadMetaGenKey(8)).toBe("thread:meta:gen:8");

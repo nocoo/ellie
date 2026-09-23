@@ -13,7 +13,6 @@ import {
 } from "../../lib/cache/admin-entity-read";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpPostAttachmentsGen,
 	bumpThreadListGenAll,
 	invalidateThreadListForForums,
@@ -432,36 +431,6 @@ export const list = withEntityAuth(userConfig, createListHandler(userConfig));
 // Falls through to a non-enriched response on any KV failure (offline) so the
 // detail endpoint never breaks because of a soft-signal lookup.
 
-const ONLINE_TTL_SEC = 900;
-
-interface OnlineSnapshot {
-	ip: string;
-	page: string;
-	ts: number;
-}
-
-async function readOnlineSnapshot(env: Env, userId: number): Promise<OnlineSnapshot | null> {
-	let raw: unknown;
-	try {
-		raw = await env.KV.get(`online:${userId}`, "json");
-	} catch {
-		return null;
-	}
-	if (!raw || typeof raw !== "object") return null;
-	const r = raw as Record<string, unknown>;
-	if (typeof r.ip !== "string" || typeof r.page !== "string" || typeof r.ts !== "number") {
-		return null;
-	}
-	const nowSec = Math.floor(Date.now() / 1000);
-	// G.5.1: reject both stale (ts beyond TTL window) and impossible-future
-	// timestamps. The online tracker is a same-worker writer so any negative
-	// age is hand-poked / corrupt KV — must not be presented as "currently
-	// online".
-	const age = nowSec - r.ts;
-	if (age < 0 || age > ONLINE_TTL_SEC) return null;
-	return { ip: r.ip, page: r.page, ts: r.ts };
-}
-
 export const getById = withEntityAuth(
 	userConfig,
 	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
@@ -479,15 +448,7 @@ export const getById = withEntityAuth(
 		if (!row) {
 			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 		}
-
-		const online = await readOnlineSnapshot(env, id);
-		return jsonNoStoreResponse(
-			{
-				...row,
-				...(online ? { onlineIp: online.ip, onlinePage: online.page, onlineTs: online.ts } : {}),
-			},
-			origin,
-		);
+		return jsonNoStoreResponse(row, origin);
 	},
 );
 
@@ -565,7 +526,6 @@ export const ban = withEntityAuth(
 			invalidateThreadListForForums(env, result.affectedForumIds),
 			invalidateThreadReading(env, result.affectedThreadIds, { posts: true }),
 			...result.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
-			bumpForumSummaryGen(env),
 			invalidateUserCachesForIds(env, [id, ...result.collateralAuthorIds]),
 		];
 		if (result.affectedThreadIds.length > 0)
@@ -680,7 +640,6 @@ export const nuke = withEntityAuth(
 			invalidateThreadListForForums(env, result.affectedForumIds),
 			invalidateThreadReading(env, result.affectedThreadIds, { posts: true }),
 			...result.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
-			bumpForumSummaryGen(env),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.nuke",
 				targetType: "user",
@@ -1093,7 +1052,6 @@ export const purge = withEntityAuth(
 				posts: true,
 			}),
 			...pre.affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
-			bumpForumSummaryGen(env),
 			invalidateUserCachesForIds(env, [id, ...pre.collateralAuthorDelta.keys()]),
 		];
 		if (pre.ownedThreadIds.length > 0 || pre.survivorThreadIds.length > 0)

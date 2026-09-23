@@ -6,7 +6,6 @@ import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import { invalidateAdminEntityCache } from "../../lib/cache/admin-entity-read";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpPostListGen,
 	bumpThreadListGenAll,
 	bumpThreadMetaGen,
@@ -257,7 +256,7 @@ const threadConfig: EntityConfig = {
 		if (movedForum || restored)
 			ops.push(bumpPostListGen(env, id), invalidateAdminEntityCache(env, "posts"));
 		if (movedForum || restored || subjectChanged)
-			ops.push(bumpForumSummaryGen(env), invalidateAdminEntityCache(env, "forums"));
+			ops.push(invalidateAdminEntityCache(env, "forums"));
 		if (digestChanged) ops.push(invalidateAdminEntityCache(env, "users"));
 		if (globalTransition) ops.push(bumpThreadListGenAll(env));
 		if (affectsDigest(existing.digest, data.digest, demotedThreads.length)) {
@@ -601,7 +600,6 @@ export const batchDelete = withEntityAuth(
 			),
 			invalidateThreadReading(env, existingIds, { posts: true }),
 			invalidateThreadListForForums(env, affectedForumIds),
-			bumpForumSummaryGen(env),
 			...affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "thread.batch_delete",
@@ -733,7 +731,6 @@ export const batchMove = withEntityAuth(
 				{ posts: true },
 			),
 			invalidateThreadListForForums(env, movedForumIds),
-			bumpForumSummaryGen(env),
 			...movedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 		];
 		if (movable.some((t) => t.digest > 0)) invalidations.push(bumpDigestGen(env));

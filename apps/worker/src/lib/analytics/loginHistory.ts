@@ -65,8 +65,7 @@
 //     can return the raw value.
 
 import type { Env } from "../env";
-import { parseBotClass } from "./collect";
-import type { BotClass } from "./types";
+import { type BotClass, parseBotClass } from "./bot-class";
 
 /** Maximum bytes we keep for `user_agent`. Real-world UAs run ~200 chars. */
 const USER_AGENT_MAX = 256;

@@ -14,7 +14,7 @@ import {
 import { createMockCtx, makeEnv } from "../../../helpers";
 
 const options = {
-	family: "thread:stats",
+	family: "user:stats",
 	tier: "SHORT" as const,
 	scope: "public",
 	params: { id: 1 },
@@ -61,9 +61,9 @@ describe("unified cache time and origin contract", () => {
 			const settings = {
 				...options,
 				family: {
-					SHORT: "thread:stats",
+					SHORT: "user:stats",
 					MEDIUM: "thread:entity",
-					HOUR: "thread:count",
+					HOUR: "user:search",
 					LONG: "post:attachments",
 				}[tier as CacheTier],
 				tier: tier as CacheTier,

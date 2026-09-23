@@ -112,9 +112,18 @@ describe("kv-registry — declarative invariants", () => {
 		// `settings:all` (exact) must not own `settings:all:v2:foo`.
 		const sibling = resolveFamilyForKey("settings:all:v2:something");
 		expect(sibling?.family).not.toBe("settings:all");
-		// `public-stats` (exact) must not own arbitrary `public-stats:foo`.
-		const otherKey = resolveFamilyForKey("public-stats:bogus");
-		expect(otherKey?.family).not.toBe("public-stats");
+	});
+
+	it.each([
+		"forum:summary:v2",
+		"forum:meta:v2",
+		"thread:count",
+		"thread:stats",
+		"public-stats",
+		"online",
+		"activity_throttle",
+	])("does not register retired family %s", (family) => {
+		expect(KV_REGISTRY.some((entry) => entry.family === family)).toBe(false);
 	});
 
 	it("thread:list:gen:all routes to the global gen family, not per-forum", () => {
@@ -156,18 +165,11 @@ describe("kv-registry — declarative invariants", () => {
 		// the admin "when does it expire" answer would otherwise lie.
 		const expected: Record<string, number | "sticky" | "variable"> = {
 			"forum:tree:v2": 3_600, // FORUM_TREE_TTL
-			"forum:summary:v2": 3600, // Forum display snapshot, 30 minutes
-			"forum:meta:v2": 86_400, // FORUM_META_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
 			"user:mini:v1": 86_400, // USER_CACHE_TTL
 			"digest:stats": 86400, // DIGEST_CACHE_TTL
 			"digest:filters": 86400, // DIGEST_CACHE_TTL
 			"settings:all": 86_400, // settings.ts LONG tier
-			"public-stats": 60, // stats.ts SHORT tier
-			"stats:online_count": 300, // online-stats.ts
-			"stats:online_peak": "sticky",
-			"online:user": 900, // middleware/online.ts ONLINE_TTL
-			activity_throttle: 120, // middleware/activity.ts
 			"login-ip": 3_600,
 			"login-lockout-ip": 86_400,
 			"reg-ip": 60,

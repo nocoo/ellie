@@ -5,8 +5,6 @@ import type {
 	CheckinHistoryEntry,
 	UserCheckin,
 } from "@ellie/types";
-import { todayVisitsMemory } from "../analytics/flushSink-memory";
-import type { PathKind } from "../analytics/types";
 import type { Env } from "../env";
 import { isValidShanghaiDateLocal } from "../shanghaiTime";
 import { getGen } from "./epoch";
@@ -18,19 +16,6 @@ export const FORUM_DIST_LIMIT = 50;
 export const MAX_HISTORY_ROWS = 1000;
 export const ALLOWED_RANGES = ["7d", "30d", "90d"] as const;
 export const ALLOWED_METRICS = ["users", "threads", "posts", "checkins"] as const;
-export const PATH_KIND_VALUES: ReadonlySet<PathKind> = new Set<PathKind>([
-	"thread",
-	"forum",
-	"user",
-	"home",
-	"digest",
-	"search",
-	"checkin",
-	"messages",
-	"auth_page",
-	"other",
-]);
-
 const OFFSET = 8 * 3600;
 const DAY = 86_400;
 const REPORT_JOIN_COLUMNS = `
@@ -98,16 +83,6 @@ const SPECS: Record<string, Spec> = {
 		family: "admin:display",
 		tier: "SHORT",
 		keys: ["resource", "operation", "date", "ok", "kind", "errorCode", "page", "limit"],
-	},
-	"visits:kpi": {
-		family: "admin:analytics",
-		tier: "MEDIUM",
-		keys: ["resource", "operation", "date"],
-	},
-	"visits:list": {
-		family: "admin:analytics",
-		tier: "MEDIUM",
-		keys: ["resource", "operation", "date", "pathKind", "page", "limit"],
 	},
 	"checkins:user": {
 		family: "admin:display",
@@ -263,13 +238,6 @@ function assertDescriptorParams(spec: Spec, p: CacheParams): void {
 	);
 	optionalNull(spec, p, "kind", (value) => ["login", "register"].includes(String(value)), "kind");
 	optionalNull(spec, p, "ok", (value) => value === 0 || value === 1, "ok filter");
-	optionalNull(
-		spec,
-		p,
-		"pathKind",
-		(value) => PATH_KIND_VALUES.has(value as PathKind),
-		"path kind",
-	);
 	optionalNull(spec, p, "errorCode", (value) => bounded(value, 64), "error code");
 	optionalNull(spec, p, "action", (value) => bounded(value, 128), "action");
 	optionalNull(spec, p, "targetType", (value) => bounded(value, 64), "target type");
@@ -356,48 +324,6 @@ function isLoginRow(row: unknown): boolean {
 		typeof row.userAgent === "string" &&
 		typeof row.botClass === "string" &&
 		finite(row.createdAt)
-	);
-}
-function isVisitKpi(d: CacheDescriptor, value: Record<string, unknown>): boolean {
-	return (
-		finite(value.now) &&
-		value.dateLocal === d.params.date &&
-		value.anonPresent === null &&
-		value.activeUsers === null &&
-		[
-			"totalViews",
-			"humanViews",
-			"botSearchViews",
-			"botOtherViews",
-			"unknownViews",
-			"distinctTargets",
-		].every((key) => finite(value[key])) &&
-		Array.isArray(value.byPathKind) &&
-		value.byPathKind.every(
-			(row) =>
-				record(row) &&
-				PATH_KIND_VALUES.has(row.pathKind as PathKind) &&
-				finite(row.views) &&
-				finite(row.targets),
-		)
-	);
-}
-function isVisitRow(row: unknown): boolean {
-	return (
-		record(row) &&
-		row.uniqueUsers === null &&
-		PATH_KIND_VALUES.has(row.pathKind as PathKind) &&
-		finite(row.targetId) &&
-		typeof row.label === "string" &&
-		[
-			"views",
-			"humanViews",
-			"botSearchViews",
-			"botOtherViews",
-			"unknownViews",
-			"firstSeenAt",
-			"lastSeenAt",
-		].every((key) => finite(row[key]))
 	);
 }
 function isCheckinUser(d: CacheDescriptor, value: Record<string, unknown>): boolean {
@@ -506,9 +432,6 @@ const SHAPES: Record<string, (d: CacheDescriptor, value: Record<string, unknown>
 		].every((key) => finite(value[key])),
 	"logins:list": (_d, value) =>
 		pageMeta(value) && Array.isArray(value.rows) && value.rows.every(isLoginRow),
-	"visits:kpi": isVisitKpi,
-	"visits:list": (_d, value) =>
-		pageMeta(value) && Array.isArray(value.rows) && value.rows.every(isVisitRow),
 	"checkins:user": isCheckinUser,
 	"stats:totals": (_d, value) => isStatsTotals(value),
 	"admin-logs:list": (_d, value) =>
@@ -549,8 +472,6 @@ export async function rebuildAdminReportCache(
 	descriptor: CacheDescriptor,
 ): Promise<unknown> {
 	validateAdminReportDescriptor(descriptor);
-	if (descriptor.params.resource === "visits")
-		throw new TypeError("Memory-only visits cannot be rebuilt into persistent cache");
 	return loadAdminReport(env, descriptor);
 }
 
@@ -560,9 +481,6 @@ export async function getAdminReport<T>(
 	descriptor: CacheDescriptor,
 ): Promise<T> {
 	const spec = validateAdminReportDescriptor(descriptor);
-	// Ephemeral visits must never outlive the memory actor through a KV snapshot.
-	if (descriptor.params.resource === "visits")
-		return loadAdminReport(env, descriptor) as Promise<T>;
 	return cacheGetOrSet(
 		env,
 		ctx,
@@ -900,58 +818,6 @@ export async function loadLoginsList(env: Env, d: CacheDescriptor) {
 	};
 }
 
-export async function loadVisitsKpi(env: Env, d: CacheDescriptor) {
-	const date = String(d.params.date);
-	return todayVisitsMemory(env, date).kpi(date);
-}
-export async function loadVisitsList(env: Env, d: CacheDescriptor) {
-	const p = d.params;
-	const result = await todayVisitsMemory(env, String(p.date)).list(
-		p.pathKind as PathKind | null,
-		Number(p.page),
-		Number(p.limit),
-	);
-	const labels = await resolveLabels(
-		env,
-		result.rows.map((row) => ({ path_kind: row.pathKind, target_id: row.targetId })),
-	);
-	return {
-		...result,
-		rows: result.rows.map((row) => ({
-			...row,
-			label: labels.get(`${row.pathKind}#${row.targetId}`) ?? "",
-		})),
-	};
-}
-export async function resolveLabels(
-	env: Env,
-	rows: Array<{ path_kind: string; target_id: number }>,
-): Promise<Map<string, string>> {
-	const out = new Map<string, string>();
-	const groups = { thread: [] as number[], forum: [] as number[], user: [] as number[] };
-	for (const row of rows) {
-		if (row.target_id <= 0) continue;
-		if (row.path_kind === "thread") groups.thread.push(row.target_id);
-		else if (row.path_kind === "forum") groups.forum.push(row.target_id);
-		else if (row.path_kind === "user") groups.user.push(row.target_id);
-	}
-	const load = async (ids: number[], sql: string, field: string, prefix: string) => {
-		if (!ids.length) return;
-		const unique = [...new Set(ids)];
-		const rs = await env.DB.prepare(`${sql} (${unique.map(() => "?").join(",")})`)
-			.bind(...unique)
-			.all<{ id: number } & Record<string, string>>();
-		for (const row of requireAll(rs, "Visit labels could not be loaded"))
-			out.set(`${prefix}#${row.id}`, row[field] ?? "");
-	};
-	await Promise.all([
-		load(groups.thread, "SELECT id, subject FROM threads WHERE id IN", "subject", "thread"),
-		load(groups.forum, "SELECT id, name FROM forums WHERE id IN", "name", "forum"),
-		load(groups.user, "SELECT id, username FROM users WHERE id IN", "username", "user"),
-	]);
-	return out;
-}
-
 export async function loadUserCheckins(env: Env, d: CacheDescriptor) {
 	const userId = Number(d.params.userId);
 	const from = String(d.params.from);
@@ -1092,8 +958,6 @@ const LOADERS: Record<string, (env: Env, d: CacheDescriptor) => Promise<unknown>
 	"analytics:checkin-trend": loadCheckinTrend,
 	"logins:kpi": loadLoginsKpi,
 	"logins:list": loadLoginsList,
-	"visits:kpi": loadVisitsKpi,
-	"visits:list": loadVisitsList,
 	"checkins:user": loadUserCheckins,
 	"stats:totals": loadStatsTotals,
 	"admin-logs:list": loadAdminLogsList,

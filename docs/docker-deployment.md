@@ -179,3 +179,51 @@ docker build --build-arg APP=web -t ellie-web:local .
 docker run --rm -p 7031:7031 --env-file apps/web/.env.local ellie-web:local
 # Visit http://localhost:7031/api/live
 ```
+
+## Phase 2 memory statistics configuration
+
+Implementation and validation are tracked in [29](29-nextjs-memory-statistics.md).
+These instructions describe a future authorized deployment, not deployment evidence.
+
+| Runtime | Variable | Purpose |
+| --- | --- | --- |
+| Web + Worker | `WEB_STATISTICS_WRITE_KEY` | Dedicated bounded statistical batch writes; never distributed to CLI or browsers |
+| Web + Admin | `MEMORY_CACHE_ADMIN_KEY` | Admin server access to the Web memory management route |
+| Admin | `WEB_MEMORY_ADMIN_URL` | Explicit internal Web service origin, normally `http://web:7031` in the documented Docker network |
+
+Use distinct generated secrets for the two capabilities. Configure runtime secrets
+without printing them or baking them into an image. Do not reuse API Key A/B or
+Auth.js session secrets. Empty configuration must fail closed. Only the exact Web
+internal management route bypasses the forum login proxy; its own secret gate
+still applies. Prefer internal service connectivity; do not add a public browser
+route that carries either secret.
+
+Deployment order after authorization:
+
+1. Configure the independent keys and internal service URL. Check that Admin can
+   reach the concrete Web service over the Docker network.
+2. Use the migration-first Worker deployment entrypoint to apply indexes and
+   deploy new batch/read endpoints while retiring old view/presence collection and
+   the today-visits Durable Object. Preserve historical DO migration tags.
+3. Deploy Web and Admin together. The interval before Web cutover may lose
+   approximate events; overlapping old and new view writers is forbidden.
+4. Verify Web instance ID/version/start time through authenticated Admin, fill and
+   clear a display cache, and confirm a manual flush cannot overlap a timed flush.
+   Confirm business authorization and anonymous/hidden content protection.
+5. Observe workload-normalized Worker/KV/D1 usage and process memory; do not infer
+   savings from a local cache hit rate alone.
+
+Restart discards local snapshots and pending statistical work. First reads reload
+persistent data; caches do not restore from disk. A process restart changes its
+instance ID and invalidates previously prepared management mutations. A graceful
+shutdown attempt is not a durability guarantee.
+
+The documented service runs one Web process. Do not silently place the management
+origin behind a multi-instance load balancer: clearing one instance is not a
+cluster-wide operation. Multiple instances require explicit individual addressing
+before claiming management coverage. Ordinary snapshots may temporarily differ.
+
+Local Wrangler checks on this machine can use `WRANGLER_HIDE_BANNER=true` and
+`WRANGLER_SEND_METRICS=false`: this disables the banner npm update check that can
+leave a network connection open after local migrations finish. It does not skip
+migrations, tests or hooks.

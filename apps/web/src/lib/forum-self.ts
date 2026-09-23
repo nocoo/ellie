@@ -34,6 +34,7 @@ import "server-only";
 import type { User } from "@ellie/types";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { getMemoryRuntime } from "@/lib/memory-runtime";
 import type { EmailVerificationUserView } from "@/viewmodels/forum/email-verification";
 
 /**
@@ -117,6 +118,9 @@ export async function getSelfForumUser(): Promise<SelfForumUser | null> {
 		const jwt = await getWorkerJwt();
 		if (!jwt) return null;
 		const { data } = await forumApi.getAuth<User>("/api/v1/auth/me", jwt);
+		// Doc/29: a successful Worker-verified identity load is the only
+		// activity signal — no extra auth request, no unverified cookie claim.
+		getMemoryRuntime().recordActivity(data.id);
 		return projectSelfForumUser(data);
 	} catch (err) {
 		// Treat every failure path identically — stale JWT, missing user row,

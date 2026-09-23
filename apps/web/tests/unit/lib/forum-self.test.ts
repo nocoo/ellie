@@ -20,6 +20,9 @@ import {
 } from "@/lib/forum-self";
 
 vi.mock("@/lib/forum-auth", () => ({ getWorkerJwt: vi.fn() }));
+vi.mock("@/lib/memory-runtime", () => ({
+	getMemoryRuntime: vi.fn(() => ({ recordActivity: vi.fn() })),
+}));
 vi.mock("@/lib/forum-api", () => ({
 	forumApi: { getAuth: vi.fn() },
 	ForumApiError: class ForumApiError extends Error {

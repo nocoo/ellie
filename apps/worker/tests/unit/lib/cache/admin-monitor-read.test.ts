@@ -200,8 +200,8 @@ describe("monitor overview source read", () => {
 
 	it("lists metadata without singleton value GET and does not seed gens", async () => {
 		const kv = createMockKV({
-			"online:1": JSON.stringify({ at: 1 }),
-			"online:2": JSON.stringify({ at: 2 }),
+			"email_verify:1": JSON.stringify({ at: 1 }),
+			"email_verify:2": JSON.stringify({ at: 2 }),
 			"settings:all": JSON.stringify({ site: "x" }),
 		});
 		const env = makeEnv({ KV: kv });
@@ -211,9 +211,9 @@ describe("monitor overview source read", () => {
 		const settings = data.families.find((row) => row.family === "settings:all");
 		expect(settings?.count).toBe(1);
 		expect(settings?.footprint.kind).toBe("unknown");
-		const online = data.families.find((row) => row.family === "online:user");
+		const online = data.families.find((row) => row.family === "email_verify");
 		expect(online?.count).toBe(2);
-		expect(online?.sampleKeys.every((key) => key.startsWith("online:u_"))).toBe(true);
+		expect(online?.sampleKeys.every((key) => key.startsWith("email_verify:u_"))).toBe(true);
 		expect(settings?.currentVersionCount).toBeNull();
 		expect(online?.currentVersionCount).toBeNull();
 		expect(settings?.expiredCount).toBeNull();
@@ -492,10 +492,10 @@ describe("monitor descriptor validation and masking", () => {
 	it("marks a capped prefix listing as at-least and never certifies generation from TTL", async () => {
 		const kv = createMockKV();
 		kv.list = vi.fn(async (opts: { prefix?: string } = {}) => {
-			if (opts.prefix === "online:") {
+			if (opts.prefix === "email_verify:") {
 				return {
 					keys: Array.from({ length: 1000 }, (_, i) => ({
-						name: `online:${i}`,
+						name: `email_verify:${i}`,
 						metadata:
 							i === 0
 								? { contentUtf8Bytes: 8, expiresAt: 1, schemaVersion: 3 }
@@ -508,7 +508,7 @@ describe("monitor descriptor validation and masking", () => {
 			return { keys: [], list_complete: true, cursor: "" };
 		}) as unknown as KVNamespace["list"];
 		const data = await loadMonitorOverview(makeEnv({ KV: kv }));
-		const online = data.families.find((row) => row.family === "online:user");
+		const online = data.families.find((row) => row.family === "email_verify");
 		expect(online?.count).toBe(1000);
 		expect(online?.countKind).toBe("at-least");
 		expect(online?.truncated).toBe(true);
@@ -535,15 +535,15 @@ describe("monitor descriptor validation and masking", () => {
 	it("masks IPv6 suffixes and hashes user ids, and labels planned families", async () => {
 		const kv = createMockKV({
 			"login-ip:2001:db8:85a3:0:0:8a2e:370:7334": "1",
-			"activity_throttle:99": "1",
+			"email_verify:99": "1",
 		});
 		const data = await loadMonitorOverview(makeEnv({ KV: kv }));
 		const login = data.families.find((row) => row.family === "login-ip");
 		expect(login?.sampleKeys.some((key) => key.startsWith("login-ip:2001:db8:85a3:0::"))).toBe(
 			true,
 		);
-		const throttle = data.families.find((row) => row.family === "activity_throttle");
-		expect(throttle?.sampleKeys[0]).toMatch(/^activity_throttle:u_[0-9a-f]{6}$/);
+		const throttle = data.families.find((row) => row.family === "email_verify");
+		expect(throttle?.sampleKeys[0]).toMatch(/^email_verify:u_[0-9a-f]{6}$/);
 		const planned = data.families.find((row) => row.family === "user:mini:v2");
 		expect(planned?.presence).toBe("planned");
 		expect(planned?.actions.restriction).toBe("planned");

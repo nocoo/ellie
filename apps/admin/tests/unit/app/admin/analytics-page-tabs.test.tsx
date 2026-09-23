@@ -1,9 +1,10 @@
 // Analytics page tab layout test.
 //
-// Pins the 3-tab split (趋势 / 审计 / 登录) added per zheng-li request
-// msg=91189aa8. The 5-card "今日 KPI" row + page header stay above the
-// Basalt tabs and are visible across all tabs; the tab panels mount
-// the correct sub-component based on the active tab and `?tab=` deep links.
+// Pins the 2-tab split (趋势 / 登录) after the audit (today-visits) tab was
+// retired with the memory-statistics migration. The "今日 KPI" row + page
+// header stay above the Basalt tabs and are visible across all tabs; the tab
+// panels mount the correct sub-component based on the active tab and `?tab=`
+// deep links.
 
 // @vitest-environment happy-dom
 
@@ -33,9 +34,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/admin/analytics/tabs/trend-tab", () => ({
 	TrendTab: () => <div data-testid="trend-tab">trend</div>,
 }));
-vi.mock("@/components/admin/analytics/tabs/audit-tab", () => ({
-	AuditTab: () => <div data-testid="audit-tab">audit</div>,
-}));
 vi.mock("@/components/admin/analytics/tabs/login-tab", () => ({
 	LoginTab: () => <div data-testid="login-tab">login</div>,
 }));
@@ -63,32 +61,21 @@ async function loadPage() {
 }
 
 describe("AnalyticsPage — tab layout", () => {
-	it("renders the 3 tabs in the Basalt tabs", async () => {
+	it("renders the 2 tabs in the Basalt tabs", async () => {
 		const Page = await loadPage();
 		render(<Page />);
 		await waitFor(() => expect(screen.getByRole("tablist")).toBeTruthy());
 		const tablist = screen.getByRole("tablist", { name: "切换数据分析视图" });
 		const tabs = tablist.querySelectorAll('[role="tab"]');
-		expect(tabs.length).toBe(3);
+		expect(tabs.length).toBe(2);
 		expect(tabs[0].textContent).toContain("趋势");
-		expect(tabs[1].textContent).toContain("审计");
-		expect(tabs[2].textContent).toContain("登录");
+		expect(tabs[1].textContent).toContain("登录");
 	});
 
 	it("defaults to the 趋势 tab when no ?tab= is provided", async () => {
 		const Page = await loadPage();
 		render(<Page />);
 		expect(await screen.findByTestId("trend-tab")).toBeTruthy();
-		expect(screen.queryByTestId("audit-tab")).toBeNull();
-		expect(screen.queryByTestId("login-tab")).toBeNull();
-	});
-
-	it("renders the 审计 tab when ?tab=audit", async () => {
-		hoisted.searchParamsValue = "tab=audit";
-		const Page = await loadPage();
-		render(<Page />);
-		expect(await screen.findByTestId("audit-tab")).toBeTruthy();
-		expect(screen.queryByTestId("trend-tab")).toBeNull();
 		expect(screen.queryByTestId("login-tab")).toBeNull();
 	});
 
@@ -98,10 +85,9 @@ describe("AnalyticsPage — tab layout", () => {
 		render(<Page />);
 		expect(await screen.findByTestId("login-tab")).toBeTruthy();
 		expect(screen.queryByTestId("trend-tab")).toBeNull();
-		expect(screen.queryByTestId("audit-tab")).toBeNull();
 	});
 
-	it("falls back to 趋势 for unknown ?tab= values", async () => {
+	it("falls back to 趋势 for unknown ?tab= values (including retired audit)", async () => {
 		hoisted.searchParamsValue = "tab=banana";
 		const Page = await loadPage();
 		render(<Page />);
@@ -112,11 +98,11 @@ describe("AnalyticsPage — tab layout", () => {
 		const Page = await loadPage();
 		render(<Page />);
 		await screen.findByTestId("trend-tab");
-		const auditTab = screen
+		const loginTab = screen
 			.getAllByRole("tab")
-			.find((el) => el.textContent?.includes("审计")) as HTMLElement;
-		fireEvent.mouseDown(auditTab, { button: 0, ctrlKey: false });
-		expect(await screen.findByTestId("audit-tab")).toBeTruthy();
+			.find((el) => el.textContent?.includes("登录")) as HTMLElement;
+		fireEvent.mouseDown(loginTab, { button: 0, ctrlKey: false });
+		expect(await screen.findByTestId("login-tab")).toBeTruthy();
 		expect(screen.queryByTestId("trend-tab")).toBeNull();
 	});
 
@@ -137,17 +123,17 @@ describe("AnalyticsPage — tab layout", () => {
 		const Page = await loadPage();
 		render(<Page />);
 		await screen.findByTestId("trend-tab");
-		const auditTab = screen
+		const loginTab = screen
 			.getAllByRole("tab")
-			.find((el) => el.textContent?.includes("审计")) as HTMLElement;
-		fireEvent.mouseDown(auditTab, { button: 0, ctrlKey: false });
+			.find((el) => el.textContent?.includes("登录")) as HTMLElement;
+		fireEvent.mouseDown(loginTab, { button: 0, ctrlKey: false });
 		expect(hoisted.routerReplace).toHaveBeenCalledTimes(1);
 		const url = hoisted.routerReplace.mock.calls[0][0] as string;
 		expect(url.startsWith("/admin/analytics?")).toBe(true);
 		// Order-insensitive — URLSearchParams doesn't guarantee key order.
 		const replacedParams = new URLSearchParams(url.split("?")[1]);
 		expect(replacedParams.get("foo")).toBe("bar");
-		expect(replacedParams.get("tab")).toBe("audit");
+		expect(replacedParams.get("tab")).toBe("login");
 	});
 
 	it("keeps the 今日 KPI row above the tabs and shared across tab switches", async () => {

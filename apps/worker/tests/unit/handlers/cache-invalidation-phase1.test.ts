@@ -12,7 +12,6 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 		invalidateForumVolatileV2: vi.fn(async () => {}),
 		bumpThreadMetaGen: vi.fn(async () => "g"),
 		bumpPostListGen: vi.fn(async () => "g"),
-		bumpForumSummaryGen: vi.fn(async () => "g"),
 		invalidateUserCaches: vi.fn(async () => {}),
 	};
 });
@@ -39,7 +38,6 @@ import { recalcForums, recalcThreads, recalcUsers } from "../../../src/handlers/
 import { create as createPost } from "../../../src/handlers/post";
 import { create as createThread } from "../../../src/handlers/thread";
 import {
-	bumpForumSummaryGen,
 	bumpPostListGen,
 	bumpThreadMetaGen,
 	invalidateForumVolatileV2,
@@ -49,7 +47,6 @@ import { invalidateUserCache } from "../../../src/lib/user-cache";
 import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
 const mockInvVolV2 = invalidateForumVolatileV2 as ReturnType<typeof vi.fn>;
-const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
 const mockBumpPostList = bumpPostListGen as ReturnType<typeof vi.fn>;
 const mockInvUser = invalidateUserCache as ReturnType<typeof vi.fn>;
@@ -106,7 +103,6 @@ describe("ordinary thread/post creation uses natural cache expiry", () => {
 		const res = await createThread(req, env);
 		expect(res.status).toBe(201);
 		expect(mockInvVolV2).not.toHaveBeenCalled();
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 		expect(mockBumpThreadMeta).not.toHaveBeenCalled();
 		expect(mockBumpPostList).not.toHaveBeenCalled();
 	});
@@ -152,19 +148,13 @@ describe("ordinary thread/post creation uses natural cache expiry", () => {
 		const res = await createPost(req, env);
 		expect(res.status).toBe(201);
 		expect(mockInvVolV2).not.toHaveBeenCalled();
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 		expect(mockBumpThreadMeta).not.toHaveBeenCalled();
 		expect(mockBumpPostList).not.toHaveBeenCalled();
 	});
 });
 
 describe("admin statistics invalidation", () => {
-	it("recalcForums bumps forum:summary:gen on the done transition (updated > 0)", async () => {
-		// Job-mode (msg=b7eda60a fix): cache invalidation moved into
-		// ticker.finalize, which fires when the job reaches `done` after
-		// updating at least one forum. We drive: initialize -> advance
-		// with 1 forum -> short final batch -> status:done -> finalize
-		// bumps `forum:summary:gen` once (gated on `updated > 0`).
+	it("recalcForums completes without retired summary generation writes", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT COUNT(*) as cnt FROM forums": { cnt: 1 },
@@ -185,7 +175,7 @@ describe("admin statistics invalidation", () => {
 			env,
 		);
 		expect(res.status).toBe(200);
-		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
+		expect(env.KV.put).not.toHaveBeenCalledWith("forum:summary:gen", expect.anything());
 	});
 
 	it("recalcThreads preserves snapshots when the job has no updates", async () => {
@@ -206,7 +196,6 @@ describe("admin statistics invalidation", () => {
 			env,
 		);
 		expect(res.status).toBe(200);
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 	});
 
 	it("recalcUsers invalidates only per-id statistics and self snapshots after each batch", async () => {

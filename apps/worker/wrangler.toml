@@ -7,13 +7,13 @@ preview_urls = false
 main = "src/entry.ts"
 compatibility_date = "2024-04-03"
 
-[[durable_objects.bindings]]
-name = "TODAY_VISITS"
-class_name = "TodayVisitsMemory"
-
 [[migrations]]
 tag = "today-visits-memory-v1"
 new_sqlite_classes = ["TodayVisitsMemory"]
+
+[[migrations]]
+tag = "today-visits-memory-delete-v1"
+deleted_classes = ["TodayVisitsMemory"]
 
 [[d1_databases]]
 binding = "DB"
@@ -45,8 +45,8 @@ DOVE_PROJECT_ID = "vKOrSPha4wtzkWlJSAV8d"
 DOVE_TEMPLATE_SLUG = "verify-email"
 
 # Two cron triggers:
-#   - "*/5 * * * *"  → aggregateOnlineStats (P3, every 5 minutes)
-#   - "0 19 * * *"   → cleanupLoginHistory  (P4, 19:00 UTC = 03:00 Asia/Shanghai)
+#   - "*/5 * * * *"  → checkAndRolloverDailyStats
+#   - "0 19 * * *"   → cleanupLoginHistory (19:00 UTC = 03:00 Asia/Shanghai)
 # Cron strings are UTC. The scheduled() handler dispatches on `event.cron`
 # so failure of one job never blocks the other.
 [triggers]
@@ -60,10 +60,6 @@ crons = ["*/5 * * * *", "0 19 * * *"]
 [env.test]
 routes = [{ pattern = "ellie-test.worker.hexly.ai", custom_domain = true }]
 name = "ellie-test"
-
-[[env.test.durable_objects.bindings]]
-name = "TODAY_VISITS"
-class_name = "TodayVisitsMemory"
 
 [[env.test.d1_databases]]
 binding = "DB"

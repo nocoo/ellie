@@ -1,8 +1,17 @@
-import type { ForumVisibility, ModeratorInfo } from "@ellie/types";
-import { canModerate } from "@ellie/types";
+import type { Forum, ForumVisibility, ModeratorInfo } from "@ellie/types";
+import { canModerate, parseSummaryGateQuery } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import { getCachedThreadTypes } from "../lib/cache/catalog-read";
-import { currentForums, getForumMetaV2, getForums, getForumTreeV2 } from "../lib/cache/forum-read";
+import type { ForumTreeNodeV2 } from "../lib/cache/forum";
+import {
+	currentForums,
+	getForumMetaV2,
+	getForumSummaryV2,
+	getForums,
+	getForumTreeV2,
+	loadSummaryGates,
+	toForumSummaries,
+} from "../lib/cache/forum-read";
 import { invalidateForumUpdateV2 } from "../lib/cache/invalidate";
 import { dataCacheKey } from "../lib/cache/keys";
 import { cacheDelete } from "../lib/cache/wrap";
@@ -33,14 +42,78 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 
 	const user = await optionalAuthVerified(request, env);
 	const bucket = computeVisibilityBucket(buildVisibilityContext(user));
-	if (new URL(request.url).searchParams.get("view") === "names") {
+	const view = new URL(request.url).searchParams.get("view");
+	if (view === "names") {
 		const nodes = await getForumTreeV2(env, ctx, bucket);
 		return jsonResponse(
 			nodes.map(({ id, name }) => ({ id, name })),
 			origin,
 		);
 	}
+	if (view === "structure") {
+		const nodes = await getForumTreeV2(env, ctx, bucket);
+		return jsonResponse(nodes.map(structureForum), origin, { bucket });
+	}
 	return jsonResponse(await getForums(env, ctx, bucket), origin);
+}
+
+const EMPTY_THREAD_TYPES = {
+	enabled: false,
+	required: false,
+	listable: false,
+	prefix: false,
+};
+
+/** Static forum row. Numeric and latest-topic fields stay zero so this read never loads summaries. */
+function structureForum(node: ForumTreeNodeV2): Forum {
+	return {
+		id: node.id,
+		parentId: node.parentId,
+		name: node.name,
+		description: node.description,
+		announcement: node.announcement,
+		icon: node.icon,
+		displayOrder: node.displayOrder,
+		type: node.type,
+		status: node.status,
+		visibility: node.visibility,
+		moderators: node.moderators,
+		moderatorList: node.moderatorList,
+		threads: 0,
+		posts: 0,
+		todayThreads: 0,
+		lastThreadId: 0,
+		lastPostAt: 0,
+		lastPoster: "",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
+		lastThreadSubject: "",
+		threadTypes: node.threadTypes ?? EMPTY_THREAD_TYPES,
+	};
+}
+
+/** GET /api/v1/forums/summaries — D1 numeric and latest-topic rows for the caller. */
+export async function summaries(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const user = await optionalAuthVerified(request, env);
+	const bucket = computeVisibilityBucket(buildVisibilityContext(user));
+	const aggregates = await getForumSummaryV2(env, ctx, bucket);
+	return jsonResponse(toForumSummaries(aggregates), origin, { bucket });
+}
+
+/** GET /api/v1/forums/summary-gates — current authorization rows, no titles. */
+export async function summaryGates(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const parsed = parseSummaryGateQuery(new URL(request.url).searchParams);
+	if (!parsed.ok) return errorResponse("INVALID_REQUEST", 400, { message: parsed.message }, origin);
+	const user = await optionalAuthVerified(request, env);
+	const bucket = computeVisibilityBucket(buildVisibilityContext(user));
+	return jsonResponse(await loadSummaryGates(env, parsed.value.topicIds, bucket), origin);
 }
 
 /** GET /api/v1/forums/:id - Get forum by ID */

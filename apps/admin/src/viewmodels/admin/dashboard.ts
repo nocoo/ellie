@@ -3,18 +3,12 @@
  * Client-safe — no server-only imports.
  */
 
-import type {
-	AnalyticsForumDist,
-	AnalyticsTrend,
-	TodayLoginsKpi,
-	TodayVisitsKpi,
-} from "./analytics";
+import type { AnalyticsForumDist, AnalyticsTrend, TodayLoginsKpi } from "./analytics";
 
 export interface DashboardActivity {
 	threads: AnalyticsTrend | null;
 	posts: AnalyticsTrend | null;
 	forums: AnalyticsForumDist | null;
-	visits: TodayVisitsKpi | null;
 	logins: TodayLoginsKpi | null;
 }
 

@@ -181,12 +181,7 @@ async function maskKeyName(key: string, family: KvFamilySpec): Promise<string> {
 	) {
 		return `${family.listPrefix}${maskIpSuffix(suffix)}`;
 	}
-	if (
-		family.family === "online:user" ||
-		family.family === "activity_throttle" ||
-		family.family === "email_verify" ||
-		family.family === "email_verify_lock"
-	) {
+	if (family.family === "email_verify" || family.family === "email_verify_lock") {
 		return `${family.listPrefix}u_${await shortHash(suffix)}`;
 	}
 	return `${family.listPrefix}***`;

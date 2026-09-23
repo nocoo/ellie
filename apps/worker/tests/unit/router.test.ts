@@ -4,7 +4,7 @@ import type { CFRequest, Env } from "../../src/lib/env";
 /**
  * Router-level tests for src/index.ts.
  * Covers infrastructure logic: CORS preflight, API key gate, maintenance gate,
- * tryTrackAuth, upload auth branch, 404 fallback, error handler, and scheduled.
+ * upload auth branch, 404 fallback, error handler, and scheduled.
  */
 
 // Mock all handler dynamic imports to isolate router logic
@@ -15,6 +15,8 @@ vi.mock("../../src/handlers/live", () => ({
 }));
 vi.mock("../../src/handlers/forum", () => ({
 	list: mockHandler(),
+	summaries: mockHandler(),
+	summaryGates: mockHandler(),
 	getById: mockHandler(),
 	getAncestors: mockHandler(),
 	getThreadTypes: mockHandler(),
@@ -22,6 +24,7 @@ vi.mock("../../src/handlers/forum", () => ({
 }));
 vi.mock("../../src/handlers/thread", () => ({
 	list: mockHandler(),
+	count: mockHandler(),
 	getById: mockHandler(),
 	create: mockHandler(),
 }));
@@ -209,9 +212,6 @@ vi.mock("../../src/handlers/admin/announcement", () => ({
 	remove: mockHandler(),
 	batchDelete: mockHandler(),
 }));
-vi.mock("../../src/lib/online-stats", () => ({
-	aggregateOnlineStats: vi.fn(async () => {}),
-}));
 vi.mock("../../src/lib/stats-rollover", () => ({
 	checkAndRolloverDailyStats: vi.fn(async () => {}),
 }));
@@ -219,19 +219,8 @@ vi.mock("../../src/lib/analytics/loginHistory", () => ({
 	cleanupLoginHistory: vi.fn(async () => 0),
 	scheduleLoginHistory: vi.fn(),
 }));
-// Worker boot binds the memory visit sink. Router tests exercise dispatch only.
-vi.mock("../../src/lib/analytics/collect", () => ({
-	setFlushSink: vi.fn(),
-	resetFlushSink: vi.fn(),
-}));
-// P5 internal ingest + admin today/visits handlers — keep router-only
-// scope; do not invoke the real handlers.
-vi.mock("../../src/handlers/internal/analyticsIngest", () => ({
-	analyticsIngestHandler: mockHandler(),
-}));
-vi.mock("../../src/handlers/admin/todayVisits", () => ({
-	getTodayVisitsKpi: mockHandler(),
-	getTodayVisitsList: mockHandler(),
+vi.mock("../../src/handlers/internal/statisticsBatch", () => ({
+	statisticsBatchHandler: mockHandler(),
 }));
 
 // Mock maintenance middleware — default to disabled
@@ -240,7 +229,7 @@ vi.mock("../../src/middleware/maintenance", () => ({
 	checkMaintenance: (...args: unknown[]) => checkMaintenanceMock(...args),
 }));
 
-// Mock auth middleware for tryTrackAuth and upload route
+// Mock auth middleware for the upload route
 const authMiddlewareMock = vi.fn(async () => new Response(null, { status: 401 }));
 const authMiddlewareVerifiedMock = vi.fn(async () => new Response(null, { status: 401 }));
 const requireVerifiedEmailMock = vi.fn(async () => new Response(null, { status: 401 }));
@@ -249,17 +238,6 @@ vi.mock("../../src/middleware/auth", () => ({
 	authMiddlewareVerified: (...args: unknown[]) => authMiddlewareVerifiedMock(...args),
 	requireVerifiedEmail: (...args: unknown[]) => requireVerifiedEmailMock(...args),
 	optionalAuthVerified: vi.fn(async () => null),
-}));
-
-// Mock online tracking
-const trackOnlineMock = vi.fn();
-vi.mock("../../src/middleware/online", () => ({
-	trackOnline: (...args: unknown[]) => trackOnlineMock(...args),
-}));
-
-const trackActivityMock = vi.fn();
-vi.mock("../../src/middleware/activity", () => ({
-	trackActivity: (...args: unknown[]) => trackActivityMock(...args),
 }));
 
 // Mock upload handler
@@ -311,7 +289,6 @@ const MODULE_PATHS: Record<string, string> = {
 	"admin/report": "../../src/handlers/admin/report",
 	"admin/adminLog": "../../src/handlers/admin/adminLog",
 	"admin/announcement": "../../src/handlers/admin/announcement",
-	"admin/todayVisits": "../../src/handlers/admin/todayVisits",
 };
 
 async function expectHandlerCalled(mod: string, fn: string): Promise<void> {
@@ -474,63 +451,6 @@ describe("router (src/index.ts)", () => {
 			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(200);
-		});
-	});
-
-	// ─── tryTrackAuth ───────────────────────────────────────────────
-
-	describe("tryTrackAuth", () => {
-		it("should trigger activity tracking when auth succeeds", async () => {
-			const user = { userId: 10, role: 0, exp: 999999999 };
-			authMiddlewareMock.mockResolvedValue({ user });
-			const env = makeEnv();
-			const ctx = makeCtx();
-			const request = makeRequest("GET", "/api/v1/forums", {
-				Authorization: "Bearer valid-token",
-			});
-
-			await worker.fetch(request, env, ctx);
-
-			// waitUntil was called with tryTrackAuth promise
-			expect(ctx.waitUntil).toHaveBeenCalled();
-			// Wait for the internal promise to resolve
-			const waitUntilCalls = (ctx.waitUntil as ReturnType<typeof vi.fn>).mock.calls;
-			// Resolve the tryTrackAuth promise
-			await Promise.all(waitUntilCalls.map((c) => c[0]));
-
-			expect(trackOnlineMock).toHaveBeenCalled();
-			expect(trackActivityMock).toHaveBeenCalled();
-		});
-
-		it("should not track when no auth header", async () => {
-			const env = makeEnv();
-			const ctx = makeCtx();
-			const request = makeRequest("GET", "/api/v1/forums");
-
-			await worker.fetch(request, env, ctx);
-
-			// waitUntil is still called (for tryTrackAuth) but it should be a no-op
-			const waitUntilCalls = (ctx.waitUntil as ReturnType<typeof vi.fn>).mock.calls;
-			await Promise.all(waitUntilCalls.map((c) => c[0]));
-
-			expect(trackOnlineMock).not.toHaveBeenCalled();
-			expect(trackActivityMock).not.toHaveBeenCalled();
-		});
-
-		it("should not track when auth fails", async () => {
-			authMiddlewareMock.mockResolvedValue(new Response(null, { status: 401 }));
-			const env = makeEnv();
-			const ctx = makeCtx();
-			const request = makeRequest("GET", "/api/v1/forums", {
-				Authorization: "Bearer invalid-token",
-			});
-
-			await worker.fetch(request, env, ctx);
-
-			const waitUntilCalls = (ctx.waitUntil as ReturnType<typeof vi.fn>).mock.calls;
-			await Promise.all(waitUntilCalls.map((c) => c[0]));
-
-			expect(trackOnlineMock).not.toHaveBeenCalled();
 		});
 	});
 
@@ -758,11 +678,9 @@ describe("router (src/index.ts)", () => {
 	// ─── Scheduled Handler ──────────────────────────────────────────
 
 	describe("scheduled", () => {
-		it("dispatches the */5 cron to aggregateOnlineStats + checkAndRolloverDailyStats via waitUntil", async () => {
-			const onlineStats = await import("../../src/lib/online-stats");
+		it("dispatches the */5 cron to checkAndRolloverDailyStats via waitUntil", async () => {
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
 			const statsRollover = await import("../../src/lib/stats-rollover");
-			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
 			(statsRollover.checkAndRolloverDailyStats as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
@@ -771,16 +689,13 @@ describe("router (src/index.ts)", () => {
 
 			await worker.scheduled(event, env, ctx);
 
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(3);
-			expect(onlineStats.aggregateOnlineStats).toHaveBeenCalledTimes(1);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
 			expect(statsRollover.checkAndRolloverDailyStats).toHaveBeenCalledTimes(1);
 			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
 		});
 
-		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory without retired monitoring writes", async () => {
-			const onlineStats = await import("../../src/lib/online-stats");
+		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory", async () => {
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
-			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
@@ -792,7 +707,6 @@ describe("router (src/index.ts)", () => {
 			// one does not block the others (P5 reviewer pin).
 			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
 			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
-			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
 		});
 
 		it("swallows cleanupLoginHistory rejection so cron does not bubble", async () => {
@@ -822,9 +736,7 @@ describe("router (src/index.ts)", () => {
 		});
 
 		it("logs a warning on an unknown cron schedule (drift safety net)", async () => {
-			const onlineStats = await import("../../src/lib/online-stats");
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
-			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
 			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 			const env = makeEnv();
@@ -834,7 +746,6 @@ describe("router (src/index.ts)", () => {
 			await worker.scheduled(event, env, ctx);
 
 			expect(ctx.waitUntil).not.toHaveBeenCalled();
-			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
 			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
 			expect(warn).toHaveBeenCalledWith(
 				"[cron] unknown schedule fired",
@@ -846,45 +757,53 @@ describe("router (src/index.ts)", () => {
 
 	// ─── P5 Ingest Route Order ──────────────────────────────────────
 
-	describe("P5 analytics ingest route order", () => {
-		it("dispatches POST /api/internal/analytics/ingest WITHOUT a forum API key", async () => {
-			// The web proxy reaches the ingest endpoint with only its
-			// shared `X-Ingest-Key` secret — it never holds the forum
-			// `X-API-Key`. The router MUST register this route AHEAD of
-			// `validateApiKey` (reviewer pin).
+	describe("retired today-visits ingest", () => {
+		it("does not bypass the API key gate", async () => {
+			const response = await worker.fetch(
+				new Request("https://api.example.com/api/internal/analytics/ingest", {
+					method: "POST",
+				}) as CFRequest,
+				makeEnv(),
+				makeCtx(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
+
+	describe("statistics batch route order", () => {
+		it.each(["GET", "PUT", "DELETE", "OPTIONS"])(
+			"dispatches %s to the dedicated method guard before generic auth or preflight",
+			async (method) => {
+				const batch = await import("../../src/handlers/internal/statisticsBatch");
+				const actual = await vi.importActual<typeof batch>(
+					"../../src/handlers/internal/statisticsBatch",
+				);
+				vi.mocked(batch.statisticsBatchHandler).mockImplementationOnce(
+					actual.statisticsBatchHandler,
+				);
+				const request = new Request("https://api.example.com/api/internal/statistics/batch", {
+					method,
+				}) as CFRequest;
+				const response = await worker.fetch(request, makeEnv(), makeCtx());
+				expect(response.status).toBe(405);
+				expect(await response.json()).toEqual({
+					error: { code: "METHOD_NOT_ALLOWED", message: "POST required" },
+				});
+				expect(checkMaintenanceMock).not.toHaveBeenCalled();
+			},
+		);
+		it("dispatches POST /api/internal/statistics/batch before the API key gate", async () => {
 			const env = makeEnv();
 			const ctx = makeCtx();
-			const request = new Request("https://api.example.com/api/internal/analytics/ingest", {
+			const request = new Request("https://api.example.com/api/internal/statistics/batch", {
 				method: "POST",
-				// Intentionally NO X-API-Key header.
 			}) as CFRequest;
 
 			const response = await worker.fetch(request, env, ctx);
 
-			// The mocked handler returns 200; the real handler enforces
-			// secret + body whitelist. Either way, the response is NOT
-			// the 401 emitted by `validateApiKey`, which proves the
-			// dispatch happened ahead of the Key-A gate.
 			expect(response.status).not.toBe(401);
-			const ingest = await import("../../src/handlers/internal/analyticsIngest");
-			expect(ingest.analyticsIngestHandler).toHaveBeenCalledTimes(1);
-		});
-
-		it("returns 401 for non-POST on the ingest path (not handled by router)", async () => {
-			// Only POST is wired. GET falls through to the API-key gate,
-			// where `validateApiKey` rejects fail-closed because
-			// `/api/internal/*` is not in the allowlist (Key A / Key B
-			// allowlist covers `/api/v1/*` and `/api/admin/*` only). The
-			// ingest handler MUST NOT be invoked.
-			const env = makeEnv();
-			const ctx = makeCtx();
-			const request = makeRequest("GET", "/api/internal/analytics/ingest");
-
-			const response = await worker.fetch(request, env, ctx);
-
-			expect(response.status).toBe(401);
-			const ingest = await import("../../src/handlers/internal/analyticsIngest");
-			expect(ingest.analyticsIngestHandler).not.toHaveBeenCalled();
+			const batch = await import("../../src/handlers/internal/statisticsBatch");
+			expect(batch.statisticsBatchHandler).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -922,11 +841,14 @@ describe("router (src/index.ts)", () => {
 		describe("public routes", () => {
 			it.each([
 				["GET", "/api/v1/forums", "forum", "list"],
+				["GET", "/api/v1/forums/summaries", "forum", "summaries"],
+				["GET", "/api/v1/forums/summary-gates", "forum", "summaryGates"],
 				["GET", "/api/v1/forums/1", "forum", "getById"],
 				["GET", "/api/v1/forums/1/ancestors", "forum", "getAncestors"],
 				["GET", "/api/v1/forums/1/thread-types", "forum", "getThreadTypes"],
 				["GET", "/api/v1/forums/1/recommended-threads", "recommended", "listRecommendedThreads"],
 				["GET", "/api/v1/threads", "thread", "list"],
+				["GET", "/api/v1/threads/count", "thread", "count"],
 				["GET", "/api/v1/threads/1", "thread", "getById"],
 				["GET", "/api/v1/posts", "post", "list"],
 				["GET", "/api/v1/posts/1", "post", "getById"],
@@ -1167,14 +1089,6 @@ describe("router (src/index.ts)", () => {
 				["PATCH", "/api/admin/announcements/1", "admin/announcement", "update"],
 				["DELETE", "/api/admin/announcements/1", "admin/announcement", "remove"],
 				["POST", "/api/admin/announcements/batch-delete", "admin/announcement", "batchDelete"],
-				// Today-visits (P5)
-				["GET", "/api/admin/analytics/today/visits", "admin/todayVisits", "getTodayVisitsKpi"],
-				[
-					"GET",
-					"/api/admin/analytics/today/visits/list",
-					"admin/todayVisits",
-					"getTodayVisitsList",
-				],
 			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeAdminRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());

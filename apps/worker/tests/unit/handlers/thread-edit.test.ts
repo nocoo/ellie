@@ -21,7 +21,6 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 		...actual,
 		bumpThreadMetaGen: vi.fn(async () => "g"),
 		bumpThreadListGen: vi.fn(async () => "g"),
-		bumpForumSummaryGen: vi.fn(async () => "g"),
 	};
 });
 
@@ -30,17 +29,12 @@ vi.mock("../../../src/lib/censor", () => ({
 }));
 
 import { editThreadSubject } from "../../../src/handlers/thread-edit";
-import {
-	bumpForumSummaryGen,
-	bumpThreadListGen,
-	bumpThreadMetaGen,
-} from "../../../src/lib/cache/invalidate";
+import { bumpThreadListGen, bumpThreadMetaGen } from "../../../src/lib/cache/invalidate";
 import { applyCensorFilter } from "../../../src/lib/censor";
 import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
 const mockBumpMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
 const mockBumpList = bumpThreadListGen as ReturnType<typeof vi.fn>;
-const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockCensor = applyCensorFilter as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -273,11 +267,9 @@ describe("editThreadSubject — happy path", () => {
 		expect(update).toBeDefined();
 		expect(update?.params).toEqual(["New title", 5]);
 
-		// Membership and global summary survive a subject-only edit.
 		expect(mockBumpMeta).toHaveBeenCalledTimes(1);
 		expect(mockBumpMeta).toHaveBeenCalledWith(env, 5);
 		expect(mockBumpList).not.toHaveBeenCalled();
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 
 		// NO admin_logs write — this endpoint is user-facing, not admin
 		// console. Freeze msg=a8ee78db, Directive 6 ("NO admin_logs").
@@ -319,6 +311,5 @@ describe("editThreadSubject — happy path", () => {
 		expect(calls.find((c) => c.sql.startsWith("UPDATE threads SET subject"))).toBeUndefined();
 		expect(mockBumpMeta).not.toHaveBeenCalled();
 		expect(mockBumpList).not.toHaveBeenCalled();
-		expect(mockBumpSummary).not.toHaveBeenCalled();
 	});
 });

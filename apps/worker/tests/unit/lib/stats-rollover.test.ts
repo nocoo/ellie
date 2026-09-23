@@ -52,7 +52,7 @@ describe("stats-rollover", () => {
 			expect(updateCalls).toHaveLength(0);
 		});
 
-		it("derives yesterday from committed posts on changed date marker and invalidates public-stats cache", async () => {
+		it("derives yesterday from committed posts on changed date marker without touching retired public-stats cache", async () => {
 			// Start on 2026-05-30
 			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
 			await f.env.KV.put("stats:today_date", "2026-05-30");
@@ -81,8 +81,7 @@ describe("stats-rollover", () => {
 				.get() as { value: string };
 			expect(yesterday.value).toBe("3");
 
-			// ONLY public-stats cache invalidated
-			expect(await f.env.KV.get("public-stats")).toBeNull();
+			expect(f.env.KV.delete).not.toHaveBeenCalledWith("public-stats");
 		});
 
 		it("handles zero posts yesterday accurately", async () => {

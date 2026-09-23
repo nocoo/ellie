@@ -84,8 +84,9 @@ test.describe("Admin Basalt integration", () => {
 			if (url.pathname.endsWith("/today/logins/list")) requests.push(url);
 		});
 		await loginAsAdmin();
-		await page.goto("/admin/analytics?tab=audit&foo=bar");
-		await page.getByRole("tab", { name: "审计", exact: true }).focus();
+		await page.goto("/admin/analytics?tab=trend&foo=bar");
+		await expect(page.getByRole("tab", { name: "审计", exact: true })).toHaveCount(0);
+		await page.getByRole("tab", { name: "趋势", exact: true }).focus();
 		await page.keyboard.press("ArrowRight");
 		await expect(page.getByRole("tab", { name: "登录", exact: true })).toHaveAttribute(
 			"aria-selected",

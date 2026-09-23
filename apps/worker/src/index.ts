@@ -1,44 +1,16 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
-// 85 endpoints: 20 public + 5 moderation + 60 admin
-import { setFlushSink } from "./lib/analytics/collect";
-import { memoryFlushSink } from "./lib/analytics/flushSink-memory";
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import { CacheLoadLimitError } from "./lib/cache/wrap";
 import type { CFRequest, Env } from "./lib/env";
-import { aggregateOnlineStats } from "./lib/online-stats";
 import { checkAndRolloverDailyStats } from "./lib/stats-rollover";
-import { flushThreadViews } from "./lib/thread-views";
-import { trackActivity } from "./middleware/activity";
 import { validateApiKey } from "./middleware/apiKey";
-import { authMiddleware } from "./middleware/auth";
 import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
 import { checkMaintenance } from "./middleware/maintenance";
-import { trackOnline } from "./middleware/online";
-
-// Visits are ephemeral and shared across isolates by the site/day memory actor.
-setFlushSink(memoryFlushSink);
 
 // ─── Router ───────────────────────────────────────────────────────
 
 export type { CFRequest, Env };
-
-/**
- * Try to track authenticated user activity.
- * Only triggers if Authorization header is valid — non-blocking via waitUntil.
- */
-async function tryTrackAuth(request: CFRequest, env: Env, ctx: ExecutionContext): Promise<void> {
-	// Skip if no Authorization header
-	const authHeader = request.headers.get("Authorization");
-	if (!authHeader?.startsWith("Bearer ")) return;
-
-	// Try to authenticate — if successful, trigger tracking
-	const authResult = await authMiddleware(request, env);
-	if (!(authResult instanceof Response)) {
-		trackOnline(request, env, ctx, authResult.user);
-		trackActivity(env, ctx, authResult.user);
-	}
-}
 
 export default {
 	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: flat router if-chain is intentionally sequential
@@ -52,7 +24,7 @@ export default {
 		configureAllowedOrigins(env.ALLOWED_ORIGINS);
 
 		// CORS preflight
-		if (request.method === "OPTIONS") {
+		if (request.method === "OPTIONS" && path !== "/api/internal/statistics/batch") {
 			return new Response(null, {
 				status: 204,
 				headers: corsHeaders(origin),
@@ -67,19 +39,18 @@ export default {
 				return await (await import("./handlers/live")).live(request, env);
 			}
 
-			// ── P5 analytics ingest — INSIDE the secret gate but
-			//    OUTSIDE the Key-A `validateApiKey` gate (reviewer pin).
-			//
-			// The web proxy POSTs page-view samples here with the shared
-			// `X-Ingest-Key` secret. The handler itself enforces a
-			// constant-time secret compare + strict body whitelist; we
-			// dispatch it ahead of `validateApiKey` so the public Next
-			// runtime can reach it without holding the forum API key.
-			if (path === "/api/internal/analytics/ingest" && request.method === "POST") {
-				return await (await import("./handlers/internal/analyticsIngest")).analyticsIngestHandler(
+			if (path === "/api/internal/statistics/batch" && request.method !== "POST") {
+				return await (await import("./handlers/internal/statisticsBatch")).statisticsBatchHandler(
 					request,
 					env,
-					ctx,
+				);
+			}
+
+			// Dedicated statistics secret; Key A/B never authorizes these writes.
+			if (path === "/api/internal/statistics/batch" && request.method === "POST") {
+				return await (await import("./handlers/internal/statisticsBatch")).statisticsBatchHandler(
+					request,
+					env,
 				);
 			}
 
@@ -91,13 +62,15 @@ export default {
 			const maintenanceError = await checkMaintenance(request, env, origin);
 			if (maintenanceError) return maintenanceError;
 
-			// Track authenticated user activity (non-blocking)
-			// Runs in background via waitUntil — doesn't affect response latency
-			ctx.waitUntil(tryTrackAuth(request, env, ctx));
-
 			// ── Public routes (#2-#11) ───────────────────────
 			if (path === "/api/v1/forums" && request.method === "GET") {
 				return await (await import("./handlers/forum")).list(request, env, ctx);
+			}
+			if (path === "/api/v1/forums/summaries" && request.method === "GET") {
+				return await (await import("./handlers/forum")).summaries(request, env, ctx);
+			}
+			if (path === "/api/v1/forums/summary-gates" && request.method === "GET") {
+				return await (await import("./handlers/forum")).summaryGates(request, env);
 			}
 			// Ancestors endpoint MUST be registered before /api/v1/forums/:id
 			// to avoid the regex matching "ancestors" as a forum ID.
@@ -129,6 +102,9 @@ export default {
 			}
 			if (path === "/api/v1/threads" && request.method === "GET") {
 				return await (await import("./handlers/thread")).list(request, env, ctx);
+			}
+			if (path === "/api/v1/threads/count" && request.method === "GET") {
+				return await (await import("./handlers/thread")).count(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/threads\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/thread")).getById(request, env, ctx);
@@ -647,21 +623,6 @@ export default {
 			// Backs the "今日访问名单" panel. KPI is KV-cached on the
 			// aggregate-only payload (no ip/ua/username); the list is
 			// realtime no-store. Both behind the admin Key-B gate.
-			if (path === "/api/admin/analytics/today/visits" && request.method === "GET") {
-				return await (await import("./handlers/admin/todayVisits")).getTodayVisitsKpi(
-					request,
-					env,
-					ctx,
-				);
-			}
-			if (path === "/api/admin/analytics/today/visits/list" && request.method === "GET") {
-				return await (await import("./handlers/admin/todayVisits")).getTodayVisitsList(
-					request,
-					env,
-					ctx,
-				);
-			}
-
 			// ── E1. KV Monitor (Admin) ───────────────────────
 			// Read-only + typed safe-mutation endpoints backing the
 			// `/admin/statistics/kv` page. See handlers/admin/kv.ts for
@@ -868,8 +829,8 @@ export default {
 	/**
 	 * Scheduled handler — dispatched on `event.cron` to keep jobs independent.
 	 *
-	 *   - "* /5 * * * *"  → aggregateOnlineStats (P3, every 5 minutes)
-	 *   - "0 19 * * *"    → cleanupLoginHistory  (P4, 19:00 UTC = 03:00 Asia/Shanghai)
+	 *   - "* /5 * * * *"  → checkAndRolloverDailyStats
+	 *   - "0 19 * * *"    → cleanupLoginHistory  (19:00 UTC = 03:00 Asia/Shanghai)
 	 *
 	 * (The first cron string is escaped above so this JSDoc block does not
 	 * close prematurely; the real schedule in wrangler.toml has no space.)
@@ -881,9 +842,6 @@ export default {
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
 		switch (event.cron) {
 			case "*/5 * * * *":
-				ctx.waitUntil(flushThreadViews(env));
-				ctx.waitUntil(aggregateOnlineStats(env));
-				// Check for day rollover and rotate today/yesterday posts counters
 				ctx.waitUntil(
 					checkAndRolloverDailyStats(env).catch((err) => {
 						console.warn("[cron] checkAndRolloverDailyStats failed", err);

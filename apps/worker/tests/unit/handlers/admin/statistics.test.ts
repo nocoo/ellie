@@ -238,10 +238,7 @@ describe("admin statistics handlers", () => {
 			expect(body.data.lastBatchUpdated).toBe(1);
 		});
 
-		it("finalize bumps forum:summary:gen only when updated > 0", async () => {
-			// Initialize on an empty forums table → advance hits empty batch
-			// immediately → status=done with updated=0 → finalize must NOT
-			// touch forum:summary:gen (no churn for no-op sweeps).
+		it("empty finalize does not write retired summary generations", async () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT COUNT(*) as cnt FROM forums": { cnt: 0 },
@@ -270,15 +267,11 @@ describe("admin statistics handlers", () => {
 			expect(body.data.status).toBe("done");
 			expect(body.data.updated).toBe(0);
 
-			// forum:summary:gen must be unchanged (no bump for no-op sweep).
 			const finalGen = await env.KV.get("forum:summary:gen");
 			expect(finalGen).toBe(initialGen);
 		});
 
-		it("finalize bumps forum:summary:gen when updated > 0 on done transition", async () => {
-			// Initialize (total=1) → advance walks 1 forum → short final
-			// batch → done with updated=1 → finalize MUST bump
-			// forum:summary:gen exactly once (outside the lease).
+		it("updated finalize does not write retired summary generations", async () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT COUNT(*) as cnt FROM forums": { cnt: 1 },
@@ -300,7 +293,7 @@ describe("admin statistics handlers", () => {
 			);
 			const genBeforeBatch = await env.KV.get("forum:summary:gen");
 
-			// Tick 2 — advance writes 1 forum → done → finalize bumps.
+			// Tick 2 advances one forum and finalizes.
 			const res = await statistics.recalcForums(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
 				env,
@@ -311,7 +304,7 @@ describe("admin statistics handlers", () => {
 			expect(body.data.updated).toBe(1);
 
 			const genAfter = await env.KV.get("forum:summary:gen");
-			expect(genAfter).not.toBe(genBeforeBatch);
+			expect(genAfter).toBe(genBeforeBatch);
 		});
 
 		it("response body is StatsJobPayload, NOT the legacy {updated:N} shape", async () => {
@@ -1321,13 +1314,6 @@ describe("admin statistics handlers", () => {
 		});
 	});
 
-	// ─── recalcPostForumIds (job-mode, Phase D) ────────────────────────
-	// Cursor=posts.id active sweep. Each tick pulls a slab of posts via
-	// `id > cursor`, looks up canonical `threads.forum_id` for the batch
-	// thread-ids via `IN (...)`, and writes only mismatched rows. Cursor
-	// advances by SCANNED posts, not mismatched posts. `bumpForumSummaryGen`
-	// fires from finalize only when `updated > 0` (Phase D, msg=376c0bee).
-
 	describe("recalcPostForumIds (job-mode)", () => {
 		it("rejects invalid JSON body with 400", async () => {
 			const { db } = createMockDb();
@@ -1528,7 +1514,7 @@ describe("admin statistics handlers", () => {
 			expect(body.data.total).toBe(100);
 		});
 
-		it("finalize: bumpForumSummaryGen fires only when updated > 0", async () => {
+		it("finalize never writes retired summary generations", async () => {
 			// Path A: full sweep, no mismatches → finalize must NOT bump.
 			const { db: dbA } = createMockDb({
 				allResults: {
@@ -1552,16 +1538,13 @@ describe("admin statistics handlers", () => {
 			const persistedA = await readJob(envA, "post-forums");
 			expect(persistedA?.status).toBe("done");
 			expect(persistedA?.updated).toBe(0);
-			// forum:summary:gen key must NOT have been written. The mock
-			// KV exposes a put fn; check that no `forum:summary:gen:*`
-			// write happened.
 			const kvA = envA.KV as KVNamespace & { put: ReturnType<typeof vi.fn> };
 			const summaryWritesA = (kvA.put as ReturnType<typeof vi.fn>).mock.calls.filter(
 				(c) => typeof c[0] === "string" && c[0].includes("forum:summary:gen"),
 			);
 			expect(summaryWritesA.length).toBe(0);
 
-			// Path B: full sweep, 1 mismatch → finalize MUST bump.
+			// Path B repairs one mismatch without a summary generation write.
 			const { db: dbB } = createMockDb({
 				allResults: {
 					"FROM posts WHERE id >": [{ id: 2, thread_id: 1, forum_id: 5 }],
@@ -1588,7 +1571,7 @@ describe("admin statistics handlers", () => {
 			const summaryWritesB = (kvB.put as ReturnType<typeof vi.fn>).mock.calls.filter(
 				(c) => typeof c[0] === "string" && c[0].includes("forum:summary:gen"),
 			);
-			expect(summaryWritesB.length).toBeGreaterThan(0);
+			expect(summaryWritesB.length).toBe(0);
 		});
 
 		it("reset:true reopens a done job and re-runs posts.COUNT(*)", async () => {

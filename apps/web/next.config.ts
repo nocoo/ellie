@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
 	output: "standalone",
+	// Keep prefetch headers visible to proxy before Next hides them from RSC.
+	skipProxyUrlNormalize: true,
 	allowedDevOrigins: ["ellie.dev.hexly.ai"],
 
 	images: {

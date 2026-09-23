@@ -27,7 +27,7 @@ export async function getUserTitle(userId: number): Promise<string> {
 
 /** Fetch forum name by ID (deduped via getForumList cache). */
 export async function getForumTitle(forumId: number): Promise<string> {
-	const forums = await getCachedForumList();
+	const forums = await getCachedForumList(null);
 	const forum = forums.find((f) => f.id === forumId);
 	return forum?.name ?? `版块 ${forumId}`;
 }

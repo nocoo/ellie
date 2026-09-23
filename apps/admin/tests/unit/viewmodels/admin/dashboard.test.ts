@@ -35,7 +35,6 @@ beforeEach(() => {
 		threads: null,
 		posts: null,
 		forums: null,
-		visits: null,
 		logins: null,
 	});
 });

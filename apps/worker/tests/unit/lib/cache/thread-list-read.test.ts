@@ -1,4 +1,3 @@
-import type { CacheParams } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getThreadListPage,
@@ -29,23 +28,26 @@ function query(overrides: Partial<ThreadListQuery> = {}): ThreadListQuery {
 }
 
 describe("all thread-list memberships", () => {
-	it("refreshes page membership each minute but shares exact counts for a fixed hour", async () => {
+	it("refreshes counts immediately while membership retains its minute lifetime", async () => {
 		const start = Date.now();
-		await getThreadListPage(f.env, undefined, query());
-		const count = f.snapshots("thread:count")[0];
-		expect(count.expiresAt - count.loadedAt).toBe(3_600_000);
+		const initial = await getThreadListPage(f.env, undefined, query());
+		expect(initial.total).toBe(183);
+		const membership = f.snapshots("thread:list");
 		f.thread(999, { last_post_at: 9999 });
+		f.calls.length = 0;
+		const warm = await getThreadListPage(f.env, undefined, query());
+		expect(warm.items).toEqual(initial.items);
+		expect(warm.total).toBe(184);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).toContain("COUNT(*)");
+		expect(f.snapshots("thread:list")).toEqual(membership);
 		vi.setSystemTime(start + 60_000);
 		f.calls.length = 0;
 		const updated = await getThreadListPage(f.env, undefined, query());
 		expect(updated.items.some((item) => item.id === 999)).toBe(true);
-		expect(updated.total).toBe(183);
-		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
-		vi.setSystemTime(start + 3_599_999);
-		await getThreadListPage(f.env, undefined, query({ limit: 50, page: 2 }));
-		expect(f.snapshots("thread:count")[0]).toEqual(count);
-		vi.setSystemTime(start + 3_600_000);
-		expect((await getThreadListPage(f.env, undefined, query())).total).toBe(184);
+		expect(updated.total).toBe(184);
+		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(1);
+		expect(f.snapshots("thread:count")).toEqual([]);
 	});
 	it.each([1, 2, 17, 20, 25, 50, 99, 100])(
 		"caches first/deep pages at legal limit %i with original ordering",
@@ -64,7 +66,8 @@ describe("all thread-list memberships", () => {
 				expect(result.total).toBe(183);
 				f.calls.length = 0;
 				expect(await getThreadListPage(f.env, undefined, params)).toEqual(result);
-				expect(f.calls).toHaveLength(0);
+				expect(f.calls).toHaveLength(1);
+				expect(f.calls[0].sql).toContain("COUNT(*)");
 			}
 		},
 	);
@@ -73,7 +76,7 @@ describe("all thread-list memberships", () => {
 		const all: number[] = [];
 		let cursor: ThreadListQuery["cursor"] = null;
 		for (let i = 0; i < 95; i++) {
-			const params = query({ limit: 2, cursor });
+			const params = query({ limit: 2, cursor, includeTotal: false });
 			const result = await getThreadListPage(f.env, undefined, params);
 			all.push(...result.items.map((row) => row.id));
 			if (!result.nextCursor) break;
@@ -110,7 +113,7 @@ describe("all thread-list memberships", () => {
 			expect(item.scope).toBe("internal");
 			expect(JSON.stringify(item.data)).not.toMatch(/subject|author_name|avatar|views|replies/);
 			if (item.params.kind === "local") expect(Object.keys(item.data)).toEqual(["items"]);
-			if (item.params.kind === "count") expect(Object.keys(item.data)).toEqual(["total"]);
+			expect(item.params.kind).not.toBe("count");
 		}
 	});
 
@@ -120,11 +123,14 @@ describe("all thread-list memberships", () => {
 		vi.setSystemTime(Date.now() + 59_999);
 		f.calls.length = 0;
 		await getThreadListPage(f.env, undefined, query({ page: 1 }));
-		expect(f.calls).toHaveLength(0);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls[0].sql).toContain("COUNT(*)");
 		expect(f.snapshots("thread:list")).toEqual(original);
+		f.calls.length = 0;
 		vi.setSystemTime(Date.now() + 1);
 		await getThreadListPage(f.env, undefined, query());
-		expect(f.calls).toHaveLength(2); // globals + local membership; count remains cached
+		expect(f.calls).toHaveLength(3);
+		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(1);
 	});
 
 	it("rebuild rejects injected parameters and has no KV I/O", async () => {
@@ -165,6 +171,7 @@ describe("all thread-list memberships", () => {
 		f.calls.length = 0;
 		for (const params of [
 			{ ...descriptor.params, limit: "20 OFFSET 0" },
+			{ ...descriptor.params, limit: 102 },
 			{ ...descriptor.params, offset: -1 },
 			{ ...descriptor.params, cursorSticky: 3 },
 		]) {
@@ -175,50 +182,16 @@ describe("all thread-list memberships", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("count descriptors require exact safe forum/type parameters and count-only data", async () => {
+	it("retired count descriptors are rejected before D1 or KV access", async () => {
 		const descriptor = {
 			family: "thread:count",
 			scope: "internal",
 			params: { kind: "count", forumId: 1, typeId: null },
 		};
-		expect(await rebuildThreadListCache(f.env, undefined, descriptor)).toEqual({ total: 180 });
-		expect(f.calls).toHaveLength(1);
-		expect(isThreadListCacheData(descriptor, { total: 0 })).toBe(true);
-		expect(isThreadListCacheData(descriptor, { total: Number.MAX_SAFE_INTEGER })).toBe(true);
-		for (const value of [
-			null,
-			{},
-			{ total: -1 },
-			{ total: 0.5 },
-			{ total: "180" },
-			{ total: Number.MAX_SAFE_INTEGER + 1 },
-			{ total: Number.NaN },
-			{ total: Infinity },
-			{ total: 180, items: [] },
-		]) {
-			expect(isThreadListCacheData(descriptor, value)).toBe(false);
-		}
-		f.calls.length = 0;
-		const invalidParams: CacheParams[] = [
-			{ kind: "count", forumId: 1 },
-			{ ...descriptor.params, forumId: "1 OR 1=1" },
-			{ ...descriptor.params, forumId: 0 },
-			{ ...descriptor.params, forumId: Number.MAX_SAFE_INTEGER + 1 },
-			{ ...descriptor.params, typeId: 0 },
-			{ ...descriptor.params, typeId: 0.5 },
-			{ ...descriptor.params, typeId: "8" },
-			{ ...descriptor.params, typeId: Number.MAX_SAFE_INTEGER + 1 },
-			{ ...descriptor.params, limit: 20 },
-			{ ...descriptor.params, cursorId: null },
-		];
-		for (const params of invalidParams) {
-			const invalid = { ...descriptor, params };
-			expect(isThreadListCacheData(invalid, { total: 180 })).toBe(false);
-			await expect(rebuildThreadListCache(f.env, undefined, invalid)).rejects.toThrow();
-		}
-		await expect(
-			rebuildThreadListCache(f.env, undefined, { ...descriptor, scope: "public" }),
-		).rejects.toThrow();
+		expect(isThreadListCacheData(descriptor, { total: 180 })).toBe(false);
+		await expect(rebuildThreadListCache(f.env, undefined, descriptor)).rejects.toThrow(
+			"Unsupported thread-list cache descriptor",
+		);
 		expect(f.calls).toHaveLength(0);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		expect(f.env.KV.put).not.toHaveBeenCalled();

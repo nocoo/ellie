@@ -6,16 +6,15 @@
 //   1. PageHeader — page-wide
 //   2. "今日 KPI" — page-wide (4 StatCards), shown across all tabs so the
 //      operator always sees today's headline numbers
-//   3. Basalt Tabs — 3 tabs:
+//   3. Basalt Tabs — 2 tabs:
 //        - 趋势 (TrendTab):  trend curves, forum distribution, checkin trend
-//        - 审计 (AuditTab):  TodayVisitsPanel — per-target page-view feed
 //        - 登录 (LoginTab):  LoginAttemptsPanel — login attempt audit log
 //
 // Each tab is a separate client component that owns its own fetch state.
 // Switching tabs unmounts the previous tab, so an idle tab does not poll
 // or hold stale data in memory.
 //
-// URL state: `?tab=trend|audit|login`. Two-way binding:
+// URL state: `?tab=trend|login`. Two-way binding:
 //   - On mount and whenever the URL changes externally (back/forward,
 //     direct edit, programmatic navigation) we read `?tab=` and sync
 //     local state.
@@ -32,7 +31,6 @@ import {
 	CalendarCheck,
 	ChartNoAxesCombined,
 	FileText,
-	Globe,
 	MessageSquare,
 	ShieldCheck,
 	Users,
@@ -40,7 +38,6 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
-import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
 import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
 import { TrendTab } from "@/components/admin/analytics/tabs/trend-tab";
 import { StatCard } from "@/components/admin/stat-card";
@@ -51,19 +48,17 @@ import { type AnalyticsOverview, parseOverview } from "@/viewmodels/admin/analyt
 // Tab identity — single source of truth for the tab keys and labels.
 // ---------------------------------------------------------------------------
 
-const ANALYTICS_TABS = ["trend", "audit", "login"] as const;
+const ANALYTICS_TABS = ["trend", "login"] as const;
 type AnalyticsTab = (typeof ANALYTICS_TABS)[number];
 const DEFAULT_TAB: AnalyticsTab = "trend";
 
 const TAB_LABELS: Record<AnalyticsTab, string> = {
 	trend: "趋势",
-	audit: "审计",
 	login: "登录",
 };
 
 const TAB_DESCRIPTIONS: Record<AnalyticsTab, string> = {
 	trend: "近期注册 / 主题 / 回复 / 签到趋势曲线与版块发帖分布。",
-	audit: "今日 PV / 活跃用户与按 path_kind 切片的实时访问明细。",
 	login: "登录尝试审计日志：成功 / 失败 / 风控拦截分组与详情。",
 };
 
@@ -148,7 +143,7 @@ function AnalyticsPageInner(): React.JSX.Element {
 						数据分析
 					</span>
 				}
-				description="社区增长、访问行为与认证审计 · 上海时区"
+				description="社区增长与认证审计 · 上海时区"
 			/>
 
 			<SectionRule title="今日 KPI">
@@ -184,8 +179,6 @@ function AnalyticsPageInner(): React.JSX.Element {
 								<TabsTrigger key={option.value} value={option.value}>
 									{option.value === "trend" ? (
 										<ChartNoAxesCombined className="h-3.5 w-3.5" aria-hidden="true" />
-									) : option.value === "audit" ? (
-										<Globe className="h-3.5 w-3.5" aria-hidden="true" />
 									) : (
 										<ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
 									)}
@@ -198,9 +191,6 @@ function AnalyticsPageInner(): React.JSX.Element {
 
 				<TabsContent value="trend">
 					<TrendTab />
-				</TabsContent>
-				<TabsContent value="audit">
-					<AuditTab />
 				</TabsContent>
 				<TabsContent value="login">
 					<LoginTab />

@@ -7,23 +7,19 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(
 		"../../../src/lib/cache/invalidate",
 	);
-	const bumpForumSummaryGen = vi.fn(async () => "g1");
 	const bumpThreadListGen = vi.fn(async () => "g1");
 	const bumpThreadListGenAll = vi.fn(async () => "g1");
 	const bumpDigestGen = vi.fn(async () => "g1");
 	return {
 		...actual,
-		bumpForumSummaryGen,
 		bumpThreadListGen,
 		bumpThreadListGenAll,
 		bumpDigestGen,
 		bumpThreadMetaGen: vi.fn(async () => "g1"),
 		invalidateThreadReading: vi.fn(actual.invalidateThreadReading),
-		invalidateForumSummaryV2: vi.fn(async () => {
-			await bumpForumSummaryGen();
-		}),
+
 		invalidateForumVolatileV2: vi.fn(async (_e: unknown, fid: number) => {
-			await Promise.all([bumpForumSummaryGen(), bumpThreadListGen(_e, fid)]);
+			await bumpThreadListGen(_e, fid);
 		}),
 		invalidateThreadListForForums: vi.fn(async (_e: unknown, fids: readonly number[]) => {
 			const unique = Array.from(new Set(fids));
@@ -38,7 +34,6 @@ import { update as adminThreadUpdate } from "../../../src/handlers/admin/thread"
 import { setClose, setDigest, setHighlight, setSticky } from "../../../src/handlers/moderation";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
 	bumpThreadMetaGen,
@@ -46,7 +41,6 @@ import {
 } from "../../../src/lib/cache/invalidate";
 import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
-const mockSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockThreadList = bumpThreadListGen as ReturnType<typeof vi.fn>;
 const mockThreadListAll = bumpThreadListGenAll as ReturnType<typeof vi.fn>;
 const mockDigest = bumpDigestGen as ReturnType<typeof vi.fn>;
@@ -105,7 +99,6 @@ describe("moderation thread entity and membership invalidation", () => {
 		// Global transition MUST also bump the all-forum gen so every
 		// forum's page1 cache drops the stale global pin.
 		expect(mockThreadListAll).toHaveBeenCalled();
-		expect(mockSummary).not.toHaveBeenCalled();
 		expect(mockDigest).not.toHaveBeenCalled();
 	});
 
@@ -124,7 +117,6 @@ describe("moderation thread entity and membership invalidation", () => {
 		// Normal per-forum sticky changes MUST NOT touch the all-gen
 		// (otherwise routine pin actions would invalidate every forum's cache).
 		expect(mockThreadListAll).not.toHaveBeenCalled();
-		expect(mockSummary).not.toHaveBeenCalled();
 		expect(mockDigest).not.toHaveBeenCalled();
 	});
 
@@ -274,7 +266,7 @@ describe("admin thread update digest tracking", () => {
 		expect(mockDigest).toHaveBeenCalled();
 	});
 
-	it("subject update refreshes the thread entity and summary, preserving membership", async () => {
+	it("subject update refreshes the thread entity, preserving membership", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
@@ -297,13 +289,10 @@ describe("admin thread update digest tracking", () => {
 		expect(res.status).toBe(200);
 		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
 		expect(mockThreadList).not.toHaveBeenCalled();
-		// Subject is part of `forum:summary:v2.lastThreadSubject`, so a
-		// subject-only update MUST also bump forum:summary:gen.
-		expect(mockSummary).toHaveBeenCalled();
 		expect(mockDigest).not.toHaveBeenCalled();
 	});
 
-	it("update with sticky-only change bumps per-forum thread-list, NOT summary, NOT digest", async () => {
+	it("update with sticky-only change bumps per-forum thread-list, NOT digest", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
@@ -325,9 +314,6 @@ describe("admin thread update digest tracking", () => {
 		const res = await adminThreadUpdate(req, env);
 		expect(res.status).toBe(200);
 		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 5);
-		// sticky/closed/digest/highlight do NOT touch lastThreadSubject,
-		// so we don't pay the summary bump there — only subject does.
-		expect(mockSummary).not.toHaveBeenCalled();
 		expect(mockDigest).not.toHaveBeenCalled();
 		// Forum-pin only (no global transition) MUST NOT touch all-gen.
 		expect(mockThreadListAll).not.toHaveBeenCalled();
@@ -442,7 +428,6 @@ describe("admin statistics recalc-threads gen invalidation", () => {
 		expect(res.status).toBe(200);
 		expect((await res.json()).data).toMatchObject({ status: "done", updated: 1 });
 		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
-		expect(mockSummary).toHaveBeenCalled();
 		expect(mockThreadListAll).toHaveBeenCalled();
 		expect(mockThreadList).not.toHaveBeenCalled();
 	});
@@ -471,7 +456,6 @@ describe("admin statistics recalc-threads gen invalidation", () => {
 		expect(res.status).toBe(200);
 		expect((await res.json()).data).toMatchObject({ status: "done", updated: 1 });
 		expect(mockThreadReading).toHaveBeenCalledExactlyOnceWith(env, [11]);
-		expect(mockSummary).toHaveBeenCalled();
 		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 42);
 		expect(mockThreadListAll).not.toHaveBeenCalled();
 	});

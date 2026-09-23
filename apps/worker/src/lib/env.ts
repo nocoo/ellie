@@ -1,6 +1,4 @@
 // Worker environment types
-import type { TodayVisitsMemory } from "./analytics/memory";
-
 export interface Env {
 	API_KEY: string;
 	ADMIN_API_KEY: string;
@@ -8,8 +6,6 @@ export interface Env {
 	ENVIRONMENT: string;
 	JWT_SECRET: string;
 	KV: KVNamespace;
-	/** Ephemeral site/day counters; this actor never uses persistent storage. */
-	TODAY_VISITS?: DurableObjectNamespace<TodayVisitsMemory>;
 	/** R2 bucket for avatar and attachment uploads */
 	R2: R2Bucket;
 	/** Comma-separated CORS allowed origins (wrangler [vars]) */
@@ -53,18 +49,12 @@ export interface Env {
 	 */
 	IP_LOOKUP_API_KEY?: string;
 	/**
-	 * Shared secret for the P5 admin-analytics page-view ingest endpoint
-	 * at `POST /api/internal/analytics/ingest`. Verified constant-time
-	 * against the inbound `X-Ingest-Key` header BEFORE any header trust
-	 * (X-Real-IP) or collector dispatch. When undefined the ingest route
-	 * returns 503 `INGEST_NOT_CONFIGURED` so the deployment can't
-	 * accidentally accept anonymous samples.
-	 *
-	 * Set ONLY via `wrangler secret put ANALYTICS_INGEST_KEY` — do NOT
-	 * add to tracked `.dev.vars` / `.dev.vars.example`, and the web side
-	 * MUST keep this server-only (never `NEXT_PUBLIC_*`).
+	 * Shared secret for POST /api/internal/statistics/batch. Verified
+	 * constant-time against X-Ellie-Statistics-Key before the Key A/B
+	 * router. Web holds the same value as WEB_STATISTICS_WRITE_KEY.
+	 * Missing configuration fails closed. Never accept API_KEY here.
 	 */
-	ANALYTICS_INGEST_KEY?: string;
+	WEB_STATISTICS_WRITE_KEY?: string;
 }
 
 export interface CFRequest extends Request {

@@ -121,8 +121,9 @@ describe("user history with current gates", () => {
 			expect(second.meta.nextCursor).toBeNull();
 			f.calls.length = 0;
 			await handler(request(`users/10/${kind}?limit=2`), f.env);
-			expect(f.calls).toHaveLength(1);
+			expect(f.calls).toHaveLength(2);
 			expect(f.calls[0].sql).toContain("JOIN forums f");
+			expect(f.calls[1].sql).toContain("replies");
 		},
 	);
 	it("projects names from user mini and excludes anonymous history after the flag changes", async () => {
@@ -190,7 +191,9 @@ describe("user history with current gates", () => {
 		expect(Math.max(...f.calls.map((c) => c.params.length))).toBeLessThanOrEqual(100);
 		f.calls.length = 0;
 		await user.listPosts(request("users/10/posts?limit=50"), f.env);
-		expect(f.calls).toHaveLength(2);
+		expect(f.calls).toHaveLength(3);
+		expect(f.calls.filter((call) => call.sql.includes("replies"))).toHaveLength(1);
+		expect(Math.max(...f.calls.map((call) => call.params.length))).toBeLessThanOrEqual(100);
 	});
 	it.each([user.listThreads, user.listPosts, user.listDigest])(
 		"validates resource IDs and returns an empty page",

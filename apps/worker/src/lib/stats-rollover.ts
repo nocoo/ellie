@@ -1,5 +1,4 @@
 import { countPostsInDay } from "./cache/public-stats-read";
-import { cacheDelete } from "./cache/wrap";
 import type { Env } from "./env";
 import { shanghaiDateLocal, shanghaiTodayStartUnix } from "./shanghaiTime";
 
@@ -15,5 +14,4 @@ export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 		.run();
 	if (!updated.success) throw new Error("Daily statistics update was not confirmed");
 	await env.KV.put("stats:today_date", date);
-	await cacheDelete(env, "public-stats", "public-stats");
 }

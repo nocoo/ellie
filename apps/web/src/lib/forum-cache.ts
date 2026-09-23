@@ -24,13 +24,14 @@ import { loadRecommendedThreads } from "@/viewmodels/forum/recommended-threads.s
 import {
 	type ForumAncestorsData,
 	fetchForumAncestors,
-	fetchForumList,
 	fetchForumNames,
+	fetchForumStructure,
 	fetchForumThreadTypes,
 	fetchThreadById,
 	fetchThreadMetadata,
 } from "./forum-data";
 import { type ForumSettings, parseForumSettings } from "./forum-settings";
+import { getMemoryRuntime } from "./memory-runtime";
 import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 import { createTtlCache } from "./ttl-cache";
 
@@ -40,8 +41,13 @@ import { createTtlCache } from "./ttl-cache";
 
 export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedThreadMetadata = cache(fetchThreadMetadata);
-// The Worker owns summary expiry and mutation invalidation; do not add another TTL here.
-export const getCachedForumList = cache(fetchForumList);
+// Doc/29: display lists build from the static structure view (JWT forwarded
+// so member forums resolve); summary numbers come from the reading contract
+// (see lib/forum-reading.ts).
+export const getCachedForumList = cache(
+	async (jwt: string | null) => (await fetchForumStructure(jwt)).forums,
+);
+export const getCachedForumStructure = cache(fetchForumStructure);
 export const getCachedForumNames = cache(fetchForumNames);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
@@ -75,6 +81,15 @@ export async function getCachedPostsPerPage(): Promise<number> {
 	const settings = await getCachedForumSettings();
 	return settings.postsPerPage;
 }
+
+/**
+ * Request-scoped view recording (doc/29): `cache()` memoizes per request per
+ * thread id, so a successful page render counts exactly once even when the
+ * loader runs in several render passes. The runtime buffers the increment.
+ */
+export const recordThreadView = cache((threadId: number) => {
+	getMemoryRuntime().recordView(threadId);
+});
 
 export type { AncestorItem, ForumContext } from "./forum-data";
 // Re-export the data shape types so callers don't need to import the

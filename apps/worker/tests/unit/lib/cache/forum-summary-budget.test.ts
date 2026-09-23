@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadForumSnapshot } from "../../../../src/lib/cache/forum-read";
+import { shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "./thread-cache-fixture";
 
 describe("forum summary query plan and row budget under high historical volume", () => {
@@ -12,7 +13,7 @@ describe("forum summary query plan and row budget under high historical volume",
 	afterEach(() => f.close());
 
 	it("satisfies today count and latest thread lookup with bounded index searches across 10,000 historical rows", async () => {
-		const cutoff = Math.floor(Date.now() / 1000) - 86400;
+		const cutoff = shanghaiTodayStartUnix();
 
 		// One SQL statement keeps large fixture setup cheap under coverage instrumentation.
 		f.sqlite
@@ -64,7 +65,7 @@ describe("forum summary query plan and row budget under high historical volume",
 		// Must use partial covering index without temporary b-tree sort
 		expect(
 			latestExplain.some((row) =>
-				row.detail.includes("SEARCH t USING INDEX idx_threads_forum_latest (forum_id=?)"),
+				row.detail.includes("SEARCH t USING INDEX idx_threads_forum_visible_created (forum_id=?)"),
 			),
 		).toBe(true);
 		expect(latestExplain.some((row) => row.detail.includes("USE TEMP B-TREE"))).toBe(false);

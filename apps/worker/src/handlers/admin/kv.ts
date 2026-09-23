@@ -52,7 +52,6 @@ import {
 } from "../../lib/cache/admin-monitor-read";
 import {
 	bumpDigestGen,
-	bumpForumSummaryGen,
 	bumpForumTreeGen,
 	bumpPostListGen,
 	bumpThreadListGen,
@@ -140,8 +139,6 @@ async function maskKeyName(key: string, family: KvFamilySpec): Promise<string> {
 		case "reg-ip":
 		case "chk-usr-ip":
 			return `${family.listPrefix}${maskIpSuffix(suffix)}`;
-		case "online:user":
-		case "activity_throttle":
 		case "email_verify":
 		case "email_verify_lock": {
 			const h = await shortHash(suffix);
@@ -954,7 +951,6 @@ export const inspect = getKey;
 // the cognitive complexity of `refresh`.
 const SIMPLE_BUMP_ACTIONS: Record<string, { gen: string; run: (env: Env) => Promise<string> }> = {
 	"bump-forum-tree": { gen: "forum:tree:gen", run: bumpForumTreeGen },
-	"bump-forum-summary": { gen: "forum:summary:gen", run: bumpForumSummaryGen },
 	"bump-thread-list-all": { gen: "thread:list:gen:all", run: bumpThreadListGenAll },
 	"bump-digest": { gen: "digest:gen", run: bumpDigestGen },
 };

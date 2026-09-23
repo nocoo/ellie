@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: ccd4c4be522a1741d0f46de8db12cdba9fdd3f47fa0fe837cc18e70766a307d0):
+ * Source migrations (sha256: e3e990c442c7507eed2a322fab98af237b8d18cbd1592f1a0b2a0559b9c48fa1):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -38,6 +38,7 @@
  *   - 0052_kv_cache_metrics_hour.sql
  *   - 0053_read_query_indexes.sql
  *   - 0054_same_ip_indexes.sql
+ *   - 0055_memory_statistics_indexes.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1701,9 +1702,30 @@ PRAGMA optimize;
 CREATE INDEX IF NOT EXISTS idx_users_reg_ip_nonempty ON users(reg_ip) WHERE reg_ip != '';
 CREATE INDEX IF NOT EXISTS idx_users_last_ip_nonempty ON users(last_ip) WHERE last_ip != '';
 PRAGMA optimize;
+
+-- ── 0055_memory_statistics_indexes.sql ────────────────────────────────────────────
+-- Latest visible non-anonymous topic lookup:
+-- forum_id = ? AND sticky >= 0 AND anonymous_author = 0
+-- ORDER BY created_at DESC, id DESC LIMIT 1
+-- The query must use INDEXED BY idx_threads_forum_visible_created.
+-- Unhinted, the fixture planner chose idx_threads_forum and USE TEMP B-TREE
+-- FOR ORDER BY. With the hint: SEARCH t USING INDEX
+-- idx_threads_forum_visible_created (forum_id=?), no temporary sort.
+CREATE INDEX IF NOT EXISTS idx_threads_forum_visible_created
+  ON threads(forum_id, created_at DESC, id DESC)
+  WHERE sticky >= 0 AND anonymous_author = 0;
+
+-- Recently active members:
+-- status = 0 AND last_activity >= ?
+-- EXPLAIN without a hint uses idx_users_status. INDEXED BY this partial index
+-- is SEARCH users USING COVERING INDEX idx_users_active_last_activity (last_activity>?),
+-- which does not scan every user.
+CREATE INDEX IF NOT EXISTS idx_users_active_last_activity
+  ON users(last_activity)
+  WHERE status = 0;
 `;
 
-export const INIT_SQL_HASH = "ccd4c4be522a1741d0f46de8db12cdba9fdd3f47fa0fe837cc18e70766a307d0";
+export const INIT_SQL_HASH = "e3e990c442c7507eed2a322fab98af237b8d18cbd1592f1a0b2a0559b9c48fa1";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1739,5 +1761,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0051_idx_threads_forum_latest.sql",
 	"0052_kv_cache_metrics_hour.sql",
 	"0053_read_query_indexes.sql",
-	"0054_same_ip_indexes.sql"
+	"0054_same_ip_indexes.sql",
+	"0055_memory_statistics_indexes.sql"
 ] as const;

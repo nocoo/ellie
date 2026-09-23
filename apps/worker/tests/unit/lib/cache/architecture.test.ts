@@ -23,18 +23,13 @@ const rawKvOwners: Record<string, string> = {
 	"handlers/auth.ts": "Login sessions, lockout and rate limiting",
 	"handlers/email.ts": "Verification codes and send locks",
 	"handlers/admin/kv.ts": "Bounded diagnosis and explicit management",
-	"handlers/admin/user.ts": "Fresh online presence overlay",
 	"lib/cache/store.ts": "Unified envelope I/O",
 	"lib/cache/wrap.ts": "Unified coalescing and invalidation",
 	"lib/cache/manage.ts": "Pure inspection and confirmed mutations",
 	"lib/cache/epoch.ts": "Resource versions",
 	"lib/cache/admin-monitor-read.ts": "Bounded metadata observations",
-	"lib/cache/public-stats-read.ts": "Existing online-count signal",
-	"lib/online-stats.ts": "Scheduled presence aggregation",
 	"lib/stats-job.ts": "Runtime job progress",
 	"lib/stats-rollover.ts": "Daily rollover state",
-	"middleware/activity.ts": "Activity write throttle",
-	"middleware/online.ts": "Online presence signal",
 };
 
 function sourceFiles(directory: string): string[] {

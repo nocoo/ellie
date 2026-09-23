@@ -32,7 +32,7 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 				className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm text-muted-foreground"
 				data-testid="online-stats-line"
 			>
-				最近 15 分钟活跃约 <span className="font-bold">{formatNumber(s.totalOnline)}</span> 人
+				最近 30 分钟活跃会员约 <span className="font-bold">{formatNumber(s.totalOnline)}</span> 人
 			</p>
 		</div>
 	);
