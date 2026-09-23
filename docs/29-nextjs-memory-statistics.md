@@ -2,8 +2,9 @@
 
 ## Authorization and status
 
-Implementation and local commits are authorized. Deployment, release and push are
-not authorized. Independent Codex must review this plan before implementation;
+Documentation and local documentation commits are authorized now. Implementation
+and its local commits are authorized only after independent plan signoff.
+Deployment, release and push are not authorized. Codex reviews before implementation;
 Grok and Pi implement separate scopes, followed by independent Codex code review.
 Resolve all actionable findings before reporting completion.
 
@@ -93,7 +94,8 @@ comes from data, not stale total. Keep actual page numbers navigable even when
 the cached total is low; empty final pages allow returning to the prior page.
 No shared privileged counts are served to a less privileged reader.
 
-Add a server-only Worker statistics batch endpoint with Key A authentication,
+Add a server-only Worker statistics batch endpoint with an independent
+WEB_STATISTICS_WRITE_KEY held only by Web and Worker (never CLI/Key A alone),
 strict bounded payload validation and no arbitrary SQL or values. Batches contain
 only positive thread IDs/increments and verified-user ID/activity timestamps.
 Validate finite integer ranges and timestamp bounds. Write views additively and
@@ -183,3 +185,85 @@ findings. Record commands/results, review dispositions and atomic commits here.
 No production savings claim until deployment and comparable traffic observations.
 Deployment checklist must cover new internal management configuration, D1 indexes,
 DO retirement, and coordinated Web/Worker cutover to prevent double counting.
+
+## Plan review corrections and frozen handoff
+
+Independent Codex first review identified one P0, four P1 and three P2 findings.
+The following requirements resolve them; second plan review is pending.
+The reviewer-only prohibition on commits did not prohibit the coordinator's
+authorized documentation commit. Implementation has not started.
+
+1. **Statistics trust:** POST /api/internal/statistics/batch is dispatched through
+   its own constant-time WEB_STATISTICS_WRITE_KEY gate before the generic Key A/B
+   router. Missing/wrong key fails closed, even with valid Key A/B. Web sends it
+   in X-Ellie-Statistics-Key. Validate existing active users in Worker SQL and
+   reject future/out-of-range observed times; Web observations come only from a
+   successful Worker auth/me identity load already required by the page, never
+   from unverified cookie claims. Skip collection without that result. Thread
+   increments must reference existing non-pending, non-hidden topics. No new
+   per-observation verification request. Body limit and bounded arrays apply
+   before allocating/parsing unlimited input.
+2. **Current summary gates:** cached candidate checks include forum status and
+   current visibility, topic forum_id, sticky, anonymous_author and author_id.
+   Never use anonymous_last_poster to decide topic-author disclosure. Re-select
+   the next eligible candidate after deletion, hiding, move or anonymization;
+   hide on failed authoritative checks. General admin cache previews omit topic
+   titles/author identities; display only numeric summary and IDs.
+3. **Pagination contract:** offset reads support includeTotal=false and return
+   page, limit and hasNext without total/pages. Fetch one additional eligible
+   item after composing global announcements and local topics; filtered lists
+   retain existing announcement semantics. The separate count uses the identical
+   composition. Web derives displayed pages as at least currentPage and, when
+   hasNext, currentPage+1. PagePagination, JumpToPage and ForumFloatingToolbar
+   consume this lower bound, never clamp a real requested page to the cached
+   total, and retain previous-page navigation for empty pages. Permission-filtered
+   pages and global-pin boundaries have local real-HTTP regression tests.
+4. **View baseline:** loadThreadStats reads its existing bounded D1 batch directly;
+   retire thread:stats KV reads/fills/rebuild/registry references together. Keep
+   its replies/identity fields subject to existing authoritative projection.
+   Web optimistic +1 uses the returned base for that request, not base plus an
+   aggregate that may already have committed. Only pending writes are buffered;
+   no persistent Web per-thread view-base cache is necessary.
+5. **Bounds:** replace helper's unbounded generation history with per-flight
+   identity invalidation that can be discarded when the flight settles. Limit
+   tracked loads; overflow bypasses cache admission and executes the authorized
+   loader without retaining additional cache state. More than 256 forums remain
+   visible via uncached reads. Update no-adhoc-cache architecture tests for the
+   one approved server runtime, not a blanket exemption for arbitrary Maps.
+6. **Migration:** remove TodayVisits bindings from default and env.test config,
+   entry.ts export, Env binding, route handlers, report dispatch/registry and
+   consumers. Append deleted_classes migration using installed Wrangler schema;
+   preserve historical tags. Retain daily rollover/login-cleanup cron work.
+   Future deployment order: configure secrets/internal URL; migration-first
+   Worker cutover removes old collectors and adds new endpoints; Web/Admin
+   cutover enables buffers and management. Accept the interval's missing stats;
+   never overlap old and new view writers. No deployment in this task.
+7. **Runtime proof:** build Web and Admin, launch their standalone servers with
+   Bun against the same disposable local Worker. Populate a display cache through
+   a page read, observe the same instance/key through authenticated admin BFF,
+   clear and observe next-read refill, test old-instance rejection after Web
+   restart. Use existing local admin auth fixture, not production credentials.
+   Verify timer/manual single-flight and no live timer during next build.
+
+The shared management module will be packages/types/src/memory-cache.ts, exported
+from @ellie/types. Grok owns that file; Pi waits for it before wiring management.
+Use family IDs site-stats, forum-summary, thread-count; buffers are separate from
+clearable families. GET data contains instance {id, version, startedAt, uptimeMs},
+memory {rssBytes, heapUsedBytes, estimatedPayloadBytes, payloadLimitBytes}, families
+(id, entries, maxEntries, hits, misses, evictions, loadErrors), entries (family,
+key, createdAt, expiresAt, estimatedBytes, preview), pagination (page, limit, total),
+buffers (pendingThreads, pendingViews, pendingUsers, oldestPendingAt, flushing,
+lastFlushAt, lastSuccessAt, unconfirmedViews, droppedViews, droppedActivities),
+and history (at, estimatedPayloadBytes, pendingViews). Nullable timestamps use null.
+Payload envelopes use {data} or {error:{code,message}}. POST returns {data:{ok:true}}
+or typed error; caller reloads overview after success. Management secret header
+is X-Ellie-Memory-Key. Fixed overview limits: limit 1..100, page positive integer,
+default 50; preview <=512 encoded bytes. All counters are since process start.
+
+Primary files: Web lib/ttl-cache.ts, lib/forum-cache.ts, lib/forum-data.ts,
+lib/forum-api.ts, lib/forum-self.ts, viewmodels/forum/*-list.server.ts,
+viewmodels/forum/stats.server.ts, thread-detail.server.ts, pagination components,
+src/instrumentation.ts and app/api/internal/memory-cache/route.ts; Worker index.ts,
+lib/cache/{forum-read,public-stats-read,thread-list-read,thread-loaders,kv-registry}.ts,
+internal handlers and migrations; Admin navigation, dashboard/analytics views,
+user-detail-panel, app/api/admin/memory-cache/route.ts and statistics/memory page.

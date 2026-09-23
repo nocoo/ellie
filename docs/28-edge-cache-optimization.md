@@ -131,6 +131,12 @@ live. Save the prior rule state before changes and verify the resulting rule IDs
 
 ## Phase 2: native caching of shared data responses (proposed)
 
+This earlier broad response-cache proposal is superseded by
+[29 · Next.js memory statistics and management](29-nextjs-memory-statistics.md)
+for phase 2. Implement bounded Next.js display state, approximate statistical
+batching, feature retirement and admin observability first. The discussion below
+is retained as a deferred native-cache option, not the implementation contract.
+
 Use Workers Cache for complete reusable responses, not Zone Cache Rules over
 Worker-generated JSON and not per-key `caches.default` wrappers. An uncached
 outer entrypoint validates the trusted caller and user; an internal cached

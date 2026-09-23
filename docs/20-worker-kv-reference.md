@@ -1,5 +1,12 @@
 # 20 — 统一缓存架构与验收
 
+> Phase 2 revision (2026-09-23): [29 · Next.js memory statistics](29-nextjs-memory-statistics.md)
+> defines the selective-cache replacement for statistics, forum summaries and
+> list totals. Its explicit migration contract supersedes the blanket requirement
+> to cache every legal parameter combination for those families. Remaining KV
+> families retain this document's contract. Implementation status is tracked in 29;
+> a documentation change is not evidence of deployment.
+
 > 状态：统一架构已上线；后台按需统计与小时观测纳入 v1.11.4（第 10.6 节），按实际消费削减读取纳入 v1.11.6（第 10.7 节）。更新日期：2026-09-19。
 >
 > 本文是缓存实现与验收的统一依据，替代原有的用户缓存重构、Worker KV 架构和 KV 参考文档。功能文档涉及缓存时引用本文；第 1 节保留迁移前的问题，第 4 节和第 10 节记录接入范围与验证状态。
