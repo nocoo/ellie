@@ -1,5 +1,15 @@
 # Retrospective
 
+### 2026-09-24: Carry statistics semantics into browser contracts
+
+- The v1.14.2 browser gate still asserted the retired 15-minute activity label
+  after the approved implementation changed the metric to active members over
+  30 minutes. Unit and standalone checks passed, but this older mobile contract
+  blocked CI and correctly prevented Web/Admin deployment.
+- Update consumer assertions across unit and browser suites when a metric changes;
+  preserve the responsive geometry checks and assert the new numeric label rather
+  than loosening the test. Worker-first cutover remained healthy while CI blocked.
+
 ### 2026-09-23: Verify role enums before review guidance
 
 - During cache integration review, the coordinator inferred Admin's numeric role
