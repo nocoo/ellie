@@ -83,7 +83,7 @@ Avatar uploads from the forum accept JPG/PNG originals up to 5 MB. Before forwar
 
 An avatar upload saves immediately. The profile dialog sends only fields edited since it opened to `PATCH /api/v1/users/me`; an avatar-only change closes without a profile PATCH. This avoids revalidating unrelated legacy values. When a birthday component changes, all three components are included as required by the Worker.
 
-Mutable `/api/avatar/:uid` responses, including fallbacks, use `public, max-age=0, must-revalidate`. The shared URL helper uses `?v=current` outside the immediate upload flow to bypass older week-long browser caches even after the in-memory upload timestamp is lost on reload. Direct GUID image URLs retain their CDN caching.
+Successful mutable `/api/avatar/:uid` responses use browser revalidation and `Cloudflare-CDN-Cache-Control: public, max-age=60`. The route-scoped Cloudflare rule respects these headers and retains query strings. Errors and fallback images use `no-store` at both layers. Uploads return the direct GUID CDN URL, which the uploader and shared avatar context display immediately; new R2 avatar objects carry `public, max-age=31536000, immutable`. The shared URL helper retains `?v=current` to avoid historical week-long browser caches. See [edge cache plan](28-edge-cache-optimization.md) for deployment evidence and subsequent proposals.
 
 ### Layer 3: Server Components (Direct Worker Access)
 

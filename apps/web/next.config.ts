@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
 	async headers() {
 		return [
 			{
+				source: "/:asset(fouc\\.js|favicon\\.ico)",
+				headers: [
+					{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+					{ key: "Cloudflare-CDN-Cache-Control", value: "public, max-age=3600" },
+				],
+			},
+			{
 				// Apply to all routes
 				source: "/:path*",
 				headers: [

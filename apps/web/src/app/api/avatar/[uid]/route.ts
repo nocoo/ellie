@@ -1,13 +1,10 @@
-// Avatar proxy — hides CDN URL and handles fallback server-side
-// GET /api/avatar/:uid?v=timestamp (for cache busting after upload)
-// Note: ?size= is deprecated and ignored — always serves big avatar
-//
-// Avatar resolution:
-// 1. If user has avatar_path set (GUID-based), use CDN_BASE/{avatar_path}
-// 2. Otherwise fallback to legacy UID-based path: CDN_BASE/avatar/{dir structure}
-
 import { type NextRequest, NextResponse } from "next/server";
-import { AVATAR_PROXY_CACHE_CONTROL, computeAvatarCdnPath, FALLBACK_URL } from "@/lib/avatar-proxy";
+import {
+	AVATAR_EDGE_CACHE_CONTROL,
+	AVATAR_PROXY_CACHE_CONTROL,
+	computeAvatarCdnPath,
+	FALLBACK_URL,
+} from "@/lib/avatar-proxy";
 
 function getWorkerUrl(): string {
 	const url = process.env.WORKER_API_URL;
@@ -56,101 +53,49 @@ async function getUserAvatarPath(uid: number): Promise<AvatarPathResult> {
 	}
 }
 
+const UNCACHED_HEADERS = {
+	"Cache-Control": "no-store",
+	"Cloudflare-CDN-Cache-Control": "no-store",
+};
+
+async function fallbackAvatar(): Promise<NextResponse> {
+	try {
+		const response = await fetch(FALLBACK_URL);
+		if (!response.ok) throw new Error("Fallback unavailable");
+		return new NextResponse(await response.arrayBuffer(), {
+			headers: { ...UNCACHED_HEADERS, "Content-Type": "image/gif" },
+		});
+	} catch {
+		return new NextResponse("Avatar unavailable", { status: 503, headers: UNCACHED_HEADERS });
+	}
+}
+
 export async function GET(
 	_request: NextRequest,
 	{ params }: { params: Promise<{ uid: string }> },
 ): Promise<NextResponse> {
 	const { uid: uidParam } = await params;
-	const uid = Number.parseInt(uidParam, 10);
-
-	if (Number.isNaN(uid) || uid <= 0) {
-		return NextResponse.redirect(FALLBACK_URL);
+	const uid = Number(uidParam);
+	if (!/^\d+$/.test(uidParam) || !Number.isSafeInteger(uid) || uid <= 0) {
+		return NextResponse.redirect(FALLBACK_URL, { headers: UNCACHED_HEADERS });
 	}
 
-	// Get user's avatar_path from Worker API
 	const result = await getUserAvatarPath(uid);
-
-	// Retry avatar resolution on the next request if the Worker is unavailable.
-	if (result.status === "error") {
-		try {
-			const fallbackResponse = await fetch(FALLBACK_URL);
-			const fallbackData = await fallbackResponse.arrayBuffer();
-			return new NextResponse(fallbackData, {
-				status: 200,
-				headers: {
-					"Content-Type": "image/gif",
-					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
-				},
-			});
-		} catch {
-			return new NextResponse("Avatar unavailable", { status: 503 });
-		}
-	}
-
-	// Missing avatars must also revalidate after an upload.
-	if (result.status === "not_found") {
-		try {
-			const fallbackResponse = await fetch(FALLBACK_URL);
-			const fallbackData = await fallbackResponse.arrayBuffer();
-			return new NextResponse(fallbackData, {
-				status: 200,
-				headers: {
-					"Content-Type": "image/gif",
-					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
-				},
-			});
-		} catch {
-			return new NextResponse("Avatar unavailable", { status: 503 });
-		}
-	}
-
-	// Compute CDN URL based on avatar_path or fallback to legacy UID-based path
-	const avatarUrl = computeAvatarCdnPath(uid, result.avatarPath);
+	if (result.status !== "found") return fallbackAvatar();
 
 	try {
-		const response = await fetch(avatarUrl, {
-			headers: {
-				"User-Agent": "Ellie/1.0",
-			},
+		const response = await fetch(computeAvatarCdnPath(uid, result.avatarPath), {
+			headers: { "User-Agent": "Ellie/1.0" },
 		});
-
-		if (!response.ok) {
-			// Avatar not found, fetch and return fallback
-			const fallbackResponse = await fetch(FALLBACK_URL);
-			const fallbackData = await fallbackResponse.arrayBuffer();
-			return new NextResponse(fallbackData, {
-				status: 200,
-				headers: {
-					"Content-Type": "image/gif",
-					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
-				},
-			});
-		}
-
-		const imageData = await response.arrayBuffer();
-		const contentType = response.headers.get("Content-Type") || "image/jpeg";
-
-		return new NextResponse(imageData, {
-			status: 200,
+		if (!response.ok) return fallbackAvatar();
+		return new NextResponse(await response.arrayBuffer(), {
 			headers: {
-				"Content-Type": contentType,
+				"Content-Type": response.headers.get("Content-Type") || "image/jpeg",
 				"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
+				"Cloudflare-CDN-Cache-Control": AVATAR_EDGE_CACHE_CONTROL,
 			},
 		});
 	} catch {
-		// Network errors must not leave the fallback cached after recovery.
-		try {
-			const fallbackResponse = await fetch(FALLBACK_URL);
-			const fallbackData = await fallbackResponse.arrayBuffer();
-			return new NextResponse(fallbackData, {
-				status: 200,
-				headers: {
-					"Content-Type": "image/gif",
-					"Cache-Control": AVATAR_PROXY_CACHE_CONTROL,
-				},
-			});
-		} catch {
-			return new NextResponse("Avatar unavailable", { status: 503 });
-		}
+		return fallbackAvatar();
 	}
 }

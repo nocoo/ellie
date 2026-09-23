@@ -82,3 +82,8 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 - Browser verification found two draft lifecycle errors: an editor could mount before session storage restoration, and Tiptap's default `setEditable` update event could recreate a draft immediately after successful publication cleared it. Wait for restoration before enabling the fields, disable synthetic updates when changing editability, and derive preview content from the live editor instance.
 - A single comment action opened two dialogs because desktop and mobile layouts both mounted `PostContent`, including its portal-based interactions. CSS hiding an ancestor does not hide a portal. Render one responsive content/action tree and vary only the author layout.
 - Keep behavior checks for reload restoration, exact preview content, successful draft cleanup, and one dialog per action at desktop and phone sizes. Simulated paste tests must await the browser's selection-change event before dispatching clipboard data; a synthetic keydown alone does not guarantee that ProseMirror has synchronized its selection and can produce a false insertion-position regression.
+
+### 2026-09-23: Cache regression test scope
+
+- A broad test replacement accidentally applied immutable-avatar metadata expectations to post images. Focused tests caught the mistake before commit; the assertion was restricted to avatar uploads.
+- The installed Next.js release exports `unstable_doesMiddlewareMatch`, despite the application using the proxy convention. Read installed testing types before choosing experimental helper names; mock authentication when importing proxy configuration in unit tests.

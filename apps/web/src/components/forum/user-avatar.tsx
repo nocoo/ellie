@@ -6,7 +6,6 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAvatarUrl } from "@/contexts/avatar-context";
-import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 
@@ -92,6 +91,7 @@ export function ForumAvatar({
 	shadow = false,
 	className,
 }: ForumAvatarProps) {
+	const avatarUrl = useAvatarUrl(userId, avatarPath ?? undefined);
 	const sizeClass = size === "xs" ? "h-5 w-5" : size === "lg" ? "h-12 w-12" : undefined;
 
 	return (
@@ -104,11 +104,7 @@ export function ForumAvatar({
 				className,
 			)}
 		>
-			<AvatarImage
-				src={getAvatarUrl(userId, "small", avatarPath ?? undefined)}
-				alt={userName}
-				className="rounded-sm"
-			/>
+			<AvatarImage src={avatarUrl} alt={userName} className="rounded-sm" />
 			<AvatarFallback className={cn("rounded-sm bg-muted p-0 overflow-hidden", "text-xs")}>
 				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>

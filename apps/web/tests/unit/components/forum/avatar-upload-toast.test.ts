@@ -95,7 +95,7 @@ describe("AvatarUpload toast integration", () => {
 			size: 1024,
 		});
 
-		renderUpload();
+		const { onUploadComplete } = renderUpload();
 		const input = getFileInput();
 
 		await act(async () => {
@@ -106,6 +106,7 @@ describe("AvatarUpload toast integration", () => {
 
 		await waitFor(() => {
 			expect(screen.getByText("头像已上传")).toBeTruthy();
+			expect(onUploadComplete).toHaveBeenCalledWith("/avatars/new.png");
 		});
 	});
 

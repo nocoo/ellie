@@ -495,6 +495,6 @@ export function resolveForumUserId(
 
 export const config = {
 	matcher: [
-		"/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.ico$|.*\\.svg$|api/(?!auth)).*)",
+		"/((?!_next/static|_next/image|favicon.ico|fouc\\.js$|.*\\.png$|.*\\.ico$|.*\\.svg$|api/(?!auth)).*)",
 	],
 };

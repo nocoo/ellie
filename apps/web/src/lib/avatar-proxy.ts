@@ -4,6 +4,7 @@ export const CDN_BASE = "https://t.no.mt";
 export const FALLBACK_URL = "https://t.no.mt/static/image/common/tavatar.gif";
 // A UID's image can change after any upload. Only GUID image URLs are immutable.
 export const AVATAR_PROXY_CACHE_CONTROL = "public, max-age=0, must-revalidate";
+export const AVATAR_EDGE_CACHE_CONTROL = "public, max-age=60";
 
 /**
  * Compute the legacy CDN path for an avatar given a user ID.

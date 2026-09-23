@@ -230,7 +230,7 @@ describe("handleUpload", () => {
 
 			expect(response.status).toBe(200);
 			const body = await response.json();
-			expect(body.data.url).toBe("/api/avatar/12345");
+			expect(body.data.url).toBe(`https://t.no.mt/${body.data.path}`);
 			expect(body.data.size).toBe(5000);
 			// path should be GUID-based
 			expect(body.data.path).toMatch(/^avatars\/[a-f0-9-]+\.jpg$/);
@@ -239,6 +239,9 @@ describe("handleUpload", () => {
 			expect(r2._putCalls).toHaveLength(1);
 			expect(r2._putCalls[0].key).toMatch(/^avatars\/[a-f0-9-]+\.jpg$/);
 			expect(r2._putCalls[0].options?.httpMetadata?.contentType).toBe("image/jpeg");
+			expect(r2._putCalls[0].options?.httpMetadata?.cacheControl).toBe(
+				"public, max-age=31536000, immutable",
+			);
 
 			// Verify DB update includes avatar_path
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET avatar_path"));

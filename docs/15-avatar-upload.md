@@ -50,8 +50,10 @@ Browser → /api/avatar/{uid}
 ```
 
 **Cache behavior:**
-- Normal avatar: cache 7 days
-- Fallback (no avatar): cache 1 day
+- Mutable UID responses: browser revalidation, Cloudflare edge TTL 60 seconds.
+- Fallbacks and failures: `no-store` in both browser and edge.
+- New GUID objects: immutable one-year cache metadata; uploads display the returned CDN URL immediately.
+- Cache Rules and operational evidence: [edge cache plan](28-edge-cache-optimization.md).
 - Fresh upload (?v=): no cache
 - API error: cache 5 minutes (prevents caching errors for a day)
 
@@ -85,7 +87,7 @@ Browser → POST /api/v1/upload (multipart)
            └── UPDATE users SET avatar_path = ?, has_avatar = 1
            │
            ▼
-       Response: { url: "/api/avatar/{uid}", path: "avatars/..." }
+       Response: { url: "https://t.no.mt/avatars/{uuid}.jpg", path: "avatars/..." }
 ```
 
 ## File Locations

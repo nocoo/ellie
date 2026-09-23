@@ -31,12 +31,13 @@ function mockAvatar(path: string, contents: string) {
 
 describe("mutable avatar proxy caching", () => {
 	it.each(["", "?v=current", "?v=1789600000000"])(
-		"revalidates the latest saved avatar on repeat requests (%s)",
+		"resolves fresh origin data and allows 60 seconds at the edge (%s)",
 		async (query) => {
 			mockAvatar("avatars/old.jpg", "old image");
 			const before = await avatarRequest(query);
 			expect(await before.text()).toBe("old image");
 			expect(before.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+			expect(before.headers.get("Cloudflare-CDN-Cache-Control")).toBe("public, max-age=60");
 
 			mockAvatar("avatars/new.jpg", "new image");
 			const after = await avatarRequest(query);
@@ -59,11 +60,47 @@ describe("mutable avatar proxy caching", () => {
 		fetchMock.mockResolvedValueOnce(new Response("fallback"));
 		const fallback = await avatarRequest("?v=current");
 		expect(await fallback.text()).toBe("fallback");
-		expect(fallback.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+		expect(fallback.headers.get("Cache-Control")).toBe("no-store");
+		expect(fallback.headers.get("Cloudflare-CDN-Cache-Control")).toBe("no-store");
 
 		mockAvatar("avatars/new.jpg", "new image");
 		const recovered = await avatarRequest("?v=current");
 		expect(await recovered.text()).toBe("new image");
 		expect(recovered.headers.get("Content-Type")).toBe("image/jpeg");
 	});
+});
+
+describe("avatar failure cache boundaries", () => {
+	it.each(["missing-user", "cdn-error", "network-error", "fallback-error"])(
+		"never caches %s",
+		async (failure) => {
+			if (failure === "missing-user" || failure === "fallback-error") {
+				fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+			} else {
+				fetchMock.mockResolvedValueOnce(Response.json({ data: { avatarPath: "avatars/new.jpg" } }));
+				if (failure === "network-error") fetchMock.mockRejectedValueOnce(new Error("offline"));
+				else fetchMock.mockResolvedValueOnce(new Response(null, { status: 502 }));
+			}
+			fetchMock.mockResolvedValueOnce(
+				new Response("fallback", { status: failure === "fallback-error" ? 503 : 200 }),
+			);
+			const response = await avatarRequest("");
+			expect(response.status).toBe(failure === "fallback-error" ? 503 : 200);
+			expect(response.headers.get("Cache-Control")).toBe("no-store");
+			expect(response.headers.get("Cloudflare-CDN-Cache-Control")).toBe("no-store");
+		},
+	);
+
+	it.each(["invalid", "42junk", "0", "9007199254740992"])(
+		"does not cache invalid UID %s",
+		async (uid) => {
+			const response = await GET(new NextRequest(`https://forum.example.test/api/avatar/${uid}`), {
+				params: Promise.resolve({ uid }),
+			});
+			expect(response.status).toBe(307);
+			expect(response.headers.get("Cache-Control")).toBe("no-store");
+			expect(response.headers.get("Cloudflare-CDN-Cache-Control")).toBe("no-store");
+			expect(fetchMock).not.toHaveBeenCalled();
+		},
+	);
 });

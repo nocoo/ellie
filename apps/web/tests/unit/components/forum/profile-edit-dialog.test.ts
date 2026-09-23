@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 // Avatar context — return stable values, do nothing on update
 vi.mock("@/contexts/avatar-context", () => ({
 	useAvatarUrl: () => "",
-	useAvatarVersion: () => ({ updateVersion: vi.fn() }),
+	useAvatarContext: () => ({ updateAvatar: vi.fn() }),
 }));
 
 // Stub AvatarUpload to avoid pulling in upload deps

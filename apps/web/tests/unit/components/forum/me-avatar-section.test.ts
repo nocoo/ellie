@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Tests for MeAvatarSection — verifies the avatar uploader landing point at
-// /me#avatar wires AvatarUpload's onUploadComplete to avatar-version updates
+// /me#avatar wires AvatarUpload's onUploadComplete to saved-avatar updates
 // and router.refresh().
 import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
@@ -12,10 +12,10 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
 }));
 
-const mockUpdateVersion = vi.fn();
+const mockUpdateAvatar = vi.fn();
 vi.mock("@/contexts/avatar-context", () => ({
 	useAvatarUrl: (uid: number) => `/api/avatar/${uid}`,
-	useAvatarVersion: () => ({ updateVersion: mockUpdateVersion }),
+	useAvatarContext: () => ({ updateAvatar: mockUpdateAvatar }),
 }));
 
 // Capture the props handed to AvatarUpload so we can drive its callback.
@@ -41,7 +41,7 @@ import { MeAvatarSection } from "@/components/forum/me-avatar-section";
 afterEach(() => {
 	cleanup();
 	mockRefresh.mockReset();
-	mockUpdateVersion.mockReset();
+	mockUpdateAvatar.mockReset();
 	lastAvatarUploadProps.currentUrl = undefined;
 	lastAvatarUploadProps.onUploadComplete = undefined;
 });
@@ -55,26 +55,12 @@ describe("MeAvatarSection", () => {
 		expect(lastAvatarUploadProps.currentUrl).toBe("/api/avatar/42");
 	});
 
-	it("on upload complete: parses ?v= version, updates avatar version, refreshes router", () => {
+	it("propagates each uploaded immutable URL before refreshing server data", () => {
 		render(createElement(MeAvatarSection, { userId: 42 }));
-
-		const cb = lastAvatarUploadProps.onUploadComplete;
-		expect(cb).toBeTypeOf("function");
-		cb?.("/api/avatar/42?v=1712678400000");
-
-		expect(mockUpdateVersion).toHaveBeenCalledWith(42, 1712678400000);
-		expect(mockRefresh).toHaveBeenCalledTimes(1);
-	});
-
-	it("falls back to Date.now() when the URL has no ?v= param", () => {
-		const now = 1_700_000_000_000;
-		const dateSpy = vi.spyOn(Date, "now").mockReturnValue(now);
-		try {
-			render(createElement(MeAvatarSection, { userId: 7 }));
-			lastAvatarUploadProps.onUploadComplete?.("/api/avatar/7");
-			expect(mockUpdateVersion).toHaveBeenCalledWith(7, now);
-		} finally {
-			dateSpy.mockRestore();
+		for (const url of ["https://t.no.mt/avatars/first.jpg", "https://t.no.mt/avatars/second.jpg"]) {
+			lastAvatarUploadProps.onUploadComplete?.(url);
+			expect(mockUpdateAvatar).toHaveBeenLastCalledWith(42, url);
 		}
+		expect(mockRefresh).toHaveBeenCalledTimes(2);
 	});
 });

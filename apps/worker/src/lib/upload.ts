@@ -150,7 +150,10 @@ async function handleAvatarUpload(
 	try {
 		// Upload to R2 with original MIME type
 		await env.R2.put(key, imageData, {
-			httpMetadata: { contentType: mimeType },
+			httpMetadata: {
+				contentType: mimeType,
+				cacheControl: "public, max-age=31536000, immutable",
+			},
 		});
 	} catch (err) {
 		return errorResponse(
@@ -175,7 +178,7 @@ async function handleAvatarUpload(
 
 	return jsonResponse(
 		{
-			url: `/api/avatar/${userId}`,
+			url: `https://t.no.mt/${key}`,
 			path: key,
 			size: imageData.byteLength,
 		},

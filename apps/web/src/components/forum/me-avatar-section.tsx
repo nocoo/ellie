@@ -13,14 +13,14 @@
 // Behavior mirrors `ProfileEditDialog`'s avatar flow:
 // - reuse the shared `AvatarUpload` widget (upload API, validation, toast,
 //   `invalidateWriteGateCache()` all stay inside it),
-// - on success, update the avatar version context so every avatar on the
+// - on success, update the saved avatar URL so every avatar on the
 //   page repaints from the fresh URL, then call `router.refresh()` to
 //   re-run the server component for any avatar-dependent rendering.
 
 import { ImagePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "@/components/forum/avatar-upload";
-import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
+import { useAvatarContext, useAvatarUrl } from "@/contexts/avatar-context";
 
 export interface MeAvatarSectionProps {
 	userId: number;
@@ -28,13 +28,11 @@ export interface MeAvatarSectionProps {
 
 export function MeAvatarSection({ userId }: MeAvatarSectionProps) {
 	const router = useRouter();
-	const { updateVersion } = useAvatarVersion();
+	const { updateAvatar } = useAvatarContext();
 	const avatarUrl = useAvatarUrl(userId);
 
 	const handleAvatarUploadComplete = (newUrl: string) => {
-		const match = newUrl.match(/[?&]v=(\d+)/);
-		const version = match ? Number.parseInt(match[1], 10) : Date.now();
-		updateVersion(userId, version);
+		updateAvatar(userId, newUrl);
 		router.refresh();
 	};
 

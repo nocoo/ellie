@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
+import { useAvatarContext, useAvatarUrl } from "@/contexts/avatar-context";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
 import { AvatarUpload } from "./avatar-upload";
@@ -64,7 +64,7 @@ export interface ProfileEditDialogProps {
 
 export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialogProps) {
 	const router = useRouter();
-	const { updateVersion } = useAvatarVersion();
+	const { updateAvatar } = useAvatarContext();
 	const avatarUrl = useAvatarUrl(user.id);
 	const [avatarUploading, setAvatarUploading] = useState(false);
 
@@ -75,12 +75,9 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 		onSuccess: () => onOpenChange(false),
 	});
 
-	// Handle avatar upload completion — update version context to propagate to all avatar instances
+	// Handle avatar upload completion — update saved avatar URL to propagate to all avatar instances
 	const handleAvatarUploadComplete = (newUrl: string) => {
-		// Extract version from URL (e.g., "/api/avatar/123?v=1712678400000")
-		const match = newUrl.match(/[?&]v=(\d+)/);
-		const version = match ? Number.parseInt(match[1], 10) : Date.now();
-		updateVersion(user.id, version);
+		updateAvatar(user.id, newUrl);
 		// Also refresh page data for server-rendered content
 		router.refresh();
 	};

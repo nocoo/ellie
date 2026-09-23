@@ -101,8 +101,8 @@ live. Save the prior rule state before changes and verify the resulting rule IDs
 ### Modules and atomic commits
 
 1. Commit this plan and its documentation links.
-2. Update `lib/avatar-proxy.ts`, the avatar Route Handler, upload result parsing,
-   `contexts/avatar-context.tsx`, upload consumers, and relevant tests. Configure
+2. Update `lib/avatar-proxy.ts`, the avatar Route Handler, Worker upload response/metadata,
+   `contexts/avatar-context.tsx`, upload consumers, and relevant tests. Allow the exact theme script through the auth proxy; configure
    bounded static-resource headers in `next.config.ts`. Commit the working change.
 3. Apply and verify the narrowly scoped Cloudflare rules. Record deployed rules,
    response headers, MISS/HIT evidence, and verification limitations here.
@@ -182,3 +182,26 @@ observed cache behavior, not a projected percentage reduction as a measured resu
 - [Workers Cache configuration](https://developers.cloudflare.com/workers/cache/configuration/)
 - [Cache API limitations](https://developers.cloudflare.com/workers/runtime-apis/cache/)
 - [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/)
+
+## Phase 1 execution record
+
+- The original forum ruleset contained one image eligibility rule for `/static/*`
+  and `/data/attachment/*`. The image CDN zone had no Cache Rules entrypoint.
+  Existing dashboard authorization provides zone access without changing tokens.
+- Before this change, anonymous `/fouc.js` requests redirected to login and
+  returned HTML. The exact script path is excluded from the authentication proxy;
+  script and favicon responses request a one-hour edge TTL with browser revalidation.
+- Hashed Next.js assets retain framework-provided immutable headers. New GUID
+  avatar objects receive immutable metadata; existing R2 objects are not rewritten.
+- Applied forum rule `a61d0c13f901485f8965e1de3adceb30` in ruleset
+  `b38bf24040664109a9f0d636e039a736` (version 2), preserving existing rule
+  `5858e7b6a8404595b0b98b7398908e73`. Exact host: `bbs.tongji.net`; paths:
+  `/api/avatar/*`, `/_next/static/*`, `/favicon.ico`, `/fouc.js`.
+  Cache eligibility is enabled, edge TTL uses `bypass_by_default`, browser TTL
+  respects origin, and HTTP 300–599 responses are `no-store`. Default query-string
+  cache keys are preserved. HTTP method matching is omitted because Cloudflare's
+  native caching already limits methods and method filters can interfere with
+  single-URL purge.
+- No extra rule is needed on `t.no.mt`: JPEG/PNG objects already use native CDN
+  caching; new R2 metadata supplies their immutable lifetime.
+- Live response verification is pending application deployment.

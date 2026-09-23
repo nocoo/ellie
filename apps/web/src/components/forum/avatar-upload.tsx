@@ -60,8 +60,7 @@ export function AvatarUpload({
 			try {
 				const parsed = await uploadAvatar(file);
 				if (parsed.kind === "success") {
-					// Add cache-busting timestamp for immediate refresh
-					const newUrl = `${parsed.url}?v=${Date.now()}`;
+					const newUrl = parsed.url;
 					setPreviewUrl(newUrl);
 					onUploadComplete(newUrl);
 					invalidateWriteGateCache();
