@@ -3,8 +3,9 @@
 
 "use client";
 
+import { Combobox } from "@base-ui/react/combobox";
 import { AlertCircle, Loader2, Send, User, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -18,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { cn } from "@/lib/utils";
 import {
 	ApiError,
@@ -52,6 +54,8 @@ interface UserAutocompleteProps {
 	selectedUser: UserSearchResult | null;
 	onSelectUser: (user: UserSearchResult | null) => void;
 	disabled?: boolean;
+	invalid?: boolean;
+	describedBy?: string;
 }
 
 function UserAutocomplete({
@@ -60,21 +64,23 @@ function UserAutocomplete({
 	selectedUser,
 	onSelectUser,
 	disabled,
+	invalid,
+	describedBy,
 }: UserAutocompleteProps) {
 	const [results, setResults] = useState<UserSearchResult[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
 	const [showDropdown, setShowDropdown] = useState(false);
-	const inputRef = useRef<HTMLInputElement>(null);
-	const dropdownRef = useRef<HTMLDivElement>(null);
 	const [searchError, setSearchError] = useState<string | null>(null);
+	const [searchAttempt, setSearchAttempt] = useState(0);
 
 	// Debounced search
+	// biome-ignore lint/correctness/useExhaustiveDependencies: searchAttempt retries the same query after a failed request.
 	useEffect(() => {
 		setResults([]);
-		setShowDropdown(false);
 		setSearchError(null);
 		if (value.trim().length < 2 || selectedUser || disabled) {
 			setIsSearching(false);
+			if (selectedUser || disabled) setShowDropdown(false);
 			return;
 		}
 
@@ -88,7 +94,7 @@ function UserAutocomplete({
 				setShowDropdown(true);
 			} catch {
 				if (cancelled) return;
-				setSearchError("搜索失败，请重新输入用户名");
+				setSearchError("收信人搜索失败");
 				setShowDropdown(true);
 			} finally {
 				if (!cancelled) setIsSearching(false);
@@ -99,102 +105,97 @@ function UserAutocomplete({
 			cancelled = true;
 			clearTimeout(timeout);
 		};
-	}, [value, selectedUser, disabled]);
-
-	// Close dropdown on outside click
-	useEffect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			if (
-				dropdownRef.current &&
-				!dropdownRef.current.contains(event.target as Node) &&
-				inputRef.current &&
-				!inputRef.current.contains(event.target as Node)
-			) {
-				setShowDropdown(false);
-			}
-		}
-
-		document.addEventListener("mousedown", handleClickOutside);
-		return () => document.removeEventListener("mousedown", handleClickOutside);
-	}, []);
-
-	const handleSelect = (user: UserSearchResult) => {
-		onSelectUser(user);
-		onChange(user.username);
-		setShowDropdown(false);
-	};
-
-	const handleClear = () => {
-		onSelectUser(null);
-		onChange("");
-		inputRef.current?.focus();
-	};
-
-	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		onChange(e.target.value);
-		// If user edits after selection, clear the selection
-		if (selectedUser && e.target.value !== selectedUser.username) {
-			onSelectUser(null);
-		}
-	};
+	}, [value, selectedUser, disabled, searchAttempt]);
 
 	return (
-		<div className="relative">
+		<Combobox.Root
+			items={results}
+			filter={null}
+			value={selectedUser}
+			inputValue={value}
+			open={showDropdown && !disabled}
+			onOpenChange={setShowDropdown}
+			disabled={disabled}
+			autoHighlight
+			itemToStringLabel={(user) => user.username}
+			isItemEqualToValue={(a, b) => a.id === b.id}
+			onValueChange={(user) => {
+				onSelectUser(user);
+				onChange(user?.username ?? "");
+			}}
+			onInputValueChange={(query) => {
+				onChange(query);
+				if (selectedUser && query !== selectedUser.username) onSelectUser(null);
+			}}
+		>
 			<div className="relative">
-				<Input
+				<Combobox.Input
+					render={<Input />}
 					id="recipient"
-					ref={inputRef}
-					value={value}
-					onChange={handleInputChange}
 					placeholder="输入用户名搜索..."
 					disabled={disabled}
+					aria-invalid={invalid || undefined}
+					aria-describedby={describedBy}
+					aria-busy={isSearching}
 					className={cn("h-10 pr-10", selectedUser && "text-primary font-medium")}
-					onFocus={() => {
-						if (results.length > 0 && !selectedUser) {
-							setShowDropdown(true);
-						}
-					}}
 				/>
 				{isSearching && (
-					<Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+					<Loader2
+						className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground"
+						aria-hidden="true"
+					/>
 				)}
 				{selectedUser && !isSearching && (
-					<button
-						type="button"
-						onClick={handleClear}
+					<Combobox.Clear
+						render={<Button variant="ghost" size="icon-sm" />}
 						disabled={disabled}
 						aria-label="清除收信人"
-						className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+						className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
 					>
 						<X className="h-4 w-4" />
-					</button>
+					</Combobox.Clear>
 				)}
 			</div>
 
-			{showDropdown && !disabled && (
-				<div
-					ref={dropdownRef}
-					className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg"
-				>
-					{results.length === 0 && (
-						<p className="px-3 py-3 text-sm text-muted-foreground">
-							{searchError ?? "没有找到匹配的用户"}
-						</p>
-					)}
-					{results.map((user) => (
-						<button
-							key={user.id}
-							type="button"
-							onClick={() => handleSelect(user)}
-							className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted"
-						>
-							<User className="h-4 w-4 shrink-0 text-muted-foreground" />
-							<span className="min-w-0 break-words">{user.username}</span>
-						</button>
-					))}
-				</div>
-			)}
-		</div>
+			<Combobox.Portal>
+				<Combobox.Positioner sideOffset={6} className="z-50">
+					<Combobox.Popup className="max-h-64 w-(--anchor-width) overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg outline-none">
+						<Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
+							{searchError ? (
+								<div role="alert" className="flex items-center justify-between gap-2">
+									<span>{searchError}</span>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setSearchAttempt((attempt) => attempt + 1)}
+									>
+										重试搜索
+									</Button>
+								</div>
+							) : isSearching ? (
+								"正在搜索…"
+							) : value.trim().length < 2 ? (
+								"请输入至少两个字"
+							) : (
+								"没有找到匹配的用户"
+							)}
+						</Combobox.Empty>
+						<Combobox.List aria-label="收信人搜索结果">
+							{(user: UserSearchResult) => (
+								<Combobox.Item
+									key={user.id}
+									value={user}
+									className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+								>
+									<User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+									<span className="min-w-0 break-words">{user.username}</span>
+								</Combobox.Item>
+							)}
+						</Combobox.List>
+					</Combobox.Popup>
+				</Combobox.Positioner>
+			</Combobox.Portal>
+		</Combobox.Root>
 	);
 }
 
@@ -209,6 +210,7 @@ export function ComposeMessageDialog({
 	onSuccess,
 }: ComposeMessageDialogProps) {
 	const toast = useForumToast();
+	const formErrorId = useId();
 
 	// Form state
 	const [recipientQuery, setRecipientQuery] = useState("");
@@ -294,30 +296,41 @@ export function ComposeMessageDialog({
 		}
 	}, [selectedRecipient, subject, content, onOpenChange, onSuccess, toast]);
 
+	const recipientInvalid = error === "请选择收信人";
+	const contentInvalid = error !== null && !recipientInvalid;
+
 	return (
 		<Dialog open={open} onOpenChange={(next) => !sendingRef.current && onOpenChange(next)}>
 			<DialogContent
 				className="flex flex-col overflow-hidden sm:max-w-xl"
 				showCloseButton={!isSending}
+				aria-busy={isSending}
+				onKeyDownCapture={(event) => {
+					handleSubmitShortcut(event.nativeEvent, () => {
+						void handleSubmit();
+					});
+				}}
 			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Send className="h-5 w-5 text-primary" />
+						<Send className="h-5 w-5 text-primary" aria-hidden="true" />
 						写站内信
 					</DialogTitle>
 					<DialogDescription>与社区成员一对一交流，已发送的消息可在发件箱查看。</DialogDescription>
 				</DialogHeader>
 
 				<div className="min-h-0 overflow-y-auto overscroll-contain grid gap-4 py-2">
-					{/* Error message */}
 					{error && (
-						<div className="flex items-center gap-2 rounded border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
-							<AlertCircle className="h-4 w-4 flex-shrink-0" />
+						<div
+							id={formErrorId}
+							role="alert"
+							className="flex items-center gap-2 rounded border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive"
+						>
+							<AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
 							<span>{error}</span>
 						</div>
 					)}
 
-					{/* Recipient */}
 					<div className="grid gap-2">
 						<Label htmlFor="recipient">收信人</Label>
 						<UserAutocomplete
@@ -326,6 +339,8 @@ export function ComposeMessageDialog({
 							selectedUser={selectedRecipient}
 							onSelectUser={setSelectedRecipient}
 							disabled={isSending}
+							invalid={recipientInvalid}
+							describedBy={recipientInvalid ? formErrorId : undefined}
 						/>
 					</div>
 
@@ -356,23 +371,29 @@ export function ComposeMessageDialog({
 							rows={8}
 							maxLength={10000}
 							disabled={isSending}
+							aria-invalid={contentInvalid || undefined}
+							aria-describedby={contentInvalid ? formErrorId : undefined}
+							aria-keyshortcuts="Control+Enter Meta+Enter"
 							className="resize-none leading-7"
 						/>
-						<div className="text-xs text-muted-foreground text-right">{content.length}/10000</div>
+						<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+							<span>Enter 换行，Ctrl/⌘+Enter 发送</span>
+							<span>{content.length}/10000</span>
+						</div>
 					</div>
 				</div>
 
 				<DialogFooter>
 					<DialogClose render={<Button variant="outline" disabled={isSending} />}>取消</DialogClose>
-					<Button onClick={handleSubmit} disabled={isSending || !selectedRecipient}>
+					<Button onClick={() => void handleSubmit()} disabled={isSending} aria-busy={isSending}>
 						{isSending ? (
 							<>
-								<Loader2 className="h-4 w-4 animate-spin mr-1" />
+								<Loader2 className="h-4 w-4 animate-spin mr-1" aria-hidden="true" />
 								发送中...
 							</>
 						) : (
 							<>
-								<Send className="h-4 w-4 mr-1" />
+								<Send className="h-4 w-4 mr-1" aria-hidden="true" />
 								发送
 							</>
 						)}

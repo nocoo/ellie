@@ -22,7 +22,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -102,10 +102,14 @@ export function UserPopover({
 	// Mod action states
 	const [modAction, setModAction] = useState<ModAction>(null);
 	const [modActionLoading, setModActionLoading] = useState(false);
+	const actionPending = useRef(false);
+	const activeUserId = useRef(userId);
+	activeUserId.current = userId;
 	const [modActionMessage, setModActionMessage] = useState<ModActionMessage | null>(null);
 
 	// User status for moderation (fetched separately for admins)
 	const [userStatus, setUserStatus] = useState<number | null>(null);
+	const [statusError, setStatusError] = useState<string | null>(null);
 
 	// Resolve viewer identity: prefer props (for backward compat), fall back to session
 	const viewerRole = viewerRoleProp ?? session?.user?.role ?? 0;
@@ -125,31 +129,33 @@ export function UserPopover({
 		setError(null);
 		try {
 			const res = await apiClient.get<PublicUser>(`/api/v1/users/${userId}`);
+			if (activeUserId.current !== userId) return;
 			setData({ user: res.data });
 		} catch {
-			setError("无法加载用户信息");
+			if (activeUserId.current === userId) setError("无法加载用户信息");
 		} finally {
-			setLoading(false);
+			if (activeUserId.current === userId) setLoading(false);
 		}
 	}, [userId, data?.user.id]);
 
 	// Fetch user status for moderation (Admin/SuperMod only)
 	const fetchUserStatus = useCallback(async () => {
 		if (!canManageUsers || isSelf) return;
+		setStatusError(null);
 		try {
 			const res = await apiClient.get<{ status: number }>(
 				`/api/v1/moderation/users/${userId}/status`,
 			);
-			setUserStatus(res.data.status);
+			if (activeUserId.current === userId) setUserStatus(res.data.status);
 		} catch {
-			// Silently ignore - status badge won't show
-			setUserStatus(null);
+			if (activeUserId.current === userId) setStatusError("管理状态加载失败");
 		}
 	}, [userId, canManageUsers, isSelf]);
 
 	// Execute mod action
 	const executeModAction = useCallback(async () => {
-		if (!modAction || !data?.user) return;
+		if (!modAction || !data?.user || userStatus === null || actionPending.current) return;
+		actionPending.current = true;
 		const config = MOD_ACTION_CONFIG[modAction];
 		setModActionLoading(true);
 		setModActionMessage(null);
@@ -157,6 +163,7 @@ export function UserPopover({
 			await apiClient.post(config.endpoint(userId), {});
 			setModActionMessage({ type: "success", text: `${config.title}成功` });
 			toast.success(`${config.title}成功`);
+			setModAction(null);
 			// Refresh user data and status
 			setData(null);
 			setUserStatus(null);
@@ -169,10 +176,10 @@ export function UserPopover({
 			});
 			toast.error({ title: `${config.title}失败`, description });
 		} finally {
+			actionPending.current = false;
 			setModActionLoading(false);
-			setModAction(null);
 		}
-	}, [modAction, userId, data?.user, fetchUser, fetchUserStatus, toast]);
+	}, [modAction, userId, userStatus, data?.user, fetchUser, fetchUserStatus, toast]);
 
 	// Fetch user data when popover opens
 	useEffect(() => {
@@ -194,6 +201,7 @@ export function UserPopover({
 		setData(null);
 		setError(null);
 		setUserStatus(null);
+		setStatusError(null);
 		setModActionMessage(null);
 	}, [userId]);
 
@@ -207,7 +215,12 @@ export function UserPopover({
 	const userIsBanned = isUserBanned(userStatus);
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover
+			open={open}
+			onOpenChange={(next) => {
+				if (!actionPending.current) setOpen(next);
+			}}
+		>
 			<PopoverTrigger className={cn("cursor-pointer", triggerClassName)}>{children}</PopoverTrigger>
 			<PopoverContent
 				side={side}
@@ -293,13 +306,17 @@ export function UserPopover({
 									<UserModActionDropdown
 										userIsMuted={userIsMuted}
 										userIsBanned={userIsBanned}
-										onAction={setModAction}
+										onAction={(action) => {
+											setModActionMessage(null);
+											setModAction(action);
+										}}
 										align="start"
 										side="top"
 										trigger={
 											<Button
 												variant="ghost"
 												size="xs"
+												disabled={userStatus === null || modActionLoading}
 												className="text-xs gap-1 text-muted-foreground"
 												title="管理操作"
 											>
@@ -323,6 +340,16 @@ export function UserPopover({
 						</div>
 
 						{/* Mod action confirmation dialog */}
+						{statusError && (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => void fetchUserStatus()}
+								className="mx-4 mb-3 text-destructive"
+							>
+								{statusError}，重试
+							</Button>
+						)}
 						{modAction && (
 							<UserModActionDialog
 								modAction={modAction}

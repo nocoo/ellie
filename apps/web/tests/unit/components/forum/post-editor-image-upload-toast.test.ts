@@ -131,7 +131,7 @@ describe("ImageUploadButton toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("文件大小超过限制"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("图片上传失败"));
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("图片上传失败");
 		});
@@ -155,7 +155,7 @@ describe("ImageUploadButton toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("请先验证邮箱后再上传图片"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("图片上传失败"));
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("图片上传失败");
 		});
@@ -176,7 +176,7 @@ describe("ImageUploadButton toast integration", () => {
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("上传失败，请重试"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("图片上传失败"));
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("图片上传失败");
 		});

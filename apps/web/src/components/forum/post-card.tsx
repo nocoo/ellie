@@ -270,27 +270,55 @@ export function PostCard({
 			id={`post-${post.id}`}
 			className="scroll-mt-4 overflow-hidden rounded-xl border border-border bg-card"
 		>
-			{/* Desktop: two-column layout */}
-			<div className="hidden md:flex">
-				{/*
-				 * Anonymous masking signal: the Worker zeros authorId/authorName
-				 * when the viewer is neither staff nor the post's own author.
-				 * Staff/self see the real authorId — they MUST see the real
-				 * sidebar, so we gate on `post.authorId === 0` (the mask itself).
-				 *
-				 * Distinguish two zero-author cases for the sidebar:
-				 *   - anonymous=1 + authorId=0  → "匿名" (intentional)
-				 *   - anonymous=0 + authorId=0  → "未知用户" (tombstoned author,
-				 *     UserStatus.Placeholder etc.) — different copy, no profile link
-				 *
-				 * `post.anonymous === 1` alone is not enough: staff/self see the
-				 * real authorId AND anonymous=1, and they must NOT be hidden.
-				 */}
-				<PostSidebar
-					author={post.author}
-					isAnonymous={post.authorId === 0 && post.anonymous === 1}
-				/>
-				<div className="flex-1 min-w-0 flex flex-col">
+			<div className="md:flex">
+				<div className="hidden md:flex">
+					{/*
+					 * Anonymous masking signal: the Worker zeros authorId/authorName
+					 * when the viewer is neither staff nor the post's own author.
+					 * Staff/self see the real authorId — they MUST see the real
+					 * sidebar, so we gate on `post.authorId === 0` (the mask itself).
+					 *
+					 * Distinguish two zero-author cases for the sidebar:
+					 *   - anonymous=1 + authorId=0  → "匿名" (intentional)
+					 *   - anonymous=0 + authorId=0  → "未知用户" (tombstoned author,
+					 *     UserStatus.Placeholder etc.) — different copy, no profile link
+					 *
+					 * `post.anonymous === 1` alone is not enough: staff/self see the
+					 * real authorId AND anonymous=1, and they must NOT be hidden.
+					 */}
+					<PostSidebar
+						author={post.author}
+						isAnonymous={post.authorId === 0 && post.anonymous === 1}
+					/>
+				</div>
+				<div className="flex min-w-0 flex-1 flex-col">
+					{/* Compact header row */}
+					<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border md:hidden">
+						<MobileHeaderAvatar post={post} />
+						<div className="flex flex-col min-w-0">
+							<MobileHeaderAuthorLabel post={post} />
+							<span
+								className="text-xs text-muted-foreground flex items-center gap-1"
+								data-testid="post-card-mobile-time"
+							>
+								<PostAuthorStatusIcon
+									role={post.author?.role}
+									isThreadAuthor={
+										post.author?.id !== undefined && post.author.id === threadAuthorId
+									}
+								/>
+								{formatRelativeTime(post.createdAt)}
+							</span>
+						</div>
+						<span
+							className="ml-auto text-xs font-medium text-muted-foreground shrink-0"
+							data-testid="post-card-mobile-floor"
+						>
+							{floorLabel(post.position, isFirst)}
+							<sup className="text-xs">#</sup>
+						</span>
+					</div>
+
 					<PostContent
 						post={post}
 						isFirst={isFirst}
@@ -302,44 +330,6 @@ export function PostCard({
 						ratingSummary={ratingSummary}
 					/>
 				</div>
-			</div>
-			{/* Mobile: compact single-column layout */}
-			<div className="md:hidden">
-				{/* Compact header row */}
-				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border">
-					<MobileHeaderAvatar post={post} />
-					<div className="flex flex-col min-w-0">
-						<MobileHeaderAuthorLabel post={post} />
-						<span
-							className="text-xs text-muted-foreground flex items-center gap-1"
-							data-testid="post-card-mobile-time"
-						>
-							<PostAuthorStatusIcon
-								role={post.author?.role}
-								isThreadAuthor={post.author?.id !== undefined && post.author.id === threadAuthorId}
-							/>
-							{formatRelativeTime(post.createdAt)}
-						</span>
-					</div>
-					<span
-						className="ml-auto text-xs font-medium text-muted-foreground shrink-0"
-						data-testid="post-card-mobile-floor"
-					>
-						{floorLabel(post.position, isFirst)}
-						<sup className="text-xs">#</sup>
-					</span>
-				</div>
-
-				<PostContent
-					post={post}
-					isFirst={isFirst}
-					threadDigest={threadDigest}
-					threadAuthorId={threadAuthorId}
-					author={post.author}
-					actionBar={actionBar}
-					comments={commentsSection}
-					ratingSummary={ratingSummary}
-				/>
 			</div>
 			{/* Edit dialog */}
 			<PostEditDialog

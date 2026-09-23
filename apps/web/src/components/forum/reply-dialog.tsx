@@ -5,12 +5,12 @@
 // MVVM: This is the View layer. State and logic are in useReplySubmit hook.
 
 import { MessageSquare, Send, XCircle } from "lucide-react";
-import { useRef } from "react";
-import { PostEditor } from "@/components/forum/post-editor";
+import { useRef, useState } from "react";
+import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
+import { buildQuotedContent, useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
 import { EditorDialogFrame, EditorDialogShell } from "./editor-dialog-shell";
@@ -36,7 +36,8 @@ export function ReplyDialog({
 	quotedTime,
 }: ReplyDialogProps) {
 	const { canReply } = useFeatureFlags();
-	const editorRef = useRef<{ getHTML: () => string } | null>(null);
+	const editorRef = useRef<PostEditorRef>(null);
+	const [uploading, setUploading] = useState(false);
 
 	// Use ViewModel hook for reply submission
 	const { state, actions } = useReplySubmit({
@@ -47,9 +48,9 @@ export function ReplyDialog({
 		quotedTime,
 	});
 
-	// Reset error when dialog closes
+	const busy = state.submitting || uploading;
 	const handleOpenChange = (open: boolean) => {
-		if (state.submitting) return;
+		if (busy) return;
 		if (!open) {
 			actions.clearError();
 		}
@@ -77,8 +78,7 @@ export function ReplyDialog({
 	}
 
 	const handleSubmit = () => {
-		const html = editorRef.current?.getHTML() ?? "";
-		actions.handleSubmit(html);
+		editorRef.current?.submit();
 	};
 
 	return (
@@ -92,7 +92,7 @@ export function ReplyDialog({
 						title="回复主题"
 						description={`回复：${threadSubject}`}
 						onClose={() => handleOpenChange(false)}
-						closeDisabled={state.submitting}
+						closeDisabled={busy}
 					/>
 
 					{state.error && <DialogErrorBanner message={state.error} />}
@@ -101,31 +101,38 @@ export function ReplyDialog({
 					{quotedContent && quotedAuthor && (
 						<div className="mx-5 mt-4 rounded-lg border border-border/60 bg-muted/30 p-3">
 							<p className="text-xs text-muted-foreground mb-1">引用 {quotedAuthor} 的内容：</p>
-							<p className="text-sm text-foreground/80 line-clamp-2">
-								{quotedContent.replace(/<[^>]*>/g, "")}
-							</p>
+							<p className="text-sm text-foreground/80 line-clamp-2">{quotedContent}</p>
 						</div>
 					)}
 				</>
 			}
 			onSubmit={handleSubmit}
-			canSubmit={!state.submitting}
+			canSubmit={!state.submitting && state.draftReady}
 			submitting={state.submitting}
+			busy={busy}
 			onCancel={() => handleOpenChange(false)}
-			footerHint="Ctrl / ⌘ + Enter 快速发送"
+			footerHint="Enter 换行 · Ctrl+Enter 发送（Mac 也可 ⌘+Enter）"
 			submitLabel="发送回复"
 			submittingLabel="发送中..."
 			submitIcon={<Send className="h-4 w-4" />}
 		>
-			<PostEditor
-				ref={editorRef}
-				onSubmit={actions.handleSubmit}
-				placeholder="写下你的回复..."
-				maxLength={10000}
-				submitting={state.submitting}
-				canSubmit={!state.submitting}
-				hideFooter
-			/>
+			{state.draftReady && (
+				<PostEditor
+					ref={editorRef}
+					initialContent={state.content}
+					onChange={actions.setContent}
+					onBusyChange={setUploading}
+					draftStatus={state.draftStatus}
+					previewPrefix={buildQuotedContent(quotedContent, quotedAuthor, quotedTime)}
+					minLength={2}
+					onSubmit={actions.handleSubmit}
+					placeholder="写下你的回复..."
+					maxLength={10000}
+					submitting={state.submitting}
+					canSubmit={!state.submitting}
+					hideFooter
+				/>
+			)}
 		</EditorDialogShell>
 	);
 }

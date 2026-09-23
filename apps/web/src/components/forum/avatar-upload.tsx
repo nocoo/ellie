@@ -4,7 +4,7 @@
 // Validates client-side then uploads to /api/v1/upload with purpose=avatar
 
 import { Loader2, Upload } from "lucide-react";
-import { type DragEvent, useCallback, useState } from "react";
+import { type DragEvent, useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { AVATAR_ALLOWED_TYPES, AVATAR_MAX_UPLOAD_MB } from "@/lib/avatar";
 import { uploadAvatar } from "@/lib/forum-browser-api";
@@ -15,12 +15,19 @@ interface AvatarUploadProps {
 	currentUrl: string;
 	onUploadComplete: (newUrl: string) => void;
 	disabled?: boolean;
+	onBusyChange?: (busy: boolean) => void;
 }
 
-export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarUploadProps) {
+export function AvatarUpload({
+	currentUrl,
+	onUploadComplete,
+	disabled,
+	onBusyChange,
+}: AvatarUploadProps) {
 	const toast = useForumToast();
 	const [isDragging, setIsDragging] = useState(false);
 	const [isUploading, setIsUploading] = useState(false);
+	const uploadingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState(currentUrl);
 
@@ -36,6 +43,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 
 	const uploadFile = useCallback(
 		async (file: File) => {
+			if (disabled || uploadingRef.current) return;
 			// Client-side validation
 			const validationError = validateFile(file);
 			if (validationError) {
@@ -44,7 +52,9 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 				return;
 			}
 
+			uploadingRef.current = true;
 			setIsUploading(true);
+			onBusyChange?.(true);
 			setError(null);
 
 			try {
@@ -70,10 +80,12 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 				setError("上传失败，请重试");
 				toast.error({ title: "头像上传失败", description: "上传失败，请重试" });
 			} finally {
+				uploadingRef.current = false;
 				setIsUploading(false);
+				onBusyChange?.(false);
 			}
 		},
-		[onUploadComplete, validateFile, toast],
+		[onUploadComplete, validateFile, toast, disabled, onBusyChange],
 	);
 
 	const handleDrop = (e: DragEvent<HTMLDivElement>) => {

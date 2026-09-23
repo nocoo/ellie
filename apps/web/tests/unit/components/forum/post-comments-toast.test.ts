@@ -45,10 +45,17 @@ function renderPostComments() {
 
 /** Set input value in a way that triggers React onChange */
 function setInputValue(input: HTMLElement, value: string) {
-	const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+	const setter = Object.getOwnPropertyDescriptor(
+		window.HTMLTextAreaElement.prototype,
+		"value",
+	)?.set;
 	setter?.call(input, value);
 	fireEvent.input(input, { target: { value } });
 	fireEvent.change(input, { target: { value } });
+}
+
+function pressEnter(input: HTMLElement, ctrlKey = false) {
+	fireEvent.keyDown(input, { key: "Enter", ctrlKey });
 }
 
 // ---------------------------------------------------------------------------
@@ -78,9 +85,11 @@ describe("CommentDialog toast integration", () => {
 			setInputValue(input, "测试点评");
 		});
 
-		const sendBtn = screen.getByRole("button", { name: /发送/ });
+		pressEnter(input);
+		expect(apiClient.post).not.toHaveBeenCalled();
+
 		await act(async () => {
-			fireEvent.click(sendBtn);
+			pressEnter(input, true);
 		});
 
 		await waitFor(() => {
@@ -102,17 +111,19 @@ describe("CommentDialog toast integration", () => {
 			setInputValue(input, "违禁内容");
 		});
 
-		const sendBtn = screen.getByRole("button", { name: /发送/ });
 		await act(async () => {
-			fireEvent.click(sendBtn);
+			pressEnter(input, true);
 		});
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("内容包含违禁词"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("点评发送失败"));
 			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("点评发送失败");
+			expect(errorToast?.textContent).toContain("内容包含违禁词");
 		});
+		expect(
+			(screen.getByPlaceholderText("写下你的点评（最多255字）") as HTMLTextAreaElement).value,
+		).toBe("违禁内容");
 	});
 
 	it("shows fallback error toast for non-ApiError failures", async () => {
@@ -126,16 +137,15 @@ describe("CommentDialog toast integration", () => {
 			setInputValue(input, "test");
 		});
 
-		const sendBtn = screen.getByRole("button", { name: /发送/ });
 		await act(async () => {
-			fireEvent.click(sendBtn);
+			pressEnter(input, true);
 		});
 
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("发送失败，请稍后重试"));
+			const errorToast = alerts.find((el) => el.textContent?.includes("点评发送失败"));
 			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("点评发送失败");
+			expect(errorToast?.textContent).toContain("发送失败，请稍后重试");
 		});
 	});
 
@@ -152,9 +162,8 @@ describe("CommentDialog toast integration", () => {
 			setInputValue(input, "too long");
 		});
 
-		const sendBtn = screen.getByRole("button", { name: /发送/ });
 		await act(async () => {
-			fireEvent.click(sendBtn);
+			pressEnter(input, true);
 		});
 
 		await waitFor(() => {
@@ -162,5 +171,17 @@ describe("CommentDialog toast integration", () => {
 			const matches = screen.getAllByText("字数超限");
 			expect(matches.length).toBeGreaterThanOrEqual(2);
 		});
+		expect(
+			(screen.getByPlaceholderText("写下你的点评（最多255字）") as HTMLTextAreaElement).value,
+		).toBe("too long");
+	});
+
+	it("shows an inline error without toast when the comment is empty", async () => {
+		renderPostComments();
+		await act(async () => {});
+		fireEvent.click(screen.getByRole("button", { name: "发送" }));
+		expect(screen.getByText("请输入点评内容")).toBeTruthy();
+		expect(screen.queryByText("点评发送失败")).toBeNull();
+		expect(apiClient.post).not.toHaveBeenCalled();
 	});
 });

@@ -6,6 +6,7 @@
 
 import { Save, User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 	const router = useRouter();
 	const { updateVersion } = useAvatarVersion();
 	const avatarUrl = useAvatarUrl(user.id);
+	const [avatarUploading, setAvatarUploading] = useState(false);
 
 	// Use ViewModel hook for profile editing
 	const { state, actions } = useProfileEdit({
@@ -85,7 +87,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
-		if (state.submitting) return;
+		if (state.submitting || avatarUploading) return;
 		if (!open) {
 			actions.clearError();
 		}
@@ -104,7 +106,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 					title="编辑个人资料"
 					description="完善个人介绍，让同济社区更了解你"
 					onClose={() => handleOpenChange(false)}
-					closeDisabled={state.submitting}
+					closeDisabled={state.submitting || avatarUploading}
 				/>
 
 				{/* Error display */}
@@ -118,6 +120,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 						<AvatarUpload
 							currentUrl={avatarUrl}
 							onUploadComplete={handleAvatarUploadComplete}
+							onBusyChange={setAvatarUploading}
 							disabled={state.submitting}
 						/>
 					</div>
@@ -318,13 +321,18 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 						<Button
 							variant="ghost"
 							onClick={() => handleOpenChange(false)}
-							disabled={state.submitting}
+							disabled={state.submitting || avatarUploading}
 						>
 							取消
 						</Button>
-						<Button onClick={actions.handleSave} disabled={state.submitting} className="gap-2">
+						<Button
+							onClick={actions.handleSave}
+							disabled={state.submitting || avatarUploading}
+							className="gap-2"
+							aria-busy={state.submitting || avatarUploading}
+						>
 							<Save className="h-4 w-4" />
-							{state.submitting ? "保存中..." : "保存更改"}
+							{avatarUploading ? "头像上传中…" : state.submitting ? "保存中..." : "保存更改"}
 						</Button>
 					</div>
 				</div>

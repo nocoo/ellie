@@ -61,6 +61,9 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const deleteInFlight = useRef(false);
+	const loadGeneration = useRef(0);
+	const replyGateRef = useRef(false);
+	const [replyBusy, setReplyBusy] = useState(false);
 
 	// Reply dialog state
 	const [isReplyOpen, setIsReplyOpen] = useState(false);
@@ -70,22 +73,23 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 
 	// Load message
 	const loadMessage = useCallback(async () => {
+		const generation = ++loadGeneration.current;
 		setIsLoading(true);
 		setError(null);
 
 		try {
 			const result = await fetchMessage(messageId);
+			if (generation !== loadGeneration.current) return;
 			setMessage(result);
 		} catch (err) {
-			if (err instanceof ApiError) {
-				setError(err.message);
-			} else {
-				setError("加载失败，请重试");
-			}
+			if (generation !== loadGeneration.current) return;
+			const message = err instanceof ApiError ? err.message : "加载失败，请重试";
+			setError(message);
+			toast.error({ title: "站内信加载失败", description: message });
 		} finally {
-			setIsLoading(false);
+			if (generation === loadGeneration.current) setIsLoading(false);
 		}
-	}, [messageId]);
+	}, [messageId, toast]);
 
 	// Initial load
 	useEffect(() => {
@@ -112,42 +116,51 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 
 	// Handle reply - reply to the other party in the conversation
 	const handleReply = async () => {
-		if (!message) return;
-		if (await writeGatePreflight(null, "message")) return;
+		if (!message || replyGateRef.current) return;
+		replyGateRef.current = true;
+		setReplyBusy(true);
+		try {
+			if (await writeGatePreflight(null, "message")) return;
 
-		// If I'm the sender, reply to the receiver; otherwise reply to the sender
-		const isSender = currentUserId === message.senderId;
-		if (isSender) {
-			setReplyRecipient({ id: message.receiverId, username: message.receiverName });
-		} else {
-			setReplyRecipient({ id: message.senderId, username: message.senderName });
+			// If I'm the sender, reply to the receiver; otherwise reply to the sender
+			const isSender = currentUserId === message.senderId;
+			if (isSender) {
+				setReplyRecipient({ id: message.receiverId, username: message.receiverName });
+			} else {
+				setReplyRecipient({ id: message.senderId, username: message.senderName });
+			}
+			setIsReplyOpen(true);
+		} finally {
+			replyGateRef.current = false;
+			setReplyBusy(false);
 		}
-		setIsReplyOpen(true);
 	};
 
 	// Loading state
 	if (isLoading) {
 		return (
-			<div className="py-12 text-center">
-				<Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+			<div className="py-12 text-center" role="status" aria-busy="true">
+				<Loader2
+					className="mx-auto h-6 w-6 animate-spin text-muted-foreground"
+					aria-hidden="true"
+				/>
 				<p className="mt-2 text-sm text-muted-foreground">加载中...</p>
 			</div>
 		);
 	}
 
-	// Error state
 	if (error) {
 		return (
-			<div className="py-12 text-center">
+			<div className="py-12 text-center" role="alert">
 				<p className="text-sm text-destructive">{error}</p>
-				<Button
-					variant="outline"
-					size="sm"
-					className="mt-4"
-					onClick={() => router.push("/messages")}
-				>
-					返回列表
-				</Button>
+				<div className="mt-4 flex justify-center gap-2">
+					<Button variant="outline" size="sm" onClick={() => void loadMessage()}>
+						重试
+					</Button>
+					<Button variant="outline" size="sm" onClick={() => router.push("/messages")}>
+						返回列表
+					</Button>
+				</div>
 			</div>
 		);
 	}
@@ -178,7 +191,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 							<ArrowLeft className="size-4" aria-hidden="true" />
 							返回列表
 						</Button>
-						<Button onClick={handleReply}>
+						<Button onClick={() => void handleReply()} disabled={replyBusy} aria-busy={replyBusy}>
 							<Reply className="size-4" aria-hidden="true" />
 							回复
 						</Button>
@@ -187,6 +200,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 							size="icon"
 							onClick={() => setDeleteOpen(true)}
 							disabled={isDeleting}
+							aria-busy={isDeleting}
 							aria-label="删除站内信"
 							className="text-destructive hover:text-destructive"
 						>
@@ -235,7 +249,8 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 			<ConfirmDialog
 				open={deleteOpen}
 				onOpenChange={(open) => {
-					if (!isDeleting) setDeleteOpen(open);
+					if (deleteInFlight.current) return;
+					setDeleteOpen(open);
 				}}
 				title="删除站内信"
 				description="确定要删除这条站内信吗？删除后将从你的信箱中移除。"

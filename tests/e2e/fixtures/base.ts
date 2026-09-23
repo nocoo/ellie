@@ -46,7 +46,7 @@ type CachedState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 let cachedState: CachedState | null = null;
 let inflight: Promise<CachedState> | null = null;
 
-async function performFormLogin(page: Page): Promise<void> {
+async function performFormLogin(page: Page, configuredBaseURL?: string): Promise<void> {
 	// CAP CAPTCHA is fail-closed in the UI: the submit button never enables
 	// until Cap.js's auto-PoW emits a token, which on the free GitHub runner
 	// can take 60+ s and routinely blew the L3 job budget. Since NextAuth's
@@ -56,7 +56,7 @@ async function performFormLogin(page: Page): Promise<void> {
 	// auth path real (real password hashing, real JWT mint, real cookies)
 	// while making `loginAs` deterministic and ~10× faster.
 	const baseURL = page.url().startsWith("http") ? new URL(page.url()).origin : "";
-	const origin = baseURL || "http://localhost:27031";
+	const origin = configuredBaseURL || baseURL || "http://localhost:27031";
 
 	const csrfRes = await page.request.get(`${origin}/api/auth/csrf`);
 	if (!csrfRes.ok()) {
@@ -86,11 +86,11 @@ async function performFormLogin(page: Page): Promise<void> {
 	await page.waitForLoadState("networkidle");
 }
 
-async function ensureCachedState(page: Page): Promise<CachedState> {
+async function ensureCachedState(page: Page, baseURL?: string): Promise<CachedState> {
 	if (cachedState) return cachedState;
 	if (inflight) return inflight;
 	inflight = (async () => {
-		await performFormLogin(page);
+		await performFormLogin(page, baseURL);
 		const state = await page.context().storageState();
 		cachedState = state;
 		return state;
@@ -123,7 +123,7 @@ export const test = base.extend<TestFixtures>({
 		await use(navigateTo);
 	},
 
-	loginAs: async ({ page, context }, use) => {
+	loginAs: async ({ page, context, baseURL }, use) => {
 		const loginAs = async (_username: string) => {
 			// Fast path: reuse cached storageState if we've already logged in
 			// at least once during this playwright run.
@@ -138,7 +138,7 @@ export const test = base.extend<TestFixtures>({
 			// First call of the run (or after a forced refresh): execute the real
 			// form login and capture its cookies for everyone else.
 			try {
-				await ensureCachedState(page);
+				await ensureCachedState(page, baseURL);
 			} catch (err) {
 				// If caching fails, fall back to a vanilla form login so the
 				// individual test still has a chance to pass.
@@ -147,7 +147,7 @@ export const test = base.extend<TestFixtures>({
 						err instanceof Error ? err.message : err
 					}`,
 				);
-				await performFormLogin(page);
+				await performFormLogin(page, baseURL);
 			}
 		};
 		await use(loginAs);

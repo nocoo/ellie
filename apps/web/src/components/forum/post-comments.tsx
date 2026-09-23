@@ -6,12 +6,14 @@
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
@@ -40,14 +42,26 @@ function formatCommentTime(timestamp: number): string {
 }
 
 function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogProps) {
+	const fieldId = useId();
+	const errorId = useId();
 	const [content, setContent] = useState("");
 	const [submitting, setSubmitting] = useState(false);
+	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const toast = useForumToast();
 
-	const handleSubmit = useCallback(async () => {
-		if (!content.trim()) return;
+	useEffect(() => {
+		if (open && !submittingRef.current) setError(null);
+	}, [open]);
 
+	const handleSubmit = useCallback(async () => {
+		if (submittingRef.current) return;
+		if (!content.trim()) {
+			setError("请输入点评内容");
+			return;
+		}
+
+		submittingRef.current = true;
 		setSubmitting(true);
 		setError(null);
 
@@ -65,51 +79,72 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 			setError(message);
 			toast.error({ title: "点评发送失败", description: message });
 		} finally {
+			submittingRef.current = false;
 			setSubmitting(false);
 		}
 	}, [content, postId, onOpenChange, onSuccess, toast]);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-md">
+		<Dialog open={open} onOpenChange={(next) => !submittingRef.current && onOpenChange(next)}>
+			<DialogContent className="max-w-md" showCloseButton={!submitting} aria-busy={submitting}>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<MessageCircle className="h-5 w-5" />
+						<MessageCircle className="h-5 w-5" aria-hidden="true" />
 						发表点评
 					</DialogTitle>
 				</DialogHeader>
 				<div className="space-y-4">
-					<div className="relative">
-						<Input
+					<div className="space-y-1">
+						<Label htmlFor={fieldId}>点评内容</Label>
+						<Textarea
+							id={fieldId}
 							placeholder="写下你的点评（最多255字）"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
 							maxLength={255}
+							rows={3}
 							disabled={submitting}
-							className="pr-16"
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									handleSubmit();
-								}
+							aria-invalid={error !== null || undefined}
+							aria-describedby={error ? errorId : undefined}
+							aria-keyshortcuts="Control+Enter Meta+Enter"
+							onKeyDown={(event) => {
+								handleSubmitShortcut(event.nativeEvent, () => {
+									void handleSubmit();
+								});
 							}}
 						/>
-						<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-							{content.length}/255
-						</span>
+						<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+							<span>Enter 换行，Ctrl/⌘+Enter 发送</span>
+							<span>{content.length}/255</span>
+						</div>
 					</div>
-					{error && <p className="text-sm text-destructive">{error}</p>}
+					{error && (
+						<p id={errorId} role="alert" className="text-sm text-destructive">
+							{error}
+						</p>
+					)}
 					<div className="flex justify-end gap-2">
-						<Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+						<Button
+							variant="outline"
+							onClick={() => {
+								if (submittingRef.current) return;
+								onOpenChange(false);
+							}}
+							disabled={submitting}
+						>
 							取消
 						</Button>
-						<Button onClick={handleSubmit} disabled={!content.trim() || submitting}>
+						<Button
+							onClick={() => void handleSubmit()}
+							disabled={submitting}
+							aria-busy={submitting}
+						>
 							{submitting ? (
-								<Loader2 className="h-4 w-4 animate-spin mr-1" />
+								<Loader2 className="h-4 w-4 animate-spin mr-1" aria-hidden="true" />
 							) : (
-								<Send className="h-4 w-4 mr-1" />
+								<Send className="h-4 w-4 mr-1" aria-hidden="true" />
 							)}
-							发送
+							{submitting ? "发送中" : "发送"}
 						</Button>
 					</div>
 				</div>
@@ -132,12 +167,18 @@ export function PostComments({
 	const [loadError, setLoadError] = useState(false);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
+	const loadingRef = useRef(false);
+	const commentGateRef = useRef(false);
+	const [commentGateBusy, setCommentGateBusy] = useState(false);
+	const toast = useForumToast();
 
 	// Use external dialog state if provided, otherwise use internal
 	const dialogOpen = externalDialogOpen ?? internalDialogOpen;
 	const setDialogOpen = onDialogOpenChange ?? setInternalDialogOpen;
 
 	const fetchComments = useCallback(async () => {
+		if (loadingRef.current) return;
+		loadingRef.current = true;
 		setLoading(true);
 		setLoadError(false);
 		try {
@@ -154,10 +195,12 @@ export function PostComments({
 			setLoaded(true);
 		} catch {
 			setLoadError(true);
+			toast.error({ title: "点评加载失败", description: "请稍后重试" });
 		} finally {
+			loadingRef.current = false;
 			setLoading(false);
 		}
-	}, [postId]);
+	}, [postId, toast]);
 
 	const handleCommentSuccess = useCallback((newComment: PostComment) => {
 		// Show the confirmed write immediately, without waiting for shared cache expiry.
@@ -170,7 +213,9 @@ export function PostComments({
 		<button
 			type="button"
 			disabled={loading}
-			onClick={fetchComments}
+			onClick={() => void fetchComments()}
+			aria-busy={loading}
+			aria-live="polite"
 			className="text-xs text-forum-link hover:underline py-1.5"
 		>
 			{loading ? "加载点评…" : loadError ? "加载失败，重试点评" : "查看点评"}
@@ -208,11 +253,21 @@ export function PostComments({
 				{!threadClosed && isLoggedIn && (
 					<button
 						type="button"
+						disabled={commentGateBusy}
+						aria-busy={commentGateBusy}
 						onClick={async () => {
-							if (await writeGatePreflight(null, "comment")) return;
-							setDialogOpen(true);
+							if (commentGateRef.current) return;
+							commentGateRef.current = true;
+							setCommentGateBusy(true);
+							try {
+								if (await writeGatePreflight(null, "comment")) return;
+								setDialogOpen(true);
+							} finally {
+								commentGateRef.current = false;
+								setCommentGateBusy(false);
+							}
 						}}
-						className="text-xs text-forum-link hover:underline cursor-pointer"
+						className="text-xs text-forum-link hover:underline cursor-pointer disabled:opacity-50"
 					>
 						+ 添加点评
 					</button>

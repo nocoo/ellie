@@ -210,6 +210,40 @@ describe("usePostActions hook", () => {
 		expect(errorToast?.textContent).toContain("删除失败");
 	});
 
+	it("ignores a second delete and close while the first delete is in flight", async () => {
+		let finish!: () => void;
+		mockDeleteMyPost.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+			{ wrapper },
+		);
+		act(() => {
+			result.current.actions.handleDeleteClick();
+		});
+		let pending!: Promise<void>;
+		act(() => {
+			pending = result.current.actions.handleDeleteConfirm();
+		});
+		await act(async () => {
+			await result.current.actions.handleDeleteConfirm();
+			result.current.actions.handleDeleteClose();
+		});
+		expect(mockDeleteMyPost).toHaveBeenCalledTimes(1);
+		expect(result.current.state.deleteDialogOpen).toBe(true);
+		expect(result.current.state.deleting).toBe(true);
+		await act(async () => {
+			finish();
+			await pending;
+		});
+		expect(result.current.state.deleteDialogOpen).toBe(false);
+		expect(result.current.state.deleting).toBe(false);
+	});
+
 	it("shows error toast with '没有删除权限' when no permission", async () => {
 		const { result } = renderHook(
 			() => usePostActions({ postId: 42, isOwnPost: false, canModerate: false }),

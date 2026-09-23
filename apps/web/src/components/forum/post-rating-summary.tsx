@@ -13,7 +13,7 @@
 import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
 import { Award, ChevronDown, Coins, Loader2, Undo2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -81,10 +81,15 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 		freshAggregate: null,
 	});
 	const [revokingId, setRevokingId] = useState<number | null>(null);
+	const [revokeError, setRevokeError] = useState<string | null>(null);
+	const loadingRef = useRef(false);
+	const revokingRef = useRef<number | null>(null);
 
 	const effective = detail.freshAggregate ?? aggregate;
 
 	const loadDetail = useCallback(async () => {
+		if (loadingRef.current) return;
+		loadingRef.current = true;
 		setDetail((prev) => ({ ...prev, loading: true, error: null }));
 		try {
 			const response: PostRatingsResponse = await fetchPostRatings(postId);
@@ -97,25 +102,31 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 		} catch (err) {
 			const message = isApiErrorLike(err) ? err.message : "加载失败";
 			setDetail((prev) => ({ ...prev, loading: false, error: message }));
+			toast.error({ title: "评分明细加载失败", description: message });
+		} finally {
+			loadingRef.current = false;
 		}
-	}, [postId]);
+	}, [postId, toast]);
 
 	// Trigger lazy-fetch the first time the popover opens. Re-opens reuse the
 	// cached list unless the user explicitly clicks 刷新 (not yet wired —
 	// revoke handles its own optimistic update path).
 	const handleOpenChange = useCallback(
 		(next: boolean) => {
+			if (!next && revokingRef.current !== null) return;
 			setOpen(next);
-			if (next && detail.items.length === 0 && !detail.loading && !detail.error) {
+			if (next && detail.items.length === 0 && !loadingRef.current && !detail.error) {
 				void loadDetail();
 			}
 		},
-		[detail.items.length, detail.loading, detail.error, loadDetail],
+		[detail.items.length, detail.error, loadDetail],
 	);
 
 	const handleRevoke = useCallback(
 		async (row: PostRatingRow) => {
-			if (revokingId !== null) return;
+			if (revokingRef.current !== null) return;
+			revokingRef.current = row.id;
+			setRevokeError(null);
 			setRevokingId(row.id);
 			try {
 				await revokePostRating(postId, row.id);
@@ -145,12 +156,14 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 				});
 			} catch (err) {
 				const message = mapRevokeError(err);
+				setRevokeError(message);
 				toast.error({ title: "撤销失败", description: message });
 			} finally {
+				revokingRef.current = null;
 				setRevokingId(null);
 			}
 		},
-		[postId, revokingId, toast, aggregate],
+		[postId, toast, aggregate],
 	);
 
 	// Caller (PostCard) is supposed to gate this, but defend in depth — never
@@ -167,13 +180,13 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 			</span>
 			{effective.credits.count > 0 && (
 				<span className="inline-flex items-center gap-1" data-testid="post-rating-summary-credits">
-					<Award className="h-3.5 w-3.5" />
+					<Award className="h-3.5 w-3.5" aria-hidden="true" />
 					积分 {effective.credits.sum >= 0 ? `+${effective.credits.sum}` : effective.credits.sum}
 				</span>
 			)}
 			{effective.coins.count > 0 && (
 				<span className="inline-flex items-center gap-1" data-testid="post-rating-summary-coins">
-					<Coins className="h-3.5 w-3.5" />
+					<Coins className="h-3.5 w-3.5" aria-hidden="true" />
 					同钱 {effective.coins.sum >= 0 ? `+${effective.coins.sum}` : effective.coins.sum}
 				</span>
 			)}
@@ -186,18 +199,35 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 							data-testid="post-rating-summary-toggle"
 						>
 							展开
-							<ChevronDown className="h-3.5 w-3.5" />
+							<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
 						</button>
 					}
 				/>
 				<PopoverContent className="w-80 max-h-96 overflow-auto" align="end" side="top">
 					{detail.loading && (
-						<div className="flex items-center gap-2 text-xs text-muted-foreground">
-							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						<div className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+							<Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
 							加载中…
 						</div>
 					)}
-					{detail.error && <div className="text-xs text-destructive">{detail.error}</div>}
+					{detail.error && (
+						<div role="alert" className="space-y-2 text-xs text-destructive">
+							<p>{detail.error}</p>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => void loadDetail()}
+								disabled={detail.loading}
+							>
+								重试
+							</Button>
+						</div>
+					)}
+					{revokeError && (
+						<p role="alert" className="text-xs text-destructive">
+							{revokeError}
+						</p>
+					)}
 					{!detail.loading && !detail.error && detail.items.length === 0 && (
 						<div className="text-xs text-muted-foreground">暂无评分明细</div>
 					)}
@@ -224,9 +254,9 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 												)}
 											>
 												{row.dimension === "credits" ? (
-													<Award className="h-3 w-3" />
+													<Award className="h-3 w-3" aria-hidden="true" />
 												) : (
-													<Coins className="h-3 w-3" />
+													<Coins className="h-3 w-3" aria-hidden="true" />
 												)}
 												{row.dimension === "credits" ? "积分" : "同钱"}{" "}
 												{row.score >= 0 ? `+${row.score}` : row.score}
@@ -237,7 +267,7 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 												「{row.reason}」
 											</div>
 										)}
-										<div className="text-[11px] text-muted-foreground">
+										<div className="text-xs text-muted-foreground">
 											{formatRelativeTime(row.createdAt)}
 										</div>
 									</div>
@@ -247,14 +277,15 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 											size="sm"
 											className="h-7 px-2 shrink-0"
 											disabled={revokingId !== null}
-											onClick={() => handleRevoke(row)}
+											aria-busy={revokingId === row.id}
+											onClick={() => void handleRevoke(row)}
 											data-testid={`post-rating-summary-revoke-${row.id}`}
 										>
 											{revokingId === row.id ? (
-												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+												<Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
 											) : (
 												<>
-													<Undo2 className="h-3.5 w-3.5" />
+													<Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
 													<span className="ml-1">撤销</span>
 												</>
 											)}

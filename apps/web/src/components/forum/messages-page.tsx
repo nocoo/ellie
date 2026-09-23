@@ -53,12 +53,14 @@ function MessagesHeaderSection({
 	onCompose,
 	onMarkAllRead,
 	isMarkingAllRead,
+	isComposing,
 }: {
 	activeBox: "inbox" | "outbox";
 	unreadCount: number;
 	onCompose: () => void;
 	onMarkAllRead: () => void;
 	isMarkingAllRead: boolean;
+	isComposing: boolean;
 }) {
 	return (
 		<ForumPageHeader
@@ -68,12 +70,17 @@ function MessagesHeaderSection({
 			actions={
 				<>
 					{activeBox === "inbox" && unreadCount > 0 && (
-						<Button variant="outline" onClick={onMarkAllRead} disabled={isMarkingAllRead}>
+						<Button
+							variant="outline"
+							onClick={onMarkAllRead}
+							disabled={isMarkingAllRead}
+							aria-busy={isMarkingAllRead}
+						>
 							<CheckCheck className="size-4" aria-hidden="true" />
 							{isMarkingAllRead ? "处理中..." : "全部已读"}
 						</Button>
 					)}
-					<Button onClick={onCompose}>
+					<Button onClick={onCompose} disabled={isComposing} aria-busy={isComposing}>
 						<PenLine className="size-4" aria-hidden="true" />
 						写站内信
 					</Button>
@@ -140,10 +147,12 @@ function MessageRow({
 	message,
 	box,
 	onDelete,
+	deleting,
 }: {
 	message: MessageListItem;
 	box: "inbox" | "outbox";
 	onDelete: (id: number) => void;
+	deleting: boolean;
 }) {
 	const isInbox = box === "inbox";
 	const peerId = isInbox ? message.senderId : message.receiverId;
@@ -231,6 +240,8 @@ function MessageRow({
 				onClick={() => onDelete(message.id)}
 				title="删除"
 				aria-label="删除站内信"
+				disabled={deleting}
+				aria-busy={deleting}
 			>
 				<Trash2 className="size-4" aria-hidden="true" />
 			</Button>
@@ -249,6 +260,7 @@ function MessageList({
 	onDelete,
 	onLoadMore,
 	hasMore,
+	deletingId,
 }: {
 	messages: MessageListItem[];
 	box: "inbox" | "outbox";
@@ -256,6 +268,7 @@ function MessageList({
 	onDelete: (id: number) => void;
 	onLoadMore: () => void;
 	hasMore: boolean;
+	deletingId: number | null;
 }) {
 	if (isLoading && messages.length === 0) {
 		return (
@@ -278,11 +291,23 @@ function MessageList({
 	return (
 		<div>
 			{messages.map((msg) => (
-				<MessageRow key={msg.id} message={msg} box={box} onDelete={onDelete} />
+				<MessageRow
+					key={msg.id}
+					message={msg}
+					box={box}
+					onDelete={onDelete}
+					deleting={deletingId === msg.id}
+				/>
 			))}
 			{hasMore && (
 				<div className="py-4 text-center">
-					<Button variant="outline" size="sm" onClick={onLoadMore} disabled={isLoading}>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={onLoadMore}
+						disabled={isLoading}
+						aria-busy={isLoading}
+					>
 						{isLoading ? "加载中..." : "加载更多"}
 					</Button>
 				</div>
@@ -317,6 +342,9 @@ export function MessagesPageClient({
 	const [isDeleting, setIsDeleting] = useState(false);
 	const deleteInFlight = useRef(false);
 	const loadGeneration = useRef(0);
+	const loadingRef = useRef(false);
+	const composeGateRef = useRef(false);
+	const [isComposing, setIsComposing] = useState(false);
 
 	// Compose dialog state
 	const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -325,36 +353,41 @@ export function MessagesPageClient({
 	>(undefined);
 
 	// Fetch messages
-	const loadMessages = useCallback(async (box: "inbox" | "outbox", nextCursor?: string) => {
-		const generation = ++loadGeneration.current;
-		setIsLoading(true);
-		setError(null);
+	const loadMessages = useCallback(
+		async (box: "inbox" | "outbox", nextCursor?: string) => {
+			const generation = ++loadGeneration.current;
+			loadingRef.current = true;
+			setIsLoading(true);
+			setError(null);
 
-		try {
-			const result = await fetchMessages(box, nextCursor);
-			if (generation !== loadGeneration.current) return;
+			try {
+				const result = await fetchMessages(box, nextCursor);
+				if (generation !== loadGeneration.current) return;
 
-			if (nextCursor) {
-				setMessages((prev) => [...prev, ...result.messages]);
-			} else {
-				setMessages(result.messages);
-			}
-			setCursor(result.nextCursor);
+				if (nextCursor) {
+					setMessages((prev) => [...prev, ...result.messages]);
+				} else {
+					setMessages(result.messages);
+				}
+				setCursor(result.nextCursor);
 
-			if (result.unreadCount !== undefined) {
-				setUnreadCount(result.unreadCount);
+				if (result.unreadCount !== undefined) {
+					setUnreadCount(result.unreadCount);
+				}
+			} catch (err) {
+				if (generation !== loadGeneration.current) return;
+				const message = err instanceof ApiError ? err.message : "加载失败，请重试";
+				setError(message);
+				toast.error({ title: "站内信加载失败", description: message });
+			} finally {
+				if (generation === loadGeneration.current) {
+					loadingRef.current = false;
+					setIsLoading(false);
+				}
 			}
-		} catch (err) {
-			if (generation !== loadGeneration.current) return;
-			if (err instanceof ApiError) {
-				setError(err.message);
-			} else {
-				setError("加载失败，请重试");
-			}
-		} finally {
-			if (generation === loadGeneration.current) setIsLoading(false);
-		}
-	}, []);
+		},
+		[toast],
+	);
 
 	// Fetch unread count separately (for outbox view)
 	const loadUnreadCount = useCallback(async () => {
@@ -390,10 +423,17 @@ export function MessagesPageClient({
 
 	// Handle compose
 	const handleCompose = useCallback(async () => {
-		if (await writeGatePreflight(null, "message")) return;
-		// Reset recipient before opening
-		setComposeRecipient(undefined);
-		setIsComposeOpen(true);
+		if (composeGateRef.current) return;
+		composeGateRef.current = true;
+		setIsComposing(true);
+		try {
+			if (await writeGatePreflight(null, "message")) return;
+			setComposeRecipient(undefined);
+			setIsComposeOpen(true);
+		} finally {
+			composeGateRef.current = false;
+			setIsComposing(false);
+		}
 	}, []);
 
 	// Handle message sent success
@@ -447,8 +487,8 @@ export function MessagesPageClient({
 
 	// Handle load more
 	const handleLoadMore = () => {
-		if (cursor && !isLoading) {
-			loadMessages(activeBox, cursor);
+		if (cursor && !loadingRef.current) {
+			void loadMessages(activeBox, cursor);
 		}
 	};
 
@@ -485,6 +525,7 @@ export function MessagesPageClient({
 				onCompose={handleCompose}
 				onMarkAllRead={handleMarkAllRead}
 				isMarkingAllRead={isMarkingAllRead}
+				isComposing={isComposing}
 			/>
 
 			<div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -502,8 +543,9 @@ export function MessagesPageClient({
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => loadMessages(activeBox)}
+							onClick={() => void loadMessages(activeBox)}
 							disabled={isLoading}
+							aria-busy={isLoading}
 						>
 							重试
 						</Button>
@@ -517,6 +559,7 @@ export function MessagesPageClient({
 						onDelete={setPendingDeleteId}
 						onLoadMore={handleLoadMore}
 						hasMore={cursor !== null}
+						deletingId={isDeleting ? pendingDeleteId : null}
 					/>
 				) : null}
 				{!isLoading && !error && messages.length > 0 && (
@@ -528,7 +571,8 @@ export function MessagesPageClient({
 			<ConfirmDialog
 				open={pendingDeleteId !== null}
 				onOpenChange={(open) => {
-					if (!open && !isDeleting) setPendingDeleteId(null);
+					if (!open && deleteInFlight.current) return;
+					if (!open) setPendingDeleteId(null);
 				}}
 				title="删除站内信"
 				description="确定要删除这条站内信吗？删除后将从你的信箱中移除。"

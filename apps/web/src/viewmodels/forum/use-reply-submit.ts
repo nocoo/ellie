@@ -3,18 +3,22 @@
 
 "use client";
 
+import { contentToText, escapeHtml } from "@ellie/shared/content";
 import type { Post } from "@ellie/types";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
-import { stripHtmlTags } from "@/lib/text";
+import { type DraftStatus, useComposerDraft } from "./use-composer-draft";
 
 /**
  * Reply submission state returned by useReplySubmit
  */
 export interface ReplySubmitState {
+	content: string;
+	draftStatus: DraftStatus;
+	draftReady: boolean;
 	/** Submission in progress */
 	submitting: boolean;
 	/** Error message (null if no error) */
@@ -25,6 +29,7 @@ export interface ReplySubmitState {
  * Reply submission callbacks returned by useReplySubmit
  */
 export interface ReplySubmitCallbacks {
+	setContent: (content: string) => void;
 	/** Submit the reply */
 	handleSubmit: (html: string) => Promise<void>;
 	/** Clear error state */
@@ -70,7 +75,7 @@ export interface ContentValidationResult {
  * Pure function for testability.
  */
 export function validateReplyContent(html: string, minLength = 2): ContentValidationResult {
-	const strippedContent = stripHtmlTags(html).trim();
+	const strippedContent = contentToText(html);
 	if (strippedContent.length < minLength) {
 		return { valid: false, error: "内容太短，请输入更多内容" };
 	}
@@ -94,8 +99,8 @@ export function buildQuotedContent(
 	if (!quotedContent || !quotedAuthor) {
 		return "";
 	}
-	const timeStr = quotedTime ? ` 发表于 ${quotedTime}` : "";
-	return `<div class="quote"><span class="quote-header"><strong>${quotedAuthor}</strong>${timeStr}</span><blockquote>${quotedContent}</blockquote></div><p></p>`;
+	const timeStr = quotedTime ? ` 发表于 ${escapeHtml(quotedTime)}` : "";
+	return `<div class="quote"><span class="quote-header"><strong>${escapeHtml(quotedAuthor)}</strong>${timeStr}</span><blockquote>${escapeHtml(quotedContent)}</blockquote></div><p></p>`;
 }
 
 /**
@@ -139,6 +144,16 @@ export function useReplySubmit({
 }: UseReplySubmitOptions): UseReplySubmitReturn {
 	const router = useRouter();
 	const toast = useForumToast();
+	const {
+		draft,
+		status: draftStatus,
+		ready: draftReady,
+		update,
+		clear,
+	} = useComposerDraft(
+		`reply:${threadId}:${JSON.stringify([quotedAuthor, quotedTime, quotedContent])}`,
+	);
+	const setContent = useCallback((content: string) => update({ content }), [update]);
 
 	// Submission state
 	const [submitting, setSubmitting] = useState(false);
@@ -169,6 +184,7 @@ export function useReplySubmit({
 				const quoteHtml = buildQuotedContent(quotedContent, quotedAuthor, quotedTime);
 				const finalContent = quoteHtml ? quoteHtml + html : html;
 				const post = await submitReply(threadId, finalContent);
+				clear();
 				onClose?.();
 				toast.success("回复已发布");
 				router.push(`/threads/${threadId}?last=1#post-${post.id}`);
@@ -183,15 +199,29 @@ export function useReplySubmit({
 				setSubmitting(false);
 			}
 		},
-		[threadId, minContentLength, quotedContent, quotedAuthor, quotedTime, onClose, router, toast],
+		[
+			threadId,
+			minContentLength,
+			quotedContent,
+			quotedAuthor,
+			quotedTime,
+			onClose,
+			router,
+			toast,
+			clear,
+		],
 	);
 
 	return {
 		state: {
+			content: draft.content,
+			draftStatus,
+			draftReady,
 			submitting,
 			error,
 		},
 		actions: {
+			setContent,
 			handleSubmit,
 			clearError,
 		},

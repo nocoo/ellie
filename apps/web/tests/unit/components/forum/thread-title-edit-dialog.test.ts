@@ -4,7 +4,7 @@
 // dialog calls `editThreadSubject(threadId, trimmedSubject)` exactly once
 // on success and `router.refresh()` afterwards; rejects empty / >200-char
 // inputs; and surfaces API errors inline.
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -152,7 +152,7 @@ describe("ThreadTitleEditDialog", () => {
 			fireEvent.click(getSaveButton());
 		});
 		await waitFor(() => {
-			expect(screen.getByText("Content is banned")).toBeTruthy();
+			expect(within(screen.getByRole("dialog")).getByText("Content is banned")).toBeTruthy();
 		});
 		expect(onOpenChange).not.toHaveBeenCalledWith(false);
 		expect(routerRefreshMock).not.toHaveBeenCalled();
@@ -166,7 +166,7 @@ describe("ThreadTitleEditDialog", () => {
 			fireEvent.click(getSaveButton());
 		});
 		await waitFor(() => {
-			expect(screen.getByText("保存失败，请稍后重试")).toBeTruthy();
+			expect(within(screen.getByRole("dialog")).getByText("保存失败，请稍后重试")).toBeTruthy();
 		});
 	});
 });

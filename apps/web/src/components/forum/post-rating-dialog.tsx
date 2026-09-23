@@ -41,6 +41,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { cn } from "@/lib/utils";
 import {
 	RATING_REASONS_BY_DIMENSION,
@@ -129,6 +130,7 @@ export function PostRatingDialog({
 }: PostRatingDialogProps) {
 	const toast = useForumToast();
 	const reasonInputId = useId();
+	const scoreErrorId = useId();
 	const customScoreId = useId();
 	const presetReasonId = useId();
 	const notifyId = useId();
@@ -143,7 +145,7 @@ export function PostRatingDialog({
 
 	// Reset every time the dialog opens — keeps state clean across re-entry.
 	useEffect(() => {
-		if (!open) return;
+		if (!open || submittingRef.current) return;
 		const initial = canRateCredits ? defaultDimension : RatingDimension.Coins;
 		setDimension(initial);
 		setScoreInput("");
@@ -159,9 +161,9 @@ export function PostRatingDialog({
 	const reasons = RATING_REASONS_BY_DIMENSION[dimensionKey];
 
 	// Parse + validate the score input (allow negative, reject zero / NaN).
-	const parsedScore = Number.parseInt(scoreInput, 10);
+	const parsedScore = Number(scoreInput);
 	const scoreValid =
-		!Number.isNaN(parsedScore) &&
+		Number.isInteger(parsedScore) &&
 		parsedScore !== 0 &&
 		Math.abs(parsedScore) >= bounds.min &&
 		Math.abs(parsedScore) <= bounds.max;
@@ -240,10 +242,16 @@ export function PostRatingDialog({
 			<DialogContent
 				className="flex flex-col overflow-hidden sm:max-w-lg"
 				showCloseButton={!submitting}
+				aria-busy={submitting}
+				onKeyDownCapture={(event) => {
+					handleSubmitShortcut(event.nativeEvent, () => {
+						void handleSubmit();
+					});
+				}}
 			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<ActiveIcon className="h-5 w-5 text-primary" />
+						<ActiveIcon className="h-5 w-5 text-primary" aria-hidden="true" />
 						评分
 					</DialogTitle>
 					<DialogDescription>
@@ -277,7 +285,7 @@ export function PostRatingDialog({
 											disabled && "opacity-50 cursor-not-allowed",
 										)}
 									>
-										<Icon className="h-3.5 w-3.5" />
+										<Icon className="h-3.5 w-3.5" aria-hidden="true" />
 										{meta.label}
 									</button>
 								);
@@ -323,9 +331,10 @@ export function PostRatingDialog({
 							onChange={(e) => setScoreInput(e.target.value)}
 							disabled={submitting}
 							aria-invalid={scoreInput !== "" && !scoreValid}
+							aria-describedby={scoreInput !== "" && !scoreValid ? scoreErrorId : undefined}
 						/>
 						{scoreInput !== "" && !scoreValid && (
-							<p className="text-xs text-destructive">
+							<p id={scoreErrorId} className="text-xs text-destructive">
 								请输入 ±{bounds.min}..±{bounds.max} 范围内的非零整数
 							</p>
 						)}
@@ -355,17 +364,21 @@ export function PostRatingDialog({
 							maxLength={RATING_REASON_MAX_LENGTH}
 							rows={2}
 							disabled={submitting}
-							aria-invalid={reasonTrimmed.length > RATING_REASON_MAX_LENGTH}
+							aria-invalid={reasonTrimmed.length > RATING_REASON_MAX_LENGTH || undefined}
+							aria-keyshortcuts="Control+Enter Meta+Enter"
 						/>
 						<p
 							className={cn(
-								"text-xs",
+								"flex items-center justify-between gap-3 text-xs",
 								reasonTrimmed.length > RATING_REASON_MAX_LENGTH
 									? "text-destructive"
 									: "text-muted-foreground",
 							)}
 						>
-							{reasonTrimmed.length} / {RATING_REASON_MAX_LENGTH}
+							<span>Enter 换行，Ctrl/⌘+Enter 提交</span>
+							<span>
+								{reasonTrimmed.length} / {RATING_REASON_MAX_LENGTH}
+							</span>
 						</p>
 					</div>
 
@@ -382,7 +395,10 @@ export function PostRatingDialog({
 
 					{/* Error display */}
 					{error && (
-						<div className="rounded-lg bg-destructive/10 text-destructive text-sm p-2.5">
+						<div
+							role="alert"
+							className="rounded-lg bg-destructive/10 text-destructive text-sm p-2.5"
+						>
 							{error}
 						</div>
 					)}
@@ -392,7 +408,7 @@ export function PostRatingDialog({
 					<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
 						取消
 					</Button>
-					<Button onClick={handleSubmit} disabled={!canSubmit}>
+					<Button onClick={() => void handleSubmit()} disabled={!canSubmit} aria-busy={submitting}>
 						{submitting ? "提交中…" : "提交评分"}
 					</Button>
 				</DialogFooter>

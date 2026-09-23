@@ -4,7 +4,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { deleteMyPost, deletePost, editMyPost, editPost } from "@/lib/moderation-api";
 
@@ -102,6 +102,7 @@ export function usePostActions({
 
 	// Delete operation state
 	const [deleting, setDeleting] = useState(false);
+	const deletingRef = useRef(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 
 	// Edit actions
@@ -120,10 +121,13 @@ export function usePostActions({
 	}, []);
 
 	const handleDeleteClose = useCallback(() => {
+		if (deletingRef.current) return;
 		setDeleteDialogOpen(false);
 	}, []);
 
 	const handleDeleteConfirm = useCallback(async () => {
+		if (deletingRef.current) return;
+		deletingRef.current = true;
 		setDeleting(true);
 		setDeleteError(null);
 		try {
@@ -147,6 +151,7 @@ export function usePostActions({
 			setDeleteError(message);
 			toast.error({ title: "删除失败", description: message });
 		} finally {
+			deletingRef.current = false;
 			setDeleting(false);
 		}
 	}, [postId, isOwnPost, canModerate, router, onDeleteSuccess, toast]);

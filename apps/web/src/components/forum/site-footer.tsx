@@ -13,7 +13,7 @@ export function SiteFooter({ vm }: { vm: GlobalFooterViewModel }) {
 		>
 			<div className="site-art-frame width-container" aria-hidden="true">
 				<div
-					className="site-footer-art"
+					className="site-footer-art max-h-40 sm:max-h-44"
 					aria-hidden="true"
 					data-testid="site-footer-bg-wrap"
 					style={
@@ -24,7 +24,7 @@ export function SiteFooter({ vm }: { vm: GlobalFooterViewModel }) {
 					}
 				/>
 			</div>
-			<div className="width-container relative flex min-h-40 flex-wrap items-center justify-between gap-6 py-6 sm:min-h-44 sm:py-8">
+			<div className="width-container relative flex min-h-48 flex-wrap items-center justify-between gap-6 pb-6 pt-10 sm:min-h-56 sm:pb-8 sm:pt-14">
 				<div className="flex items-center gap-5">
 					<div className="hidden sm:block" data-testid="site-footer-logo-wrap">
 						<ForumLogo height={40} lightSrc={vm.logoLight} darkSrc={vm.logoDark} alt={vm.logoAlt} />
