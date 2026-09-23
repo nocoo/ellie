@@ -305,6 +305,7 @@ cap-widget {
 	opacity: 0.4;
 }
 .site-footer-art {
+	left: 50%;
 	opacity: 0.5;
 }
 .dark .forum-header-art,
@@ -327,6 +328,9 @@ cap-widget {
 		width: 100%;
 		background-size: auto 100%;
 		background-position: 62% bottom;
+	}
+	.site-footer-art {
+		background-position: center bottom;
 	}
 }
 @media (forced-colors: active) {

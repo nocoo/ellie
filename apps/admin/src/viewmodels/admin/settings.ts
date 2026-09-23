@@ -97,13 +97,13 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 				inputType: "url",
 				placeholder: SITE_ART.footer.dark.src,
 			},
-			{ key: "general.site.copyright", label: "版权持有者", placeholder: "同济网" },
+			{ key: "general.site.copyright", label: "版权持有者", placeholder: "hexly.ai" },
 			{
 				key: "general.site.copyright_years",
 				label: "版权年份",
-				placeholder: "2001-2013",
+				placeholder: "2003-2026",
 			},
-			{ key: "general.site.powered_by", label: "页脚署名", placeholder: "Powered by Ellie" },
+			{ key: "general.site.powered_by", label: "页脚署名", placeholder: "Ellie" },
 		],
 	},
 	{

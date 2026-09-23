@@ -79,15 +79,23 @@ describe("buildGlobalFooterViewModel", () => {
 		expect(vm.siteName).toBe("Ellie");
 	});
 
-	it("reads copyrightYears from settings", () => {
-		const settings = { "general.site.copyright_years": "2020-2026" };
+	it("prefers configured footer credits", () => {
+		const settings = {
+			"general.site.copyright_years": "2020-2026",
+			"general.site.copyright": "Example Forum",
+			"general.site.powered_by": "Example Engine",
+		};
 		const vm = buildGlobalFooterViewModel(settings);
 		expect(vm.copyrightYears).toBe("2020-2026");
+		expect(vm.copyrightHolder).toBe("Example Forum");
+		expect(vm.poweredBy).toBe("Example Engine");
 	});
 
-	it("defaults copyrightYears to 2001-2013", () => {
+	it("defaults to Ellie project credits", () => {
 		const vm = buildGlobalFooterViewModel(emptySettings);
-		expect(vm.copyrightYears).toBe("2001-2013");
+		expect(vm.copyrightYears).toBe("2003-2026");
+		expect(vm.copyrightHolder).toBe("hexly.ai");
+		expect(vm.poweredBy).toBe("Ellie");
 	});
 
 	it("reads brand logo URLs from settings", () => {
