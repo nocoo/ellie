@@ -1,7 +1,7 @@
 "use client";
 
 import { SITE_ART } from "@ellie/shared";
-import { Award, CalendarCheck, House, LogOut, Search } from "lucide-react";
+import { House, LogOut, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -118,14 +118,6 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 				{vm.navTabs.map((tab) => {
 					const isActive =
 						pathname === tab.href || (tab.href !== "/" && pathname.startsWith(`${tab.href}/`));
-					const Icon =
-						tab.href === "/"
-							? House
-							: tab.href === "/digest"
-								? Award
-								: tab.href === "/checkin"
-									? CalendarCheck
-									: null;
 					return (
 						<Link
 							key={tab.href}
@@ -137,7 +129,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 							)}
 							data-testid="forum-nav-link"
 						>
-							{Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+							{tab.href === "/" && <House className="h-4 w-4" aria-hidden="true" />}
 							{tab.label}
 						</Link>
 					);
