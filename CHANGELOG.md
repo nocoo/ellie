@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Decouple forum-list display refreshes from expensive topic recounts. Reuse scoped totals for up to thirty minutes without renewing their expiry, and retain fresh page membership and next-page availability.
+- Prepare Web to reuse scoped topic totals for up to thirty minutes independently of display refreshes, while retaining fresh page membership and next-page availability.
 - Project anonymous attachment ownership consistently in thread contexts and existing public attachment endpoints.
 - Invalidate topic snapshots after successful rating creation/revocation and reuse existing mutation notifications for content, profile and moderation changes.
 - Recheck display/count expiry after context reads, including homepage selections replaced during a request. Retry a missing snapshot once; preserve a fifteen-second read deadline without limiting thread response size.
@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 ### Deployment
 
 - Deploy the Worker context endpoint before Web/Admin. No new schema migration or secret is required.
+- Retain the existing Worker recount behavior until this Web version is live. The following patch removes that coupling, avoiding a count-response mismatch with v1.14.4 during rollout.
 - Compare ten thirty-minute observation windows with the same windows three days earlier, reporting D1, KV, HTTP health and process-memory evidence separately from expected savings.
 
 ## [1.14.4] - 2026-09-24

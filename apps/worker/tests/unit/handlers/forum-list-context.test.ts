@@ -149,7 +149,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(response.status).toBe(200);
 		const next = await response.json();
 		expect(next.data.revision).not.toBe(cold.data.revision);
-		expect(next.data.count).toBeUndefined();
+		expect(next.data.count).toBe(removed ? 1 : 2);
 		const changed = next.data.display.threads.find((row: { id: number }) => row.id === 8);
 		if (removed) expect(changed).toBeUndefined();
 		else
@@ -506,7 +506,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(body.data.count).toBe(1);
 	});
 
-	it("forces only display when only the cached revision changes", async () => {
+	it("returns a count with refreshed display during the first rollout stage", async () => {
 		open();
 		f.thread(8, { subject: "Shown" });
 		const mismatch = await forumListContext(
@@ -521,10 +521,10 @@ describe("POST /api/v1/forums/context", () => {
 		);
 		const again = await mismatch.json();
 		expect(again.data.display.threads).toHaveLength(1);
-		expect(again.data.count).toBeUndefined();
+		expect(again.data.count).toBe(1);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		const sql = f.calls.map((call) => call.sql).join("\n");
-		expect(sql).not.toMatch(/COUNT\(\*\) AS total FROM threads/);
+		expect(sql).toMatch(/COUNT\(\*\) AS total FROM threads/);
 	});
 
 	it("rejects malformed transport before reading authority", async () => {

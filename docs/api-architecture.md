@@ -408,6 +408,8 @@ optional statistics are omitted. A second incomplete refill fails without servin
 expired data or recursively retrying.
 
 See [the design and review resolutions](35-thread-memory-and-count-optimization.md).
+Rollout is sequential: v1.14.5 installs these readers while retaining Worker
+count-on-display behavior; v1.14.6 removes the extra count after the new Web is live.
 
 ## Homepage context and memory display snapshots
 

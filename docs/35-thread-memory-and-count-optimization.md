@@ -18,6 +18,13 @@ Independent design review approved these resolutions. Implementation uses disjoi
 
 Capture the immediate pre-release baseline and September 21 Shanghai-day baseline.
 Deploy v1.14.5 through normal hooks and exact-revision CI, Worker before Web.
+The final rollout check found that v1.14.4 Web rejects a refreshed display with
+an omitted count, while v1.14.5 Web also needs a new Worker endpoint. Therefore
+v1.14.5 retains the original Worker recount condition while publishing the
+new endpoint and Web reader. After that Web revision is verified live, v1.14.6
+removes the single recount coupling. No compatibility flag or obsolete route is
+added. The ten observation windows begin after the v1.14.6 cutover; the v1.14.5
+transition remains separate evidence.
 Record ten nonoverlapping thirty-minute windows after cutover, with a short
 analytics lag, version/process identities, Worker/KV/D1 totals and normalized
 rates, HTTP errors, KV storage and bounded memory counters. Do not treat
