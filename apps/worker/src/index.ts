@@ -110,6 +110,9 @@ export default {
 			if (path === "/api/v1/threads/count" && request.method === "GET") {
 				return await (await import("./handlers/thread")).count(request, env, ctx);
 			}
+			if (path === "/api/v1/threads/context" && request.method === "POST") {
+				return await (await import("./handlers/thread-context")).threadContext(request, env);
+			}
 			if (path.match(/^\/api\/v1\/threads\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/thread")).getById(request, env, ctx);
 			}

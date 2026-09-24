@@ -14,6 +14,8 @@ import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForumApiError } from "@/lib/forum-api";
 
+const invalidate = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/display-invalidation", () => ({ invalidateDisplayAfterWrite: invalidate }));
 const postAuthMock = vi.fn();
 const getMock = vi.fn();
 const getAuthMock = vi.fn();
@@ -42,6 +44,7 @@ vi.mock("@/lib/client-ip", () => ({
 const emptyClient = { ip: undefined, userAgent: undefined };
 
 beforeEach(() => {
+	invalidate.mockReset();
 	postAuthMock.mockReset();
 	getMock.mockReset();
 	getAuthMock.mockReset();
@@ -88,6 +91,7 @@ describe("POST /api/v1/posts/:id/rate", () => {
 		const { POST } = await import("@/app/api/v1/posts/[id]/rate/route");
 		const res = await POST(makeJsonRequest(url, sampleBody, { origin: null }), { params });
 		expect(res.status).toBe(403);
+		expect(invalidate).not.toHaveBeenCalled();
 		expect(getWorkerJwtMock).not.toHaveBeenCalled();
 		expect(postAuthMock).not.toHaveBeenCalled();
 	});
@@ -112,6 +116,7 @@ describe("POST /api/v1/posts/:id/rate", () => {
 		const { POST } = await import("@/app/api/v1/posts/[id]/rate/route");
 		const res = await POST(makeJsonRequest(url, sampleBody), { params });
 		expect(res.status).toBe(403);
+		expect(invalidate).not.toHaveBeenCalled();
 		const body = await res.json();
 		expect(body).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
 	});
@@ -124,6 +129,7 @@ describe("POST /api/v1/posts/:id/rate", () => {
 		const { POST } = await import("@/app/api/v1/posts/[id]/rate/route");
 		const res = await POST(makeJsonRequest(url, sampleBody), { params });
 		expect(res.status).toBe(409);
+		expect(invalidate).not.toHaveBeenCalled();
 		const body = await res.json();
 		expect(body).toEqual({ error: { code: "RATING_DUPLICATE", message: "Already rated" } });
 	});
@@ -150,6 +156,7 @@ describe("POST /api/v1/posts/:id/rate", () => {
 		const { POST } = await import("@/app/api/v1/posts/[id]/rate/route");
 		const res = await POST(makeJsonRequest(url, sampleBody), { params });
 		expect(res.status).toBe(201);
+		expect(invalidate).toHaveBeenCalledExactlyOnceWith({ threadDetail: { all: true } });
 		expect(postAuthMock).toHaveBeenCalledWith(
 			"/api/v1/posts/42/rate",
 			sampleBody,
@@ -241,6 +248,7 @@ describe("POST /api/v1/posts/:id/ratings/:ratingId/revoke (204 channel)", () => 
 		const { POST } = await import("@/app/api/v1/posts/[id]/ratings/[ratingId]/revoke/route");
 		const res = await POST(makeJsonRequest(url, {}, { origin: null }) as any, { params });
 		expect(res.status).toBe(403);
+		expect(invalidate).not.toHaveBeenCalled();
 		expect(getWorkerJwtMock).not.toHaveBeenCalled();
 		expect(postAuthMock).not.toHaveBeenCalled();
 	});
@@ -260,6 +268,7 @@ describe("POST /api/v1/posts/:id/ratings/:ratingId/revoke (204 channel)", () => 
 		const { POST } = await import("@/app/api/v1/posts/[id]/ratings/[ratingId]/revoke/route");
 		const res = await POST(makeJsonRequest(url, {}) as any, { params });
 		expect(res.status).toBe(204);
+		expect(invalidate).toHaveBeenCalledExactlyOnceWith({ threadDetail: { all: true } });
 		// 204 must have an empty body — no stray "{}" payload.
 		const text = await res.text();
 		expect(text).toBe("");
@@ -293,6 +302,7 @@ describe("POST /api/v1/posts/:id/ratings/:ratingId/revoke (204 channel)", () => 
 		const { POST } = await import("@/app/api/v1/posts/[id]/ratings/[ratingId]/revoke/route");
 		const res = await POST(makeJsonRequest(url, {}) as any, { params });
 		expect(res.status).toBe(403);
+		expect(invalidate).not.toHaveBeenCalled();
 		expect(await res.json()).toEqual({
 			error: { code: "FORBIDDEN_MOD_ONLY", message: "Admin/SuperMod only" },
 		});

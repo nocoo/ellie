@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.5] - 2026-09-24
+
+### Fixed
+
+- Decouple forum-list display refreshes from expensive topic recounts. Reuse scoped totals for up to thirty minutes without renewing their expiry, and retain fresh page membership and next-page availability.
+- Project anonymous attachment ownership consistently in thread contexts and existing public attachment endpoints.
+- Invalidate topic snapshots after successful rating creation/revocation and reuse existing mutation notifications for content, profile and moderation changes.
+- Recheck display/count expiry after context reads, including homepage selections replaced during a request. Retry a missing snapshot once; preserve a fifteen-second read deadline without limiting thread response size.
+
+### Changed
+
+- Share one authorized Worker context across thread metadata, layout and page rendering. Warm reads skip post bodies, ratings, attachments and author-profile expansion without accessing KV; current users, permissions and thread fields remain fresh.
+- Keep at most 100 thread snapshots in Next.js memory, retaining one selected page per topic. Enforce a 256 KiB entry ceiling, four-MiB family ceiling and the existing aggregate memory budget; oversized pages still render.
+- Actively expire snapshots after at most thirty minutes, cap their lifetime at Shanghai midnight, fence concurrent invalidation, and rebuild from D1 after restart. Expose the family in Admin memory management.
+
+### Deployment
+
+- Deploy the Worker context endpoint before Web/Admin. No new schema migration or secret is required.
+- Compare ten thirty-minute observation windows with the same windows three days earlier, reporting D1, KV, HTTP health and process-memory evidence separately from expected savings.
+
 ## [1.14.4] - 2026-09-24
 
 ### Changed

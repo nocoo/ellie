@@ -5,23 +5,14 @@
 
 import type { ForumContext, Thread } from "@ellie/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { forumApi } from "@/lib/forum-api";
-import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
-import { getCachedForumAncestors, getCachedThreadById, recordThreadView } from "@/lib/forum-cache";
+import { getCachedThreadContext, recordThreadView } from "@/lib/forum-cache";
 import { loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ headers: vi.fn() }));
 vi.mock("@/lib/forum-cache", () => ({
-	getCachedForumAncestors: vi.fn(),
-	getCachedPostsPerPage: vi.fn(async () => 20),
-	getCachedThreadById: vi.fn(),
+	getCachedThreadContext: vi.fn(),
 	recordThreadView: vi.fn(),
-}));
-vi.mock("@/lib/forum-auth", () => ({
-	getCurrentForumUser: vi.fn(async () => null),
-	getWorkerJwt: vi.fn(async () => null),
-	authPatch: vi.fn(),
 }));
 vi.mock("@/lib/forum-api", () => ({
 	forumApi: {
@@ -84,14 +75,18 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	headerBag = new Headers();
 	vi.mocked(headers).mockResolvedValue(headerBag);
-	vi.mocked(getCurrentForumUser).mockResolvedValue(null);
-	vi.mocked(getWorkerJwt).mockResolvedValue(null);
-	vi.mocked(getCachedForumAncestors).mockResolvedValue({ forum: FORUM, ancestors: [] });
-	vi.mocked(forumApi.getCursor).mockResolvedValue({ data: [], meta: { nextCursor: null } });
 });
 
 async function render(thread: Thread) {
-	vi.mocked(getCachedThreadById).mockResolvedValue(thread);
+	vi.mocked(getCachedThreadContext).mockResolvedValue({
+		thread,
+		user: null,
+		nextCursor: null,
+		revision: "a".repeat(64),
+		cacheable: true,
+		stats: undefined,
+		display: { forum: FORUM, ancestors: [], posts: [], authors: [], attachments: [] },
+	});
 	return loadThreadDetail({ threadId: thread.id });
 }
 

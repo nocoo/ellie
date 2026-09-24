@@ -15,23 +15,9 @@ import {
 	isReadingBucket,
 	type ModeratorInfo,
 	type ReadingBucket,
-	type Thread,
 } from "@ellie/types";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { forumApi } from "./forum-api";
-
-/** Fetch a single thread by ID. */
-export async function fetchThreadById(threadId: number): Promise<Thread> {
-	const { data } = await forumApi.get<Thread>(`/api/v1/threads/${threadId}`);
-	return data;
-}
-
-export async function fetchThreadMetadata(threadId: number): Promise<Thread> {
-	const { data } = await forumApi.get<Thread>(`/api/v1/threads/${threadId}`, undefined, {
-		readPurpose: "metadata",
-	});
-	return data;
-}
 
 /** Fetch the full forum list. */
 export async function fetchForumList(): Promise<Forum[]> {

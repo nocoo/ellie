@@ -1,4 +1,4 @@
-import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
+import { invalidateDisplayAfterWrite, parseRouteId } from "@/lib/display-invalidation";
 import { proxyRoute } from "@/lib/forum-route-proxy";
 
 /**
@@ -7,11 +7,15 @@ import { proxyRoute } from "@/lib/forum-route-proxy";
  * DELETE /api/v1/moderation/threads/:id/recommend — remove it
  *
  * Mod+ only (worker enforces canModerate). Both verbs are idempotent —
- * see `apps/worker/src/handlers/recommended.ts`. The display layer caps
- * at 6 newest threads; the data layer is uncapped.
+ * see `apps/worker/src/handlers/recommended.ts`. Display caps at 6 newest
+ * threads; recommend cards do not affect thread-count.
  */
-const invalidate = <T>(result: T): T => {
-	invalidateDisplayAfterWrite({ homeDisplay: true });
+const invalidate = <T>(result: T, ctx: { params: { id: string } }): T => {
+	const threadId = parseRouteId(ctx.params.id);
+	invalidateDisplayAfterWrite({
+		homeDisplay: true,
+		threadDetail: threadId != null ? { threadId } : { all: true },
+	});
 	return result;
 };
 

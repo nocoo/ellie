@@ -353,7 +353,9 @@ The response data is `{ bucket, user, revision, page, limit, typeId, hasNext,
 display?, stats?, count? }`. Worker derives the current bucket and normalized type,
 verifies full forum ancestry and current page membership, and returns fresh display
 and count when reuse is unsafe. Otherwise Next combines the response with its
-bounded `forum-list` display entry and existing five-minute numeric caches.
+bounded `forum-list` display entry, thirty-minute thread counts and five-minute statistics.
+Display revision changes do not force a new total unless the bucket or normalized
+type changes. Reusing a total does not renew its expiry; fresh `hasNext` remains authoritative.
 No identity or permission result is admitted into process display memory.
 
 List anonymous authors and anonymous last posters are masked for all viewers,
@@ -367,6 +369,45 @@ snapshots; global announcements and unknown scope clear the list family.
 
 The [implementation plan](33-forum-list-memory-read-plan.md) specifies response and
 intermediate-read bounds, cache ceilings, TTL, invalidation, and validation scope.
+
+## Thread context and bounded detail snapshots
+
+Thread metadata, layout and page share the server-only Key A
+`POST /api/v1/threads/context` read with optional verified JWT. No browser proxy
+is needed. The strict request is `{ threadId, limit, cursor, last,
+cachedRevision, includeDisplay, includeStats }`; nullable fields are explicit,
+limit is 1..100, cursor selects a nonnegative post position, and cursor plus
+last is rejected. Unknown fields/query parameters and oversized request bodies
+are rejected. Responses are private/no-store with normal request metadata.
+
+Every response returns fresh `{ thread, user, revision, cacheable, nextCursor }`
+and optional `display`/`stats`. Authority and current page/privacy/profile-status
+gates read D1 directly. A matching eligible revision skips post bodies, ratings,
+attachments and public profile expansion. This route does not access KV or
+increment views. A successful Web page render retains the existing five-minute
+view/activity buffer and optimistic view display; prefetches do not count.
+
+The display contains posts, public author profiles, projected attachments,
+nullable forum context and ancestors. Private topics, staff, pending topics and viewers entitled
+to reveal anonymous identities receive a complete private display on every read;
+Web neither admits it nor substitutes a shared snapshot. Anonymous attachment
+owners are masked consistently in this context and existing public endpoints.
+
+Next.js stores one latest selection per `thread:ID`: at most 100 topic entries,
+256 KiB each, four MiB for this family within the existing eight-MiB process
+payload budget. Oversize responses still render through ordinary `post` transport
+with an explicit fifteen-second abort deadline.
+The absolute thirty-minute expiry is capped at Shanghai midnight; the existing
+minute timer prunes idle entries. Hits do not renew expiry. Restart starts cold
+from D1. Successful mutations reuse the existing notification path to invalidate
+memory separately from Worker KV, including rating creation/revocation.
+The Admin memory panel lists and clears this family through its existing contract.
+Home, list and thread loaders recheck retained snapshots after the Worker response;
+expiry, clear or an incompatible replacement triggers one full refill. Missing
+optional statistics are omitted. A second incomplete refill fails without serving
+expired data or recursively retrying.
+
+See [the design and review resolutions](35-thread-memory-and-count-optimization.md).
 
 ## Homepage context and memory display snapshots
 

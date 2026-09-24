@@ -7,6 +7,11 @@
 // shape and other gates (`PERMISSION_DENIED`, `OUT_OF_RANGE`,
 // `DAILY_LIMIT_EXCEEDED`, `DUPLICATE`, `SELF_RATING`, etc.) reach the
 // client unchanged.
+//
+// Success-only invalidation: `proxyRoute.transform` only runs on 2xx, so
+// the worker-side rejection paths (DUPLICATE, OUT_OF_RANGE, etc.) leave
+// the thread-detail cache untouched.
+import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
 import { proxyRoute } from "@/lib/forum-route-proxy";
 
 export const POST = proxyRoute<{ id: string }>({
@@ -14,5 +19,10 @@ export const POST = proxyRoute<{ id: string }>({
 	path: ({ id }) => `/api/v1/posts/${id}/rate`,
 	body: "json",
 	successStatus: 201,
+	transform: (result) => {
+		// PostId only — the parent threadId is not in the response envelope.
+		invalidateDisplayAfterWrite({ threadDetail: { all: true } });
+		return result;
+	},
 	debugTag: "posts/[id]/rate/route",
 });

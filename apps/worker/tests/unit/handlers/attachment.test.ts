@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { listByPost } from "../../../src/handlers/attachment";
 import type { Env } from "../../../src/lib/env";
-import { createMockDb, createMockKV, makeD1AttachmentRow, TEST_JWT_SECRET } from "../../helpers";
+import {
+	createJwtForRole,
+	createMockDb,
+	createMockKV,
+	makeD1AttachmentRow,
+	TEST_JWT_SECRET,
+} from "../../helpers";
 
 describe("attachment handlers", () => {
 	const mockEnv: Env = {
@@ -52,6 +58,86 @@ describe("attachment handlers", () => {
 			expect(data.data[0].isImage).toBe(true);
 			expect(data.data[1].id).toBe(2);
 			expect(data.data[1].isImage).toBe(false);
+		});
+
+		it("zeros attachment ownership when the post is anonymous", async () => {
+			const row = makeD1AttachmentRow({
+				id: 1,
+				post_id: 42,
+				author_id: 10,
+				file_path: "202003/15/photo.jpg",
+			});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+						anonymous: 1,
+						author_id: 10,
+					},
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
+				},
+				allResults: {
+					"FROM attachments WHERE post_id": [row],
+				},
+			});
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/42/attachments"),
+				{ ...mockEnv, DB: db },
+			);
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data[0].authorId).toBe(0);
+			expect(data.data[0].filePath).toBe("202003/15/photo.jpg");
+			expect(data.data[0].filename).toBe("test.jpg");
+		});
+
+		it("keeps attachment ownership for the anonymous post author", async () => {
+			const row = makeD1AttachmentRow({
+				id: 1,
+				post_id: 42,
+				author_id: 10,
+				file_path: "user/10/photo.jpg",
+			});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, thread_id, invisible, anonymous, author_id FROM posts WHERE id": {
+						thread_id: 1,
+						invisible: 0,
+						anonymous: 1,
+						author_id: 10,
+					},
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"JOIN forums f": {
+						forum_id: 1,
+						sticky: 0,
+						author_id: 10,
+						status: 1,
+						visibility: "public",
+						moderator_ids: "",
+					},
+				},
+				allResults: {
+					"FROM attachments WHERE post_id": [row],
+				},
+			});
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/42/attachments", {
+					headers: { Authorization: `Bearer ${await createJwtForRole(0, 10)}` },
+				}),
+				{ ...mockEnv, DB: db },
+			);
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data[0].authorId).toBe(10);
+			expect(data.data[0].filePath).toBe("user/10/photo.jpg");
 		});
 
 		it("should return empty array when no attachments", async () => {

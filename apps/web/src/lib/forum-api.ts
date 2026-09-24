@@ -111,6 +111,7 @@ interface RequestOptions {
 	clientUA?: string;
 	readPurpose?: "metadata" | "prefetch";
 	boundedRead?: boolean;
+	signal?: AbortSignal;
 }
 
 function buildHeaders(opts: RequestOptions): Record<string, string> {
@@ -175,7 +176,9 @@ async function request<T>(
 		headers,
 		body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
 		cache: "no-store",
-		signal: opts.method === "GET" || opts.boundedRead ? AbortSignal.timeout(15_000) : undefined,
+		signal:
+			opts.signal ??
+			(opts.method === "GET" || opts.boundedRead ? AbortSignal.timeout(15_000) : undefined),
 	});
 
 	const json = await parseResponse(res, opts.boundedRead);
@@ -312,8 +315,8 @@ export const forumApi = {
 	},
 
 	/** POST: { data: T, meta } */
-	async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "POST", path, body });
+	async post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "POST", path, body, signal });
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
@@ -345,6 +348,7 @@ export const forumApi = {
 		body: unknown,
 		bearerToken: string,
 		client?: ClientContext,
+		signal?: AbortSignal,
 	): Promise<ApiResponse<T>> {
 		const result = await request<T>({
 			method: "POST",
@@ -353,6 +357,7 @@ export const forumApi = {
 			bearerToken,
 			clientIP: client?.ip,
 			clientUA: client?.userAgent,
+			signal,
 		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},

@@ -43,7 +43,7 @@ describe("bounded process cache", () => {
 		const before = runtime.snapshot(query);
 		runtime.snapshot(query);
 		expect(runtime.snapshot(query).families).toEqual(before.families);
-		now += 300_000;
+		now += 30 * 60_000;
 		const fail = vi.fn().mockRejectedValue(new Error("offline"));
 		await expect(runtime.read("thread-count", "anon:1", fail)).rejects.toThrow("offline");
 		await expect(runtime.read("thread-count", "anon:1", fail)).rejects.toThrow("offline");

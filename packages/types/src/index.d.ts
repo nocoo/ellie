@@ -22,6 +22,7 @@ export type { StatisticsActivityObservation, StatisticsActivityResult, Statistic
 export { isStatisticsWriteStatus, observedAtInRange, parseStatisticsBatchRequest, parseStatisticsBatchResult, STATISTICS_BATCH_ERROR_CODES, STATISTICS_BATCH_HTTP_STATUS, STATISTICS_BATCH_MAX_ACTIVITIES, STATISTICS_BATCH_MAX_BODY_BYTES, STATISTICS_BATCH_MAX_VIEWS, STATISTICS_BATCH_MESSAGES, STATISTICS_BATCH_NO_STORE, STATISTICS_BATCH_PATH, STATISTICS_ID_MAX, STATISTICS_OBSERVED_AT_FUTURE_SKEW_SECONDS, STATISTICS_OBSERVED_AT_MAX_AGE_SECONDS, STATISTICS_VIEW_INCREMENT_MAX, STATISTICS_WRITE_HEADER, STATISTICS_WRITE_STATUSES, statisticsBatchError, statisticsBatchErrorEnvelope, } from "./statistics-batch";
 export type { HighlightStyle, ThreadBadge, ThreadBadgeSource } from "./thread";
 export { decodeHighlight, getThreadBadges } from "./thread";
+export * from "./thread-detail";
 export type { Attachment, CensorWord, Forum, ForumThreadType, ForumThreadTypeConfig, ForumVisibility, IpBan, Post, PostComment, PostThreadSummary, PublicUser, Thread, User, UserPostHistoryItem, } from "./types";
 export * from "./types";
 export { isUserBanned, isUserMuted } from "./user";

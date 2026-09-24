@@ -282,6 +282,26 @@ async function loadStatsUsers(
 	);
 	return new Map(rows.map((row) => [Number(row.id), statsUser(row)]));
 }
+/** Direct public profiles. Batches of 80. Never includes staff-only IP fields. */
+export async function loadPublicUsersDirect(
+	env: Env,
+	ids: readonly number[],
+): Promise<Map<number, PublicUser>> {
+	const unique = [...new Set(ids)].filter((id) => Number.isSafeInteger(id) && id > 0);
+	if (unique.length === 0) return new Map();
+	const [stable, stats] = await Promise.all([
+		loadStableUsers(env, unique, false),
+		loadStatsUsers(env, unique),
+	]);
+	const result = new Map<number, PublicUser>();
+	for (const id of unique) {
+		const profile = stable.get(id);
+		const counters = stats.get(id);
+		if (profile && counters) result.set(id, { ...profile, ...counters });
+	}
+	return result;
+}
+
 export async function loadUserPublicFromDb(
 	env: Env,
 	id: number,

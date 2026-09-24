@@ -77,8 +77,7 @@ export interface ProxyRouteOptions<P> {
 	query?: ProxyQueryMode;
 	/** Default 200. Set 201 for create endpoints. */
 	successStatus?: number;
-	/** Future-batch hook; default identity. */
-	transform?: (result: unknown) => unknown;
+	transform?: (result: unknown, ctx: { params: P }) => unknown;
 	/** Future-batch hook; default `forumApiErrorToProxyResponse`. */
 	onForumApiError?: (err: ForumApiError) => Response;
 	/** Diagnostic tag in console.error. Defaults to the templated path. */
@@ -291,7 +290,8 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 				query: flatQuery,
 				client,
 			});
-			return NextResponse.json(transform(result), { status: successStatus });
+			const transformed = transform(result, { params });
+			return NextResponse.json(transformed, { status: successStatus });
 		} catch (err) {
 			if (err instanceof ForumApiError) return onForumApiError(err);
 			console.error(`[proxyRoute:${opts.debugTag ?? path}] forumApi error:`, err);

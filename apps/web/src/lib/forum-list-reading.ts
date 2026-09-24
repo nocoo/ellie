@@ -18,55 +18,25 @@ import { getMemoryRuntime, type MemoryRuntime } from "./memory-runtime";
 
 type ListParams = ForumListLocation & { limit: number };
 
-export function loadForumListContext(params: ListParams) {
-	const runtime = getMemoryRuntime();
-	return runtime.runLoad("forum-list", () => readContext(runtime, params));
-}
-
-function bucketHint(jwt: string | null, role: number | undefined): ReadingBucket {
-	if (!jwt) return "anon";
-	if (role === UserRole.Admin) return "admin";
-	if (role === UserRole.Mod || role === UserRole.SuperMod) return "staff";
-	return "member";
-}
-
-async function readContext(runtime: MemoryRuntime, params: ListParams) {
-	const [jwt, session] = await Promise.all([getWorkerJwt(), getCurrentForumUser()]);
-	const hint = bucketHint(jwt, session?.role);
-	const { forumId, page, limit, typeId } = params;
-	const key = forumListCacheKey(hint, forumId, page, limit, typeId);
-	const displayToken = runtime.capture("forum-list");
-	const statsToken = runtime.capture("site-stats");
-	const countToken = runtime.capture("thread-count");
-	const cached = runtime.peek<ForumListSnapshot>("forum-list", key);
-	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
-	const cachedCount = runtime.peek<number>("thread-count", threadCountKey(forumId, typeId, hint));
-	const { data } = await forumApi.postRead<ForumListContextData>(
-		FORUM_LIST_CONTEXT_PATH,
-		{
-			...params,
-			cachedBucket: hint,
-			cachedRevision: cached?.revision ?? null,
-			includeDisplay: !cached,
-			includeStats: cachedStats === undefined,
-			includeCount: cachedCount === undefined,
-		},
-		jwt ?? undefined,
-	);
+function validateContext(data: ForumListContextData, params: ListParams) {
 	if (
 		!data ||
 		!isReadingBucket(data.bucket) ||
-		data.page !== page ||
-		data.limit !== limit ||
-		(data.typeId !== null && data.typeId !== typeId) ||
+		data.page !== params.page ||
+		data.limit !== params.limit ||
+		(data.typeId !== null && data.typeId !== params.typeId) ||
 		typeof data.hasNext !== "boolean" ||
 		typeof data.revision !== "string" ||
 		!/^[a-f0-9]{64}$/.test(data.revision)
 	)
 		throw new Error("Invalid forum list context");
-	const sameKey = data.bucket === hint && data.typeId === typeId;
-	const display =
-		data.display ?? (sameKey && data.revision === cached?.revision ? cached.display : undefined);
+}
+
+function validateDisplay(
+	display: ForumListSnapshot["display"] | undefined,
+	forumId: number,
+	limit: number,
+): asserts display is ForumListSnapshot["display"] {
 	if (
 		!display ||
 		!Array.isArray(display.forums) ||
@@ -80,7 +50,71 @@ async function readContext(runtime: MemoryRuntime, params: ListParams) {
 	) {
 		throw new Error("Incomplete forum list context");
 	}
-	const total = data.count ?? (sameKey && !data.display ? cachedCount : undefined);
+}
+
+export function loadForumListContext(params: ListParams) {
+	const runtime = getMemoryRuntime();
+	return runtime.runLoad("forum-list", () => readContext(runtime, params));
+}
+
+function bucketHint(jwt: string | null, role: number | undefined): ReadingBucket {
+	if (!jwt) return "anon";
+	if (role === UserRole.Admin) return "admin";
+	if (role === UserRole.Mod || role === UserRole.SuperMod) return "staff";
+	return "member";
+}
+
+async function readContext(
+	runtime: MemoryRuntime,
+	params: ListParams,
+	forceFresh = false,
+): Promise<
+	ForumListContextData & {
+		forumId: number;
+		display: ForumListSnapshot["display"];
+		total: number;
+		stats: HomeStats | undefined;
+	}
+> {
+	const [jwt, session] = await Promise.all([getWorkerJwt(), getCurrentForumUser()]);
+	const hint = bucketHint(jwt, session?.role);
+	const { forumId, page, limit, typeId } = params;
+	const key = forumListCacheKey(hint, forumId, page, limit, typeId);
+	const displayToken = runtime.capture("forum-list");
+	const statsToken = runtime.capture("site-stats");
+	const countToken = runtime.capture("thread-count");
+	const cached = forceFresh ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
+	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
+	const countKey = threadCountKey(forumId, typeId, hint);
+	const cachedCount = forceFresh ? undefined : runtime.peek<number>("thread-count", countKey);
+	const { data } = await forumApi.postRead<ForumListContextData>(
+		FORUM_LIST_CONTEXT_PATH,
+		{
+			...params,
+			cachedBucket: hint,
+			cachedRevision: cached?.revision ?? null,
+			includeDisplay: !cached,
+			includeStats: cachedStats === undefined,
+			includeCount: cachedCount === undefined,
+		},
+		jwt ?? undefined,
+	);
+	validateContext(data, params);
+	const sameKey = data.bucket === hint && data.typeId === typeId;
+	const current =
+		data.display || forceFresh ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
+	const currentCount =
+		data.count === undefined && !forceFresh
+			? runtime.peek<number>("thread-count", countKey)
+			: undefined;
+	const reusable = sameKey && current?.revision === data.revision;
+	const lostDisplay = !data.display && sameKey && cached?.revision === data.revision && !reusable;
+	const lostCount =
+		data.count === undefined && sameKey && cachedCount !== undefined && currentCount === undefined;
+	if (lostDisplay || lostCount) return readContext(runtime, params, true);
+	const display = data.display ?? (reusable ? current.display : undefined);
+	validateDisplay(display, forumId, limit);
+	const total = data.count ?? (sameKey ? currentCount : undefined);
 	if (total === undefined || !Number.isSafeInteger(total) || total < 0) {
 		throw new Error("Invalid forum list count");
 	}
@@ -98,5 +132,11 @@ async function readContext(runtime: MemoryRuntime, params: ListParams) {
 	if (data.count !== undefined)
 		runtime.admit(threadCountKey(forumId, data.typeId, data.bucket), data.count, countToken);
 	if (data.user) runtime.recordActivity(data.user.id);
-	return { ...data, forumId, display, total, stats: data.stats ?? cachedStats };
+	return {
+		...data,
+		forumId,
+		display,
+		total,
+		stats: data.stats ?? runtime.peek<HomeStats>("site-stats", "site:v1"),
+	};
 }

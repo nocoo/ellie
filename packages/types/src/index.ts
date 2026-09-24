@@ -219,6 +219,7 @@ export {
 // ─── Thread ──────────────────────────────────────────────────
 export type { HighlightStyle, ThreadBadge, ThreadBadgeSource } from "./thread";
 export { decodeHighlight, getThreadBadges } from "./thread";
+export * from "./thread-detail";
 // ─── Entity Interfaces ───────────────────────────────────────
 export type {
 	Attachment,

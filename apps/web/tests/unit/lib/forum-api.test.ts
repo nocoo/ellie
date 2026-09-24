@@ -799,3 +799,48 @@ describe("forumApi bounded read-only POST", () => {
 		});
 	});
 });
+
+describe("forumApi variable-size read-only POST", () => {
+	it("forwards explicit deadlines with or without bearer authorization", async () => {
+		const signal = new AbortController().signal;
+		await forumApi.post("/api/v1/threads/context", {}, signal);
+		await forumApi.postAuth("/api/v1/threads/context", {}, "jwt", undefined, signal);
+		for (const call of mockFetchFn.mock.calls) {
+			expect((call as [string, RequestInit])[1].signal).toBe(signal);
+		}
+		expect((mockFetchFn.mock.calls[1] as [string, RequestInit])[1].headers).toMatchObject({
+			Authorization: "Bearer jwt",
+		});
+	});
+
+	it("renders responses larger than the bounded-read ceiling", async () => {
+		const content = "x".repeat(2 * 1024 * 1024 + 1);
+		mockFetchFn.mockResolvedValueOnce(mockResponse({ data: { content } }));
+		const response = await forumApi.post<{ content: string }>(
+			"/api/v1/threads/context",
+			{},
+			new AbortController().signal,
+		);
+		expect(response.data.content).toBe(content);
+	});
+
+	it("aborts a stalled response body after headers have arrived", async () => {
+		const controller = new AbortController();
+		mockFetchFn.mockImplementation((_url: string, options: RequestInit) => {
+			const stream = new ReadableStream({
+				start(body) {
+					body.enqueue(new TextEncoder().encode('{"data":'));
+					options.signal?.addEventListener("abort", () => body.error(options.signal?.reason), {
+						once: true,
+					});
+				},
+			});
+			return Promise.resolve(new Response(stream));
+		});
+		const response = forumApi.post("/api/v1/threads/context", {}, controller.signal);
+		const rejected = expect(response).rejects.toMatchObject({ name: "AbortError" });
+		await Promise.resolve();
+		controller.abort();
+		await rejected;
+	});
+});

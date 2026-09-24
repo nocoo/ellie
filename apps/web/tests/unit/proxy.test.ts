@@ -395,6 +395,19 @@ describe("proxy", () => {
 		expect(new Headers(options?.request?.headers).get("x-ellie-forum-list")).toBe(expected);
 	});
 
+	it.each([
+		["/threads/2", "2?"],
+		["/threads/2/3?last=1&cursor=bad", "2?page=3"],
+		["/forums/2", null],
+	])("overwrites or removes the thread hint for %s", async (path, expected) => {
+		mockAuth.mockResolvedValue(null);
+		const request = makeMockNextRequest(path);
+		request.headers = new Headers({ "x-ellie-thread": "999?last=1" });
+		await proxy(request);
+		const options = vi.mocked(NextResponse.next).mock.calls.at(-1)?.[0];
+		expect(new Headers(options?.request?.headers).get("x-ellie-thread")).toBe(expected);
+	});
+
 	it.each([true, false])(
 		"derives the internal prefetch hint and overwrites client input (%s)",
 		async (prefetch) => {

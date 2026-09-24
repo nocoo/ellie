@@ -149,7 +149,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(response.status).toBe(200);
 		const next = await response.json();
 		expect(next.data.revision).not.toBe(cold.data.revision);
-		expect(next.data.count).toBe(removed ? 1 : 2);
+		expect(next.data.count).toBeUndefined();
 		const changed = next.data.display.threads.find((row: { id: number }) => row.id === 8);
 		if (removed) expect(changed).toBeUndefined();
 		else
@@ -304,16 +304,22 @@ describe("POST /api/v1/forums/context", () => {
 		});
 		f.thread(8, { type_id: 7, type_name: "News", subject: "Typed", last_post_at: 10 });
 		f.thread(100, { sticky: 2, subject: "Global", last_post_at: 50 });
-		const typed = await (await forumListContext(post(request({ typeId: 7 })), f.env)).json();
+		const typed = await (
+			await forumListContext(post(request({ typeId: 7, includeCount: true })), f.env)
+		).json();
 		expect(typed.data.typeId).toBe(7);
 		expect(typed.data.display.threads.map((row: { id: number }) => row.id)).toEqual([8]);
 		expect(typed.data.count).toBe(1);
 		f.thread(101, { sticky: 2, type_id: 7, last_post_at: 60 });
-		const typedGlobal = await (await forumListContext(post(request({ typeId: 7 })), f.env)).json();
+		const typedGlobal = await (
+			await forumListContext(post(request({ typeId: 7, includeCount: true })), f.env)
+		).json();
 		expect(typedGlobal.data.display.threads.map((row: { id: number }) => row.id)).toEqual([101, 8]);
 		expect(typedGlobal.data.count).toBe(2);
 
-		const cold = await (await forumListContext(post(request()), f.env)).json();
+		const cold = await (
+			await forumListContext(post(request({ includeCount: true })), f.env)
+		).json();
 		const normalized = await forumListContext(
 			post(
 				request({
@@ -347,7 +353,10 @@ describe("POST /api/v1/forums/context", () => {
 		f.thread(2, { last_post_at: 20 });
 		f.thread(3, { last_post_at: 10 });
 		const first = await (
-			await forumListContext(post(request({ limit: 2, includeDisplay: true })), f.env)
+			await forumListContext(
+				post(request({ limit: 2, includeDisplay: true, includeCount: true })),
+				f.env,
+			)
 		).json();
 		expect(first.data.display.threads.map((row: { id: number }) => row.id)).toEqual([1, 2]);
 		expect(first.data.hasNext).toBe(true);
@@ -358,7 +367,10 @@ describe("POST /api/v1/forums/context", () => {
 		expect(second.data.display.threads.map((row: { id: number }) => row.id)).toEqual([3]);
 		expect(second.data.hasNext).toBe(false);
 		const empty = await (
-			await forumListContext(post(request({ page: 9, limit: 2, includeDisplay: true })), f.env)
+			await forumListContext(
+				post(request({ page: 9, limit: 2, includeDisplay: true, includeCount: true })),
+				f.env,
+			)
 		).json();
 		expect(empty.data.page).toBe(9);
 		expect(empty.data.display.threads).toEqual([]);
@@ -379,7 +391,10 @@ describe("POST /api/v1/forums/context", () => {
 					f.sqlite.prepare("DELETE FROM threads WHERE id = ?").run(membershipReads);
 				}
 			};
-			const response = await forumListContext(post(request({ limit: 2 })), f.env);
+			const response = await forumListContext(
+				post(request({ limit: 2, includeCount: true })),
+				f.env,
+			);
 			expect(membershipReads).toBe(2);
 			if (keepChanging) {
 				expect(response.status).toBe(503);
@@ -411,7 +426,7 @@ describe("POST /api/v1/forums/context", () => {
 			recommended_by: 30,
 		});
 		const response = await forumListContext(
-			post(request({ forumId: 40, includeDisplay: true })),
+			post(request({ forumId: 40, includeDisplay: true, includeCount: true })),
 			f.env,
 		);
 		const body = await response.json();
@@ -478,7 +493,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(recovered.data.stats.totalThreads).toEqual(expect.any(Number));
 	});
 
-	it("forces display and count when the bucket hint or revision does not match", async () => {
+	it("forces display and count when the bucket hint does not match", async () => {
 		open();
 		f.thread(8, { subject: "Shown" });
 		const response = await forumListContext(
@@ -489,6 +504,11 @@ describe("POST /api/v1/forums/context", () => {
 		expect(body.data.bucket).toBe("anon");
 		expect(body.data.display.threads[0].subject).toBe("Shown");
 		expect(body.data.count).toBe(1);
+	});
+
+	it("forces only display when only the cached revision changes", async () => {
+		open();
+		f.thread(8, { subject: "Shown" });
 		const mismatch = await forumListContext(
 			post(
 				request({
@@ -501,7 +521,10 @@ describe("POST /api/v1/forums/context", () => {
 		);
 		const again = await mismatch.json();
 		expect(again.data.display.threads).toHaveLength(1);
-		expect(again.data.count).toBe(1);
+		expect(again.data.count).toBeUndefined();
+		expect(f.env.KV.get).not.toHaveBeenCalled();
+		const sql = f.calls.map((call) => call.sql).join("\n");
+		expect(sql).not.toMatch(/COUNT\(\*\) AS total FROM threads/);
 	});
 
 	it("rejects malformed transport before reading authority", async () => {

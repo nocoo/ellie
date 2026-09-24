@@ -37,6 +37,7 @@ describe("memory cache management contract", () => {
 			"thread-count",
 			"home-display",
 			"forum-list",
+			"thread-detail",
 		]);
 		expect(MEMORY_CACHE_ACTIONS).toEqual(["clear", "flush"]);
 		expect(MEMORY_CACHE_FAMILY_CAPACITY).toEqual({
@@ -45,6 +46,7 @@ describe("memory cache management contract", () => {
 			"thread-count": 1024,
 			"home-display": 4,
 			"forum-list": 128,
+			"thread-detail": 100,
 		});
 		expect(MEMORY_CACHE_PAYLOAD_LIMIT_BYTES).toBe(8 * 1024 * 1024);
 		expect(MEMORY_CACHE_PREVIEW_MAX_BYTES).toBe(512);

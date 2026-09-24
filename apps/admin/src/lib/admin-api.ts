@@ -102,6 +102,7 @@ interface RequestOptions {
 const MEMORY_NOTIFY_PATH_PREFIXES = [
 	"/api/admin/threads",
 	"/api/admin/posts",
+	"/api/admin/attachments",
 	"/api/admin/forums",
 	"/api/admin/forum-thread-types",
 	"/api/admin/users",

@@ -112,6 +112,18 @@ describe("adminApi central memory-notify hook", () => {
 		expect(notifyWebDisplayInvalidation).not.toHaveBeenCalled();
 	});
 
+	it("invalidates cached attachments after single and batch deletes, preserving failures and reads", async () => {
+		await adminApi.raw("DELETE", "/api/admin/attachments/9");
+		await adminApi.raw("POST", "/api/admin/attachments/batch-delete", { ids: [9] });
+		expect(notifyWebDisplayInvalidation).toHaveBeenCalledTimes(2);
+		vi.mocked(notifyWebDisplayInvalidation).mockClear();
+		await adminApi.raw("GET", "/api/admin/attachments/9");
+		mockResponse(403, { error: { code: "FORBIDDEN", message: "Denied" } });
+		await adminApi.raw("DELETE", "/api/admin/attachments/9");
+		await adminApi.raw("POST", "/api/admin/attachments/batch-delete", { ids: [9] });
+		expect(notifyWebDisplayInvalidation).not.toHaveBeenCalled();
+	});
+
 	it("fires for calibration, recalc jobs and thread recalculation that change cached numbers", async () => {
 		await adminApi.post("/api/admin/stats/calibrate", { mode: "full" });
 		await adminApi.post("/api/admin/statistics/recalc-forums");

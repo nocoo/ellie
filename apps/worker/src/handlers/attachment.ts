@@ -9,10 +9,10 @@ import {
 	validReadingId,
 } from "../lib/cache/thread-loaders";
 import type { Env } from "../lib/env";
-import { toAttachment } from "../lib/mappers";
+import { projectPublicAttachment, shouldUnmaskAnonymous, type ViewerContext } from "../lib/mappers";
 import { parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
-import { optionalAuthVerified } from "../middleware/auth";
+import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
 /** Max post IDs per batch request */
@@ -25,7 +25,7 @@ const MAX_BATCH_POST_IDS = 100;
  * @param notFoundCode - Error code for "not found" responses (default: THREAD_NOT_FOUND).
  *   listByPost passes POST_NOT_FOUND to preserve post-centric error semantics.
  *
- * Returns { allowed: true, forumId } on success, or { allowed: false, response } on failure.
+ * Returns { allowed: true, user } on success, or { allowed: false, response } on failure.
  */
 async function verifyThreadVisibility(
 	threadId: number,
@@ -33,7 +33,7 @@ async function verifyThreadVisibility(
 	env: Env,
 	origin?: string,
 	notFoundCode = "THREAD_NOT_FOUND",
-): Promise<{ allowed: true } | { allowed: false; response: Response }> {
+): Promise<{ allowed: true; user: AuthUser | null } | { allowed: false; response: Response }> {
 	const [user, row] = await Promise.all([
 		optionalAuthVerified(request, env),
 		loadThreadAccess(env, threadId),
@@ -51,7 +51,12 @@ async function verifyThreadVisibility(
 				origin,
 			),
 		};
-	return { allowed: true };
+	return { allowed: true, user };
+}
+
+function maskAttachmentOwner(anonymous: number, authorId: number, user: AuthUser | null): boolean {
+	const viewer: ViewerContext | null = user;
+	return anonymous === 1 && !shouldUnmaskAnonymous(authorId, viewer);
 }
 
 /**
@@ -116,7 +121,13 @@ export async function batchByPostIds(
 	const attachments = [...rows.values()]
 		.flat()
 		.sort((a, b) => Number(a.post_id) - Number(b.post_id) || Number(a.id) - Number(b.id))
-		.map(toAttachment);
+		.map((row) => {
+			const gate = current.get(Number(row.post_id));
+			return projectPublicAttachment(
+				row,
+				gate ? maskAttachmentOwner(gate.anonymous, gate.author_id, visResult.user) : true,
+			);
+		});
 
 	return jsonResponse(attachments, origin);
 }
@@ -145,7 +156,8 @@ export async function listByPost(
 	);
 	if (!visResult.allowed) return visResult.response;
 	const rows = await getPostAttachments(env, ctx, [postId], post.thread_id);
-	const attachments = (rows.get(postId) ?? []).map(toAttachment);
+	const mask = maskAttachmentOwner(post.anonymous, post.author_id, visResult.user);
+	const attachments = (rows.get(postId) ?? []).map((row) => projectPublicAttachment(row, mask));
 
 	return jsonResponse(attachments, origin);
 }

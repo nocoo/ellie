@@ -14,14 +14,16 @@ vi.mock("@/lib/forum-api", () => ({
 vi.mock("react", () => ({ cache: (fn: (...args: unknown[]) => unknown) => fn }));
 
 const context = vi.hoisted(() => vi.fn());
+const threadContext = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/forum-cache", async (original) => ({
 	...(await original<object>()),
 	getCachedForumListContext: context,
+	getCachedThreadContext: threadContext,
 }));
 
 import { forumApi } from "@/lib/forum-api";
 
-let { getCachedForumNames, getCachedThreadById } = await import("@/lib/forum-cache");
+let { getCachedForumNames } = await import("@/lib/forum-cache");
 let { getForumTitle, getThreadTitle, getUserTitle } = await import(
 	"@/viewmodels/forum/title.server"
 );
@@ -30,7 +32,7 @@ const mockForumApi = forumApi as any;
 beforeEach(async () => {
 	vi.resetAllMocks();
 	vi.resetModules();
-	({ getCachedForumNames, getCachedThreadById } = await import("@/lib/forum-cache"));
+	({ getCachedForumNames } = await import("@/lib/forum-cache"));
 	({ getForumTitle, getThreadTitle, getUserTitle } = await import(
 		"@/viewmodels/forum/title.server"
 	));
@@ -38,12 +40,10 @@ beforeEach(async () => {
 
 describe("getThreadTitle", () => {
 	it("returns thread subject", async () => {
-		mockForumApi.get.mockResolvedValue({ data: { subject: "Hello World" } });
-		const result = await getThreadTitle(1);
-		expect(result).toBe("Hello World");
-		expect(mockForumApi.get).toHaveBeenCalledWith("/api/v1/threads/1", undefined, {
-			readPurpose: "metadata",
-		});
+		threadContext.mockResolvedValue({ thread: { id: 1, subject: "Hello World" } });
+		expect(await getThreadTitle(1)).toBe("Hello World");
+		expect(await getThreadTitle(2)).toBe("主题");
+		expect(mockForumApi.get).not.toHaveBeenCalled();
 	});
 });
 
@@ -71,20 +71,6 @@ describe("getForumTitle", () => {
 });
 
 describe("render-pass loader routing", () => {
-	it("marks the title request as metadata and retains the page reading event", async () => {
-		mockForumApi.get.mockResolvedValue({ data: { subject: "Shared" } });
-
-		const title = await getThreadTitle(42);
-		const thread = await getCachedThreadById(42);
-
-		expect(title).toBe("Shared");
-		expect(thread.subject).toBe("Shared");
-		expect(mockForumApi.get.mock.calls).toEqual([
-			["/api/v1/threads/42", undefined, { readPurpose: "metadata" }],
-			["/api/v1/threads/42"],
-		]);
-	});
-
 	it("gets forum metadata from the authorized list context", async () => {
 		context.mockResolvedValue({ forumId: 7, display: { forums: [{ id: 7, name: "Dev" }] } });
 		expect(await getForumTitle(7)).toBe("Dev");

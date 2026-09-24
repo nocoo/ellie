@@ -46,12 +46,46 @@ export function loadHomeContext() {
 	return runtime.runLoad("home-display", () => readHomeContext(runtime));
 }
 
-async function readHomeContext(runtime: MemoryRuntime) {
+function coversSelection(
+	display: HomeDisplay | undefined,
+	summaryIds: number[],
+	digestIds: number[],
+): display is HomeDisplay {
+	if (!display) return false;
+	const summaries = new Set(summaryIds);
+	const digest = new Set(digestIds);
+	return (
+		gateTopicIds(display.summaries.map((row) => row.topicId)).every((id) => summaries.has(id)) &&
+		gateTopicIds(display.digest.map((row) => row.id)).every((id) => digest.has(id))
+	);
+}
+
+function validateContext(data: HomeContextData) {
+	if (
+		!data ||
+		!["anon", "member", "staff", "admin"].includes(data.bucket) ||
+		!Array.isArray(data.allowedForumIds) ||
+		!Array.isArray(data.summaryGates) ||
+		!Array.isArray(data.digestGates)
+	) {
+		throw new Error("Invalid homepage context");
+	}
+}
+
+async function readHomeContext(
+	runtime: MemoryRuntime,
+	forceFresh = false,
+): Promise<{
+	tree: ReturnType<typeof buildVisibleTree>;
+	digest: HomeDisplay["digest"];
+	stats: HomeStats | undefined;
+	user: HomeContextData["user"];
+}> {
 	const [jwt, session] = await Promise.all([getWorkerJwt(), getCurrentForumUser()]);
 	const hint = bucketHint(jwt, session?.role);
 	const displayToken = runtime.capture("home-display");
 	const statsToken = runtime.capture("site-stats");
-	const cached = runtime.peek<HomeDisplay>("home-display", hint);
+	const cached = forceFresh ? undefined : runtime.peek<HomeDisplay>("home-display", hint);
 	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
 	const summaryTopicIds = gateTopicIds(cached?.summaries.map((row) => row.topicId) ?? []);
 	const digestTopicIds = gateTopicIds(cached?.digest.map((row) => row.id) ?? []);
@@ -69,17 +103,16 @@ async function readHomeContext(runtime: MemoryRuntime) {
 		},
 		jwt ?? undefined,
 	);
-	if (
-		!data ||
-		!["anon", "member", "staff", "admin"].includes(data.bucket) ||
-		!Array.isArray(data.allowedForumIds) ||
-		!Array.isArray(data.summaryGates) ||
-		!Array.isArray(data.digestGates)
-	) {
-		throw new Error("Invalid homepage context");
+	validateContext(data);
+	const current =
+		data.display || forceFresh ? undefined : runtime.peek<HomeDisplay>("home-display", hint);
+	const reusable = coversSelection(current, summaryTopicIds, digestTopicIds);
+	if (!data.display && data.bucket === hint && !overflow && cached && !reusable) {
+		return readHomeContext(runtime, true);
 	}
-	const display = data.display ?? (data.bucket === hint && !overflow ? cached : undefined);
-	const stats = data.stats ?? cachedStats;
+	const display =
+		data.display ?? (data.bucket === hint && !overflow && reusable ? current : undefined);
+	const stats = data.stats ?? runtime.peek<HomeStats>("site-stats", "site:v1");
 	if (
 		!display ||
 		!Array.isArray(display.forums) ||

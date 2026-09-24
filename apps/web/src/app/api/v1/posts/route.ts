@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { invalidateDisplayAfterWrite, mutationForumId } from "@/lib/display-invalidation";
+import {
+	invalidateDisplayAfterWrite,
+	mutationForumId,
+	mutationThreadId,
+} from "@/lib/display-invalidation";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/posts
 // Browser → Next.js → Worker (create post/reply)
@@ -44,9 +48,11 @@ export async function POST(request: Request) {
 		const result = await forumApi.postAuth<unknown>("/api/v1/posts", body, jwt, client);
 		const forumId = mutationForumId(result);
 		const sticky = result.meta && "threadSticky" in result.meta ? result.meta.threadSticky : null;
+		const threadId = mutationThreadId(result);
 		invalidateDisplayAfterWrite({
 			forumId,
 			forumIds: forumId && (sticky === 0 || sticky === 1) ? [forumId] : [],
+			threadDetail: threadId != null ? { threadId } : undefined,
 			forumSummaries: true,
 			siteStats: true,
 		});

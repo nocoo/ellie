@@ -546,6 +546,15 @@ export function toAttachment(row: Record<string, unknown>): Attachment {
 	};
 }
 
+/** Public attachment projection. Masked anonymous posts lose owner id; storage paths stay. */
+export function projectPublicAttachment(
+	row: Record<string, unknown>,
+	maskOwner: boolean,
+): Attachment {
+	const attachment = toAttachment(row);
+	return maskOwner ? { ...attachment, authorId: 0 } : attachment;
+}
+
 /** D1 row shape for ip_bans table */
 interface D1IpBanRow {
 	id: number;

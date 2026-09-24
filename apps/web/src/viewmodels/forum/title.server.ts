@@ -11,12 +11,12 @@ import "server-only";
 
 import type { PublicUser } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
-import { getCachedForumListContext, getCachedThreadMetadata } from "@/lib/forum-cache";
+import { getCachedForumListContext, getCachedThreadContext } from "@/lib/forum-cache";
 
-/** Fetch thread subject by ID (deduped via getThreadById cache). */
+/** Metadata shares the authorized context with the page and layout. */
 export async function getThreadTitle(threadId: number): Promise<string> {
-	const thread = await getCachedThreadMetadata(threadId);
-	return thread.subject;
+	const { thread } = await getCachedThreadContext();
+	return thread.id === threadId ? thread.subject : "主题";
 }
 
 /** Fetch username by user ID. */

@@ -527,7 +527,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
 name = "ellie-core"
-version = "1.14.4"
+version = "1.14.5"
 dependencies = [
  "anyhow",
  "base64",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "ellie-tui"
-version = "1.14.4"
+version = "1.14.5"
 dependencies = [
  "anyhow",
  "chrono",

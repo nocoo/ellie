@@ -3,6 +3,7 @@
 import { getThreadBadges } from "@ellie/types";
 import { Clock3, Eye, MessageCircle, MessageSquare } from "lucide-react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
@@ -14,7 +15,7 @@ import { ThreadReportButton } from "@/components/forum/thread-report-button";
 import { ThreadTitleEditButton } from "@/components/forum/thread-title-edit-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
-import { getSelfForumUser } from "@/lib/forum-self";
+import { parseThreadLocation, THREAD_LOCATION_HEADER } from "@/lib/thread-location";
 import {
 	loadThreadDetail,
 	type ThreadDetailPageData,
@@ -23,7 +24,6 @@ import {
 	getThreadPageCount,
 	getThreadPageUrl,
 	resolveCurrentPage,
-	resolveThreadPostCursor,
 	validateReturnTo,
 } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
@@ -94,22 +94,10 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	let data: ThreadDetailPageData;
 	let error: string | null = null;
 
-	// Parallel: loader + self-user fetch. Both are independent.
-	// self uses fail-soft (.catch → null) so it never breaks the page.
-	const selfPromise = getSelfForumUser().catch(() => null);
-
-	// Resolve cursor: explicit cursor takes priority over ?page=N.
-	// ?page=N is converted to a position-based cursor for the post handler.
 	const postsPerPage = await getCachedPostsPerPage();
-	const { cursor, isLastPage } = resolveThreadPostCursor(sp, postsPerPage);
 
 	try {
-		data = await loadThreadDetail({
-			threadId,
-			cursor,
-			direction: sp.direction === "backward" ? "backward" : "forward",
-			last: isLastPage,
-		});
+		data = await loadThreadDetail({ threadId });
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load thread";
 		data = {
@@ -129,7 +117,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		};
 	}
 
-	const self = await selfPromise;
+	const self = data.currentUser;
 
 	if (error || !data.thread) {
 		return (
@@ -151,7 +139,8 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	const basePath = `/threads/${threadId}`;
 
 	// Derive current page from search params (priority: cursor > last > page > 1)
-	const currentPage = resolveCurrentPage(sp, postsPerPage, threadPages);
+	const location = parseThreadLocation((await headers()).get(THREAD_LOCATION_HEADER));
+	const currentPage = resolveCurrentPage(location ?? {}, postsPerPage, threadPages);
 
 	// Validate returnTo once — all downstream surfaces use the validated value.
 	// Invalid returnTo is silently dropped so the next pagination click cleans it out.

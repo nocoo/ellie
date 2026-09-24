@@ -42,8 +42,10 @@ export async function POST(request: Request) {
 		};
 		const body = await request.json();
 		const result = await forumApi.postAuth<unknown>("/api/v1/threads", body, jwt, client);
+		const forumId = mutationForumId(result);
 		invalidateDisplayAfterWrite({
-			forumId: mutationForumId(result),
+			forumId,
+			threadCountScopes: forumId != null ? [forumId] : undefined,
 			forumSummaries: true,
 			threadCounts: true,
 			siteStats: true,

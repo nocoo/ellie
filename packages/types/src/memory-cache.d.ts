@@ -3,7 +3,7 @@ export declare const MEMORY_CACHE_WEB_PATH = "/api/internal/memory-cache";
 export declare const MEMORY_CACHE_ADMIN_PATH = "/api/admin/memory-cache";
 export declare const MEMORY_CACHE_ADMIN_HEADER = "X-Ellie-Memory-Key";
 export declare const MEMORY_CACHE_NO_STORE = "no-store";
-export declare const MEMORY_CACHE_FAMILIES: readonly ["site-stats", "forum-summary", "thread-count", "home-display", "forum-list"];
+export declare const MEMORY_CACHE_FAMILIES: readonly ["site-stats", "forum-summary", "thread-count", "home-display", "forum-list", "thread-detail"];
 export type MemoryCacheFamilyId = (typeof MEMORY_CACHE_FAMILIES)[number];
 export declare const MEMORY_CACHE_ACTIONS: readonly ["clear", "flush"];
 export type MemoryCacheAction = (typeof MEMORY_CACHE_ACTIONS)[number];

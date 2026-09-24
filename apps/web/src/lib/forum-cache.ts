@@ -8,7 +8,7 @@
  * Inputs are the unwrapped loaders in `lib/forum-data.ts` and
  * `lib/forum-settings.ts`; this file wraps each with React `cache()` so
  * repeated calls with the same arguments and read purpose share a request.
- * Thread metadata uses a separate loader so only the page read counts a view.
+ * Thread metadata, layout and page share the authorized context. Only the page records a view.
  *
  * Public settings also share a five-minute cross-request snapshot.
  * Forum summaries remain request-scoped so Worker invalidation of deleted,
@@ -21,14 +21,13 @@ import "server-only";
 
 import { headers } from "next/headers";
 import { cache } from "react";
+import { resolveThreadPostCursor } from "@/viewmodels/forum/thread-list";
 import {
 	type ForumAncestorsData,
 	fetchForumAncestors,
 	fetchForumNames,
 	fetchForumStructure,
 	fetchForumThreadTypes,
-	fetchThreadById,
-	fetchThreadMetadata,
 } from "./forum-data";
 import { FORUM_LIST_LOCATION_HEADER, parseForumListLocation } from "./forum-list-location";
 import { loadForumListContext } from "./forum-list-reading";
@@ -36,6 +35,8 @@ import { type ForumSettings, parseForumSettings } from "./forum-settings";
 import { loadHomeContext } from "./home-reading";
 import { getMemoryRuntime } from "./memory-runtime";
 import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
+import { parseThreadLocation, THREAD_LOCATION_HEADER } from "./thread-location";
+import { loadThreadContext } from "./thread-reading";
 import { createTtlCache } from "./ttl-cache";
 
 export const getCachedHomeContext = cache(loadHomeContext);
@@ -50,12 +51,23 @@ export const getCachedForumListContext = cache(async () => {
 	return loadForumListContext({ ...location, limit });
 });
 
+export const getCachedThreadContext = cache(async () => {
+	const location = parseThreadLocation((await headers()).get(THREAD_LOCATION_HEADER));
+	if (!location) throw new Error("Invalid thread location");
+	const limit = await getCachedPostsPerPage();
+	const { cursor, isLastPage } = resolveThreadPostCursor(location, limit);
+	return loadThreadContext({
+		threadId: location.threadId,
+		limit,
+		cursor: cursor ?? null,
+		last: isLastPage,
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Forum data (deduplicated within the same RSC render pass)
 // ---------------------------------------------------------------------------
 
-export const getCachedThreadById = cache(fetchThreadById);
-export const getCachedThreadMetadata = cache(fetchThreadMetadata);
 export const getCachedForumStructure = cache(fetchForumStructure);
 export const getCachedForumNames = cache(fetchForumNames);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
@@ -87,7 +99,9 @@ export async function getCachedPageSize(): Promise<number> {
 /** Convenience: posts-per-page from cached settings. */
 export async function getCachedPostsPerPage(): Promise<number> {
 	const settings = await getCachedForumSettings();
-	return settings.postsPerPage;
+	return Number.isSafeInteger(settings.postsPerPage) && settings.postsPerPage > 0
+		? Math.min(settings.postsPerPage, 100)
+		: 20;
 }
 
 /**

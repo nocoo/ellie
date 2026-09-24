@@ -52,7 +52,7 @@
     },
     "apps/admin": {
       "name": "admin",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -86,7 +86,7 @@
     },
     "apps/web": {
       "name": "web",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "dependencies": {
         "@auth/core": "^0.41.3",
         "@base-ui/react": "1.8.0",
@@ -125,7 +125,7 @@
     },
     "apps/worker": {
       "name": "@ellie/worker",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "dependencies": {
         "@cloudflare/workers-types": "5.20260922.1",
         "@ellie/types": "workspace:*",
@@ -141,7 +141,7 @@
     },
     "packages/cli": {
       "name": "@ellie/cli",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "bin": "./src/index.ts",
       "dependencies": {
         "@ellie/types": "workspace:*",
@@ -154,16 +154,16 @@
     },
     "packages/db": {
       "name": "@ellie/db",
-      "version": "1.14.4",
+      "version": "1.14.5",
     },
     "packages/migrate": {
       "name": "@ellie/migrate",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "bin": "./src/index.ts",
     },
     "packages/shared": {
       "name": "@ellie/shared",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "dependencies": {
         "entities": "^7.0.1",
         "sanitize-html": "2.17.7",
@@ -175,18 +175,18 @@
     },
     "packages/test-mocks": {
       "name": "@ellie/test-mocks",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "dependencies": {
         "@ellie/types": "workspace:*",
       },
     },
     "packages/types": {
       "name": "@ellie/types",
-      "version": "1.14.4",
+      "version": "1.14.5",
     },
     "packages/ui": {
       "name": "@ellie/ui",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "dependencies": {
         "@base-ui/react": "1.8.0",
         "@radix-ui/react-avatar": "^1.2.6",

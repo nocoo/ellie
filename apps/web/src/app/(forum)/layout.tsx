@@ -8,9 +8,14 @@ import { SessionGuard } from "@/components/forum/session-guard";
 import { MaintenancePage } from "@/components/maintenance-page";
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
-import { getCachedForumListContext, getCachedHomeContext } from "@/lib/forum-cache";
+import {
+	getCachedForumListContext,
+	getCachedHomeContext,
+	getCachedThreadContext,
+} from "@/lib/forum-cache";
 import { FORUM_LIST_LOCATION_HEADER, parseForumListLocation } from "@/lib/forum-list-location";
 import { getSelfForumUser } from "@/lib/forum-self";
+import { parseThreadLocation, THREAD_LOCATION_HEADER } from "@/lib/thread-location";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import {
 	buildHeaderViewModel,
@@ -57,11 +62,14 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 	const isHome = requestHeaders.get("x-ellie-home") === "1";
 	const isForumList =
 		parseForumListLocation(requestHeaders.get(FORUM_LIST_LOCATION_HEADER)) !== null;
+	const isThread = parseThreadLocation(requestHeaders.get(THREAD_LOCATION_HEADER)) !== null;
 	const loadContext = isHome
 		? getCachedHomeContext
 		: isForumList
 			? getCachedForumListContext
-			: null;
+			: isThread
+				? getCachedThreadContext
+				: null;
 	// First, fetch settings to check maintenance mode
 	const settings = await fetchPublicSettings();
 	const isMaintenanceMode = getBool(settings, "features.access.maintenance_mode", false);

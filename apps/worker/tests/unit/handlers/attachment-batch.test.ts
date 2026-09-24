@@ -55,6 +55,46 @@ describe("batchByPostIds", () => {
 		expect(data.data).toHaveLength(3);
 	});
 
+	it("zeros ownership only for anonymous posts in the batch", async () => {
+		const visible = makeD1AttachmentRow({ id: 1, post_id: 10, author_id: 10 });
+		const hidden = makeD1AttachmentRow({
+			id: 2,
+			post_id: 20,
+			author_id: 20,
+			file_path: "user/20/secret.jpg",
+		});
+		const { db } = createMockDb({
+			firstResults: {
+				"JOIN forums f": {
+					forum_id: 1,
+					sticky: 0,
+					author_id: 10,
+					status: 1,
+					visibility: "public",
+					moderator_ids: "",
+				},
+			},
+			allResults: {
+				"SELECT id, thread_id, invisible, anonymous, author_id FROM posts": [
+					{ id: 10, thread_id: 1, invisible: 0, author_id: 10, anonymous: 0 },
+					{ id: 20, thread_id: 1, invisible: 0, author_id: 20, anonymous: 1 },
+				],
+				"FROM attachments WHERE post_id": [visible, hidden],
+			},
+		});
+		const response = await batchByPostIds(makeRequest({ threadId: 1, postIds: [10, 20] }), {
+			...mockEnv,
+			DB: db,
+		});
+		expect(response.status).toBe(200);
+		const data = (await response.json()) as {
+			data: { postId: number; authorId: number; filePath: string }[];
+		};
+		expect(data.data.find((row) => row.postId === 10)?.authorId).toBe(10);
+		expect(data.data.find((row) => row.postId === 20)?.authorId).toBe(0);
+		expect(data.data.find((row) => row.postId === 20)?.filePath).toBe("user/20/secret.jpg");
+	});
+
 	it("should return empty array for empty postIds", async () => {
 		const { db } = createMockDb();
 		const env = { ...mockEnv, DB: db };

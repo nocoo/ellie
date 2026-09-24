@@ -4,6 +4,7 @@ import {
 	enrichForumsWithUserCache,
 	enrichThreadsWithUserCache,
 	parseModeratorIds,
+	projectPublicAttachment,
 	shouldUnmaskAnonymous,
 	toAttachment,
 	toCensorWord,
@@ -1226,6 +1227,35 @@ describe("D1 row mappers", () => {
 			expect(attachment.width).toBe(1024);
 			expect(attachment.downloads).toBe(5);
 			expect(attachment.createdAt).toBe(1711540800);
+		});
+
+		it("zeros anonymous ownership and only clears a path that encodes the owner", () => {
+			const row = {
+				id: 1,
+				thread_id: 10,
+				post_id: 20,
+				author_id: 100,
+				filename: "photo.jpg",
+				file_path: "202003/15/photo.jpg",
+				file_size: 10,
+				is_image: 1,
+				width: 1,
+				has_thumb: 0,
+				downloads: 0,
+				created_at: 1,
+			};
+			const masked = projectPublicAttachment(row, true);
+			expect(masked.authorId).toBe(0);
+			expect(masked.filename).toBe("photo.jpg");
+			expect(masked.filePath).toBe("202003/15/photo.jpg");
+			expect(
+				projectPublicAttachment({ ...row, file_path: "user/100/photo.jpg" }, true),
+			).toMatchObject({
+				authorId: 0,
+				filename: "photo.jpg",
+				filePath: "user/100/photo.jpg",
+			});
+			expect(projectPublicAttachment(row, false).authorId).toBe(100);
 		});
 
 		it("should convert is_image INTEGER 1 to boolean true", () => {

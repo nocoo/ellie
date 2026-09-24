@@ -1,430 +1,172 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-// Doc/29: these legacy loader tests run as non-counting renders (router
-// prefetch marker) so views stay at the returned base; counting behavior is
-// covered by tests/unit/viewmodels/thread-detail-view.test.ts.
-vi.mock("next/headers", () => ({
-	headers: vi.fn(async () => new Headers({ "x-ellie-prefetch": "1" })),
-}));
-
-vi.mock("@/lib/forum-api", () => ({
-	forumApi: {
-		get: vi.fn(),
-		getAuth: vi.fn(),
-		getAll: vi.fn(),
-		getCursor: vi.fn(),
-		getCursorAuth: vi.fn(),
-		getPage: vi.fn(),
-		post: vi.fn(),
-		postAuth: vi.fn(),
-	},
-	publicUserToUser: vi.fn((u: any) => ({
-		...u,
-		id: u.userId ?? u.id,
-		email: "",
-		avatar: "",
-		avatarPath: "",
-		status: 0,
-		regDate: 0,
-		lastLogin: 0,
-		threads: 0,
-		posts: 0,
-		credits: 0,
-		signature: "",
-		groupTitle: "",
-		groupStars: 0,
-		groupColor: "",
-		customTitle: "",
-		digestPosts: 0,
-		olTime: 0,
-		lastActivity: 0,
-		gender: 0,
-		birthYear: 0,
-		birthMonth: 0,
-		birthDay: 0,
-		resideProvince: "",
-		resideCity: "",
-		graduateSchool: "",
-		bio: "",
-		interest: "",
-		qq: "",
-		site: "",
-	})),
-}));
-
-// Mock forum-cache to delegate cached fetchers to forumApi mocks
-// (avoids cross-file module isolation issues with React cache()) and to
-// stub the page-size convenience helpers.
-vi.mock("@/lib/forum-cache", async () => {
-	const { forumApi } = await import("@/lib/forum-api");
-	return {
-		getCachedThreadById: async (id: number) => {
-			const res = await (forumApi as any).get(`/api/v1/threads/${id}`);
-			return res.data;
-		},
-		getCachedForumAncestors: vi.fn(async (id: number) => {
-			const { ApiError } = await import("@/lib/api-error");
-			if (id !== 10) throw new ApiError(404, "FORUM_NOT_FOUND", "Missing forum");
-			return { forum: mockForums[0], ancestors: [] };
-		}),
-		getCachedPostsPerPage: vi.fn(async () => 20),
-	};
-});
-
-vi.mock("@/lib/forum-auth", () => ({
-	getCurrentForumUser: vi.fn(async () => null),
-	getWorkerJwt: vi.fn(async () => null),
-}));
-
-vi.mock("@/viewmodels/forum/settings.server", () => ({
-	fetchPublicSettings: vi.fn(async () => ({})),
-	getStr: vi.fn((_settings: any, _key: string, fallback: string) => fallback),
-}));
-
-vi.mock("@/lib/forum-breadcrumbs", () => ({
-	buildThreadBreadcrumbsFromAncestors: vi.fn(() => [
-		{ label: "首页", href: "/" },
-		{ label: "Test" },
-	]),
-}));
-
-import { forumApi } from "@/lib/forum-api";
-import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
-import { getCachedForumAncestors } from "@/lib/forum-cache";
-import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
+import type { ThreadDetailContextData, ThreadDetailDisplay } from "@ellie/types";
+import { beforeEach, expect, it, vi } from "vitest";
 import { loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 
-const mockForumApi = forumApi as any;
-const mockGetCurrentForumUser = getCurrentForumUser as ReturnType<typeof vi.fn>;
-const mockGetWorkerJwt = getWorkerJwt as ReturnType<typeof vi.fn>;
+const mocks = vi.hoisted(() => ({ context: vi.fn(), record: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-ellie-prefetch": "1" }) }));
+vi.mock("@/lib/forum-cache", () => ({
+	getCachedThreadContext: mocks.context,
+	recordThreadView: mocks.record,
+}));
+vi.mock("@/viewmodels/forum/settings.server", () => ({
+	fetchPublicSettings: async () => ({}),
+	getStr: (_: unknown, __: unknown, fallback: string) => fallback,
+}));
 
-const mockThread = {
-	id: 1,
-	forumId: 10,
-	subject: "Hello",
-	authorId: 100,
-	authorName: "user1",
-	views: 5,
-	replies: 1,
-	lastPostAt: 1000,
-	lastPostBy: "user2",
-	createdAt: 900,
-	sticky: 0,
-	digest: 0,
-	highlight: "",
-	closed: 0,
-	special: 0,
-	displayOrder: 0,
+function context(extra = {}): ThreadDetailContextData & { display: ThreadDetailDisplay } {
+	return {
+		thread: {
+			id: 1,
+			forumId: 10,
+			subject: "Hello",
+			authorId: 100,
+			authorName: "Alice",
+			views: 5,
+			replies: 1,
+			createdAt: 900,
+			sticky: 0,
+			closed: 0,
+		},
+		user: null,
+		revision: "a".repeat(64),
+		cacheable: true,
+		nextCursor: "next",
+		display: {
+			forum: {
+				id: 10,
+				parentId: 0,
+				name: "General",
+				status: 1,
+				visibility: "public",
+				type: "forum",
+				moderators: "mod1",
+				moderatorIds: "101",
+				moderatorList: [],
+			},
+			ancestors: [{ id: 2, name: "Category" }],
+			authors: [],
+			posts: [
+				{
+					id: 200,
+					threadId: 1,
+					authorId: 100,
+					authorName: "Alice",
+					content: "<p>Hello</p>",
+					createdAt: 900,
+					position: 1,
+					first: 1,
+				},
+			],
+			attachments: [
+				{ id: 3, postId: 200, threadId: 1, authorId: 100, filename: "file.png", isImage: true },
+			],
+		},
+		...extra,
+	} as ThreadDetailContextData & { display: ThreadDetailDisplay };
+}
+const member = {
+	id: 100,
+	username: "Alice",
+	role: 0,
+	status: 0,
+	credits: 5,
+	coins: 3,
+	groupTitle: "Member",
+	email: "test@example.com",
+	emailVerifiedAt: 7,
+	emailChangedAt: 8,
 };
-const mockForums = [
-	{
-		id: 10,
-		parentId: 0,
-		name: "General",
-		status: 1,
-		threads: 10,
-		posts: 50,
-		displayOrder: 1,
-		moderators: "mod1",
-		description: "",
-		redirect: "",
-		icon: "",
-		rules: "",
-		lastThreadId: 0,
-		lastPostAt: 0,
-		lastPostBy: "",
-		todayPosts: 0,
+beforeEach(() => {
+	vi.clearAllMocks();
+	mocks.context.mockResolvedValue(context());
+});
+
+it("assembles bodies, attachment groups, cursor and breadcrumbs from one authorized context", async () => {
+	const data = await loadThreadDetail({ threadId: 1 });
+	expect(mocks.context).toHaveBeenCalledOnce();
+	expect(data.thread?.views).toBe(5);
+	expect(data.posts).toHaveLength(1);
+	expect(data.posts[0].attachments[0].id).toBe(3);
+	expect(data.posts[0].comments).toBeUndefined();
+	expect(data.nextCursor).toBe("next");
+	expect(data.prevCursor).toBeNull();
+	expect(data.breadcrumbs.map((item) => item.label)).toEqual([
+		"同济网论坛",
+		"Category",
+		"General",
+		"Hello",
+	]);
+	expect(data.currentUser).toBeNull();
+	expect(data.canEditSubject).toBe(false);
+	expect(data.canManageThread).toBe(false);
+	expect(data.canDeleteThread).toBe(false);
+	expect(mocks.record).not.toHaveBeenCalled();
+});
+
+it("uses fresh Worker user fields for author permissions and email verification", async () => {
+	mocks.context.mockResolvedValue(context({ user: member }));
+	const data = await loadThreadDetail({ threadId: 1 });
+	expect(data.currentUser).toMatchObject(member);
+	expect(data.canEditSubject).toBe(true);
+	expect(data.canManageThread).toBe(false);
+	expect(data.canDeleteThread).toBe(false);
+	expect(data.posts[0].canEdit).toBe(true);
+});
+
+it.each([
+	[1, true, true],
+	[2, true, true],
+	[3, true, false],
+	[0, false, false],
+])(
+	"uses current role %s for moderation and the existing delete UI policy",
+	async (role, moderate, move) => {
+		mocks.context.mockResolvedValue(
+			context({ user: { ...member, id: 101, username: "mod1", role } }),
+		);
+		const data = await loadThreadDetail({ threadId: 1 });
+		expect(data.canModerateForum).toBe(moderate);
+		expect(data.canManageThread).toBe(moderate);
+		expect(data.canMoveThread).toBe(move);
+		expect(data.canDeleteThread).toBe(move);
 	},
-];
-const mockPosts = [
-	{
-		id: 200,
-		threadId: 1,
-		authorId: 100,
-		content: "<p>Hello</p>",
-		createdAt: 900,
-		position: 1,
-		invisible: 0,
-		anonymous: 0,
-		useSig: 0,
-		htmlOn: 0,
-		bbcodeOff: 0,
-		smileyOff: 0,
-		first: 1,
-		status: 0,
-	},
-];
+);
 
-describe("loadThreadDetail", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mockForumApi.get.mockImplementation((path: string) => {
-			if (path.startsWith("/api/v1/threads/")) return Promise.resolve({ data: mockThread });
-			if (path.startsWith("/api/v1/users/"))
-				return Promise.resolve({ data: { id: 100, userId: 100, username: "user1", role: 0 } });
-			return Promise.resolve({ data: null });
-		});
-		mockForumApi.getAll.mockImplementation((path: string) => {
-			if (path.includes("users/batch"))
-				return Promise.resolve({ data: [{ id: 100, userId: 100, username: "user1", role: 0 }] });
-			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
-			return Promise.resolve({ data: [] });
-		});
-		mockForumApi.getCursor.mockResolvedValue({ data: mockPosts, meta: { nextCursor: null } });
-		// Batch attachments and comments endpoints
-		mockForumApi.post.mockImplementation((path: string) => {
-			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
-			if (path.includes("post-comments/batch")) return Promise.resolve({ data: [] });
-			return Promise.resolve({ data: null });
-		});
-	});
+it("does not expose edit permissions after closing the thread or masking its owner", async () => {
+	for (const thread of [
+		{ ...context().thread, closed: 1 },
+		{ ...context().thread, authorId: 0, anonymousAuthor: 1 },
+	]) {
+		mocks.context.mockResolvedValue(context({ thread, user: member }));
+		expect((await loadThreadDetail({ threadId: 1 })).canEditSubject).toBe(false);
+	}
+});
 
-	it("starts attachments, authors and settings before the ancestor request settles", async () => {
-		let release!: (value: Awaited<ReturnType<typeof getCachedForumAncestors>>) => void;
-		vi.mocked(getCachedForumAncestors).mockReturnValueOnce(
-			new Promise((resolve) => {
-				release = resolve;
-			}),
-		);
-		const result = loadThreadDetail({ threadId: 1 });
-		for (let i = 0; i < 12; i++) await Promise.resolve();
-		expect(mockForumApi.post).toHaveBeenCalled();
-		expect(mockForumApi.getAll).toHaveBeenCalled();
-		expect(fetchPublicSettings).toHaveBeenCalled();
-		release({ forum: mockForums[0], ancestors: [] } as Awaited<
-			ReturnType<typeof getCachedForumAncestors>
-		>);
-		expect((await result).posts.length).toBeGreaterThan(0);
-	});
+it("propagates denied context and rejects a route mismatch before recording views", async () => {
+	await expect(loadThreadDetail({ threadId: 2 })).rejects.toThrow("mismatch");
+	mocks.context.mockRejectedValueOnce(new Error("Forbidden"));
+	await expect(loadThreadDetail({ threadId: 1 })).rejects.toThrow("Forbidden");
+	expect(mocks.record).not.toHaveBeenCalled();
+});
 
-	it("returns thread detail with posts, forum, and breadcrumbs", async () => {
-		const result = await loadThreadDetail({ threadId: 1 });
+it("maps returned public authors for post enrichment", async () => {
+	const data = context();
+	data.display.authors = [{ id: 100, username: "Alice", role: 0, status: 0 }] as NonNullable<
+		ThreadDetailContextData["display"]
+	>["authors"];
+	mocks.context.mockResolvedValue(data);
+	expect((await loadThreadDetail({ threadId: 1 })).posts[0].author?.username).toBe("Alice");
+});
 
-		expect(result.thread).toEqual(mockThread);
-		expect(result.forum?.id).toBe(10);
-		expect(result.posts.length).toBe(1);
-		expect(result.breadcrumbs.length).toBeGreaterThan(0);
-		expect(result.nextCursor).toBeNull();
-	});
-
-	it("returns null currentUser when no session", async () => {
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.currentUser).toBeNull();
-		expect(result.canModerateForum).toBe(false);
-		expect(result.canManageThread).toBe(false);
-		expect(result.canMoveThread).toBe(false);
-		expect(result.canDeleteThread).toBe(false);
-	});
-
-	it("builds currentUser from session and checks permissions", async () => {
-		mockGetCurrentForumUser.mockResolvedValue({ userId: 50, username: "admin", role: 3 });
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.currentUser).not.toBeNull();
-		expect(result.currentUser?.id).toBe(50);
-	});
-
-	it("does not grant canDeleteThread to thread author (UI-only restriction)", async () => {
-		// Thread author (userId=100 == mockThread.authorId) should NOT see delete button
-		mockGetCurrentForumUser.mockResolvedValue({ userId: 100, username: "user1", role: 0 });
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.canDeleteThread).toBe(false);
-		expect(result.canManageThread).toBe(false);
-		expect(result.canMoveThread).toBe(false);
-	});
-
-	it("grants canDeleteThread to Admin", async () => {
-		mockGetCurrentForumUser.mockResolvedValue({ userId: 50, username: "admin", role: 1 });
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.canDeleteThread).toBe(true);
-		expect(result.canMoveThread).toBe(true);
-	});
-
-	it("grants canDeleteThread to SuperMod", async () => {
-		mockGetCurrentForumUser.mockResolvedValue({ userId: 60, username: "supermod", role: 2 });
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.canDeleteThread).toBe(true);
-		expect(result.canMoveThread).toBe(true);
-	});
-
-	it("does not grant canDeleteThread to Mod", async () => {
-		mockGetCurrentForumUser.mockResolvedValue({ userId: 70, username: "mod1", role: 3 });
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.canDeleteThread).toBe(false);
-		// But Mod can manage thread in their forum
-		expect(result.canManageThread).toBe(true);
-	});
-
-	it("passes limit and cursor to posts API", async () => {
-		await loadThreadDetail({ threadId: 1, limit: 10, cursor: "abc" });
-		expect(mockForumApi.getCursor).toHaveBeenCalledWith("/api/v1/posts", {
-			threadId: 1,
-			limit: 10,
-			cursor: "abc",
-		});
-	});
-
-	it("handles attachment fetch failures gracefully", async () => {
-		mockForumApi.post.mockImplementation((path: string) => {
-			if (path.includes("attachments/batch")) return Promise.reject(new Error("fail"));
-			if (path.includes("post-comments/batch")) return Promise.resolve({ data: [] });
-			return Promise.resolve({ data: null });
-		});
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.posts[0].attachments).toEqual([]);
-	});
-
-	it("handles comment fetch failures by signaling client refetch (undefined)", async () => {
-		mockForumApi.post.mockImplementation((path: string) => {
-			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
-			if (path.includes("post-comments/batch")) return Promise.reject(new Error("fail"));
-			return Promise.resolve({ data: null });
-		});
-		const result = await loadThreadDetail({ threadId: 1 });
-		// New contract (rev): SSR batch failure now surfaces as `undefined` so
-		// PostComments client fetches as fallback. The legacy silent-empty
-		// behavior was the L3 e2e regression source.
-		expect(result.posts[0].comments).toBeUndefined();
-	});
-
-	it("falls back to post.authorName when users/batch fails (link must still render)", async () => {
-		mockForumApi.getAll.mockImplementation((path: string) => {
-			if (path.includes("users/batch")) return Promise.reject(new Error("not found"));
-			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
-			return Promise.resolve({ data: [] });
-		});
-		// Add an authorName to the post fixture so the fallback has something
-		// to construct from (production rows always carry it).
-		mockForumApi.getCursor.mockResolvedValueOnce({
-			data: [{ ...mockPosts[0], authorName: "user1" }],
-			meta: { nextCursor: null },
-		});
-		const result = await loadThreadDetail({ threadId: 1 });
-		// Author must NOT be null — E2E-PO-01 asserts the `<Link href="/users/N">`
-		// renders even when /users/batch is unreachable.
-		expect(result.posts[0].author).not.toBeNull();
-		expect(result.posts[0].author?.id).toBe(100);
-		expect(result.posts[0].author?.username).toBe("user1");
-	});
-
-	it("renders author=null when users/batch fails AND post row has no authorName (no fabrication)", async () => {
-		mockForumApi.getAll.mockImplementation((path: string) => {
-			if (path.includes("users/batch")) return Promise.reject(new Error("not found"));
-			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
-			return Promise.resolve({ data: [] });
-		});
-		// Force authorName empty so the fallback has nothing to construct from.
-		mockForumApi.getCursor.mockResolvedValueOnce({
-			data: [{ ...mockPosts[0], authorName: "" }],
-			meta: { nextCursor: null },
-		});
-		const result = await loadThreadDetail({ threadId: 1 });
-		// We must NOT invent identity; null is the correct outcome here.
-		expect(result.posts[0].author).toBeNull();
-	});
-
-	it("defers comments until the reader expands them", async () => {
-		const result = await loadThreadDetail({ threadId: 100 });
-		expect(result.posts[0].comments).toBeUndefined();
-		expect(mockForumApi.post.mock.calls.some(([path]) => path.includes("post-comments"))).toBe(
-			false,
-		);
-	});
-
-	it("returns forum as null when thread forumId not in list", async () => {
-		mockForumApi.get.mockImplementation((path: string) => {
-			if (path.startsWith("/api/v1/threads/"))
-				return Promise.resolve({ data: { ...mockThread, forumId: 999 } });
-			if (path.startsWith("/api/v1/users/"))
-				return Promise.resolve({ data: { id: 100, userId: 100, username: "user1", role: 0 } });
-			return Promise.resolve({ data: null });
-		});
-		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.forum).toBeNull();
-	});
-
-	// ─── N+1 regression: pin API request counts ────────────────
-	// These tests ensure that batch optimizations are not regressed.
-	// With batch endpoints, call counts are constant regardless of post/author count.
-
-	it("makes exactly 5 API calls for a page with 3 posts by 2 authors (batch optimized)", async () => {
-		const posts = [
-			{ ...mockPosts[0], id: 200, authorId: 100, authorName: "user1" },
-			{ ...mockPosts[0], id: 201, authorId: 100, authorName: "user1" },
-			{ ...mockPosts[0], id: 202, authorId: 200, authorName: "user2" },
-		];
-		mockForumApi.getCursor.mockResolvedValue({ data: posts, meta: { nextCursor: null } });
-
-		await loadThreadDetail({ threadId: 1 });
-
-		// get: 1 thread GET only (no per-user GETs)
-		expect(mockForumApi.get).toHaveBeenCalledTimes(1);
-		// Only users/batch; forum context uses the ancestors endpoint.
-		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
-		// getCursor: 1 posts
-		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
-		// post: 1 attachments/batch; comments are deferred
-		expect(mockForumApi.post).toHaveBeenCalledTimes(1);
-		// Total HTTP calls: 1 + 2 + 1 + 2 = 6 (constant)
-	});
-
-	it("API call count is constant regardless of post/author count (N+1 eliminated)", async () => {
-		// 10 posts by 5 unique authors — same call count as 3 posts by 2 authors
-		const posts = Array.from({ length: 10 }, (_, i) => ({
-			...mockPosts[0],
-			id: 300 + i,
-			authorId: 500 + (i % 5),
-			authorName: `author${i % 5}`,
-		}));
-		mockForumApi.getCursor.mockResolvedValue({ data: posts, meta: { nextCursor: null } });
-
-		await loadThreadDetail({ threadId: 1 });
-
-		// get: 1 thread (constant)
-		expect(mockForumApi.get).toHaveBeenCalledTimes(1);
-		// Only users/batch; forum context no longer loads the full forum list.
-		expect(mockForumApi.getAll).toHaveBeenCalledTimes(1);
-		// getCursor: 1 posts (constant)
-		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
-		// post: 1 attachments/batch; comments are deferred (constant)
-		expect(mockForumApi.post).toHaveBeenCalledTimes(1);
-		// Total: 6 — same as 3 posts. N+1 is gone.
-	});
-
-	it("uses authenticated Worker calls (Bearer) when session JWT is available", async () => {
-		const jwt = "test-worker-jwt-token";
-		mockGetWorkerJwt.mockResolvedValue(jwt);
-		mockGetCurrentForumUser.mockResolvedValue({ userId: 100, username: "author", role: 0 });
-
-		mockForumApi.getAuth.mockResolvedValue({ data: mockThread });
-		mockForumApi.getCursorAuth.mockResolvedValue({
-			data: mockPosts,
-			meta: { nextCursor: null },
-		});
-		mockForumApi.postAuth.mockImplementation((path: string) => {
-			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
-			if (path.includes("post-comments/batch")) return Promise.resolve({ data: [] });
-			return Promise.resolve({ data: null });
-		});
-
-		await loadThreadDetail({ threadId: 1 });
-
-		// Thread fetch uses getAuth with Bearer
-		expect(mockForumApi.getAuth).toHaveBeenCalledWith("/api/v1/threads/1", jwt);
-		// Posts fetch uses getCursorAuth with Bearer
-		expect(mockForumApi.getCursorAuth).toHaveBeenCalledWith(
-			"/api/v1/posts",
-			jwt,
-			expect.objectContaining({ threadId: 1 }),
-		);
-		// Batch endpoints use postAuth with Bearer
-		expect(mockForumApi.postAuth).toHaveBeenCalledWith(
-			"/api/v1/posts/attachments/batch",
-			expect.objectContaining({ threadId: 1 }),
-			jwt,
-		);
-		// Unauthenticated methods should NOT be called for thread/posts/batch
-		expect(mockForumApi.get).not.toHaveBeenCalledWith(expect.stringContaining("/api/v1/threads/"));
-		expect(mockForumApi.getCursor).not.toHaveBeenCalled();
-		expect(mockForumApi.post).not.toHaveBeenCalled();
-	});
+it("preserves the readable thread when no visible forum breadcrumb context exists", async () => {
+	const data = context();
+	data.display.forum = null;
+	data.display.ancestors = [];
+	mocks.context.mockResolvedValue(data);
+	const page = await loadThreadDetail({ threadId: 1 });
+	expect(page.forum).toBeNull();
+	expect(page.canModerateForum).toBe(false);
+	expect(page.canManageThread).toBe(false);
+	expect(page.canEditSubject).toBe(false);
+	expect(page.breadcrumbs.map((item) => item.label)).toEqual(["同济网论坛", "版块", "Hello"]);
 });

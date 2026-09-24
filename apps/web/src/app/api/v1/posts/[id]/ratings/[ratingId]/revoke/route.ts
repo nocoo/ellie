@@ -6,10 +6,14 @@
 // through `forumApiErrorToProxyResponse` so the role/status gates
 // (`FORBIDDEN_MOD_ONLY`, `NOT_FOUND`, `EMAIL_NOT_VERIFIED`) reach the
 // client unchanged.
+//
+// Success-only invalidation: only the 204 branch invalidates, so rejected
+// revokes leave the thread-detail cache untouched.
 
 import { type NextRequest, NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
+import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
@@ -57,6 +61,9 @@ export async function POST(
 			jwt,
 			client,
 		);
+		// PostId / ratingId only — the parent threadId is unknown without a
+		// follow-up query, so the bounded full clear is the safe fallback.
+		invalidateDisplayAfterWrite({ threadDetail: { all: true } });
 		// Worker returns 204; pass through with no body.
 		return new NextResponse(null, { status: 204 });
 	} catch (err) {

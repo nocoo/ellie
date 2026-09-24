@@ -312,3 +312,65 @@ it("rebuilds after restart and never substitutes a cached snapshot for missing c
 	mocks.post.mockResolvedValue({ data: context({ display: { forums: null } }) });
 	await expect(loadHomeContext()).rejects.toThrow("Incomplete");
 });
+
+it.each(["2026-09-24T08:00:00Z", "2026-09-24T15:59:50Z"])(
+	"rebuilds instead of serving a home snapshot that expires during the read from %s",
+	async (start) => {
+		let now = Date.parse(start);
+		runtime = new MemoryRuntime({ now: () => now });
+		mocks.runtime.mockReturnValue(runtime);
+		runtime.admit("member", display, runtime.capture("home-display"));
+		runtime.admit("site:v1", stats, runtime.capture("site-stats"));
+		const expiry = Date.parse(
+			runtime.snapshot({ family: "home-display", page: 1, limit: 1 }).entries[0].expiresAt,
+		);
+		mocks.post.mockImplementationOnce(async () => {
+			now = expiry;
+			return { data: context() };
+		});
+		const refreshed = { ...display, forums: [{ ...forum, name: "Refreshed" }] };
+		mocks.post.mockResolvedValueOnce({ data: context({ display: refreshed }) });
+		const result = await loadHomeContext();
+		expect(result.tree[0].name).toBe("Refreshed");
+		expect(result.stats).toBeUndefined();
+		expect(mocks.post).toHaveBeenCalledTimes(2);
+		expect(mocks.post.mock.calls[1][1]).toMatchObject({
+			includeDisplay: true,
+			cachedBucket: null,
+			includeStats: true,
+			summaryTopicIds: [],
+			digestTopicIds: [],
+		});
+	},
+);
+
+it.each([false, true])(
+	"revalidates a cleared or replaced homepage selection (%s)",
+	async (replace) => {
+		runtime.admit("member", display, runtime.capture("home-display"));
+		mocks.post.mockImplementationOnce(async () => {
+			runtime.clear("home-display", "member");
+			if (replace) {
+				runtime.admit(
+					"member",
+					{ ...display, digest: [{ ...topic, id: 8 }] },
+					runtime.capture("home-display"),
+				);
+			}
+			return { data: context() };
+		});
+		mocks.post.mockResolvedValueOnce({ data: context({ display }) });
+		expect((await loadHomeContext()).digest[0].id).toBe(4);
+		expect(mocks.post).toHaveBeenCalledTimes(2);
+	},
+);
+
+it("does not repeat an incomplete forced homepage refill", async () => {
+	runtime.admit("member", display, runtime.capture("home-display"));
+	mocks.post.mockImplementation(async () => {
+		runtime.clear("home-display", "member");
+		return { data: context() };
+	});
+	await expect(loadHomeContext()).rejects.toThrow("Incomplete homepage context");
+	expect(mocks.post).toHaveBeenCalledTimes(2);
+});

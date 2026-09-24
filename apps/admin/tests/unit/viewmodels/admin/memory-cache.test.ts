@@ -28,6 +28,7 @@ describe("memory-cache viewmodel helpers", () => {
 			"home-display",
 			"site-stats",
 			"thread-count",
+			"thread-detail",
 		]);
 	});
 	it("formats uptime across units and rejects non-finite values", () => {

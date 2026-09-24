@@ -31,6 +31,8 @@ const DAY_MS = 86_400_000;
 const SHANGHAI_OFFSET = 8 * 3_600_000;
 const PAYLOAD_RESERVED_BYTES = 1024 * 1024;
 const HOME_DISPLAY_ENTRY_BYTES = 512 * 1024;
+const THREAD_DETAIL_ENTRY_BYTES = 256 * 1024;
+const THREAD_DETAIL_PAYLOAD_BYTES = 4 * 1024 * 1024;
 const DEFAULT_ENTRY_BYTES = 16 * 1024;
 const THIRTY_MINUTES_MS = 30 * 60_000;
 
@@ -280,7 +282,11 @@ export class MemoryRuntime {
 			return false;
 		const isHomeDisplay = token.family === "home-display";
 		const isForumList = token.family === "forum-list";
-		const ttl = isHomeDisplay || isForumList ? THIRTY_MINUTES_MS : MEMORY_CACHE_TTL_MS;
+		const isThreadDetail = token.family === "thread-detail";
+		const ttl =
+			isHomeDisplay || isForumList || isThreadDetail || token.family === "thread-count"
+				? THIRTY_MINUTES_MS
+				: MEMORY_CACHE_TTL_MS;
 		const expiresAt = Math.min(token.startedAt + ttl, (day(now) + 1) * DAY_MS - SHANGHAI_OFFSET);
 		if (expiresAt <= now) return false;
 		const encoded = JSON.stringify(value);
@@ -293,29 +299,18 @@ export class MemoryRuntime {
 			? HOME_DISPLAY_ENTRY_BYTES
 			: isForumList
 				? FORUM_LIST_MAX_ENTRY_BYTES
-				: DEFAULT_ENTRY_BYTES;
+				: isThreadDetail
+					? THREAD_DETAIL_ENTRY_BYTES
+					: DEFAULT_ENTRY_BYTES;
 		if (bytes > entryLimit) return false;
 		family.entries.delete(key);
 		while (family.entries.size >= family.stats.maxEntries) this.evict(family);
-		if (isForumList) {
-			// Forum-list may only evict its own LRU, even at the global cap.
-			while (
-				this.familyBytes(family) + bytes > FORUM_LIST_PAYLOAD_LIMIT_BYTES ||
-				this.payloadBytes() + bytes > MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - PAYLOAD_RESERVED_BYTES
-			) {
-				if (family.entries.size === 0) return false;
-				this.evict(family);
-			}
-		} else {
-			while (
-				this.payloadBytes() + bytes >
-				MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - PAYLOAD_RESERVED_BYTES
-			) {
-				const victim = [...this.families.values()].find((item) => item.entries.size > 0);
-				if (!victim) break;
-				this.evict(victim);
-			}
-		}
+		const familyLimit = isForumList
+			? FORUM_LIST_PAYLOAD_LIMIT_BYTES
+			: isThreadDetail
+				? THREAD_DETAIL_PAYLOAD_BYTES
+				: null;
+		if (!this.reservePayload(family, bytes, familyLimit)) return false;
 		family.entries.set(key, {
 			value: structuredClone(value),
 			createdAt: now,
@@ -323,6 +318,21 @@ export class MemoryRuntime {
 			bytes,
 			preview,
 		});
+		return true;
+	}
+
+	private reservePayload(family: Family, bytes: number, familyLimit: number | null): boolean {
+		while (
+			(familyLimit !== null && this.familyBytes(family) + bytes > familyLimit) ||
+			this.payloadBytes() + bytes > MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - PAYLOAD_RESERVED_BYTES
+		) {
+			const victim =
+				familyLimit !== null
+					? family
+					: [...this.families.values()].find((item) => item.entries.size > 0);
+			if (!victim || victim.entries.size === 0) return false;
+			this.evict(victim);
+		}
 		return true;
 	}
 

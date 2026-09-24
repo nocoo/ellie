@@ -132,3 +132,10 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 
 - Independent review found that asset-suffix exclusions could skip Proxy for dynamic forum paths such as `/forums/2.svg`. Match forum routes explicitly before generic asset exclusions, overwrite untrusted context hints, and verify the installed Next matcher rather than only calling Proxy directly in tests.
 - A reply's forum id alone cannot identify all affected lists when its topic is a global announcement. Return the already-read sticky value in reply metadata; scope local invalidation only for known local values and clear the bounded list family otherwise. Never add a separate read just to rediscover mutation context.
+
+### 2026-09-24: Count amplification and thread cache boundaries
+
+- v1.14.4 reduced KV traffic but coupled display refills to exact topic recounts. The observed 04:15–07:15 UTC window read approximately 3.97 million D1 rows per hour; a costly count averaged about 49,082 rows per execution. Separate display freshness from total freshness, preserve absolute count expiry and invalidate totals only for count-changing events. Measure both storage systems after a cache migration; fewer KV reads alone cannot establish lower cost.
+- Independent review caught a missing read deadline after choosing variable-size transport, and pre-await snapshot clones surviving expiry or clear. Keep transport deadlines independent of cache admission size, recheck after awaits, and test a stalled response body plus expiry/midnight during the request.
+- Equal empty breadcrumb chains did not prove private source content was public. Reuse the existing anonymous access rule when deciding shared-cache eligibility. After one pagination retry, refuse unresolved membership instead of filtering it into a falsely complete page.
+- The new Worker paths initially passed every test while statement coverage was below the existing 95% gate. Add actual authorization, malformed-body, statistics-failure and concurrent-hide cases; do not lower the gate or treat targeted tests as complete verification.
