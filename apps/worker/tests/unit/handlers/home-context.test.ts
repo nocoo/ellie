@@ -78,8 +78,10 @@ describe("POST /api/v1/home/context", () => {
 		expect(queries).not.toContain("JOIN users");
 	});
 
-	it("joins fast stats failures only after delayed authority completes", async () => {
+	it("isolates fast stats failures after authority and preserves verified content until recovery", async () => {
 		open();
+		f.thread(8, { subject: "Still available", digest: 2 });
+		const jwt = await createJwtForRole(0, 10, f.env.JWT_SECRET);
 		const authority = deferred();
 		let statsStarted = false;
 		f.state.afterRead = async (sql) => {
@@ -89,14 +91,28 @@ describe("POST /api/v1/home/context", () => {
 				throw new Error("stats read failed");
 			}
 		};
-		const failure = expect(
-			homeContext(post({ ...warm, includeStats: true }), f.env),
-		).rejects.toThrow("stats read failed");
+		const request = () =>
+			post(
+				{ ...warm, includeDisplay: true, includeStats: true },
+				{ authorization: `Bearer ${jwt}` },
+			);
+		const loading = homeContext(request(), f.env);
 		await new Promise<void>((resolve) => setImmediate(resolve));
 		expect(statsStarted).toBe(false);
 		authority.resolve();
-		await failure;
+		const response = await loading;
 		expect(statsStarted).toBe(true);
+		expect(response.status).toBe(200);
+		const { data } = await response.json();
+		expect(data.user.id).toBe(10);
+		expect(data.allowedForumIds).toContain(1);
+		expect(data.display.forums).not.toHaveLength(0);
+		expect(data.display.digest[0].subject).toBe("Still available");
+		expect(data.stats).toBeUndefined();
+		f.state.afterRead = undefined;
+		expect((await (await homeContext(request(), f.env)).json()).data.stats).toMatchObject({
+			totalThreads: expect.any(Number),
+		});
 	});
 
 	it("forces a fresh display when the cached bucket does not match", async () => {

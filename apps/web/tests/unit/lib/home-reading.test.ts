@@ -89,6 +89,65 @@ beforeEach(() => {
 });
 
 describe("homepage context", () => {
+	it("shares the runtime flight cap before cloning or fetching without sharing private results", async () => {
+		let finish!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			finish = resolve;
+		});
+		const otherLoads = Array.from({ length: 63 }, (_, id) =>
+			runtime.read("thread-count", String(id), async () => {
+				await pending;
+				return id;
+			}),
+		);
+		mocks.post.mockImplementation(async () => {
+			await pending;
+			return { data: context({ display, stats, user: { id: 9 } }) };
+		});
+		const peek = vi.spyOn(runtime, "peek");
+		const home = loadHomeContext();
+		await vi.waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+		expect(peek).toHaveBeenCalledTimes(2);
+		await expect(loadHomeContext()).rejects.toThrow("capacity exceeded");
+		expect(mocks.post).toHaveBeenCalledTimes(1);
+		expect(peek).toHaveBeenCalledTimes(2);
+		expect(
+			runtime.snapshot({ page: 1, limit: 1 }).families.find((row) => row.id === "home-display")
+				?.loadErrors,
+		).toBe(1);
+		finish();
+		await Promise.all(otherLoads);
+		expect((await home).user).toEqual({ id: 9 });
+		expect(runtime.peek("home-display", "member")).not.toHaveProperty("user");
+		mocks.post.mockResolvedValue({ data: context({ user: { id: 10 } }) });
+		expect((await loadHomeContext()).user).toEqual({ id: 10 });
+	});
+
+	it("releases all load slots after repeated context failures", async () => {
+		mocks.post.mockRejectedValue(new Error("offline"));
+		for (let index = 0; index < 64; index++)
+			await expect(loadHomeContext()).rejects.toThrow("offline");
+		mocks.post.mockResolvedValue({ data: context({ display, stats }) });
+		expect((await loadHomeContext()).tree).toHaveLength(1);
+	});
+
+	it("keeps verified content when stats are unavailable and retries without caching defaults", async () => {
+		mocks.post.mockResolvedValueOnce({ data: context({ display, user: { id: 9 } }) });
+		const first = await loadHomeContext();
+		expect(first.tree[0].lastThreadSubject).toBe("Latest");
+		expect(first.digest).toHaveLength(1);
+		expect(first.user).toEqual({ id: 9 });
+		expect(first.stats).toBeUndefined();
+		expect(runtime.peek("site-stats", "site:v1")).toBeUndefined();
+		mocks.post.mockResolvedValueOnce({ data: context({ stats }) });
+		expect((await loadHomeContext()).stats).toEqual(stats);
+		expect(mocks.post.mock.calls[1][1]).toMatchObject({
+			includeDisplay: false,
+			includeStats: true,
+		});
+		expect(runtime.peek("site-stats", "site:v1")).toEqual(stats);
+	});
+
 	it("loads cold data once, then gates warm display in one request without caching private fields", async () => {
 		mocks.post.mockResolvedValueOnce({ data: context({ display, stats, user: { id: 9 } }) });
 		expect((await loadHomeContext()).tree[0].lastThreadSubject).toBe("Latest");

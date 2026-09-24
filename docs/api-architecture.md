@@ -353,6 +353,9 @@ an authorization claim. Responses contain fresh `bucket`, `user`,
 `allowedForumIds`, `summaryGates` and `digestGates`, with optional `display`
 and `stats`. Normal `meta.timestamp` and `meta.requestId` remain present.
 Invalid supplied JWTs fail instead of silently becoming anonymous.
+Statistics query errors omit `stats` while preserving verified identity and
+display. Web uses its existing display defaults without caching them and retries
+statistics on the next context request. Authority failures still fail closed.
 
 Web caches only the coherent `display` projection (forum structure, numeric
 summaries/latest nonanonymous topics, and five digest topics). It never caches
@@ -368,6 +371,9 @@ gates. Failed gates hide candidates and discard that display entry for the next
 read. Candidate overflow forces a complete fresh response without admission;
 forums are never truncated to fit the cache. Responses over two MiB fail
 explicitly. A fifteen-second deadline includes response consumption.
+Context loads share the runtime's 64-load process limit, reserve capacity before
+cloning or fetching, and release it on success or failure. Private responses are
+never shared across requests.
 
 Successful Web business writes reuse `invalidateDisplayAfterWrite` to clear
 memory; existing Worker mutation helpers independently invalidate KV. Admin

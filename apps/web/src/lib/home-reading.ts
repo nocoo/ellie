@@ -12,7 +12,7 @@ import { buildVisibleTree } from "@/viewmodels/forum/forum-list";
 import { forumApi } from "./forum-api";
 import { getCurrentForumUser, getWorkerJwt } from "./forum-auth";
 import { composeForumDisplay, gateTopicIds, visibilityContextForBucket } from "./forum-reading";
-import { getMemoryRuntime } from "./memory-runtime";
+import { getMemoryRuntime, type MemoryRuntime } from "./memory-runtime";
 
 function bucketHint(jwt: string | null, role: number | undefined): ReadingBucket {
 	if (!jwt) return "anon";
@@ -41,9 +41,13 @@ function structureForum(forum: HomeDisplay["forums"][number]): Forum {
 	};
 }
 
-export async function loadHomeContext() {
-	const [jwt, session] = await Promise.all([getWorkerJwt(), getCurrentForumUser()]);
+export function loadHomeContext() {
 	const runtime = getMemoryRuntime();
+	return runtime.runLoad("home-display", () => readHomeContext(runtime));
+}
+
+async function readHomeContext(runtime: MemoryRuntime) {
+	const [jwt, session] = await Promise.all([getWorkerJwt(), getCurrentForumUser()]);
 	const hint = bucketHint(jwt, session?.role);
 	const displayToken = runtime.capture("home-display");
 	const statsToken = runtime.capture("site-stats");
@@ -80,8 +84,7 @@ export async function loadHomeContext() {
 		!display ||
 		!Array.isArray(display.forums) ||
 		!Array.isArray(display.summaries) ||
-		!Array.isArray(display.digest) ||
-		!stats
+		!Array.isArray(display.digest)
 	)
 		throw new Error("Incomplete homepage context");
 	const allowed = new Set(data.allowedForumIds);

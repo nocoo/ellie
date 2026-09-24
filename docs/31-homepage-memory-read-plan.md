@@ -23,6 +23,9 @@ target, not a measured production latency claim.
   on Worker; a changed bucket forces fresh audience-correct sections.
 - Always return a narrow verified current-user projection and fresh permitted forum
   IDs and topic gates. One verified identity and batched SQL, not nested HTTP calls.
+- Statistics query failure omits only the optional stats section. Web keeps verified
+  content and uses its existing display defaults without caching them; the next
+  context request retries statistics. Authority failures still fail closed.
 - One optional coherent display snapshot supplies current forum structure, summaries
   and five digest display rows; public stats are a separate optional section. Rebuild these from D1, not an older KV payload whose age
   would be reset. Reuse existing SQL/mappers/authorization wherever possible.
@@ -137,6 +140,8 @@ all clear advances the family epoch even when empty. Conditional admission uses
 actual response bucket and matching epoch/day. Peek clones without renewing TTL.
 Keep existing read-flight fences. Never cache or share context user/gates by role.
 Independent cold context reads are allowed: every request has fresh authority;
+each context reserves a slot in the existing 64-load process cap before cloning
+or fetching and releases it on success or failure. No private response is shared;
 do not invent a scheduler to collapse private responses. Per-entry home limit is
 512KiB and total remains8MiB; candidate overflow also prevents admission. A bounded
 2MiB response reader may reject unsupported oversized responses explicitly; never
@@ -175,3 +180,9 @@ silently remove real forums to make a response fit.
   missing/cyclic ancestry, a concurrent moderation hide, and D1 failure cases.
   The subsequent full Worker run passed 3856 tests with statements 95.04%, branches
   90.40%, functions 98.23%, lines 96.64%; configured thresholds were unchanged.
+
+- A fresh independent Codex review reproduced two P2 gaps: homepage contexts
+  bypassed the runtime's load cap, and optional statistics failure rejected the
+  whole context. Contexts now share the existing bounded load counter; statistics
+  failure preserves verified content and retries without caching default values.
+  Regressions cover mixed-family capacity, failure release and statistics recovery.

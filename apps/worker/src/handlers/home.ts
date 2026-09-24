@@ -59,7 +59,12 @@ export async function homeContext(request: Request, env: Env): Promise<Response>
 		: loadHomeGates(env, authority, parsed.value.summaryTopicIds, parsed.value.digestTopicIds);
 	const [loaded, stats] = await Promise.all([
 		sections,
-		parsed.value.includeStats ? loadPublicStats(env) : undefined,
+		parsed.value.includeStats
+			? loadPublicStats(env).catch(() => {
+					console.warn("[home-context] Statistics unavailable; omitted from response");
+					return undefined;
+				})
+			: undefined,
 	]);
 	const data: HomeContextData = {
 		bucket: authority.bucket,

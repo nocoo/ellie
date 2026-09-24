@@ -294,6 +294,24 @@ export class MemoryRuntime {
 		return true;
 	}
 
+	async runLoad<T>(id: MemoryCacheFamilyId, load: () => Promise<T>): Promise<T> {
+		const family = this.families.get(id);
+		if (!family) throw new Error("Unknown memory cache family");
+		if (this.trackedFlights >= MAX_FLIGHTS) {
+			family.stats.loadErrors++;
+			throw new Error("Memory cache load capacity exceeded");
+		}
+		this.trackedFlights++;
+		try {
+			return await load();
+		} catch (error) {
+			family.stats.loadErrors++;
+			throw error;
+		} finally {
+			this.trackedFlights--;
+		}
+	}
+
 	async read<T>(id: MemoryCacheFamilyId, key: string, load: () => Promise<T>): Promise<T> {
 		const family = this.families.get(id);
 		if (!family) throw new Error("Unknown memory cache family");
@@ -312,27 +330,16 @@ export class MemoryRuntime {
 		family.stats.misses++;
 		const existing = family.flights.get(key);
 		if (existing?.valid) return structuredClone(await existing.promise) as T;
-		if (this.trackedFlights >= MAX_FLIGHTS) {
-			family.stats.loadErrors++;
-			throw new Error("Memory cache load capacity exceeded");
-		}
 		const token = this.capture(id);
 		const flight: Flight = { valid: true, promise: Promise.resolve() };
 		family.flights.set(key, flight);
-		this.trackedFlights++;
-		flight.promise = (async () => {
-			try {
-				const value = await load();
-				if (flight.valid) this.admit(key, value, token);
-				return value;
-			} catch (error) {
-				family.stats.loadErrors++;
-				throw error;
-			} finally {
-				if (family.flights.get(key) === flight) family.flights.delete(key);
-				this.trackedFlights--;
-			}
-		})();
+		flight.promise = this.runLoad(id, async () => {
+			const value = await load();
+			if (flight.valid) this.admit(key, value, token);
+			return value;
+		}).finally(() => {
+			if (family.flights.get(key) === flight) family.flights.delete(key);
+		});
 		return structuredClone(await flight.promise) as T;
 	}
 
