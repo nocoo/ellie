@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.8] - 2026-09-24
+
+### Fixed
+
+- Share the local forum/type pagination count across authorized reading buckets. Add the freshly authorized global-announcement contribution on each read, reducing duplicate cold recounts without sharing privileged totals.
+- Retain the six-hour absolute count lifetime, active invalidation, bounded retry and exact rebuilding after restart. Display and thread snapshot limits are unchanged.
+
+### Deployment
+
+- Deploy and verify the Worker `announcementCount` field before pushing main to trigger Web deployment. The optional `count` still represents the full authorized total; no migration, secret or management-contract change is required.
+- Preserve the original ten observation windows and include the additional cold start in the version comparison.
+
 ## [1.14.7] - 2026-09-24
 
 ### Fixed

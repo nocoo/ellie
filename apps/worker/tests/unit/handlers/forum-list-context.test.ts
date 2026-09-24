@@ -101,6 +101,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(body.data.revision).toBe(cold.data.revision);
 		expect(body.data.display).toBeUndefined();
 		expect(body.data.count).toBeUndefined();
+		expect(body.data.announcementCount).toBe(0);
 		expect(body.data.hasNext).toBe(false);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		const sql = f.calls.map((call) => call.sql).join("\n");
@@ -129,6 +130,26 @@ describe("POST /api/v1/forums/context", () => {
 		const body = await hot.json();
 		expect(body.data.display).toBeUndefined();
 		expect(body.data.count).toBe(2);
+		expect(body.data.announcementCount).toBe(1);
+	});
+	it("returns fresh visible announcement contributions without recounting local topics", async () => {
+		open();
+		f.thread(8, { last_post_at: 10 });
+		f.insert("forums", { id: 21, name: "Announcement source", visibility: "public" });
+		f.thread(100, { forum_id: 21, sticky: 2, last_post_at: 50 });
+		const first = await (
+			await forumListContext(post(request({ includeCount: true })), f.env)
+		).json();
+		expect(first.data).toMatchObject({ count: 2, announcementCount: 1 });
+		f.sqlite.exec("UPDATE forums SET visibility = 'staff' WHERE id = 21");
+		f.calls.length = 0;
+		const next = await (
+			await forumListContext(post(request({ cachedRevision: first.data.revision })), f.env)
+		).json();
+		expect(next.data.announcementCount).toBe(0);
+		expect(next.data.count).toBeUndefined();
+		expect(next.data.display.threads.map((row: { id: number }) => row.id)).toEqual([8]);
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*) AS total FROM threads"))).toBe(false);
 	});
 
 	it.each([
@@ -218,6 +239,7 @@ describe("POST /api/v1/forums/context", () => {
 		});
 		const anon = await forumListContext(post(request({ includeDisplay: true })), f.env);
 		const anonBody = await anon.json();
+		expect(anonBody.data.announcementCount).toBe(0);
 		expect(anonBody.data.display.threads.map((row: { id: number }) => row.id)).toEqual([8]);
 		expect(anonBody.data.display.forums.map((row: { id: number }) => row.id)).not.toContain(21);
 		expect((await forumListContext(post(request({ forumId: 21 })), f.env)).status).toBe(403);
@@ -237,6 +259,7 @@ describe("POST /api/v1/forums/context", () => {
 			f.env,
 		);
 		const staffBody = await staffList.json();
+		expect(staffBody.data.announcementCount).toBe(1);
 		expect(staffBody.data.display.threads.map((row: { id: number }) => row.id)).toContain(100);
 	});
 
@@ -310,12 +333,14 @@ describe("POST /api/v1/forums/context", () => {
 		expect(typed.data.typeId).toBe(7);
 		expect(typed.data.display.threads.map((row: { id: number }) => row.id)).toEqual([8]);
 		expect(typed.data.count).toBe(1);
+		expect(typed.data.announcementCount).toBe(0);
 		f.thread(101, { sticky: 2, type_id: 7, last_post_at: 60 });
 		const typedGlobal = await (
 			await forumListContext(post(request({ typeId: 7, includeCount: true })), f.env)
 		).json();
 		expect(typedGlobal.data.display.threads.map((row: { id: number }) => row.id)).toEqual([101, 8]);
 		expect(typedGlobal.data.count).toBe(2);
+		expect(typedGlobal.data.announcementCount).toBe(0);
 
 		const cold = await (
 			await forumListContext(post(request({ includeCount: true })), f.env)
@@ -435,6 +460,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(body.data.display.recommended).toEqual([]);
 		expect(body.data.hasNext).toBe(false);
 		expect(body.data.count).toBe(0);
+		expect(body.data.announcementCount).toBe(0);
 		const sql = f.calls.map((call) => call.sql).join("\n");
 		expect(sql).not.toContain("forum_recommended_threads");
 		expect(sql).not.toContain("t.sticky");

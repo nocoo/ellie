@@ -31,6 +31,7 @@ function response(extra = {}) {
 			limit: 20,
 			typeId: null,
 			hasNext: false,
+			announcementCount: 0,
 			...extra,
 		},
 	};
@@ -65,18 +66,55 @@ describe("forum list context", () => {
 		});
 		expect(admit).not.toHaveBeenCalled();
 	});
-	it("requires fresh display and count after bucket or category changes", async () => {
+	it("requires fresh display after bucket changes and a count after category normalization", async () => {
 		mocks.post.mockResolvedValueOnce(response({ display, count: 8 }));
 		await loadForumListContext(params);
 		mocks.post.mockResolvedValueOnce(response({ bucket: "anon" }));
 		await expect(loadForumListContext(params)).rejects.toThrow("Incomplete");
 		mocks.post.mockResolvedValueOnce(response({ bucket: "anon", display }));
-		await expect(loadForumListContext(params)).rejects.toThrow("count");
+		expect((await loadForumListContext(params)).total).toBe(8);
 		mocks.post.mockResolvedValueOnce(response({ bucket: "anon", display, count: 2 }));
 		expect((await loadForumListContext(params)).total).toBe(2);
 		mocks.post.mockResolvedValueOnce(response({ display, count: 3 }));
 		expect((await loadForumListContext({ ...params, typeId: 6 })).typeId).toBeNull();
-		expect(runtime.peek("thread-count", threadCountKey(2, null, "member"))).toBe(3);
+		expect(runtime.peek("thread-count", threadCountKey(2, null))).toBe(3);
+		mocks.post.mockResolvedValueOnce(response({ display }));
+		await expect(loadForumListContext({ ...params, typeId: 6 })).rejects.toThrow("count");
+	});
+	it("shares only the local count across buckets and adds fresh announcements without renewing it", async () => {
+		mocks.post.mockResolvedValueOnce(response({ display, count: 13, announcementCount: 3 }));
+		expect((await loadForumListContext(params)).total).toBe(13);
+		const query = { family: "thread-count" as const, page: 1, limit: 50 };
+		const original = runtime.snapshot(query).entries[0];
+		expect(runtime.peek("thread-count", threadCountKey(2, null))).toBe(10);
+		for (const [bucket, jwt, role, announcementCount] of [
+			["admin", "jwt", 1, 7],
+			["anon", null, 0, 1],
+			["member", "jwt", 0, 0],
+		] as const) {
+			mocks.jwt.mockResolvedValue(jwt);
+			mocks.user.mockResolvedValue({ role });
+			mocks.post.mockResolvedValueOnce(response({ bucket, display, announcementCount }));
+			expect((await loadForumListContext(params)).total).toBe(10 + announcementCount);
+			expect(mocks.post.mock.lastCall?.[1].includeCount).toBe(false);
+			expect(runtime.snapshot(query).entries).toEqual([original]);
+		}
+		mocks.post.mockRejectedValueOnce(new Error("forbidden"));
+		await expect(loadForumListContext(params)).rejects.toThrow("forbidden");
+	});
+	it("preserves an empty local count while visible announcements change", async () => {
+		mocks.post.mockResolvedValueOnce(response({ display, count: 3, announcementCount: 3 }));
+		await loadForumListContext(params);
+		mocks.post.mockResolvedValueOnce(response({ announcementCount: 1 }));
+		expect((await loadForumListContext(params)).total).toBe(1);
+		expect(mocks.post.mock.lastCall?.[1].includeCount).toBe(false);
+		expect(runtime.peek("thread-count", threadCountKey(2, null))).toBe(0);
+	});
+	it("rejects overflow when adding current announcements to a cached local count", async () => {
+		mocks.post.mockResolvedValueOnce(response({ display, count: Number.MAX_SAFE_INTEGER }));
+		await loadForumListContext(params);
+		mocks.post.mockResolvedValueOnce(response({ announcementCount: 1 }));
+		await expect(loadForumListContext(params)).rejects.toThrow("count");
 	});
 	it("does not admit fills racing invalidation and never serves a stale fallback", async () => {
 		mocks.post.mockImplementationOnce(async () => {
@@ -111,7 +149,7 @@ describe("forum list context", () => {
 			includeCount: false,
 			includeStats: true,
 		});
-		expect(runtime.peek("thread-count", threadCountKey(2, null, "member"))).toBe(1);
+		expect(runtime.peek("thread-count", threadCountKey(2, null))).toBe(1);
 	});
 
 	it.each([0, 8])("refreshes displays without renewing the six-hour count %s", async (count) => {
@@ -188,9 +226,22 @@ describe("forum list context", () => {
 		{ display: { ...display, threadTypes: null } },
 		{ count: -1 },
 		{ count: 1.5 },
+		{ count: "1" },
+		{ announcementCount: undefined },
+		{ announcementCount: -1 },
+		{ announcementCount: 1.5 },
+		{ announcementCount: "1" },
+		{ announcementCount: Number.MAX_SAFE_INTEGER + 1 },
+		{ count: 1, announcementCount: 2 },
 	])("rejects inconsistent response %j", async (extra) => {
 		mocks.post.mockResolvedValue(response({ display, count: 0, ...extra }));
 		await expect(loadForumListContext(params)).rejects.toThrow();
+	});
+	it("rejects an announcement contribution on a type-filtered response", async () => {
+		mocks.post.mockResolvedValueOnce(
+			response({ display, typeId: 6, count: 2, announcementCount: 1 }),
+		);
+		await expect(loadForumListContext({ ...params, typeId: 6 })).rejects.toThrow("context");
 	});
 	it.each([
 		[null, 0, "anon"],

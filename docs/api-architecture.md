@@ -349,11 +349,17 @@ includeStats, includeCount }`. Nullable fields are explicit; every field is
 required. `limit` is 1..100; ids/page/offset are safe integers; revision is null
 or SHA-256 hex. Unknown fields/query parameters and oversized bodies are rejected.
 
-The response data is `{ bucket, user, revision, page, limit, typeId, hasNext,
+The response data is `{ bucket, user, revision, page, limit, typeId, hasNext, announcementCount,
 display?, stats?, count? }`. Worker derives the current bucket and normalized type,
 verifies full forum ancestry and current page membership, and returns fresh display
 and count when reuse is unsafe. Otherwise Next combines the response with its
-bounded `forum-list` display entry, six-hour thread counts and five-minute statistics.
+bounded `forum-list` display entry, six-hour local thread counts and five-minute statistics.
+`count` remains the full caller-authorized total when requested. Next stores only
+`count - announcementCount` per forum/type, shared across buckets, and adds the
+fresh caller-visible `announcementCount` after every successful access check.
+Groups and type-filtered lists return zero announcement contribution; typed local
+counts retain their existing inclusion of matching global topics. Full privileged
+totals are never shared. Invalid contributions, remainders or overflow fail the read.
 Count-changing writes actively invalidate totals; their six-hour absolute lifetime is
 capped at Shanghai midnight and is never renewed by reads. Lost notifications can
 leave only the displayed total stale until expiry; permissions, page membership and
@@ -361,6 +367,8 @@ leave only the displayed total stale until expiry; permissions, page membership 
 Display revision changes do not force a new total unless the bucket or normalized
 type changes. Reusing a total does not renew its expiry; fresh `hasNext` remains authoritative.
 No identity or permission result is admitted into process display memory.
+Deploy and verify the Worker announcement field, including `includeCount:false`,
+before pushing main and triggering the automatic Web deployment.
 
 List anonymous authors and anonymous last posters are masked for all viewers,
 including their owners and staff. Thread details retain viewer-specific identity

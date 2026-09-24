@@ -219,6 +219,7 @@ async function assemble(
 		limit: request.limit,
 		typeId,
 		hasNext: visible.hasNext,
+		announcementCount: page.eligibleAnnouncements.length,
 	};
 	if (display) data.display = display;
 	if (count !== undefined) data.count = count;

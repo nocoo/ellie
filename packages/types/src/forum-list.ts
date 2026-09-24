@@ -51,6 +51,7 @@ export interface ForumListContextData {
 	limit: number;
 	typeId: number | null;
 	hasNext: boolean;
+	announcementCount: number;
 	display?: ForumListDisplay;
 	stats?: HomeStats;
 	count?: number;

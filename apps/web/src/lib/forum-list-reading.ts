@@ -26,6 +26,11 @@ function validateContext(data: ForumListContextData, params: ListParams) {
 		data.limit !== params.limit ||
 		(data.typeId !== null && data.typeId !== params.typeId) ||
 		typeof data.hasNext !== "boolean" ||
+		!Number.isSafeInteger(data.announcementCount) ||
+		data.announcementCount < 0 ||
+		(data.typeId !== null && data.announcementCount !== 0) ||
+		(data.count !== undefined &&
+			(!Number.isSafeInteger(data.count) || data.count < data.announcementCount)) ||
 		typeof data.revision !== "string" ||
 		!/^[a-f0-9]{64}$/.test(data.revision)
 	)
@@ -85,7 +90,7 @@ async function readContext(
 	const countToken = runtime.capture("thread-count");
 	const cached = forceDisplay ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
 	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
-	const countKey = threadCountKey(forumId, typeId, hint);
+	const countKey = threadCountKey(forumId, typeId);
 	const cachedCount = runtime.peek<number>("thread-count", countKey);
 	const { data } = await forumApi.postRead<ForumListContextData>(
 		FORUM_LIST_CONTEXT_PATH,
@@ -101,21 +106,29 @@ async function readContext(
 	);
 	validateContext(data, params);
 	const sameKey = data.bucket === hint && data.typeId === typeId;
+	const sameCountKey = data.typeId === typeId;
 	const current =
 		data.display || forceDisplay ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
 	const currentCount =
-		data.count === undefined ? runtime.peek<number>("thread-count", countKey) : undefined;
+		data.count === undefined && sameCountKey
+			? runtime.peek<number>("thread-count", countKey)
+			: undefined;
 	const reusable = sameKey && current?.revision === data.revision;
 	const lostDisplay = !data.display && sameKey && cached?.revision === data.revision && !reusable;
 	const lostCount =
-		data.count === undefined && sameKey && cachedCount !== undefined && currentCount === undefined;
+		data.count === undefined &&
+		sameCountKey &&
+		cachedCount !== undefined &&
+		currentCount === undefined;
 	if (!forceDisplay && (lostDisplay || lostCount)) return readContext(runtime, params, true);
 	const display = data.display ?? (reusable ? current.display : undefined);
 	validateDisplay(display, forumId, limit);
-	const total = data.count ?? (sameKey ? currentCount : undefined);
-	if (total === undefined || !Number.isSafeInteger(total) || total < 0) {
+	const localCount = data.count === undefined ? currentCount : data.count - data.announcementCount;
+	if (localCount === undefined || !Number.isSafeInteger(localCount) || localCount < 0) {
 		throw new Error("Invalid forum list count");
 	}
+	const total = localCount + data.announcementCount;
+	if (!Number.isSafeInteger(total)) throw new Error("Invalid forum list count");
 	if (data.display) {
 		runtime.admit(
 			forumListCacheKey(data.bucket, forumId, page, limit, data.typeId),
@@ -128,7 +141,7 @@ async function readContext(
 	}
 	if (data.stats) runtime.admit("site:v1", data.stats, statsToken);
 	if (data.count !== undefined)
-		runtime.admit(threadCountKey(forumId, data.typeId, data.bucket), data.count, countToken);
+		runtime.admit(threadCountKey(forumId, data.typeId), localCount, countToken);
 	if (data.user) runtime.recordActivity(data.user.id);
 	return {
 		...data,

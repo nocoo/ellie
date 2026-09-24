@@ -16,8 +16,8 @@
  *     sticky>=0/anonymousAuthor===0/authorId equality. A state mismatch
  *     clears that forum's entry and re-reads once; anything still failing
  *     hides only the topic line, never the numeric summary.
- *   - Counts cache per (forumId, typeId, bucket) from an authorized bucket
- *     only; malformed totals throw instead of being cached as 0.
+ *   - Local counts cache per (forumId, typeId) after authorization; fresh
+ *     caller-visible announcements are added separately on every read.
  */
 
 import "server-only";
@@ -437,9 +437,9 @@ function EMPTY_FORUM_SUMMARY(forumId: number): ForumSummaryTopic {
 }
 
 // ---------------------------------------------------------------------------
-// Thread counts (cached per forumId + typeId + Worker-authorized bucket)
+// Local thread counts (cached per forumId + typeId)
 // ---------------------------------------------------------------------------
 
-export function threadCountKey(forumId: number, typeId: number | null, bucket: ReadingBucket) {
-	return `forum:${forumId}:type:${typeId ?? 0}:bucket:${bucket}`;
+export function threadCountKey(forumId: number, typeId: number | null) {
+	return `forum:${forumId}:type:${typeId ?? 0}`;
 }

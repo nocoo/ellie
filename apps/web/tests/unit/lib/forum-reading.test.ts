@@ -354,7 +354,7 @@ describe("loadForumSummariesWithGates", () => {
 	});
 });
 
-it("keys counts by forum, category, and authorized bucket", () => {
-	expect(threadCountKey(7, 3, "staff")).toBe("forum:7:type:3:bucket:staff");
-	expect(threadCountKey(7, null, "anon")).toBe("forum:7:type:0:bucket:anon");
+it("keys local counts by forum and category", () => {
+	expect(threadCountKey(7, 3)).toBe("forum:7:type:3");
+	expect(threadCountKey(7, null)).toBe("forum:7:type:0");
 });

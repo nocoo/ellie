@@ -140,6 +140,43 @@ ordinary-list VM steps fell, but group-page steps rose. A new trigger-maintained
 count table was also deferred because approximate totals are accepted and a
 longer bounded memory lifetime avoids another derived-data invariant.
 
+## Measured follow-up: share only the local count
+
+The v1.14.7 runtime snapshot at 2026-09-24T11:51:41.029Z contained 35 count
+entries for 17 forum/type combinations; 14 combinations appeared in multiple
+reading buckets (15 admin, 16 member, four anonymous entries). This establishes
+duplicated retained counts, not a predicted D1 reduction. Concurrent cold reads
+can still recount; no new request-coalescing mechanism is introduced.
+
+The local SQL count is independent of the viewer after the forum access gate.
+Only the eligible global-announcement contribution depends on visibility.
+v1.14.8 adds the required `announcementCount` context field using the existing
+fresh announcement selection, with zero for groups and type-filtered lists.
+The optional `count` retains its full authorized-total meaning. Next stores
+only the validated difference under a forum/type key and adds the current
+announcement contribution on every read. Display keys remain bucket-specific.
+
+Count-key equality depends on normalized type; display equality also depends
+on bucket. Existing conservative Worker recounts on a mismatched bucket hint
+remain. Recheck count availability after awaits and preserve the single retry,
+six-hour absolute lifetime, midnight cap, capacity and mutation epoch fences.
+Existing forum-prefix invalidation covers the new key. Global announcement
+mutations conservatively retain full count invalidation. No migration or new
+cache family is required.
+
+Independent Codex design review passed on September 24 at 19:56 Asia/Shanghai,
+with no remaining P0/P1/P2/P3. Required validation includes cross-bucket local
+reuse with different announcement contributions, an empty local forum,
+normalized types, groups, hidden ancestors, invalid arithmetic, expiry/clear
+races and unchanged direct caller total semantics.
+
+After local gates and commit, deploy that exact Worker revision and verify its
+live version plus the field on both `includeCount` values. Only then push main
+and the new tag: successful main CI automatically starts Docker deployment.
+Record this additional cutover within the original ten observation windows,
+including its cold rebuilding costs. Do not substitute warm windows for the
+complete rollout comparison.
+
 Independent Codex design review passed on September 24 at 18:18 Asia/Shanghai,
 with no open P0/P1/P2/P3 design findings. The stale aggregate can retain a hidden
 topic or announcement contribution after a missed notification; it cannot reveal
