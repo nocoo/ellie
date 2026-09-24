@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.3] - 2026-09-24
+
+### Changed
+
+- Cache bounded homepage forum structure, latest-topic summaries and digest recommendations in Next.js memory; combine warm server-rendered content reads into one Worker context request with fresh user and visibility checks.
+- Reuse existing Web mutation invalidation and Worker KV ownership. Direct Admin writes notify Web through the existing memory-management channel without delaying the business response.
+- Add animated forum folding and smooth section navigation, remove the duplicate homepage banner, and move daily check-in to the section navigation.
+
+### Fixed
+
+- Fence homepage fills against concurrent invalidation and Shanghai date rollover, rebuild current author names after restart, and keep private responses out of shared snapshots.
+- Include homepage contexts in the existing bounded concurrent-load budget and preserve verified homepage content when optional statistics fail, retrying without caching default values.
+
+### Deployment
+
+- Deploy the Worker context endpoint before Web/Admin cutover. No new D1 migration or secret is introduced relative to v1.14.2.
+- Web, Admin, Worker and Rust package versions are synchronized to v1.14.3.
+
 ## [1.14.2] - 2026-09-24
 
 ### Changed
