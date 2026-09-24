@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.6] - 2026-09-24
+
+### Fixed
+
+- Stop recounting all eligible topics whenever a forum-list display refreshes. Read totals only when requested or when the effective permission bucket or category changes; the Web count snapshot retains its absolute thirty-minute lifetime.
+
+### Deployment
+
+- Publish only after v1.14.5 Web/Admin are live, so the new count-omission behavior has a matching reader. No migration or secret change is required.
+- Begin the ten thirty-minute D1/KV comparison windows after this final cutover. Keep the preceding transition outside the steady-version measurements.
+
 ## [1.14.5] - 2026-09-24
 
 ### Fixed

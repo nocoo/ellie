@@ -193,7 +193,7 @@ async function assemble(
 		request.cachedRevision !== revision ||
 		bucketMismatch ||
 		typeNormalized;
-	const needCount = request.includeCount || forceDisplay;
+	const needCount = request.includeCount || bucketMismatch || typeNormalized;
 	const [display, count] = await Promise.all([
 		forceDisplay
 			? loadDisplay(
