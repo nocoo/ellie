@@ -42,6 +42,9 @@ vi.mock("../../src/handlers/stats", () => ({
 vi.mock("../../src/handlers/home", () => ({
 	homeContext: mockHandler(),
 }));
+vi.mock("../../src/handlers/forum-list", () => ({
+	forumListContext: mockHandler(),
+}));
 vi.mock("../../src/handlers/auth", () => ({
 	login: mockHandler(),
 	refresh: mockHandler(),
@@ -271,6 +274,7 @@ const MODULE_PATHS: Record<string, string> = {
 	digest: "../../src/handlers/digest",
 	stats: "../../src/handlers/stats",
 	home: "../../src/handlers/home",
+	"forum-list": "../../src/handlers/forum-list",
 	settings: "../../src/handlers/settings",
 	auth: "../../src/handlers/auth",
 	me: "../../src/handlers/me",
@@ -868,6 +872,7 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/digest/stats", "digest", "stats"],
 				["GET", "/api/v1/digest/filters", "digest", "filters"],
 				["GET", "/api/v1/stats", "stats", "stats"],
+				["POST", "/api/v1/forums/context", "forum-list", "forumListContext"],
 				["POST", "/api/v1/home/context", "home", "homeContext"],
 				["GET", "/api/v1/settings", "settings", "list"],
 			])("%s %s → %s.%s", async (method, path, mod, fn) => {

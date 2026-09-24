@@ -13,11 +13,15 @@ vi.mock("@/lib/forum-api", () => ({
 
 vi.mock("react", () => ({ cache: (fn: (...args: unknown[]) => unknown) => fn }));
 
+const context = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/forum-cache", async (original) => ({
+	...(await original<object>()),
+	getCachedForumListContext: context,
+}));
+
 import { forumApi } from "@/lib/forum-api";
 
-let { getCachedForumList, getCachedForumNames, getCachedThreadById } = await import(
-	"@/lib/forum-cache"
-);
+let { getCachedForumNames, getCachedThreadById } = await import("@/lib/forum-cache");
 let { getForumTitle, getThreadTitle, getUserTitle } = await import(
 	"@/viewmodels/forum/title.server"
 );
@@ -26,9 +30,7 @@ const mockForumApi = forumApi as any;
 beforeEach(async () => {
 	vi.resetAllMocks();
 	vi.resetModules();
-	({ getCachedForumList, getCachedForumNames, getCachedThreadById } = await import(
-		"@/lib/forum-cache"
-	));
+	({ getCachedForumNames, getCachedThreadById } = await import("@/lib/forum-cache"));
 	({ getForumTitle, getThreadTitle, getUserTitle } = await import(
 		"@/viewmodels/forum/title.server"
 	));
@@ -56,13 +58,13 @@ describe("getUserTitle", () => {
 
 describe("getForumTitle", () => {
 	it("returns forum name when found", async () => {
-		mockForumApi.getAll.mockResolvedValue({ data: [{ id: 5, name: "General" }] });
+		context.mockResolvedValue({ forumId: 5, display: { forums: [{ id: 5, name: "General" }] } });
 		const result = await getForumTitle(5);
 		expect(result).toBe("General");
 	});
 
 	it("returns fallback when forum not found", async () => {
-		mockForumApi.getAll.mockResolvedValue({ data: [{ id: 5, name: "General" }] });
+		context.mockResolvedValue({ forumId: 5, display: { forums: [{ id: 5, name: "General" }] } });
 		const result = await getForumTitle(999);
 		expect(result).toBe("版块 999");
 	});
@@ -83,18 +85,11 @@ describe("render-pass loader routing", () => {
 		]);
 	});
 
-	it("getForumTitle and getCachedForumList both resolve through forumApi.getAll (shared path)", async () => {
-		mockForumApi.getAll.mockResolvedValue({ data: [{ id: 7, name: "Dev" }] });
-
-		// generateMetadata → getForumTitle → getCachedForumList → forumApi.getAll
-		const title = await getForumTitle(7);
-		// page loader → getCachedForumList → structure view (same function, deduped by React cache at runtime)
-		const forums = await getCachedForumList(null);
-
-		expect(title).toBe("Dev");
-		expect(forums).toEqual([{ id: 7, name: "Dev" }]);
-		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums", { view: "structure" });
-		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
+	it("gets forum metadata from the authorized list context", async () => {
+		context.mockResolvedValue({ forumId: 7, display: { forums: [{ id: 7, name: "Dev" }] } });
+		expect(await getForumTitle(7)).toBe("Dev");
+		expect(context).toHaveBeenCalledOnce();
+		expect(mockForumApi.getAll).not.toHaveBeenCalled();
 	});
 });
 

@@ -2,6 +2,8 @@ import "server-only";
 
 import {
 	boundMemoryCachePreview,
+	FORUM_LIST_MAX_ENTRY_BYTES,
+	FORUM_LIST_PAYLOAD_LIMIT_BYTES,
 	MEMORY_CACHE_FAMILIES,
 	MEMORY_CACHE_FAMILY_CAPACITY,
 	MEMORY_CACHE_HISTORY_LIMIT,
@@ -22,12 +24,15 @@ import {
 } from "@ellie/types";
 
 const MAX_FLIGHTS = 64;
-const MAX_ENTRY_BYTES = 16_384;
 const MAX_VIEWS = 2048;
 const MAX_USERS = 4096;
 const ACTIVITY_INTERVAL = 15 * 60_000;
 const DAY_MS = 86_400_000;
 const SHANGHAI_OFFSET = 8 * 3_600_000;
+const PAYLOAD_RESERVED_BYTES = 1024 * 1024;
+const HOME_DISPLAY_ENTRY_BYTES = 512 * 1024;
+const DEFAULT_ENTRY_BYTES = 16 * 1024;
+const THIRTY_MINUTES_MS = 30 * 60_000;
 
 interface Entry {
 	value: unknown;
@@ -218,6 +223,12 @@ export class MemoryRuntime {
 		return bytes;
 	}
 
+	private familyBytes(family: Family): number {
+		let bytes = 0;
+		for (const entry of family.entries.values()) bytes += entry.bytes;
+		return bytes;
+	}
+
 	private prune(): void {
 		const now = this.now();
 		for (const family of this.families.values()) {
@@ -267,7 +278,9 @@ export class MemoryRuntime {
 			(family.entries.get(key)?.createdAt ?? 0) > token.startedAt
 		)
 			return false;
-		const ttl = token.family === "home-display" ? 30 * 60_000 : MEMORY_CACHE_TTL_MS;
+		const isHomeDisplay = token.family === "home-display";
+		const isForumList = token.family === "forum-list";
+		const ttl = isHomeDisplay || isForumList ? THIRTY_MINUTES_MS : MEMORY_CACHE_TTL_MS;
 		const expiresAt = Math.min(token.startedAt + ttl, (day(now) + 1) * DAY_MS - SHANGHAI_OFFSET);
 		if (expiresAt <= now) return false;
 		const encoded = JSON.stringify(value);
@@ -276,13 +289,32 @@ export class MemoryRuntime {
 			encoded === undefined
 				? Infinity
 				: Buffer.byteLength(encoded) + Buffer.byteLength(preview) + key.length * 2 + 256;
-		if (bytes > (token.family === "home-display" ? 512 * 1024 : MAX_ENTRY_BYTES)) return false;
+		const entryLimit = isHomeDisplay
+			? HOME_DISPLAY_ENTRY_BYTES
+			: isForumList
+				? FORUM_LIST_MAX_ENTRY_BYTES
+				: DEFAULT_ENTRY_BYTES;
+		if (bytes > entryLimit) return false;
 		family.entries.delete(key);
 		while (family.entries.size >= family.stats.maxEntries) this.evict(family);
-		while (this.payloadBytes() + bytes > MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - 1024 * 1024) {
-			const victim = [...this.families.values()].find((item) => item.entries.size > 0);
-			if (!victim) break;
-			this.evict(victim);
+		if (isForumList) {
+			// Forum-list may only evict its own LRU, even at the global cap.
+			while (
+				this.familyBytes(family) + bytes > FORUM_LIST_PAYLOAD_LIMIT_BYTES ||
+				this.payloadBytes() + bytes > MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - PAYLOAD_RESERVED_BYTES
+			) {
+				if (family.entries.size === 0) return false;
+				this.evict(family);
+			}
+		} else {
+			while (
+				this.payloadBytes() + bytes >
+				MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - PAYLOAD_RESERVED_BYTES
+			) {
+				const victim = [...this.families.values()].find((item) => item.entries.size > 0);
+				if (!victim) break;
+				this.evict(victim);
+			}
 		}
 		family.entries.set(key, {
 			value: structuredClone(value),
@@ -363,6 +395,29 @@ export class MemoryRuntime {
 				family.entries.delete(key);
 				const flight = family.flights.get(key);
 				if (flight) flight.valid = false;
+				family.flights.delete(key);
+			}
+		}
+	}
+
+	/**
+	 * Invalidate every cached entry whose key starts with `prefix` inside the
+	 * given family. Bumps the family epoch first so in-flight loads started
+	 * before this call fail their epoch check at admission; other families
+	 * and unrelated keys are untouched. The epoch bump happens even when no
+	 * entry currently matches, so coordinators can rely on it to fence fills
+	 * for keys that have not yet been admitted.
+	 */
+	clearPrefix(id: MemoryCacheFamilyId, prefix: string): void {
+		const family = this.families.get(id);
+		if (!family) return;
+		family.epoch++;
+		for (const key of family.entries.keys()) {
+			if (key.startsWith(prefix)) family.entries.delete(key);
+		}
+		for (const [key, flight] of family.flights) {
+			if (key.startsWith(prefix)) {
+				flight.valid = false;
 				family.flights.delete(key);
 			}
 		}

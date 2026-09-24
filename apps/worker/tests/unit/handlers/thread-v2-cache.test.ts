@@ -196,7 +196,7 @@ describe("reading cache hot paths", () => {
 });
 
 describe("current gates and audience projection over shared snapshots", () => {
-	it("anonymous authors/last posters are projected for anon, self, other member and each staff role", async () => {
+	it("detail keeps viewer anonymity and the generic list always masks", async () => {
 		f.sqlite.exec(
 			"UPDATE threads SET anonymous_author=1,anonymous_last_poster=1,last_poster_id=20 WHERE id=1; UPDATE posts SET anonymous=1 WHERE id=1",
 		);
@@ -213,7 +213,9 @@ describe("current gates and audience projection over shared snapshots", () => {
 			const body = await (await posts(userId)).json();
 			expect(body.data[0].authorId).toBe(showAuthor ? 10 : 0);
 			const list = await (await listThreads("forumId=1", userId)).json();
-			expect(list.data[0].authorId).toBe(showAuthor ? 10 : 0);
+			expect(list.data[0].authorId).toBe(0);
+			expect(list.data[0].lastPosterId).toBe(0);
+			expect(list.data[0].authorName).toBe("匿名");
 		}
 		expect(f.snapshots("thread:entity")).toHaveLength(1);
 		expect(f.snapshots("post:entity")).toHaveLength(3);

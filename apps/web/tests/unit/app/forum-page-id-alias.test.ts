@@ -1,15 +1,3 @@
-// Unit tests for the path-segment pagination alias route
-// `/forums/:id/:page/page.tsx`.
-//
-// Reviewer pin (msg 56498717): the alias MUST reuse the parent
-// loader/component (no double 301, no duplicated data path). The
-// behaviors we lock:
-//   - invalid `:page` (non-positive int, leading zero, abc) → notFound()
-//   - `:page === 1` → permanentRedirect to bare `/forums/:id` (defense
-//     in depth — proxy already 301s before us)
-//   - `:page >= 2` → delegate to the parent default export with
-//     `searchParams.page = "<n>"` and whitelist `typeId`
-
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -90,39 +78,16 @@ describe("forums/[id]/[page]/page.tsx alias", () => {
 		);
 	});
 
-	it("page >= 2 → delegates to parent ForumThreadsPage with overridden page", async () => {
+	it.each(["2", "3", "5"])("page %s delegates using the trusted request context", async (page) => {
 		mocks.parent.mockClear();
-		const result = await callAlias("306", "2", { typeId: "11" });
+		const result = await callAlias("306", page, { typeId: "11", page: "999", evil: "drop-me" });
 		expect(result).toBe("RENDERED_FORUM_PAGE");
-		expect(mocks.parent).toHaveBeenCalledTimes(1);
-		const arg = mocks.parent.mock.calls[0][0] as {
-			params: Promise<{ id: string }>;
-			searchParams: Promise<Record<string, string>>;
-		};
+		expect(mocks.parent).toHaveBeenCalledOnce();
+		const arg = mocks.parent.mock.calls[0][0] as { params: Promise<{ id: string }> };
 		await expect(arg.params).resolves.toEqual({ id: "306" });
-		await expect(arg.searchParams).resolves.toEqual({ typeId: "11", page: "2" });
+		expect(arg).not.toHaveProperty("searchParams");
 	});
-
-	it("page >= 2 drops anything other than typeId on delegation", async () => {
-		mocks.parent.mockClear();
-		await callAlias("306", "3", {
-			typeId: "11",
-			evil: "drop-me",
-			cursor: "deadbeef",
-			page: "999", // segment overrides any caller-supplied page
-		});
-		const arg = mocks.parent.mock.calls[0][0] as {
-			searchParams: Promise<Record<string, string>>;
-		};
-		await expect(arg.searchParams).resolves.toEqual({ typeId: "11", page: "3" });
-	});
-
-	it("page >= 2 with no typeId still delegates cleanly", async () => {
-		mocks.parent.mockClear();
-		await callAlias("306", "5", {});
-		const arg = mocks.parent.mock.calls[0][0] as {
-			searchParams: Promise<Record<string, string>>;
-		};
-		await expect(arg.searchParams).resolves.toEqual({ page: "5" });
+	it("rejects a page beyond safe integer precision", async () => {
+		await expect(callAlias("306", "9007199254740992")).rejects.toThrow("NEXT_NOT_FOUND");
 	});
 });

@@ -14,6 +14,7 @@ export const MEMORY_FAMILY_LABELS: Record<MemoryCacheFamilyId, string> = {
 	"site-stats": "站点统计",
 	"forum-summary": "版块摘要",
 	"thread-count": "主题计数",
+	"forum-list": "版块列表",
 };
 
 export class MemoryCacheRequestError extends Error {

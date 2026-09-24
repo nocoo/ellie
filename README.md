@@ -141,3 +141,5 @@ cargo test --locked --manifest-path packages/cli-rs/Cargo.toml --workspace
 ## 许可证
 
 [MIT](LICENSE) © 2026 Zheng Li。
+
+[Forum list memory read plan](docs/33-forum-list-memory-read-plan.md): bounded Next.js display caching, fresh page authorization, and write invalidation.

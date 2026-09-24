@@ -8,7 +8,8 @@ import { SessionGuard } from "@/components/forum/session-guard";
 import { MaintenancePage } from "@/components/maintenance-page";
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
-import { getCachedHomeContext } from "@/lib/forum-cache";
+import { getCachedForumListContext, getCachedHomeContext } from "@/lib/forum-cache";
+import { FORUM_LIST_LOCATION_HEADER, parseForumListLocation } from "@/lib/forum-list-location";
 import { getSelfForumUser } from "@/lib/forum-self";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import {
@@ -52,7 +53,15 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ForumLayout({ children }: { children: ReactNode }) {
-	const isHome = (await headers()).get("x-ellie-home") === "1";
+	const requestHeaders = await headers();
+	const isHome = requestHeaders.get("x-ellie-home") === "1";
+	const isForumList =
+		parseForumListLocation(requestHeaders.get(FORUM_LIST_LOCATION_HEADER)) !== null;
+	const loadContext = isHome
+		? getCachedHomeContext
+		: isForumList
+			? getCachedForumListContext
+			: null;
 	// First, fetch settings to check maintenance mode
 	const settings = await fetchPublicSettings();
 	const isMaintenanceMode = getBool(settings, "features.access.maintenance_mode", false);
@@ -64,8 +73,8 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 
 		if (adminBypass) {
 			// Check if current user is a forum admin (role = 1)
-			const currentUser = isHome
-				? (await getCachedHomeContext().catch(() => null))?.user
+			const currentUser = loadContext
+				? (await loadContext().catch(() => null))?.user
 				: await loadCurrentUser();
 			canBypass = currentUser?.role === 1;
 		}
@@ -80,22 +89,22 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 		}
 	}
 
-	const home = isHome ? await getCachedHomeContext().catch(() => null) : null;
-	const [stats, currentUser, self] = isHome
+	const context = loadContext ? await loadContext().catch(() => null) : null;
+	const [stats, currentUser, self] = loadContext
 		? [
-				home?.stats ?? DEFAULT_STATS,
-				home?.user
+				context?.stats ?? DEFAULT_STATS,
+				context?.user
 					? {
-							uid: home.user.id,
-							username: home.user.username,
-							groupTitle: home.user.groupTitle,
-							credits: home.user.credits,
-							coins: home.user.coins,
-							role: home.user.role,
+							uid: context.user.id,
+							username: context.user.username,
+							groupTitle: context.user.groupTitle,
+							credits: context.user.credits,
+							coins: context.user.coins,
+							role: context.user.role,
 							reminderCount: 0,
 						}
 					: null,
-				home?.user ?? null,
+				context?.user ?? null,
 			]
 		: await Promise.all([loadStats(), loadCurrentUser(), getSelfForumUser()]);
 

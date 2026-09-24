@@ -288,7 +288,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 			role: user.role,
 		}),
 		origin,
-		undefined,
+		{ threadSticky: thread.sticky },
 		201,
 	);
 });

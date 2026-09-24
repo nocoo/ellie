@@ -41,6 +41,7 @@ export {
 	filterVisibleForums,
 	findForumAncestors,
 } from "./forum";
+export * from "./forum-list";
 export * from "./home";
 // ─── Next.js memory cache management ─────────────────────────
 export type {

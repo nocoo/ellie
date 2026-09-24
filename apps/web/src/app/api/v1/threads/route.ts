@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
+import { invalidateDisplayAfterWrite, mutationForumId } from "@/lib/display-invalidation";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/threads
 // Browser → Next.js → Worker (create thread)
@@ -42,7 +42,12 @@ export async function POST(request: Request) {
 		};
 		const body = await request.json();
 		const result = await forumApi.postAuth<unknown>("/api/v1/threads", body, jwt, client);
-		invalidateDisplayAfterWrite({ forumSummaries: true, threadCounts: true, siteStats: true });
+		invalidateDisplayAfterWrite({
+			forumId: mutationForumId(result),
+			forumSummaries: true,
+			threadCounts: true,
+			siteStats: true,
+		});
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
 		if (err instanceof ForumApiError) {

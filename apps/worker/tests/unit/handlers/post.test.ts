@@ -317,54 +317,65 @@ describe("post handlers", () => {
 			expect(body.error.code).toBe("THREAD_CLOSED");
 		});
 
-		it("should create reply and update counts", async () => {
-			const token = await createJwtForRole(0, 42);
-			const createdPost = makeD1PostRow({
-				id: 50,
-				thread_id: 1,
-				forum_id: 10,
-				position: 6,
-				is_first: 0,
-			});
-			const { db, batchCalls } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"JOIN forums f": { id: 1, forum_id: 10, closed: 0, status: 1, visibility: "public" },
-					"SELECT MAX(position)": { maxPos: 5 },
-					"SELECT * FROM posts WHERE id": createdPost,
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
-						status: 0,
-						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
-						reg_date: 0,
-						role: 0,
+		it.each([0, 1, 2])(
+			"creates a reply and reports authoritative thread sticky %i",
+			async (sticky) => {
+				const token = await createJwtForRole(0, 42);
+				const createdPost = makeD1PostRow({
+					id: 50,
+					thread_id: 1,
+					forum_id: 10,
+					position: 6,
+					is_first: 0,
+				});
+				const { db, batchCalls } = createMockDb({
+					firstResults: {
+						"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+						"JOIN forums f": {
+							id: 1,
+							forum_id: 10,
+							closed: 0,
+							status: 1,
+							visibility: "public",
+							sticky,
+						},
+						"SELECT MAX(position)": { maxPos: 5 },
+						"SELECT * FROM posts WHERE id": createdPost,
+						"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+							status: 0,
+							avatar_path: "avatars/test.jpg",
+							has_avatar: 0,
+							reg_date: 0,
+							role: 0,
+						},
 					},
-				},
-				allResults: {
-					"SELECT key, value FROM settings WHERE key LIKE": [],
-				},
-				runResults: {
-					"INSERT INTO posts": { success: true, meta: { last_row_id: 50 } },
-				},
-			});
+					allResults: {
+						"SELECT key, value FROM settings WHERE key LIKE": [],
+					},
+					runResults: {
+						"INSERT INTO posts": { success: true, meta: { last_row_id: 50 } },
+					},
+				});
 
-			const response = await create(
-				new Request("https://example.com/api/v1/posts", {
-					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ threadId: 1, content: "<p>My reply</p>" }),
-				}),
-				{ ...mockEnv, DB: db },
-			);
+				const response = await create(
+					new Request("https://example.com/api/v1/posts", {
+						method: "POST",
+						headers: { Authorization: `Bearer ${token}` },
+						body: JSON.stringify({ threadId: 1, content: "<p>My reply</p>" }),
+					}),
+					{ ...mockEnv, DB: db },
+				);
 
-			expect(response.status).toBe(201);
-			const body = await response.json();
-			expect(body.data.id).toBe(50);
+				expect(response.status).toBe(201);
+				const body = await response.json();
+				expect(body.data.id).toBe(50);
+				expect(body.meta.threadSticky).toBe(sticky);
 
-			// Verify batch was called: UPDATE threads + UPDATE forums + UPDATE users = 3
-			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(3);
-		});
+				// Verify batch was called: UPDATE threads + UPDATE forums + UPDATE users = 3
+				expect(batchCalls.length).toBe(1);
+				expect(batchCalls[0].length).toBe(3);
+			},
+		);
 
 		it("should trim content", async () => {
 			const token = await createJwtForRole(0, 42);

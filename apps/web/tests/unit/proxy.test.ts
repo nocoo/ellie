@@ -382,6 +382,19 @@ describe("proxy", () => {
 		);
 	});
 
+	it.each([
+		["/forums/2", "2:1:0"],
+		["/forums/2/3?typeId=4", "2:3:4"],
+		["/threads/2", null],
+	])("overwrites the forum-list hint for %s", async (path, expected) => {
+		mockAuth.mockResolvedValue(null);
+		const request = makeMockNextRequest(path);
+		request.headers = new Headers({ "x-ellie-forum-list": "999:999:999" });
+		await proxy(request);
+		const options = vi.mocked(NextResponse.next).mock.calls.at(-1)?.[0];
+		expect(new Headers(options?.request?.headers).get("x-ellie-forum-list")).toBe(expected);
+	});
+
 	it.each([true, false])(
 		"derives the internal prefetch hint and overwrites client input (%s)",
 		async (prefetch) => {

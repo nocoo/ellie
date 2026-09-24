@@ -99,15 +99,15 @@ describe("forum-settings (via lib/forum-cache)", () => {
 		[{ id: 1, name: "Public", lastThreadId: 0, lastPosterId: 0 }],
 		[{ id: 1, name: "Public", lastThreadId: 42, lastPosterId: 0 }],
 	])("observes a Worker-invalidated summary on the next render: %j", async (updated) => {
-		const { getCachedForumList, getCachedForumAncestors } = await import("@/lib/forum-cache");
+		const { getCachedForumStructure, getCachedForumAncestors } = await import("@/lib/forum-cache");
 		vi.mocked(forumApi.getAll)
 			.mockResolvedValueOnce({
 				data: [{ id: 1, name: "Public", lastThreadId: 42, lastPosterId: 20 }],
 			} as never)
 			.mockResolvedValue({ data: updated } as never);
-		await getCachedForumList();
+		await getCachedForumStructure(null);
 		// React cache is identity here: each call stands for a separate render.
-		expect(await getCachedForumList()).toEqual(updated);
+		expect((await getCachedForumStructure(null)).forums).toEqual(updated);
 		expect(forumApi.getAll).toHaveBeenCalledTimes(2);
 		mockGet.mockResolvedValue({ data: { forum: { id: 1 }, ancestors: [] } });
 		await getCachedForumAncestors(1);

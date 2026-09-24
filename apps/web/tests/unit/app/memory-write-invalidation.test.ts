@@ -5,8 +5,9 @@ import { DELETE as deleteThread } from "@/app/api/v1/me/threads/[id]/route";
 import { PATCH as digest } from "@/app/api/v1/moderation/threads/[id]/digest/route";
 import { PATCH as sticky } from "@/app/api/v1/moderation/threads/[id]/sticky/route";
 import { POST as nuke } from "@/app/api/v1/moderation/users/[id]/nuke/route";
+import { POST as createReply } from "@/app/api/v1/posts/route";
 import { PATCH as patchMe } from "@/app/api/v1/users/me/route";
-import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
+import { invalidateDisplayAfterWrite, mutationForumId } from "@/lib/display-invalidation";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { authPatch } from "@/lib/forum-auth";
 import { getMemoryRuntime } from "@/lib/memory-runtime";
@@ -22,13 +23,40 @@ vi.mock("@/lib/forum-api", async (original) => ({
 }));
 
 const clear = vi.fn();
+const clearPrefix = vi.fn();
 beforeEach(() => {
 	vi.clearAllMocks();
-	vi.mocked(getMemoryRuntime).mockReturnValue({ clear } as ReturnType<typeof getMemoryRuntime>);
+	vi.mocked(getMemoryRuntime).mockReturnValue({ clear, clearPrefix } as ReturnType<
+		typeof getMemoryRuntime
+	>);
 	process.env.AUTH_URL = "https://web.example.com";
 });
 
 describe("successful writes invalidate local display caches", () => {
+	it.each([0, 1, 2, undefined, "0"])(
+		"scopes replies using authoritative sticky metadata %s",
+		async (threadSticky) => {
+			vi.mocked(forumApi.postAuth).mockResolvedValue({
+				data: { forumId: 7 },
+				meta: { threadSticky },
+			} as never);
+			const response = await createReply(
+				new Request("https://web.example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Origin: "https://web.example.com", "Content-Type": "application/json" },
+					body: JSON.stringify({ threadId: 5, content: "Reply", forumId: 99, threadSticky: 0 }),
+				}),
+			);
+			expect(response.status).toBe(201);
+			if (threadSticky === 0 || threadSticky === 1) {
+				expect(clearPrefix).toHaveBeenCalledExactlyOnceWith("forum-list", "forum:7:");
+				expect(clear).not.toHaveBeenCalledWith("forum-list");
+			} else {
+				expect(clear).toHaveBeenCalledWith("forum-list");
+				expect(clearPrefix).not.toHaveBeenCalled();
+			}
+		},
+	);
 	it.each([
 		["DELETE", deleteThread, forumApi.deleteAuth],
 		["DELETE", deletePost, forumApi.deleteAuth],
@@ -50,6 +78,7 @@ describe("successful writes invalidate local display caches", () => {
 				"thread-count",
 				"site-stats",
 				"home-display",
+				"forum-list",
 			]);
 			clear.mockClear();
 			vi.mocked(call).mockRejectedValue(
@@ -73,12 +102,12 @@ describe("successful writes invalidate local display caches", () => {
 
 	it("implies home-display from any existing domain flag", () => {
 		invalidateDisplayAfterWrite({ siteStats: true });
-		expect(clear.mock.calls).toEqual([["site-stats"], ["home-display"]]);
+		expect(clear.mock.calls).toEqual([["site-stats"], ["home-display"], ["forum-list"]]);
 	});
 
-	it("clears only home-display for display-only triggers", () => {
+	it("clears both display families for display-only triggers", () => {
 		invalidateDisplayAfterWrite({ homeDisplay: true });
-		expect(clear.mock.calls).toEqual([["home-display"]]);
+		expect(clear.mock.calls).toEqual([["home-display"], ["forum-list"]]);
 	});
 
 	it("does nothing without flags", () => {
@@ -86,7 +115,7 @@ describe("successful writes invalidate local display caches", () => {
 		expect(clear).not.toHaveBeenCalled();
 	});
 
-	it("digest level changes clear only home-display after success", async () => {
+	it("digest level changes clear both display families after success", async () => {
 		const request = () =>
 			new NextRequest("https://web.example.com/api/v1/moderation/threads/1/digest", {
 				method: "PATCH",
@@ -95,7 +124,7 @@ describe("successful writes invalidate local display caches", () => {
 			});
 		vi.mocked(forumApi.patchAuth).mockResolvedValue({ data: { id: 1, level: 1 } });
 		expect((await digest(request(), { params: Promise.resolve({ id: "1" }) })).status).toBe(200);
-		expect(clear.mock.calls).toEqual([["home-display"]]);
+		expect(clear.mock.calls).toEqual([["home-display"], ["forum-list"]]);
 		clear.mockClear();
 		vi.mocked(forumApi.patchAuth).mockRejectedValue(
 			new ForumApiError(403, { code: "FORBIDDEN", message: "Denied" }),
@@ -116,7 +145,7 @@ describe("successful writes invalidate local display caches", () => {
 			meta: { timestamp: 1, requestId: "r" },
 		} as Awaited<ReturnType<typeof authPatch>>);
 		expect((await patchMe(request())).status).toBe(200);
-		expect(clear.mock.calls).toEqual([["forum-summary"], ["home-display"]]);
+		expect(clear.mock.calls).toEqual([["forum-summary"], ["home-display"], ["forum-list"]]);
 		clear.mockClear();
 		vi.mocked(authPatch).mockResolvedValue({ error: "NOT_AUTHENTICATED" } as Awaited<
 			ReturnType<typeof authPatch>
@@ -124,4 +153,26 @@ describe("successful writes invalidate local display caches", () => {
 		expect((await patchMe(request())).status).toBe(401);
 		expect(clear).not.toHaveBeenCalled();
 	});
+});
+
+it("scopes all cached pages of affected forums and clears unknown scope", () => {
+	invalidateDisplayAfterWrite({ forumLists: true, forumIds: [7, 8, 7] });
+	expect(clearPrefix.mock.calls).toEqual([
+		["forum-list", "forum:7:"],
+		["forum-list", "forum:8:"],
+	]);
+	invalidateDisplayAfterWrite({ forumLists: true, forumIds: [0] });
+	expect(clear).toHaveBeenCalledWith("forum-list");
+});
+it("extracts only an authoritative positive forum id from write envelopes", () => {
+	for (const value of [
+		null,
+		{},
+		{ data: null },
+		{ data: {} },
+		{ data: { forumId: 0 } },
+		{ data: { forumId: "7" } },
+	])
+		expect(mutationForumId(value)).toBeUndefined();
+	expect(mutationForumId({ data: { forumId: 7 } })).toBe(7);
 });

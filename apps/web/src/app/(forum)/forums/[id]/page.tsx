@@ -3,7 +3,6 @@
 import { canModerate, ForumType } from "@ellie/types";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ForumFloatingToolbar } from "@/components/forum/forum-floating-toolbar";
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
@@ -15,31 +14,17 @@ import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-	getCachedForumThreadTypes,
-	getCachedPostsPerPage,
-	getCachedRecommendedThreads,
-} from "@/lib/forum-cache";
-import { getSelfForumUser } from "@/lib/forum-self";
-import type { RecommendedThreadItem } from "@/viewmodels/forum/recommended-threads.server";
+import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import {
 	loadThreadListPaged,
 	type ThreadListPagedData,
 } from "@/viewmodels/forum/thread-list.server";
-import {
-	buildForumListReturnTo,
-	coerceTypeIdParam,
-	type ForumThreadTypesPublic,
-	normalizeTypeId,
-	shouldShowFilter,
-	shouldShowTypeNameBadge,
-} from "@/viewmodels/forum/thread-types";
+import { buildForumListReturnTo, shouldShowFilter } from "@/viewmodels/forum/thread-types";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
-import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
+import { parseIntParam } from "@/viewmodels/shared/params";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
-	searchParams: Promise<{ page?: string; typeId?: string }>;
 }
 
 export async function generateMetadata({ params }: ForumThreadsPageProps): Promise<Metadata> {
@@ -53,16 +38,9 @@ export async function generateMetadata({ params }: ForumThreadsPageProps): Promi
 	}
 }
 
-export default async function ForumThreadsPage({ params, searchParams }: ForumThreadsPageProps) {
+export default async function ForumThreadsPage({ params }: ForumThreadsPageProps) {
 	const { id } = await params;
-	const sp = await searchParams;
 	const forumId = parseIntParam(id);
-	const page = parsePageParam(sp.page);
-	// Strict positive-integer parse — non-numeric / 0 / signs / leading
-	// zeros all become null. Whitelist normalization against the public
-	// payload happens AFTER we fetch the payload so we can drop stale /
-	// disabled / cross-forum ids without round-tripping to the Worker.
-	const rawTypeId = coerceTypeIdParam(sp.typeId);
 
 	if (forumId == null) {
 		return (
@@ -79,36 +57,9 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 
 	let data: ThreadListPagedData;
 	let error: string | null = null;
-	let threadTypes: ForumThreadTypesPublic | null = null;
-
-	// Parallel: loader + self-user fetch + postsPerPage + thread-types
-	// config + recommended threads. All independent. self uses fail-soft
-	// (.catch → null); the thread-types config also fails soft because
-	// most forums won't even have category UI — a 404 / outage there
-	// should not break the list. `recommendedThreadsPromise` is also
-	// fail-soft: the recommended card is decorative and must never block
-	// the page if its endpoint 500s or 404s on a private-forum probe.
-	const selfPromise = getSelfForumUser().catch(() => null);
 	const postsPerPagePromise = getCachedPostsPerPage();
-	const threadTypesPromise = getCachedForumThreadTypes(forumId).catch(() => null);
-	const recommendedThreadsPromise = getCachedRecommendedThreads(forumId)
-		.then((res) => res.threads)
-		.catch(() => [] as RecommendedThreadItem[]);
-
 	try {
-		// Only a requested filter depends on the type whitelist. Badge config
-		// resolves alongside the list when there is no filter.
-		if (rawTypeId !== null) threadTypes = await threadTypesPromise;
-		const normalizedTypeId = normalizeTypeId(rawTypeId, threadTypes);
-		[data, threadTypes] = await Promise.all([
-			loadThreadListPaged({
-				forumId,
-				page,
-				typeId: normalizedTypeId,
-				includeTypeNameBadge: threadTypesPromise.then(shouldShowTypeNameBadge),
-			}),
-			threadTypesPromise,
-		]);
+		data = await loadThreadListPaged(forumId);
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
 		data = {
@@ -121,20 +72,17 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			limit: 100,
 			hasNext: false,
 			breadcrumbs: [],
+			user: null,
+			typeId: null,
+			threadTypes: null,
+			recommended: [],
 		};
 	}
 
-	const self = await selfPromise;
+	const self = data.user;
+	const threadTypes = data.threadTypes;
 	const postsPerPage = await postsPerPagePromise;
-
-	// Re-derive the effective typeId for URL builders: only set if the
-	// page actually filtered. After the catch path threadTypes may be
-	// null — that's fine, normalizeTypeId returns null and the rest of
-	// the UI behaves as no-filter.
-	const activeTypeId = normalizeTypeId(rawTypeId, threadTypes);
-	// `basePath` is the bare forum path — page-pagination + jump-to-page
-	// + floating toolbar all take typeId separately via `extraParams` so
-	// they can append `?page=N&typeId=N` in canonical order.
+	const activeTypeId = data.typeId;
 	const basePath = `/forums/${forumId}`;
 	const returnTo = buildForumListReturnTo({
 		forumId,
@@ -194,9 +142,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					)}
 
 					{/* Per-forum "推荐主题" card — below sub-forums, above thread list */}
-					<Suspense fallback={null}>
-						<RecommendedThreads threads={recommendedThreadsPromise} />
-					</Suspense>
+					<ForumRecommendedCard threads={data.recommended} />
 
 					{/* 主题分类 filter pills — only when forum enables listable categories. */}
 					{showFilter && threadTypes && (
@@ -286,8 +232,4 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			)}
 		</div>
 	);
-}
-
-async function RecommendedThreads({ threads }: { threads: Promise<RecommendedThreadItem[]> }) {
-	return <ForumRecommendedCard threads={await threads} />;
 }

@@ -337,6 +337,37 @@ See [Next.js memory statistics](29-nextjs-memory-statistics.md) for the replacem
 view/activity semantics and local implementation status. These changes require
 coordinated Worker/Web/Admin deployment; local verification is not deployment.
 
+## Forum list context and memory display snapshots
+
+Forum list RSC metadata, layout and page share `POST /api/v1/forums/context`
+through the server-only Key A client, with the caller JWT when signed in.
+There is no browser-facing proxy for this read. The response uses `no-store`.
+
+The strict JSON request is defined by `packages/types/src/forum-list.ts`:
+`{ forumId, page, limit, typeId, cachedBucket, cachedRevision, includeDisplay,
+includeStats, includeCount }`. Nullable fields are explicit; every field is
+required. `limit` is 1..100; ids/page/offset are safe integers; revision is null
+or SHA-256 hex. Unknown fields/query parameters and oversized bodies are rejected.
+
+The response data is `{ bucket, user, revision, page, limit, typeId, hasNext,
+display?, stats?, count? }`. Worker derives the current bucket and normalized type,
+verifies full forum ancestry and current page membership, and returns fresh display
+and count when reuse is unsafe. Otherwise Next combines the response with its
+bounded `forum-list` display entry and existing five-minute numeric caches.
+No identity or permission result is admitted into process display memory.
+
+List anonymous authors and anonymous last posters are masked for all viewers,
+including their owners and staff. Thread details retain viewer-specific identity
+projection. Context fills read D1 directly and do not touch KV. All page/filtered
+variants share the existing write invalidation mechanism and Admin memory panel.
+
+`POST /api/v1/posts` success also returns `meta.threadSticky`, read from the reply's
+thread. The Next proxy uses local values 0/1 to clear the affected forum's list
+snapshots; global announcements and unknown scope clear the list family.
+
+The [implementation plan](33-forum-list-memory-read-plan.md) specifies response and
+intermediate-read bounds, cache ceilings, TTL, invalidation, and validation scope.
+
 ## Homepage context and memory display snapshots
 
 See [the homepage read plan](31-homepage-memory-read-plan.md). The homepage RSC

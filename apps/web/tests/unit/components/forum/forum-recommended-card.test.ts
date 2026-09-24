@@ -17,10 +17,10 @@ vi.mock("lucide-react", () => ({
 	ThumbsUp: () => createElement("span", { "data-testid": "thumbsup" }),
 }));
 
+import type { ForumListRecommended } from "@ellie/types";
 import { ForumRecommendedCard } from "@/components/forum/forum-recommended-card";
-import type { RecommendedThreadItem } from "@/viewmodels/forum/recommended-threads.server";
 
-function makeItem(overrides: Partial<RecommendedThreadItem> = {}): RecommendedThreadItem {
+function makeItem(overrides: Partial<ForumListRecommended> = {}): ForumListRecommended {
 	return {
 		id: 100,
 		subject: "Test recommended thread",

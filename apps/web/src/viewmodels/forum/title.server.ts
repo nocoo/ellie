@@ -11,7 +11,7 @@ import "server-only";
 
 import type { PublicUser } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
-import { getCachedForumList, getCachedThreadMetadata } from "@/lib/forum-cache";
+import { getCachedForumListContext, getCachedThreadMetadata } from "@/lib/forum-cache";
 
 /** Fetch thread subject by ID (deduped via getThreadById cache). */
 export async function getThreadTitle(threadId: number): Promise<string> {
@@ -25,9 +25,11 @@ export async function getUserTitle(userId: number): Promise<string> {
 	return user.username;
 }
 
-/** Fetch forum name by ID (deduped via getForumList cache). */
+/** Metadata shares the authorized list context with layout and page. */
 export async function getForumTitle(forumId: number): Promise<string> {
-	const forums = await getCachedForumList(null);
+	const { display, forumId: currentForumId } = await getCachedForumListContext();
+	if (currentForumId !== forumId) return `版块 ${forumId}`;
+	const forums = display.forums;
 	const forum = forums.find((f) => f.id === forumId);
 	return forum?.name ?? `版块 ${forumId}`;
 }

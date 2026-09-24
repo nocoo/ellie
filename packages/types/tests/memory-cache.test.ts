@@ -36,6 +36,7 @@ describe("memory cache management contract", () => {
 			"forum-summary",
 			"thread-count",
 			"home-display",
+			"forum-list",
 		]);
 		expect(MEMORY_CACHE_ACTIONS).toEqual(["clear", "flush"]);
 		expect(MEMORY_CACHE_FAMILY_CAPACITY).toEqual({
@@ -43,6 +44,7 @@ describe("memory cache management contract", () => {
 			"forum-summary": 256,
 			"thread-count": 1024,
 			"home-display": 4,
+			"forum-list": 128,
 		});
 		expect(MEMORY_CACHE_PAYLOAD_LIMIT_BYTES).toBe(8 * 1024 * 1024);
 		expect(MEMORY_CACHE_PREVIEW_MAX_BYTES).toBe(512);
@@ -57,6 +59,8 @@ describe("memory cache management contract", () => {
 		expect(isMemoryCacheFamilyId("site-stats")).toBe(true);
 		expect(isMemoryCacheFamilyId("forum-summary")).toBe(true);
 		expect(isMemoryCacheFamilyId("thread-count")).toBe(true);
+		expect(isMemoryCacheFamilyId("home-display")).toBe(true);
+		expect(isMemoryCacheFamilyId("forum-list")).toBe(true);
 		expect(isMemoryCacheFamilyId("views")).toBe(false);
 		expect(isMemoryCacheAction("clear")).toBe(true);
 		expect(isMemoryCacheAction("flush")).toBe(true);

@@ -161,6 +161,151 @@ describe("bounded process cache", () => {
 	});
 });
 
+describe("forum-list family memory", () => {
+	const listKey = (forumId: number, page: number, limit = 50, typeId: number | null = null) =>
+		`forum:${forumId}:bucket:auth:page:${page}:limit:${limit}:type:${typeId ?? "all"}`;
+
+	it("admits per-entry payloads up to 128 KiB and rejects larger ones", async () => {
+		const runtime = new MemoryRuntime();
+		const filler = "x".repeat(120 * 1024);
+		expect(await runtime.read("forum-list", listKey(1, 1), async () => ({ filler }))).toEqual({
+			filler,
+		});
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries).toHaveLength(1);
+		await runtime.read("forum-list", listKey(1, 2), async () => ({
+			filler: "y".repeat(140 * 1024),
+		}));
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries).toHaveLength(1);
+	});
+
+	it("caps at 128 entries with LRU eviction when entries stay under the byte cap", async () => {
+		const runtime = new MemoryRuntime();
+		for (let i = 0; i < 200; i++) {
+			await runtime.read("forum-list", listKey(1, i + 1, 50, null), async () => ({ value: i }));
+		}
+		const familyStats = runtime
+			.snapshot({ ...query, family: "forum-list" })
+			.families.find((f) => f.id === "forum-list");
+		expect(familyStats?.entries).toBe(128);
+		expect(familyStats?.evictions).toBeGreaterThanOrEqual(72);
+	});
+
+	it("caps the family aggregate at 4 MiB when entries are large", async () => {
+		const runtime = new MemoryRuntime();
+		const filler = "x".repeat(120 * 1024);
+		for (let i = 0; i < 200; i++) {
+			await runtime.read("forum-list", listKey(1, i + 1, 50, null), async () => ({ filler }));
+		}
+		const snapshot = runtime.snapshot({ ...query, family: "forum-list" });
+		const totalBytes = snapshot.entries
+			.map((e) => e.estimatedBytes)
+			.reduce((sum, item) => sum + item, 0);
+		expect(totalBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+		expect(snapshot.entries.length).toBeLessThan(128);
+		expect(snapshot.families.find((f) => f.id === "forum-list")?.entries).toBeLessThan(128);
+	});
+
+	it("never evicts home-display or forum-summary entries to admit forum-list", async () => {
+		const runtime = new MemoryRuntime();
+		const homeFiller = "h".repeat(500 * 1024);
+		for (let i = 1; i <= 4; i++) {
+			await runtime.read("home-display", `home:${i}`, async () => ({ homeFiller }));
+		}
+		await runtime.read("forum-summary", "fs:1", async () => ({ summary: "keep-me" }));
+		const homeBefore = runtime
+			.snapshot({ ...query, family: "home-display" })
+			.entries.map((e) => e.key);
+		const summaryBefore = runtime
+			.snapshot({ ...query, family: "forum-summary" })
+			.entries.map((e) => e.key);
+		const listFiller = "l".repeat(120 * 1024);
+		for (let i = 0; i < 64; i++) {
+			await runtime.read("forum-list", listKey(1, i + 1, 50, null), async () => ({ listFiller }));
+		}
+		const homeAfter = runtime
+			.snapshot({ ...query, family: "home-display" })
+			.entries.map((e) => e.key);
+		const summaryAfter = runtime
+			.snapshot({ ...query, family: "forum-summary" })
+			.entries.map((e) => e.key);
+		expect(homeAfter).toEqual(homeBefore);
+		expect(summaryAfter).toEqual(summaryBefore);
+	});
+
+	it("rejects a forum-list admission when global payload is full and the family is empty", async () => {
+		const runtime = new MemoryRuntime();
+		await runtime.read("home-display", "home:keep", async () => ({ value: "keep" }));
+		for (let i = 0; i < 600; i++) {
+			await runtime.read("thread-count", `tc:${i}`, async () => ({
+				filler: "x".repeat(15 * 1024),
+			}));
+		}
+		expect(runtime.snapshot(query).memory.estimatedPayloadBytes).toBeGreaterThan(
+			7 * 1024 * 1024 - 32 * 1024,
+		);
+		const homeBefore = runtime
+			.snapshot({ ...query, family: "home-display" })
+			.entries.map((e) => e.key);
+		await runtime.read("forum-list", listKey(99, 1), async () => ({
+			listFiller: "l".repeat(120 * 1024),
+		}));
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries).toEqual([]);
+		expect(
+			runtime.snapshot({ ...query, family: "home-display" }).entries.map((e) => e.key),
+		).toEqual(homeBefore);
+	});
+
+	it("uses the 30-minute TTL capped by Shanghai midnight and rejects fills that cross it", async () => {
+		let now = Date.UTC(2026, 8, 23, 15, 59, 59);
+		const runtime = new MemoryRuntime({ now: () => now });
+		await runtime.read("forum-list", listKey(7, 1), async () => ({ value: 1 }));
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries[0].expiresAt).toBe(
+			"2026-09-23T16:00:00.000Z",
+		);
+		const value = deferred<{ value: number }>();
+		const old = runtime.read("forum-list", listKey(8, 1), () => value.promise);
+		now += 1_000;
+		value.resolve({ value: 2 });
+		const resolved = await old;
+		expect(resolved).toEqual({ value: 2 });
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries).toEqual([]);
+	});
+
+	it("clearPrefix evicts matching keys, leaves others, bumps epoch even with no matches", async () => {
+		const runtime = new MemoryRuntime();
+		await runtime.read("forum-list", listKey(9, 1), async () => ({ value: 1 }));
+		await runtime.read("forum-list", listKey(9, 2), async () => ({ value: 2 }));
+		await runtime.read("forum-list", listKey(10, 1), async () => ({ value: 3 }));
+		const family = runtime
+			.snapshot({ ...query, family: "forum-list" })
+			.families.find((f) => f.id === "forum-list") ?? { entries: 0, evictions: 0 };
+		expect(family.entries).toBe(3);
+		const epochBefore = runtime.capture("forum-list").epoch;
+		runtime.clearPrefix("forum-list", "forum:9:bucket:");
+		const keys = runtime.snapshot({ ...query, family: "forum-list" }).entries.map((e) => e.key);
+		expect(keys).toEqual([listKey(10, 1)]);
+		expect(runtime.capture("forum-list").epoch).toBe(epochBefore + 1);
+		runtime.clearPrefix("forum-list", "forum:999:bucket:");
+		expect(runtime.capture("forum-list").epoch).toBe(epochBefore + 2);
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries.map((e) => e.key)).toEqual([
+			listKey(10, 1),
+		]);
+		runtime.clearPrefix("forum-summary", "forum:9:bucket:");
+		expect(runtime.snapshot({ ...query, family: "forum-summary" }).entries).toEqual([]);
+	});
+
+	it("clearPrefix fences an in-flight fill for a matching key", async () => {
+		const runtime = new MemoryRuntime();
+		const value = deferred<{ value: number }>();
+		const pending = runtime.read("forum-list", listKey(11, 1), () => value.promise);
+		runtime.clearPrefix("forum-list", "forum:11:bucket:");
+		value.resolve({ value: 7 });
+		const resolved = await pending;
+		expect(resolved).toEqual({ value: 7 });
+		expect(runtime.snapshot({ ...query, family: "forum-list" }).entries).toEqual([]);
+	});
+});
+
 describe("lossy statistics buffer", () => {
 	it("serializes manual and timer flushes while preserving new events", async () => {
 		const response = deferred<StatisticsBatchResult>();

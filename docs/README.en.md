@@ -140,3 +140,5 @@ Forum tests establish sessions through the Credentials callback; admin tests inj
 ## License
 
 [MIT](../LICENSE) © 2026 Zheng Li.
+
+[Forum list memory read plan](33-forum-list-memory-read-plan.md): bounded Next.js display caching, fresh page authorization, and write invalidation.

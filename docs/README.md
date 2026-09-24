@@ -89,3 +89,5 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 
 旧版设计文档已移至 `docs/archive/`：
 - `04c-admin-console.md` → 已由 `10-admin-console.md` 替代
+
+[Forum list memory read plan](33-forum-list-memory-read-plan.md): bounded Next.js display caching, fresh page authorization, and write invalidation.

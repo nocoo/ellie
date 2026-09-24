@@ -454,6 +454,7 @@ export interface ThreadTypesPayload {
 export async function loadThreadTypes(
 	env: Env,
 	forumId: number,
+	maxRows?: number,
 ): Promise<ThreadTypesPayload | null> {
 	const forum = await env.DB.prepare(
 		"SELECT status, thread_types_enabled, thread_types_required, thread_types_listable, thread_types_prefix FROM forums WHERE id = ?",
@@ -468,9 +469,9 @@ export async function loadThreadTypes(
 		}>();
 	if (forum?.status !== 1) return null;
 	const rows = await env.DB.prepare(
-		"SELECT id, name, display_order, icon, enabled, moderator_only FROM forum_thread_types WHERE forum_id = ? AND enabled = 1 ORDER BY display_order ASC, id ASC",
+		`SELECT id, name, display_order, icon, enabled, moderator_only FROM forum_thread_types WHERE forum_id = ? AND enabled = 1 ORDER BY display_order ASC, id ASC${maxRows === undefined ? "" : " LIMIT ?"}`,
 	)
-		.bind(forumId)
+		.bind(forumId, ...(maxRows === undefined ? [] : [maxRows]))
 		.all<{
 			id: number;
 			name: string;

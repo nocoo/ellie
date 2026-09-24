@@ -19,6 +19,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { resolveTrustedClientIp } from "@/lib/client-ip";
+import { FORUM_LIST_LOCATION_HEADER, forumListLocationFromUrl } from "@/lib/forum-list-location";
 import { resolveLegacyDiscuzRedirect } from "@/lib/legacy-url";
 import { createTtlCache } from "@/lib/ttl-cache";
 
@@ -237,6 +238,9 @@ export async function proxy(request: NextRequest) {
 		const clientIp = resolveTrustedClientIp(request);
 		const requestHeaders = new Headers(request.headers);
 		requestHeaders.set("x-ellie-home", request.nextUrl.pathname === "/" ? "1" : "0");
+		const forumLocation = forumListLocationFromUrl(request.nextUrl);
+		if (forumLocation) requestHeaders.set(FORUM_LIST_LOCATION_HEADER, forumLocation);
+		else requestHeaders.delete(FORUM_LIST_LOCATION_HEADER);
 		// Next.js hides its Flight headers from server component headers().
 		requestHeaders.set(
 			"x-ellie-prefetch",
@@ -255,6 +259,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
 	matcher: [
+		"/forums/:path*",
 		"/((?!_next/static|_next/image|favicon.ico|fouc\\.js$|.*\\.png$|.*\\.ico$|.*\\.svg$|api/(?!auth)).*)",
 	],
 };

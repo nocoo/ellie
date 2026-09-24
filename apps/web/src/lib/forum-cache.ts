@@ -19,8 +19,8 @@
 
 import "server-only";
 
+import { headers } from "next/headers";
 import { cache } from "react";
-import { loadRecommendedThreads } from "@/viewmodels/forum/recommended-threads.server";
 import {
 	type ForumAncestorsData,
 	fetchForumAncestors,
@@ -30,6 +30,8 @@ import {
 	fetchThreadById,
 	fetchThreadMetadata,
 } from "./forum-data";
+import { FORUM_LIST_LOCATION_HEADER, parseForumListLocation } from "./forum-list-location";
+import { loadForumListContext } from "./forum-list-reading";
 import { type ForumSettings, parseForumSettings } from "./forum-settings";
 import { loadHomeContext } from "./home-reading";
 import { getMemoryRuntime } from "./memory-runtime";
@@ -37,6 +39,16 @@ import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 import { createTtlCache } from "./ttl-cache";
 
 export const getCachedHomeContext = cache(loadHomeContext);
+export const getCachedForumListContext = cache(async () => {
+	const location = parseForumListLocation((await headers()).get(FORUM_LIST_LOCATION_HEADER));
+	if (!location) throw new Error("Invalid forum list location");
+	const settings = await getCachedForumSettings();
+	const limit =
+		Number.isSafeInteger(settings.pageSize) && settings.pageSize > 0
+			? Math.min(settings.pageSize, 100)
+			: 20;
+	return loadForumListContext({ ...location, limit });
+});
 
 // ---------------------------------------------------------------------------
 // Forum data (deduplicated within the same RSC render pass)
@@ -44,17 +56,10 @@ export const getCachedHomeContext = cache(loadHomeContext);
 
 export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedThreadMetadata = cache(fetchThreadMetadata);
-// Doc/29: display lists build from the static structure view (JWT forwarded
-// so member forums resolve); summary numbers come from the reading contract
-// (see lib/forum-reading.ts).
-export const getCachedForumList = cache(
-	async (jwt: string | null) => (await fetchForumStructure(jwt)).forums,
-);
 export const getCachedForumStructure = cache(fetchForumStructure);
 export const getCachedForumNames = cache(fetchForumNames);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
-export const getCachedRecommendedThreads = cache(loadRecommendedThreads);
 
 // ---------------------------------------------------------------------------
 // Forum settings

@@ -10,6 +10,7 @@ export const MEMORY_CACHE_FAMILIES = [
 	"forum-summary",
 	"thread-count",
 	"home-display",
+	"forum-list",
 ] as const;
 export type MemoryCacheFamilyId = (typeof MEMORY_CACHE_FAMILIES)[number];
 
@@ -21,6 +22,7 @@ export const MEMORY_CACHE_FAMILY_CAPACITY: Record<MemoryCacheFamilyId, number> =
 	"site-stats": 1,
 	"forum-summary": 256,
 	"thread-count": 1024,
+	"forum-list": 128,
 };
 
 export const MEMORY_CACHE_PAYLOAD_LIMIT_BYTES = 8 * 1024 * 1024;

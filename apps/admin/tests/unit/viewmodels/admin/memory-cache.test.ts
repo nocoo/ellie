@@ -8,6 +8,7 @@ import {
 	historyChartRows,
 	hitRateLabel,
 	instanceChanged,
+	MEMORY_FAMILY_LABELS,
 	MemoryCacheRequestError,
 	mutateMemoryCache,
 	payloadShareLabel,
@@ -15,6 +16,20 @@ import {
 } from "@/viewmodels/admin/memory-cache";
 
 describe("memory-cache viewmodel helpers", () => {
+	it("labels every managed family including forum-list", () => {
+		expect(MEMORY_FAMILY_LABELS["home-display"]).toBe("首页展示");
+		expect(MEMORY_FAMILY_LABELS["site-stats"]).toBe("站点统计");
+		expect(MEMORY_FAMILY_LABELS["forum-summary"]).toBe("版块摘要");
+		expect(MEMORY_FAMILY_LABELS["thread-count"]).toBe("主题计数");
+		expect(MEMORY_FAMILY_LABELS["forum-list"]).toBe("版块列表");
+		expect(Object.keys(MEMORY_FAMILY_LABELS).sort()).toEqual([
+			"forum-list",
+			"forum-summary",
+			"home-display",
+			"site-stats",
+			"thread-count",
+		]);
+	});
 	it("formats uptime across units and rejects non-finite values", () => {
 		expect(formatUptime(45_000)).toBe("45 秒");
 		expect(formatUptime(5 * 60_000)).toBe("5 分钟");

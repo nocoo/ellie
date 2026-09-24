@@ -70,7 +70,7 @@ function confirmCopy(
 	if (target.kind === "clear-all") {
 		return {
 			title: "清除全部展示缓存",
-			description: `仅清除三个展示家族的内存条目，不影响统计缓冲；下次读取会按需回源重建。${instanceSuffix}`,
+			description: `仅清除全部展示家族的内存条目，不影响统计缓冲；下次读取会按需回源重建。${instanceSuffix}`,
 			confirmLabel: "确认清除",
 		};
 	}

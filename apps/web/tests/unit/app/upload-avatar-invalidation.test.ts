@@ -60,7 +60,7 @@ describe("upload route avatar display invalidation", () => {
 		const res = await upload(buildRequest("avatar"));
 
 		expect(res.status).toBe(200);
-		expect(clear.mock.calls).toEqual([["forum-summary"], ["home-display"]]);
+		expect(clear.mock.calls).toEqual([["forum-summary"], ["home-display"], ["forum-list"]]);
 	});
 
 	it("does not invalidate for post-image uploads", async () => {

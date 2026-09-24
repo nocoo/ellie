@@ -281,8 +281,9 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		const current = access.get(id);
 		return row && current ? [projectCurrentThread(row, current)] : [];
 	});
+	// Generic list projection masks anonymous authors and last posters for every viewer.
 	const items = await enrichThreadsWithUserCacheFromList(
-		mapThreadRows(projected, true, toViewer(user)),
+		mapThreadRows(projected, true, null),
 		env,
 		ctx,
 	);

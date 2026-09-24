@@ -72,6 +72,10 @@ export default {
 			if (path === "/api/v1/forums/summary-gates" && request.method === "GET") {
 				return await (await import("./handlers/forum")).summaryGates(request, env);
 			}
+			// Context is a static path and must be registered before /api/v1/forums/:id.
+			if (path === "/api/v1/forums/context" && request.method === "POST") {
+				return await (await import("./handlers/forum-list")).forumListContext(request, env);
+			}
 			// Ancestors endpoint MUST be registered before /api/v1/forums/:id
 			// to avoid the regex matching "ancestors" as a forum ID.
 			if (path.match(/^\/api\/v1\/forums\/\d+\/ancestors$/) && request.method === "GET") {

@@ -34,8 +34,6 @@ import {
 	READING_SUBJECT_MAX,
 	READING_TOPIC_GATE_MAX,
 	type ReadingBucket,
-	THREAD_COUNT_PATH,
-	type ThreadCountData,
 	UserRole,
 } from "@ellie/types";
 import { forumApi } from "./forum-api";
@@ -444,41 +442,4 @@ function EMPTY_FORUM_SUMMARY(forumId: number): ForumSummaryTopic {
 
 export function threadCountKey(forumId: number, typeId: number | null, bucket: ReadingBucket) {
 	return `forum:${forumId}:type:${typeId ?? 0}:bucket:${bucket}`;
-}
-
-async function fetchThreadCount(
-	forumId: number,
-	typeId: number | null,
-	jwt: string | null,
-): Promise<number> {
-	const searchParams = {
-		forumId,
-		...(typeId != null && typeId > 0 ? { typeId } : {}),
-	};
-	const { data } = jwt
-		? await forumApi.getAuth<ThreadCountData>(THREAD_COUNT_PATH, jwt, searchParams)
-		: await forumApi.get<ThreadCountData>(THREAD_COUNT_PATH, searchParams);
-	if (!Number.isSafeInteger(data?.total) || data.total < 0) {
-		throw new Error("Invalid thread count from Worker");
-	}
-	return data.total;
-}
-
-/**
- * Authoritative thread count for a list render. `bucket` must be the
- * Worker-authorized reading bucket from the structure response; `null`
- * bypasses the cache and reads the Worker directly instead of trusting an
- * unverified role.
- */
-export async function loadThreadCount(
-	forumId: number,
-	typeId: number | null,
-	bucket: ReadingBucket | null,
-	jwt: string | null,
-): Promise<number> {
-	if (bucket === null) return fetchThreadCount(forumId, typeId, jwt);
-	const runtime = getMemoryRuntime();
-	return runtime.read("thread-count", threadCountKey(forumId, typeId, bucket), () =>
-		fetchThreadCount(forumId, typeId, jwt),
-	);
 }

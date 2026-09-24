@@ -30,8 +30,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 		: `/threads/${thread.id}`;
 	// Three author-render branches, mutually exclusive:
 	//   isAnonAuthor   — anonymous=1 + authorId=0 (intentional anonymous;
-	//                    render "匿名"). Worker unmasks for staff/self so
-	//                    they end up with authorId>0 and skip this branch.
+	//                    render "匿名" for every list viewer).
 	//   isOrphanAuthor — anonymous=0 + authorId=0 (placeholder/tombstoned
 	//                    user). No /users/0 link, but copy is "未知用户"
 	//                    not "匿名" — semantically distinct.

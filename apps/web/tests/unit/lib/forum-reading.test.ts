@@ -15,7 +15,6 @@ import {
 	forumSummaryKey,
 	gateTopicIds,
 	loadForumSummariesWithGates,
-	loadThreadCount,
 	summaryCandidatePasses,
 	threadCountKey,
 } from "@/lib/forum-reading";
@@ -35,7 +34,6 @@ vi.mock("@/lib/memory-runtime", () => ({
 
 const mockGetAll = forumApi.getAll as ReturnType<typeof vi.fn>;
 const mockGetAuth = forumApi.getAuth as ReturnType<typeof vi.fn>;
-const mockGet = forumApi.get as ReturnType<typeof vi.fn>;
 const mockRuntime = getMemoryRuntime as ReturnType<typeof vi.fn>;
 
 function makeSummary(overrides: Partial<ForumSummaryTopic> = {}): ForumSummaryTopic {
@@ -356,27 +354,7 @@ describe("loadForumSummariesWithGates", () => {
 	});
 });
 
-describe("loadThreadCount", () => {
-	it("caches per forumId+typeId+bucket and rejects malformed totals", async () => {
-		mockGet.mockResolvedValueOnce({ data: { total: 42 }, meta: {} });
-		expect(await loadThreadCount(7, null, "anon", null)).toBe(42);
-		expect(mockGet).toHaveBeenCalledWith("/api/v1/threads/count", { forumId: 7 });
-		// Warm: served from the runtime store, no second Worker call.
-		expect(await loadThreadCount(7, null, "anon", null)).toBe(42);
-		expect(mockGet).toHaveBeenCalledTimes(1);
-
-		mockGet.mockResolvedValueOnce({ data: { total: -3 }, meta: {} });
-		await expect(loadThreadCount(9, 2, "member", null)).rejects.toThrow();
-		mockGet.mockResolvedValueOnce({ data: { total: Number.NaN }, meta: {} });
-		await expect(loadThreadCount(9, 2, "member", null)).rejects.toThrow();
-	});
-
-	it("bypasses the cache entirely when the bucket is unknown", async () => {
-		mockGet.mockResolvedValue({ data: { total: 5 }, meta: {} });
-		await loadThreadCount(7, null, null, null);
-		await loadThreadCount(7, null, null, null);
-		expect(mockGet).toHaveBeenCalledTimes(2);
-		expect(mockRuntime).not.toHaveBeenCalled();
-		expect(threadCountKey(7, 3, "staff")).toBe("forum:7:type:3:bucket:staff");
-	});
+it("keys counts by forum, category, and authorized bucket", () => {
+	expect(threadCountKey(7, 3, "staff")).toBe("forum:7:type:3:bucket:staff");
+	expect(threadCountKey(7, null, "anon")).toBe("forum:7:type:0:bucket:anon");
 });
