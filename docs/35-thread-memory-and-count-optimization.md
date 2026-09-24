@@ -103,3 +103,46 @@ remain separate acceptance evidence.
 The local navigation/content browser run also passed 46 scenarios, with three
 existing skipped scenarios retained and no new skips. It exercised real thread
 pagination, new-topic publication, reply creation/edit/delete and rendering.
+
+## Measured follow-up: independent pagination-total lifetime
+
+v1.14.5 and v1.14.6 are deployed. The first thirty-minute v1.14.6 observation
+recorded 650 KV reads versus 15,940 in the identical interval three days earlier,
+but 732,541 D1 rows read versus 72,841. Cold rebuilding contributes materially.
+A warm fifteen-minute interval read 21,481 rows; the following interval after
+the first count expiry read 469,403 rows. Query Insights again ranks the topic
+count first after expiry. These adaptive datasets are independent estimates;
+their totals are not interchangeable or billing receipts.
+
+The v1.14.7 implementation keeps pagination totals approximate between count-changing
+mutations and extends only `thread-count` to six hours, still capped at Shanghai
+midnight. New topics, deletion, moves, moderation and relevant administrative
+changes retain their existing active invalidation. A lost notification or direct
+external write can leave the displayed total stale for at most six hours.
+Startup still rebuilds from the exact filtered D1 count. Fresh permissions,
+membership and `hasNext` remain authoritative on every request. Home, list and
+thread display retain their thirty-minute lifetime; thread detail retains its
+100-topic and byte bounds. Count capacity and management contracts do not change.
+
+The one allowed list-display retry must retain a still-valid count. Separate
+forced display loading from count reuse and keep the retry explicitly bounded,
+including a count invalidated during that forced display read. Warm reads must
+not renew count lifetime. Existing epoch fences and minute pruning remain.
+
+Validation covers display expiry while counts remain warm, absolute count expiry,
+midnight, mutation invalidation, restart, and invalidation during the single
+retry. Independent design/code review and normal release gates are required.
+Any release receives a new patch version and its actual cutovers are recorded
+alongside the continuing ten observations; mixed windows remain identifiable.
+
+A bounded recursive forum-authority SQL prototype was not adopted: synthetic
+ordinary-list VM steps fell, but group-page steps rose. A new trigger-maintained
+count table was also deferred because approximate totals are accepted and a
+longer bounded memory lifetime avoids another derived-data invariant.
+
+Independent Codex design review passed on September 24 at 18:18 Asia/Shanghai,
+with no open P0/P1/P2/P3 design findings. The stale aggregate can retain a hidden
+topic or announcement contribution after a missed notification; it cannot reveal
+its body, identity or list membership. Explicitly test a valid zero count, the
+single retry losing its count, timer-only pruning, and navigation with inaccurate
+totals. Implementation review and release verification follow separately.

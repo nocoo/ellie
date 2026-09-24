@@ -43,7 +43,7 @@ describe("bounded process cache", () => {
 		const before = runtime.snapshot(query);
 		runtime.snapshot(query);
 		expect(runtime.snapshot(query).families).toEqual(before.families);
-		now += 30 * 60_000;
+		now += 6 * 60 * 60_000;
 		const fail = vi.fn().mockRejectedValue(new Error("offline"));
 		await expect(runtime.read("thread-count", "anon:1", fail)).rejects.toThrow("offline");
 		await expect(runtime.read("thread-count", "anon:1", fail)).rejects.toThrow("offline");
@@ -97,12 +97,34 @@ describe("bounded process cache", () => {
 		const runtime = new MemoryRuntime({ now: () => now });
 		await runtime.read("site-stats", "site", async () => ({ todayPosts: 4 }));
 		expect(runtime.snapshot(query).entries[0].expiresAt).toBe("2026-09-23T16:00:00.000Z");
+		await runtime.read("thread-count", "cached", async () => 7);
+		expect(runtime.snapshot({ ...query, family: "thread-count" }).entries[0].expiresAt).toBe(
+			"2026-09-23T16:00:00.000Z",
+		);
 		const value = deferred<number>();
 		const old = runtime.read("thread-count", "1", () => value.promise);
 		now += 1000;
 		value.resolve(1);
 		await old;
 		expect(runtime.snapshot(query).entries).toEqual([]);
+	});
+
+	it("actively prunes six-hour counts without an expiry-triggering read", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.UTC(2026, 8, 24, 0));
+		const runtime = new MemoryRuntime({ send: confirm });
+		runtime.admit("count", 42, runtime.capture("thread-count"));
+		runtime.start();
+		try {
+			await vi.advanceTimersByTimeAsync(6 * 60 * 60_000);
+			const snapshot = runtime.snapshot({ ...query, family: "thread-count" });
+			expect(snapshot.entries).toEqual([]);
+			expect(snapshot.history.at(-1)?.estimatedPayloadBytes).toBeLessThan(
+				snapshot.history.at(-2)?.estimatedPayloadBytes as number,
+			);
+		} finally {
+			runtime.stop();
+		}
 	});
 
 	it("caps family entries and keeps overflow readable", async () => {

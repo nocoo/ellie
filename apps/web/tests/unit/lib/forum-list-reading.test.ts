@@ -101,10 +101,6 @@ describe("forum list context", () => {
 		mocks.runtime.mockReturnValue(runtime);
 		mocks.post.mockResolvedValueOnce(response({ display, stats, count: 1 }));
 		await loadForumListContext(params);
-		// 6 min later: site-stats TTL (5 min) expired; thread-count TTL (30 min)
-		// and forum-list display TTL (30 min) are still warm. The worker
-		// returns no count (bucket+type match, includeCount: false) so the
-		// warm scoped count must be reused unchanged.
 		now += 6 * 60_000;
 		mocks.post.mockResolvedValueOnce(response({}));
 		const result = await loadForumListContext(params);
@@ -115,26 +111,36 @@ describe("forum list context", () => {
 			includeCount: false,
 			includeStats: true,
 		});
-		// Warm count is preserved untouched (no worker response, no admit).
 		expect(runtime.peek("thread-count", threadCountKey(2, null, "member"))).toBe(1);
 	});
 
-	it("forces a fresh count and display after the 30 min thread-count TTL elapses", async () => {
-		let now = Date.UTC(2026, 8, 24, 2);
+	it.each([0, 8])("refreshes displays without renewing the six-hour count %s", async (count) => {
+		const start = Date.UTC(2026, 8, 24, 2);
+		let now = start;
 		runtime = new MemoryRuntime({ now: () => now });
 		mocks.runtime.mockReturnValue(runtime);
-		mocks.post.mockResolvedValueOnce(response({ display, stats, count: 1 }));
+		mocks.post.mockResolvedValueOnce(response({ display, stats, count }));
 		await loadForumListContext(params);
-		// 31 min later: site-stats, forum-list display and thread-count have all
-		// hit their 30 min TTL (stats was already 5 min).
-		now += 31 * 60_000;
-		mocks.post.mockResolvedValueOnce(response({ display, stats, count: 4 }));
-		const result = await loadForumListContext(params);
-		expect(result.total).toBe(4);
-		expect(mocks.post.mock.calls[1][1]).toMatchObject({
-			includeDisplay: true,
+		const query = { family: "thread-count" as const, page: 1, limit: 50 };
+		const original = runtime.snapshot(query).entries[0];
+		for (const minutes of [31, 181, 359]) {
+			now = start + minutes * 60_000;
+			mocks.post.mockResolvedValueOnce(response({ display, hasNext: true }));
+			const result = await loadForumListContext(params);
+			expect(result.total).toBe(count);
+			expect(result.hasNext).toBe(true);
+			expect(mocks.post.mock.lastCall?.[1]).toMatchObject({
+				includeDisplay: true,
+				includeCount: false,
+			});
+			expect(runtime.snapshot(query).entries[0]).toEqual(original);
+		}
+		now = start + 6 * 60 * 60_000;
+		mocks.post.mockResolvedValueOnce(response({ count: count + 1 }));
+		expect((await loadForumListContext(params)).total).toBe(count + 1);
+		expect(mocks.post.mock.lastCall?.[1]).toMatchObject({
+			includeDisplay: false,
 			includeCount: true,
-			includeStats: true,
 		});
 	});
 
@@ -212,6 +218,11 @@ it.each([Date.UTC(2026, 8, 24, 1), Date.UTC(2026, 8, 24, 15, 59)])(
 			runtime.snapshot({ page: 1, limit: 50, family: "thread-count" }).entries[0].expiresAt,
 		);
 		now = expiry - 1;
+		runtime.admit(
+			forumListCacheKey("member", params.forumId, params.page, params.limit, params.typeId),
+			{ display, revision },
+			runtime.capture("forum-list"),
+		);
 		mocks.post.mockImplementationOnce(async () => {
 			now = expiry;
 			return response();
@@ -240,3 +251,54 @@ it("refills an invalidated count even when fresh display arrives, with one retry
 	await expect(loadForumListContext(params)).rejects.toThrow("count");
 	expect(mocks.post).toHaveBeenCalledTimes(3);
 });
+
+it.each([0, 8])("keeps count %s during the bounded display-expiry retry", async (count) => {
+	let now = Date.UTC(2026, 8, 24, 2);
+	runtime = new MemoryRuntime({ now: () => now });
+	mocks.runtime.mockReturnValue(runtime);
+	mocks.post.mockResolvedValueOnce(response({ display, count }));
+	await loadForumListContext(params);
+	const query = { family: "thread-count" as const, page: 1, limit: 50 };
+	const original = runtime.snapshot(query).entries[0];
+	now += 30 * 60_000 - 1;
+	mocks.post.mockImplementationOnce(async () => {
+		now++;
+		return response();
+	});
+	mocks.post.mockResolvedValueOnce(response({ display }));
+	expect((await loadForumListContext(params)).total).toBe(count);
+	expect(mocks.post).toHaveBeenCalledTimes(3);
+	expect(mocks.post.mock.calls[2][1]).toMatchObject({
+		includeDisplay: true,
+		includeCount: false,
+		cachedRevision: null,
+	});
+	expect(runtime.snapshot(query).entries[0]).toEqual(original);
+});
+
+it.each(["clear", "expire"])(
+	"stops after one display retry if its count changes: %s",
+	async (action) => {
+		const start = Date.UTC(2026, 8, 24, 2);
+		let now = start;
+		runtime = new MemoryRuntime({ now: () => now });
+		mocks.runtime.mockReturnValue(runtime);
+		mocks.post.mockResolvedValueOnce(response({ display, count: 0 }));
+		await loadForumListContext(params);
+		mocks.post.mockImplementationOnce(async () => {
+			runtime.clear("forum-list");
+			return response();
+		});
+		mocks.post.mockImplementationOnce(async () => {
+			if (action === "clear") runtime.clear("thread-count");
+			else now = start + 6 * 60 * 60_000;
+			return response({ display });
+		});
+		await expect(loadForumListContext(params)).rejects.toThrow("Invalid forum list count");
+		expect(mocks.post).toHaveBeenCalledTimes(3);
+		expect(mocks.post.mock.calls[2][1]).toMatchObject({
+			includeDisplay: true,
+			includeCount: false,
+		});
+	},
+);

@@ -67,7 +67,7 @@ function bucketHint(jwt: string | null, role: number | undefined): ReadingBucket
 async function readContext(
 	runtime: MemoryRuntime,
 	params: ListParams,
-	forceFresh = false,
+	forceDisplay = false,
 ): Promise<
 	ForumListContextData & {
 		forumId: number;
@@ -83,10 +83,10 @@ async function readContext(
 	const displayToken = runtime.capture("forum-list");
 	const statsToken = runtime.capture("site-stats");
 	const countToken = runtime.capture("thread-count");
-	const cached = forceFresh ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
+	const cached = forceDisplay ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
 	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
 	const countKey = threadCountKey(forumId, typeId, hint);
-	const cachedCount = forceFresh ? undefined : runtime.peek<number>("thread-count", countKey);
+	const cachedCount = runtime.peek<number>("thread-count", countKey);
 	const { data } = await forumApi.postRead<ForumListContextData>(
 		FORUM_LIST_CONTEXT_PATH,
 		{
@@ -102,16 +102,14 @@ async function readContext(
 	validateContext(data, params);
 	const sameKey = data.bucket === hint && data.typeId === typeId;
 	const current =
-		data.display || forceFresh ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
+		data.display || forceDisplay ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
 	const currentCount =
-		data.count === undefined && !forceFresh
-			? runtime.peek<number>("thread-count", countKey)
-			: undefined;
+		data.count === undefined ? runtime.peek<number>("thread-count", countKey) : undefined;
 	const reusable = sameKey && current?.revision === data.revision;
 	const lostDisplay = !data.display && sameKey && cached?.revision === data.revision && !reusable;
 	const lostCount =
 		data.count === undefined && sameKey && cachedCount !== undefined && currentCount === undefined;
-	if (lostDisplay || lostCount) return readContext(runtime, params, true);
+	if (!forceDisplay && (lostDisplay || lostCount)) return readContext(runtime, params, true);
 	const display = data.display ?? (reusable ? current.display : undefined);
 	validateDisplay(display, forumId, limit);
 	const total = data.count ?? (sameKey ? currentCount : undefined);

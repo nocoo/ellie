@@ -35,6 +35,7 @@ const THREAD_DETAIL_ENTRY_BYTES = 256 * 1024;
 const THREAD_DETAIL_PAYLOAD_BYTES = 4 * 1024 * 1024;
 const DEFAULT_ENTRY_BYTES = 16 * 1024;
 const THIRTY_MINUTES_MS = 30 * 60_000;
+const THREAD_COUNT_TTL_MS = 6 * 60 * 60_000;
 
 interface Entry {
 	value: unknown;
@@ -284,9 +285,11 @@ export class MemoryRuntime {
 		const isForumList = token.family === "forum-list";
 		const isThreadDetail = token.family === "thread-detail";
 		const ttl =
-			isHomeDisplay || isForumList || isThreadDetail || token.family === "thread-count"
-				? THIRTY_MINUTES_MS
-				: MEMORY_CACHE_TTL_MS;
+			token.family === "thread-count"
+				? THREAD_COUNT_TTL_MS
+				: isHomeDisplay || isForumList || isThreadDetail
+					? THIRTY_MINUTES_MS
+					: MEMORY_CACHE_TTL_MS;
 		const expiresAt = Math.min(token.startedAt + ttl, (day(now) + 1) * DAY_MS - SHANGHAI_OFFSET);
 		if (expiresAt <= now) return false;
 		const encoded = JSON.stringify(value);

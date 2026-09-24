@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.7] - 2026-09-24
+
+### Fixed
+
+- Retain approximate pagination totals in bounded Next.js memory for up to six hours, capped at Shanghai midnight, with active invalidation for count-changing writes and exact rebuilding after restart. Display and thread snapshots retain their thirty-minute expiry.
+- Preserve valid totals during the single list-display refill after an expiry race. Recheck counts after both reads and fail after one retry if the count is cleared again, avoiding repeated recounts or unbounded retries.
+
+### Deployment
+
+- No migration, secret or management-contract change is required. A lost mutation notification may leave only the displayed total stale for up to six hours; current access, membership and next-page availability remain fresh.
+- Continue the ten thirty-minute D1/KV observations with recorded version cutovers; distinguish cold starts and mixed-version windows from steady-version results.
+
 ## [1.14.6] - 2026-09-24
 
 ### Fixed

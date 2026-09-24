@@ -353,7 +353,11 @@ The response data is `{ bucket, user, revision, page, limit, typeId, hasNext,
 display?, stats?, count? }`. Worker derives the current bucket and normalized type,
 verifies full forum ancestry and current page membership, and returns fresh display
 and count when reuse is unsafe. Otherwise Next combines the response with its
-bounded `forum-list` display entry, thirty-minute thread counts and five-minute statistics.
+bounded `forum-list` display entry, six-hour thread counts and five-minute statistics.
+Count-changing writes actively invalidate totals; their six-hour absolute lifetime is
+capped at Shanghai midnight and is never renewed by reads. Lost notifications can
+leave only the displayed total stale until expiry; permissions, page membership and
+`hasNext` are checked on each request, and restart rebuilds totals from D1.
 Display revision changes do not force a new total unless the bucket or normalized
 type changes. Reusing a total does not renew its expiry; fresh `hasNext` remains authoritative.
 No identity or permission result is admitted into process display memory.
