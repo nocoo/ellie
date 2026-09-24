@@ -764,3 +764,38 @@ describe("publicUserToUser", () => {
 		expect(user.checkin).toBeNull();
 	});
 });
+
+describe("forumApi bounded read-only POST", () => {
+	it("uses a deadline with bearer authorization while business writes keep their existing behavior", async () => {
+		await forumApi.postRead("/api/v1/home/context", { includeDisplay: true }, "jwt");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		expect(opts.method).toBe("POST");
+		expect(opts.signal).toBeInstanceOf(AbortSignal);
+		expect(opts.headers).toMatchObject({ Authorization: "Bearer jwt" });
+		await forumApi.post("/api/v1/threads", {});
+		expect((mockFetchFn.mock.calls[1] as [string, RequestInit])[1].signal).toBeUndefined();
+	});
+
+	it("rejects oversized and missing success envelopes instead of returning cacheable empty data", async () => {
+		mockFetchFn.mockResolvedValueOnce(mockResponse({ data: "x".repeat(2 * 1024 * 1024) }));
+		await expect(forumApi.postRead("/api/v1/home/context", {})).rejects.toMatchObject({
+			code: "PARSE_ERROR",
+		});
+		for (const body of [{}, null, []]) {
+			mockFetchFn.mockResolvedValueOnce(mockResponse(body));
+			await expect(forumApi.postRead("/api/v1/home/context", {})).rejects.toMatchObject({
+				code: "PARSE_ERROR",
+			});
+		}
+	});
+
+	it("retains authorization error accounting on bounded reads", async () => {
+		mockFetchFn.mockResolvedValueOnce(
+			mockResponse({ error: { code: "UNAUTHORIZED", message: "Unauthorized" } }, 401),
+		);
+		await expect(forumApi.postRead("/api/v1/home/context", {})).rejects.toMatchObject({
+			status: 401,
+			code: "UNAUTHORIZED",
+		});
+	});
+});

@@ -183,6 +183,9 @@ export default {
 			if (path === "/api/v1/stats" && request.method === "GET") {
 				return await (await import("./handlers/stats")).stats(request, env, ctx);
 			}
+			if (path === "/api/v1/home/context" && request.method === "POST") {
+				return await (await import("./handlers/home")).homeContext(request, env);
+			}
 
 			// ── #12c Public settings (Key A, read-only) ─────
 			if (path === "/api/v1/settings" && request.method === "GET") {

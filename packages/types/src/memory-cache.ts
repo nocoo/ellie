@@ -5,13 +5,19 @@ export const MEMORY_CACHE_ADMIN_PATH = "/api/admin/memory-cache";
 export const MEMORY_CACHE_ADMIN_HEADER = "X-Ellie-Memory-Key";
 export const MEMORY_CACHE_NO_STORE = "no-store";
 
-export const MEMORY_CACHE_FAMILIES = ["site-stats", "forum-summary", "thread-count"] as const;
+export const MEMORY_CACHE_FAMILIES = [
+	"site-stats",
+	"forum-summary",
+	"thread-count",
+	"home-display",
+] as const;
 export type MemoryCacheFamilyId = (typeof MEMORY_CACHE_FAMILIES)[number];
 
 export const MEMORY_CACHE_ACTIONS = ["clear", "flush"] as const;
 export type MemoryCacheAction = (typeof MEMORY_CACHE_ACTIONS)[number];
 
 export const MEMORY_CACHE_FAMILY_CAPACITY: Record<MemoryCacheFamilyId, number> = {
+	"home-display": 4,
 	"site-stats": 1,
 	"forum-summary": 256,
 	"thread-count": 1024,

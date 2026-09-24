@@ -13,6 +13,7 @@ import "server-only";
 
 import type { PublicUser, User } from "@ellie/types";
 import { UserStatus } from "@ellie/types";
+import { readBoundedJson } from "./memory-runtime";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -109,6 +110,7 @@ interface RequestOptions {
 	/** Client User-Agent to forward as X-Real-User-Agent */
 	clientUA?: string;
 	readPurpose?: "metadata" | "prefetch";
+	boundedRead?: boolean;
 }
 
 function buildHeaders(opts: RequestOptions): Record<string, string> {
@@ -131,6 +133,28 @@ function buildHeaders(opts: RequestOptions): Record<string, string> {
 	return headers;
 }
 
+async function parseResponse(res: Response, boundedRead = false): Promise<Record<string, unknown>> {
+	const text = boundedRead ? "" : await res.text();
+	let json: Record<string, unknown>;
+	try {
+		json = boundedRead
+			? ((await readBoundedJson(res, 2 * 1024 * 1024)) as Record<string, unknown>)
+			: text
+				? (JSON.parse(text) as Record<string, unknown>)
+				: {};
+		if (!json || typeof json !== "object" || Array.isArray(json))
+			throw new Error("Invalid envelope");
+		if (boundedRead && res.ok && !("data" in json)) throw new Error("Missing data");
+	} catch {
+		throw new ForumApiError(res.status, {
+			code: "PARSE_ERROR",
+			message: `Failed to parse Worker response: ${text.slice(0, 200)}`,
+		});
+	}
+
+	return json;
+}
+
 async function request<T>(
 	opts: RequestOptions,
 ): Promise<{ data: T; meta: ApiMeta & Partial<CursorMeta>; status: number }> {
@@ -151,19 +175,10 @@ async function request<T>(
 		headers,
 		body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
 		cache: "no-store",
-		signal: opts.method === "GET" ? AbortSignal.timeout(15_000) : undefined,
+		signal: opts.method === "GET" || opts.boundedRead ? AbortSignal.timeout(15_000) : undefined,
 	});
 
-	const text = await res.text();
-	let json: Record<string, unknown>;
-	try {
-		json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-	} catch {
-		throw new ForumApiError(res.status, {
-			code: "PARSE_ERROR",
-			message: `Failed to parse Worker response: ${text.slice(0, 200)}`,
-		});
-	}
+	const json = await parseResponse(res, opts.boundedRead);
 
 	if (!res.ok) {
 		const errorData = json.error as ForumApiErrorData | undefined;
@@ -207,6 +222,10 @@ export interface GetOptions {
 }
 
 export const forumApi = {
+	async postRead<T>(path: string, body: unknown, bearerToken?: string): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "POST", path, body, bearerToken, boundedRead: true });
+		return { data: result.data, meta: result.meta };
+	},
 	/** GET single resource: { data: T, meta } */
 	async get<T>(
 		path: string,

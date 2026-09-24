@@ -31,9 +31,12 @@ import {
 	fetchThreadMetadata,
 } from "./forum-data";
 import { type ForumSettings, parseForumSettings } from "./forum-settings";
+import { loadHomeContext } from "./home-reading";
 import { getMemoryRuntime } from "./memory-runtime";
 import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 import { createTtlCache } from "./ttl-cache";
+
+export const getCachedHomeContext = cache(loadHomeContext);
 
 // ---------------------------------------------------------------------------
 // Forum data (deduplicated within the same RSC render pass)

@@ -118,3 +118,10 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 
 - The memory-runtime harness initially assumed a root Wrangler binary instead of reusing the Worker workspace path. After correcting it, a concurrent typecheck detected stale Admin route types and rebuilt both apps while the harness copied Web standalone output, causing a missing-file error before startup.
 - Finish the root typecheck and its possible builds before copying standalone artifacts. Treat typecheck as a potential build until route freshness is confirmed; serialize all consumers and producers of `.next`.
+
+### 2026-09-24: Homepage cache integration boundaries
+
+- Transpile-only Worker tests passed while the new router supplied an extra handler argument and a conditional promise lost its display type. Full typecheck caught both before any commit or deployment; preserve the explicit read-result union and verify integrated types after shared contracts land.
+- Parallel optional statistics initially started before an awaited authority query, leaving early failures detached from the request. Independent review reproduced an unhandled rejection. Start independent reads together only when they can immediately join the same awaited promise; retain the delayed-authority/fast-stat-failure regression.
+- Cache clearing cannot repair a rebuild that reads denormalized old author names. Cold homepage digest projection now joins the current user row; rename/rebuild tests verify that restart and invalidation recover current display data.
+- The normal commit hook rejected Worker statement coverage at 94.87%, despite all tests passing. Add meaningful failure, moderation-race and oversized-forum cases in the new handler rather than lowering thresholds or counting focused tests as full gate evidence.

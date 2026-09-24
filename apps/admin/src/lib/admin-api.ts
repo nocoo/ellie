@@ -30,6 +30,8 @@ function getApiKey(): string {
 // ---------------------------------------------------------------------------
 
 import { ApiError, type ApiErrorData } from "@ellie/shared";
+import { after } from "next/server";
+import { notifyWebDisplayInvalidation } from "./web-memory-notify";
 
 export type AdminApiErrorData = ApiErrorData;
 
@@ -83,6 +85,52 @@ interface RequestOptions {
 	searchParams?: Record<string, string | number | boolean | undefined | null>;
 }
 
+// ---------------------------------------------------------------------------
+// Web memory notify filter (best-effort display invalidation)
+//
+// After a SUCCESSFUL relevant business mutation towards the Worker, ask the
+// configured Web process to clear its display memory families. Scheduled via
+// next/server `after()` so the notification runs after the response is
+// flushed and participates in Next graceful shutdown; if `after()` itself
+// fails to schedule (outside a request scope, e.g. scripts/tests) the task
+// still runs fire-and-forget. Either way the notifier is bounded,
+// swallow-all, and can never turn a committed write into an error. KV-only
+// tools, the manual memory page, auth/login, checkin and read-shaped POST
+// endpoints stay out of scope.
+// ---------------------------------------------------------------------------
+
+const MEMORY_NOTIFY_PATH_PREFIXES = [
+	"/api/admin/threads",
+	"/api/admin/posts",
+	"/api/admin/forums",
+	"/api/admin/forum-thread-types",
+	"/api/admin/users",
+	"/api/admin/announcements",
+	"/api/admin/settings",
+	"/api/admin/statistics/recalc-forums",
+	"/api/admin/statistics/recalc-post-forums",
+	"/api/admin/statistics/recalc-threads",
+	"/api/admin/statistics/recalc-users",
+	"/api/admin/stats/calibrate",
+] as const;
+
+function isRelevantMemoryMutation(method: string, path: string): boolean {
+	if (!MUTATION_METHODS.has(method.toUpperCase())) return false;
+	if (path.startsWith("/api/admin/users/") && path.includes("/checkins")) return false;
+	return MEMORY_NOTIFY_PATH_PREFIXES.some(
+		(prefix) => path === prefix || path.startsWith(`${prefix}/`),
+	);
+}
+
+function scheduleMemoryNotify(): void {
+	const task = () => notifyWebDisplayInvalidation();
+	try {
+		after(task);
+	} catch {
+		void task();
+	}
+}
+
 async function request<T>(
 	opts: RequestOptions,
 ): Promise<{ data: T; meta: ApiMeta & Partial<PaginationMeta>; status: number }> {
@@ -130,6 +178,8 @@ async function request<T>(
 			errorData ?? { code: "UNKNOWN", message: `Worker returned ${res.status}` },
 		);
 	}
+
+	if (isRelevantMemoryMutation(opts.method, opts.path)) scheduleMemoryNotify();
 
 	return {
 		data: json.data as T,
@@ -201,6 +251,9 @@ export const adminApi = {
 			method,
 			headers,
 			body: body !== undefined ? JSON.stringify(body) : undefined,
+		}).then((res) => {
+			if (res.ok && isRelevantMemoryMutation(method, path)) scheduleMemoryNotify();
+			return res;
 		});
 	},
 };

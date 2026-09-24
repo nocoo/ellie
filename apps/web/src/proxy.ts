@@ -236,6 +236,7 @@ export async function proxy(request: NextRequest) {
 	if (action === "next") {
 		const clientIp = resolveTrustedClientIp(request);
 		const requestHeaders = new Headers(request.headers);
+		requestHeaders.set("x-ellie-home", request.nextUrl.pathname === "/" ? "1" : "0");
 		// Next.js hides its Flight headers from server component headers().
 		requestHeaders.set(
 			"x-ellie-prefetch",

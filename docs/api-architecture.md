@@ -336,3 +336,44 @@ or supported family-management path. Existing keys may expire naturally.
 See [Next.js memory statistics](29-nextjs-memory-statistics.md) for the replacement
 view/activity semantics and local implementation status. These changes require
 coordinated Worker/Web/Admin deployment; local verification is not deployment.
+
+## Homepage context and memory display snapshots
+
+See [the homepage read plan](31-homepage-memory-read-plan.md). The homepage RSC
+and forum layout share a request-scoped loader. Its only server-rendered content request is
+`POST /api/v1/home/context` with server-only Key A and optional caller JWT.
+This read-only POST has no browser proxy: it is called by the server API client.
+The trusted homepage request marker is overwritten by Next.js Proxy. Browser
+notification polling, avatars, token refresh and periodic settings reads remain
+separate requests.
+
+The request contains `cachedBucket`, `includeDisplay`, `includeStats`,
+`summaryTopicIds` and `digestTopicIds`. The bucket is a rebuild hint, never
+an authorization claim. Responses contain fresh `bucket`, `user`,
+`allowedForumIds`, `summaryGates` and `digestGates`, with optional `display`
+and `stats`. Normal `meta.timestamp` and `meta.requestId` remain present.
+Invalid supplied JWTs fail instead of silently becoming anonymous.
+
+Web caches only the coherent `display` projection (forum structure, numeric
+summaries/latest nonanonymous topics, and five digest topics). It never caches
+context users or authorization gates. `home-display` has four entries at most,
+512 KiB per entry, thirty-minute maximum lifetime and Shanghai-midnight expiry;
+the existing aggregate eight-MiB payload ceiling remains. Statistics reuse
+`site-stats` with a five-minute lifetime. Restart empties memory and rebuilds
+from fresh authoritative reads, without promoting old KV content to a new TTL.
+
+Every render filters whole forums against fresh ancestor-aware allowed IDs and
+checks cached topic identity, visibility, anonymity and author against current
+gates. Failed gates hide candidates and discard that display entry for the next
+read. Candidate overflow forces a complete fresh response without admission;
+forums are never truncated to fit the cache. Responses over two MiB fail
+explicitly. A fifteen-second deadline includes response consumption.
+
+Successful Web business writes reuse `invalidateDisplayAfterWrite` to clear
+memory; existing Worker mutation helpers independently invalidate KV. Admin
+business writes remain direct and unthrottled. After success, Admin sends a
+bounded best-effort notification over the existing memory-management channel:
+read the instance ID and clear all display families, without flushing statistical
+buffers. An instance conflict gets one retry. Manual KV and memory controls
+remain independent. Notification failure converges via TTL; this channel targets
+one configured Web instance, not a broadcast to multiple replicas.

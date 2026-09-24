@@ -5,6 +5,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { AVATAR_ALLOWED_TYPES, AVATAR_MAX_UPLOAD_MB } from "@/lib/avatar";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
+import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
 import { ForumApiError } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse, isEmailNotVerifiedPayload } from "@/lib/proxy-error";
@@ -158,6 +159,10 @@ export async function POST(request: Request) {
 			);
 		}
 
+		if (formData.get("purpose") === "avatar") {
+			// forum-summary carries authorAvatarPath for non-home readers too.
+			invalidateDisplayAfterWrite({ forumSummaries: true });
+		}
 		return NextResponse.json(json, { status: res.status });
 	} catch (err) {
 		if (err instanceof ForumApiError) {

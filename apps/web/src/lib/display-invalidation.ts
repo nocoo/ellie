@@ -8,6 +8,7 @@ export interface WriteInvalidation {
 	forumSummaries?: boolean;
 	threadCounts?: boolean;
 	siteStats?: boolean;
+	homeDisplay?: boolean;
 }
 
 export function invalidateDisplayAfterWrite(changed: WriteInvalidation): void {
@@ -23,4 +24,11 @@ export function invalidateDisplayAfterWrite(changed: WriteInvalidation): void {
 	}
 	if (changed.threadCounts) runtime.clear("thread-count");
 	if (changed.siteStats) runtime.clear("site-stats");
+	if (
+		changed.homeDisplay === true ||
+		changed.forumSummaries === true ||
+		changed.threadCounts === true ||
+		changed.siteStats === true
+	)
+		runtime.clear("home-display");
 }

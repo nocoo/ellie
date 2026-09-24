@@ -1,5 +1,6 @@
 import type { PublicUser } from "@ellie/types";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { EmailVerificationBanner } from "@/components/forum/email-verification-banner";
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
@@ -7,6 +8,7 @@ import { SessionGuard } from "@/components/forum/session-guard";
 import { MaintenancePage } from "@/components/maintenance-page";
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
+import { getCachedHomeContext } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import {
@@ -50,6 +52,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ForumLayout({ children }: { children: ReactNode }) {
+	const isHome = (await headers()).get("x-ellie-home") === "1";
 	// First, fetch settings to check maintenance mode
 	const settings = await fetchPublicSettings();
 	const isMaintenanceMode = getBool(settings, "features.access.maintenance_mode", false);
@@ -61,7 +64,9 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 
 		if (adminBypass) {
 			// Check if current user is a forum admin (role = 1)
-			const currentUser = await loadCurrentUser();
+			const currentUser = isHome
+				? (await getCachedHomeContext().catch(() => null))?.user
+				: await loadCurrentUser();
 			canBypass = currentUser?.role === 1;
 		}
 
@@ -75,16 +80,24 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 		}
 	}
 
-	// Normal mode — load all data. `self` is loaded separately from
-	// `currentUser` because the header viewmodel only needs the public
-	// projection; the email-verification banner needs `emailVerifiedAt`
-	// which lives on the self-shape. Both calls fail-soft to null so a
-	// transient Worker outage doesn't block the layout from rendering.
-	const [stats, currentUser, self] = await Promise.all([
-		loadStats(),
-		loadCurrentUser(),
-		getSelfForumUser(),
-	]);
+	const home = isHome ? await getCachedHomeContext().catch(() => null) : null;
+	const [stats, currentUser, self] = isHome
+		? [
+				home?.stats ?? DEFAULT_STATS,
+				home?.user
+					? {
+							uid: home.user.id,
+							username: home.user.username,
+							groupTitle: home.user.groupTitle,
+							credits: home.user.credits,
+							coins: home.user.coins,
+							role: home.user.role,
+							reminderCount: 0,
+						}
+					: null,
+				home?.user ?? null,
+			]
+		: await Promise.all([loadStats(), loadCurrentUser(), getSelfForumUser()]);
 
 	const headerVm = buildHeaderViewModel(settings, currentUser, stats);
 	const footerVm = buildGlobalFooterViewModel(settings);

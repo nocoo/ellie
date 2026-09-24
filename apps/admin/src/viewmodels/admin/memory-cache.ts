@@ -10,6 +10,7 @@ import { MEMORY_CACHE_ERROR_CODES } from "@ellie/types";
 import { ApiError, apiClient } from "@/lib/api-client";
 
 export const MEMORY_FAMILY_LABELS: Record<MemoryCacheFamilyId, string> = {
+	"home-display": "首页展示",
 	"site-stats": "站点统计",
 	"forum-summary": "版块摘要",
 	"thread-count": "主题计数",

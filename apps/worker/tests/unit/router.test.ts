@@ -39,6 +39,9 @@ vi.mock("../../src/handlers/post", () => ({
 vi.mock("../../src/handlers/stats", () => ({
 	stats: mockHandler(),
 }));
+vi.mock("../../src/handlers/home", () => ({
+	homeContext: mockHandler(),
+}));
 vi.mock("../../src/handlers/auth", () => ({
 	login: mockHandler(),
 	refresh: mockHandler(),
@@ -267,6 +270,7 @@ const MODULE_PATHS: Record<string, string> = {
 	search: "../../src/handlers/search",
 	digest: "../../src/handlers/digest",
 	stats: "../../src/handlers/stats",
+	home: "../../src/handlers/home",
 	settings: "../../src/handlers/settings",
 	auth: "../../src/handlers/auth",
 	me: "../../src/handlers/me",
@@ -864,6 +868,7 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/digest/stats", "digest", "stats"],
 				["GET", "/api/v1/digest/filters", "digest", "filters"],
 				["GET", "/api/v1/stats", "stats", "stats"],
+				["POST", "/api/v1/home/context", "home", "homeContext"],
 				["GET", "/api/v1/settings", "settings", "list"],
 			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);

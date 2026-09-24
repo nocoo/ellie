@@ -371,6 +371,17 @@ describe("proxy", () => {
 		expect(result.type).toBe("next");
 	});
 
+	it.each(["/", "/threads/42"])("overwrites the homepage hint for %s", async (path) => {
+		mockAuth.mockResolvedValue(null);
+		const request = makeMockNextRequest(path);
+		request.headers = new Headers({ "x-ellie-home": path === "/" ? "0" : "1" });
+		await proxy(request);
+		const options = vi.mocked(NextResponse.next).mock.calls.at(-1)?.[0];
+		expect(new Headers(options?.request?.headers).get("x-ellie-home")).toBe(
+			path === "/" ? "1" : "0",
+		);
+	});
+
 	it.each([true, false])(
 		"derives the internal prefetch hint and overwrites client input (%s)",
 		async (prefetch) => {

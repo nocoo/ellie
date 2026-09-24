@@ -31,12 +31,18 @@ describe("memory cache management contract", () => {
 		expect(MEMORY_CACHE_WEB_PATH).toBe("/api/internal/memory-cache");
 		expect(MEMORY_CACHE_ADMIN_PATH).toBe("/api/admin/memory-cache");
 		expect(MEMORY_CACHE_ADMIN_HEADER).toBe("X-Ellie-Memory-Key");
-		expect(MEMORY_CACHE_FAMILIES).toEqual(["site-stats", "forum-summary", "thread-count"]);
+		expect(MEMORY_CACHE_FAMILIES).toEqual([
+			"site-stats",
+			"forum-summary",
+			"thread-count",
+			"home-display",
+		]);
 		expect(MEMORY_CACHE_ACTIONS).toEqual(["clear", "flush"]);
 		expect(MEMORY_CACHE_FAMILY_CAPACITY).toEqual({
 			"site-stats": 1,
 			"forum-summary": 256,
 			"thread-count": 1024,
+			"home-display": 4,
 		});
 		expect(MEMORY_CACHE_PAYLOAD_LIMIT_BYTES).toBe(8 * 1024 * 1024);
 		expect(MEMORY_CACHE_PREVIEW_MAX_BYTES).toBe(512);

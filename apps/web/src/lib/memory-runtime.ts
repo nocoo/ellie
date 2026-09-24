@@ -42,7 +42,15 @@ interface Flight {
 	promise: Promise<unknown>;
 }
 
+export interface MemoryLoadToken {
+	instanceId: string;
+	family: MemoryCacheFamilyId;
+	epoch: number;
+	startedAt: number;
+}
+
 interface Family {
+	epoch: number;
 	entries: Map<string, Entry>;
 	flights: Map<string, Flight>;
 	stats: MemoryCacheFamilyStats;
@@ -117,6 +125,17 @@ function safePreview(value: unknown): string {
 	if (typeof value === "number") return String(value);
 	if (!value || typeof value !== "object") return "";
 	const source = value as Record<string, unknown>;
+	if (
+		Array.isArray(source.forums) &&
+		Array.isArray(source.summaries) &&
+		Array.isArray(source.digest)
+	) {
+		return JSON.stringify({
+			forums: source.forums.length,
+			summaries: source.summaries.length,
+			digest: source.digest.length,
+		});
+	}
 	const fields = [
 		"total",
 		"threads",
@@ -170,6 +189,7 @@ export class MemoryRuntime {
 		this.lastScheduledFlush = this.startedAt;
 		for (const id of MEMORY_CACHE_FAMILIES)
 			this.families.set(id, {
+				epoch: 0,
 				entries: new Map(),
 				flights: new Map(),
 				stats: {
@@ -213,6 +233,67 @@ export class MemoryRuntime {
 		}
 	}
 
+	capture(id: MemoryCacheFamilyId): MemoryLoadToken {
+		const family = this.families.get(id);
+		if (!family) throw new Error("Unknown memory cache family");
+		return { instanceId: this.id, family: id, epoch: family.epoch, startedAt: this.now() };
+	}
+
+	peek<T>(id: MemoryCacheFamilyId, key: string): T | undefined {
+		this.prune();
+		const family = this.families.get(id);
+		if (!family) throw new Error("Unknown memory cache family");
+		const entry = family.entries.get(key);
+		if (!entry) {
+			family.stats.misses++;
+			return undefined;
+		}
+		family.stats.hits++;
+		family.entries.delete(key);
+		family.entries.set(key, entry);
+		return structuredClone(entry.value) as T;
+	}
+
+	admit<T>(key: string, value: T, token: MemoryLoadToken): boolean {
+		const family = this.families.get(token.family);
+		const now = this.now();
+		const day = (at: number) => Math.floor((at + SHANGHAI_OFFSET) / DAY_MS);
+		if (
+			!family ||
+			token.instanceId !== this.id ||
+			token.epoch !== family.epoch ||
+			key.length > 256 ||
+			day(token.startedAt) !== day(now) ||
+			(family.entries.get(key)?.createdAt ?? 0) > token.startedAt
+		)
+			return false;
+		const ttl = token.family === "home-display" ? 30 * 60_000 : MEMORY_CACHE_TTL_MS;
+		const expiresAt = Math.min(token.startedAt + ttl, (day(now) + 1) * DAY_MS - SHANGHAI_OFFSET);
+		if (expiresAt <= now) return false;
+		const encoded = JSON.stringify(value);
+		const preview = boundMemoryCachePreview(safePreview(value));
+		const bytes =
+			encoded === undefined
+				? Infinity
+				: Buffer.byteLength(encoded) + Buffer.byteLength(preview) + key.length * 2 + 256;
+		if (bytes > (token.family === "home-display" ? 512 * 1024 : MAX_ENTRY_BYTES)) return false;
+		family.entries.delete(key);
+		while (family.entries.size >= family.stats.maxEntries) this.evict(family);
+		while (this.payloadBytes() + bytes > MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - 1024 * 1024) {
+			const victim = [...this.families.values()].find((item) => item.entries.size > 0);
+			if (!victim) break;
+			this.evict(victim);
+		}
+		family.entries.set(key, {
+			value: structuredClone(value),
+			createdAt: now,
+			expiresAt,
+			bytes,
+			preview,
+		});
+		return true;
+	}
+
 	async read<T>(id: MemoryCacheFamilyId, key: string, load: () => Promise<T>): Promise<T> {
 		const family = this.families.get(id);
 		if (!family) throw new Error("Unknown memory cache family");
@@ -235,41 +316,14 @@ export class MemoryRuntime {
 			family.stats.loadErrors++;
 			throw new Error("Memory cache load capacity exceeded");
 		}
-		const loadDay = Math.floor((this.now() + SHANGHAI_OFFSET) / DAY_MS);
+		const token = this.capture(id);
 		const flight: Flight = { valid: true, promise: Promise.resolve() };
 		family.flights.set(key, flight);
 		this.trackedFlights++;
 		flight.promise = (async () => {
 			try {
 				const value = await load();
-				const encoded = JSON.stringify(value);
-				const preview = boundMemoryCachePreview(safePreview(value));
-				const bytes =
-					encoded === undefined
-						? Infinity
-						: Buffer.byteLength(encoded) + Buffer.byteLength(preview) + key.length * 2 + 256;
-				if (
-					flight.valid &&
-					bytes <= MAX_ENTRY_BYTES &&
-					loadDay === Math.floor((this.now() + SHANGHAI_OFFSET) / DAY_MS)
-				) {
-					while (family.entries.size >= family.stats.maxEntries) this.evict(family);
-					while (this.payloadBytes() + bytes > MEMORY_CACHE_PAYLOAD_LIMIT_BYTES - 1024 * 1024) {
-						const victim = [...this.families.values()].find((item) => item.entries.size > 0);
-						if (!victim) break;
-						this.evict(victim);
-					}
-					const createdAt = this.now();
-					const midnight =
-						(Math.floor((createdAt + SHANGHAI_OFFSET) / DAY_MS) + 1) * DAY_MS - SHANGHAI_OFFSET;
-					family.entries.set(key, {
-						value: structuredClone(value),
-						createdAt,
-						expiresAt: Math.min(createdAt + MEMORY_CACHE_TTL_MS, midnight),
-						bytes,
-						preview,
-					});
-				}
+				if (flight.valid) this.admit(key, value, token);
 				return value;
 			} catch (error) {
 				family.stats.loadErrors++;
@@ -293,6 +347,7 @@ export class MemoryRuntime {
 	clear(id?: MemoryCacheFamilyId, key?: string): void {
 		for (const [familyId, family] of this.families) {
 			if (id !== undefined && id !== familyId) continue;
+			family.epoch++;
 			if (key === undefined) {
 				family.entries.clear();
 				for (const flight of family.flights.values()) flight.valid = false;

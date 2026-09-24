@@ -1,7 +1,7 @@
 // components/forum/digest-showcase.tsx — Homepage digest threads showcase
 // Shows recent digest threads with a link to full digest page
 
-import type { Thread } from "@ellie/types";
+import type { HomeDigestTopic } from "@ellie/types";
 import { getThreadBadges } from "@ellie/types";
 import { Award, Eye, MessageSquare } from "lucide-react";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 
 interface DigestShowcaseProps {
-	threads: Thread[];
+	threads: HomeDigestTopic[];
 }
 
 export function DigestShowcase({ threads }: DigestShowcaseProps) {
@@ -57,7 +57,13 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 				<div className="divide-y divide-border/50">
 					{threads.map((thread) => {
 						// Only show digest badge in this showcase
-						const badges = getThreadBadges(thread).filter((b) => b.type === "digest");
+						const badges = getThreadBadges({
+							digest: thread.digest,
+							typeName: "",
+							sticky: 0,
+							closed: 0,
+							special: 0,
+						}).filter((b) => b.type === "digest");
 						return (
 							<div
 								key={thread.id}

@@ -24,5 +24,9 @@ export const PATCH = proxyRoute<{ id: string }>({
 	method: "PATCH",
 	path: ({ id }) => `/api/v1/me/posts/${id}`,
 	body: "json",
+	transform: (result) => {
+		invalidateDisplayAfterWrite({ forumSummaries: true });
+		return result;
+	},
 	debugTag: "me/posts/[id]/route",
 });

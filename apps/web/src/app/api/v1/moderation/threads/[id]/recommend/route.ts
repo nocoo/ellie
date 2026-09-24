@@ -1,3 +1,4 @@
+import { invalidateDisplayAfterWrite } from "@/lib/display-invalidation";
 import { proxyRoute } from "@/lib/forum-route-proxy";
 
 /**
@@ -9,10 +10,16 @@ import { proxyRoute } from "@/lib/forum-route-proxy";
  * see `apps/worker/src/handlers/recommended.ts`. The display layer caps
  * at 6 newest threads; the data layer is uncapped.
  */
+const invalidate = <T>(result: T): T => {
+	invalidateDisplayAfterWrite({ homeDisplay: true });
+	return result;
+};
+
 export const POST = proxyRoute<{ id: string }>({
 	method: "POST",
 	path: ({ id }) => `/api/v1/moderation/threads/${id}/recommend`,
 	body: "empty",
+	transform: invalidate,
 	debugTag: "moderation/threads/[id]/recommend/route",
 });
 
@@ -20,5 +27,6 @@ export const DELETE = proxyRoute<{ id: string }>({
 	method: "DELETE",
 	path: ({ id }) => `/api/v1/moderation/threads/${id}/recommend`,
 	body: "empty",
+	transform: invalidate,
 	debugTag: "moderation/threads/[id]/recommend/route",
 });
