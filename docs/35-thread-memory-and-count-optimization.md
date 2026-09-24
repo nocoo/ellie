@@ -140,6 +140,13 @@ ordinary-list VM steps fell, but group-page steps rose. A new trigger-maintained
 count table was also deferred because approximate totals are accepted and a
 longer bounded memory lifetime avoids another derived-data invariant.
 
+Independent Codex design review passed on September 24 at 18:18 Asia/Shanghai,
+with no open P0/P1/P2/P3 design findings. The stale aggregate can retain a hidden
+topic or announcement contribution after a missed notification; it cannot reveal
+its body, identity or list membership. Explicitly test a valid zero count, the
+single retry losing its count, timer-only pruning, and navigation with inaccurate
+totals. Implementation review and release verification follow separately.
+
 ## Measured follow-up: share only the local count
 
 The v1.14.7 runtime snapshot at 2026-09-24T11:51:41.029Z contained 35 count
@@ -176,10 +183,3 @@ and the new tag: successful main CI automatically starts Docker deployment.
 Record this additional cutover within the original ten observation windows,
 including its cold rebuilding costs. Do not substitute warm windows for the
 complete rollout comparison.
-
-Independent Codex design review passed on September 24 at 18:18 Asia/Shanghai,
-with no open P0/P1/P2/P3 design findings. The stale aggregate can retain a hidden
-topic or announcement contribution after a missed notification; it cannot reveal
-its body, identity or list membership. Explicitly test a valid zero count, the
-single retry losing its count, timer-only pruning, and navigation with inaccurate
-totals. Implementation review and release verification follow separately.
