@@ -91,3 +91,5 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 - `04c-admin-console.md` → 已由 `10-admin-console.md` 替代
 
 [Forum list memory read plan](33-forum-list-memory-read-plan.md): bounded Next.js display caching, fresh page authorization, and write invalidation.
+
+[Forum list release observation](34-forum-list-release-observation.md): pre-release Cloudflare baseline and rollout validation.

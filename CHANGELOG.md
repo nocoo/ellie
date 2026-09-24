@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.4] - 2026-09-24
+
+### Changed
+
+- Cache forum-list display snapshots in bounded Next.js memory and share one Worker context across metadata, layout and page rendering. The context reads D1 directly without KV and refreshes authorization, page membership and next-page availability on every request.
+- Mask anonymous authors and last posters for everyone in lists and recommendations; keep viewer-dependent identity handling in thread details.
+- Reuse existing write notifications to invalidate affected forum lists, clearing the whole family for global announcements or unknown scope. Snapshots expire after thirty minutes at most and rebuild from D1 after restart.
+- Expose the new forum-list family in Admin memory management, capped at 128 entries, 128 KiB per entry and 4 MiB inside the existing process payload limit.
+
+### Fixed
+
+- Preserve trusted forum routing for asset-like path segments and canonical pagination, without sharing user-bearing promises between requests.
+- Keep anonymous identities out of public revision hashes, bound intermediate category and moderator reads, and retry inconsistent pagination once before returning a bounded error.
+
+### Deployment
+
+- Deploy the Worker context endpoint before Web/Admin cutover. No new D1 migration or secret is required.
+- Synchronize Web, Admin, Worker and Rust package versions to v1.14.4; record the pre-release baseline in `docs/34-forum-list-release-observation.md`.
+
 ## [1.14.3] - 2026-09-24
 
 ### Changed

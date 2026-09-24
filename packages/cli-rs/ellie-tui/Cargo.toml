@@ -1,6 +1,6 @@
 [package]
 name = "ellie-tui"
-version = "1.14.3"
+version = "1.14.4"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

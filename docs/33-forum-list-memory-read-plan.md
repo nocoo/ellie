@@ -186,3 +186,21 @@ hooks under that authorization; retain the no-popup requirement.
 - Release validation: final integrated typecheck/lint/build, all required coverage gates,
   local real-HTTP L2 and browser lanes, security gates and normal commit hook.
 - Publication: authorized as v1.14.4 after baseline capture and normal checks.
+
+## Resumed release validation
+
+Feature commit `5a503297` passed the normal pre-commit hook on 2026-09-24:
+strict staged lint, root typecheck, staged secret scan, all seven configured
+coverage suites, and 380 local real-HTTP tests. Worker coverage initially failed
+at 94.98% statements; expired/invalid credentials and bounded request-body
+regressions were added before the complete successful retry. No floor changed.
+
+The successful run included 3,891 Worker, 2,508 Web, 958 Admin and 1,134 shared,
+mock, type and migration tests. Worker coverage was 95.06% statements, 90.30%
+branches, 98.29% functions and 96.70% lines; the existing repository-wide 95%
+branch attainment gap remains documented in `AGENTS.md`.
+
+Both Next production builds passed with v1.14.4. Sequential local headless browser
+lanes passed 78 forum and 38 Admin tests; four existing cases were skipped.
+No browser/report popup was opened. Full push/security and exact-revision CI
+receipts are recorded with the release, not inferred from these local runs.
