@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { forumListContext } from "../../../src/handlers/forum-list";
 import { createJwt } from "../../../src/lib/jwt";
 import { createJwtForRole } from "../../helpers";
@@ -39,7 +39,7 @@ describe("POST /api/v1/forums/context", () => {
 		return f;
 	}
 
-	it("returns a no-store page from D1 and ignores KV, including after a restart", async () => {
+	it("restores bounded selections from KV after a restart while reading live topic content", async () => {
 		open();
 		f.values.set("cache:v3:thread:list:stale", '{"items":[{"id":999}]}');
 		f.thread(8, { subject: "Live", replies: 3, views: 9 });
@@ -64,8 +64,8 @@ describe("POST /api/v1/forums/context", () => {
 			lastPosterId: 0,
 			lastThreadSubject: "",
 		});
-		expect(f.env.KV.get).not.toHaveBeenCalled();
-		expect(f.env.KV.put).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
+		expect(f.env.KV.put).toHaveBeenCalled();
 		expect(f.calls.some((call) => call.mode === "run")).toBe(false);
 
 		f.sqlite.exec("UPDATE threads SET subject = 'After restart', views = 99 WHERE id = 8");
@@ -76,7 +76,7 @@ describe("POST /api/v1/forums/context", () => {
 		const next = await restarted.json();
 		expect(next.data.display.threads[0].subject).toBe("After restart");
 		expect(next.data.display.threads[0].views).toBe(99);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 	});
 
 	it("keeps a warm same-revision read free of display, count, KV and entity text", async () => {
@@ -84,12 +84,15 @@ describe("POST /api/v1/forums/context", () => {
 		f.thread(8, { subject: "Warm", views: 1 });
 		const cold = await (await forumListContext(post(request()), f.env)).json();
 		f.calls.length = 0;
+		vi.mocked(f.env.KV.get).mockClear();
+		vi.mocked(f.env.KV.put).mockClear();
 		f.sqlite.exec("UPDATE threads SET views = 50, subject = 'Edited later' WHERE id = 8");
 		const hot = await forumListContext(
 			post(
 				request({
 					cachedBucket: "anon",
 					cachedRevision: cold.data.revision,
+					cachedRead: cold.data.readSnapshot,
 					includeDisplay: false,
 					includeCount: false,
 				}),
@@ -103,16 +106,21 @@ describe("POST /api/v1/forums/context", () => {
 		expect(body.data.count).toBeUndefined();
 		expect(body.data.announcementCount).toBe(0);
 		expect(body.data.hasNext).toBe(false);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 		const sql = f.calls.map((call) => call.sql).join("\n");
 		expect(sql).not.toContain("COUNT(*)");
+		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.put).not.toHaveBeenCalled();
+		expect(sql).not.toContain("OFFSET");
+		expect(sql).not.toContain("FROM forum_thread_types");
+		expect(sql).not.toContain("FROM forum_recommended_threads");
 		expect(sql).not.toContain("t.subject");
 		expect(sql).not.toContain("t.views");
 		expect(sql).not.toContain("description");
 		expect(sql).not.toContain("announcement,");
 	});
 
-	it("returns count without display when a warm page asks for includeCount", async () => {
+	it("never counts even when a caller requests the former exact total", async () => {
 		open();
 		f.thread(8, { sticky: 2, last_post_at: 30 });
 		f.thread(9, { sticky: 0, last_post_at: 20 });
@@ -121,6 +129,7 @@ describe("POST /api/v1/forums/context", () => {
 			post(
 				request({
 					cachedRevision: cold.data.revision,
+					cachedRead: cold.data.readSnapshot,
 					includeDisplay: false,
 					includeCount: true,
 				}),
@@ -129,7 +138,7 @@ describe("POST /api/v1/forums/context", () => {
 		);
 		const body = await hot.json();
 		expect(body.data.display).toBeUndefined();
-		expect(body.data.count).toBe(2);
+		expect(body.data.count).toBe(1);
 		expect(body.data.announcementCount).toBe(1);
 	});
 	it("returns fresh visible announcement contributions without recounting local topics", async () => {
@@ -140,11 +149,14 @@ describe("POST /api/v1/forums/context", () => {
 		const first = await (
 			await forumListContext(post(request({ includeCount: true })), f.env)
 		).json();
-		expect(first.data).toMatchObject({ count: 2, announcementCount: 1 });
+		expect(first.data).toMatchObject({ announcementCount: 1 });
 		f.sqlite.exec("UPDATE forums SET visibility = 'staff' WHERE id = 21");
 		f.calls.length = 0;
 		const next = await (
-			await forumListContext(post(request({ cachedRevision: first.data.revision })), f.env)
+			await forumListContext(
+				post(request({ cachedRevision: first.data.revision, cachedRead: first.data.readSnapshot })),
+				f.env,
+			)
 		).json();
 		expect(next.data.announcementCount).toBe(0);
 		expect(next.data.count).toBeUndefined();
@@ -164,7 +176,7 @@ describe("POST /api/v1/forums/context", () => {
 		const cold = await (await forumListContext(post(request()), f.env)).json();
 		f.sqlite.exec(sql);
 		const response = await forumListContext(
-			post(request({ cachedRevision: cold.data.revision })),
+			post(request({ cachedRevision: cold.data.revision, cachedRead: cold.data.readSnapshot })),
 			f.env,
 		);
 		expect(response.status).toBe(200);
@@ -180,7 +192,7 @@ describe("POST /api/v1/forums/context", () => {
 				lastPosterId: 0,
 				lastPoster: "匿名",
 			});
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 	});
 
 	it("masks anonymous authors and last posters for the owner and for staff before profiles", async () => {
@@ -223,7 +235,7 @@ describe("POST /api/v1/forums/context", () => {
 			expect(open.authorName).toBe("Renamed");
 			const profileCalls = f.calls.filter((call) => call.sql.includes("FROM users"));
 			expect(profileCalls.every((call) => !call.params.includes(20))).toBe(true);
-			expect(f.env.KV.get).not.toHaveBeenCalled();
+			expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 		}
 	});
 
@@ -293,7 +305,7 @@ describe("POST /api/v1/forums/context", () => {
 			f.env,
 		);
 		expect(rejected.status).toBe(401);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 	});
 
 	it("normalizes invalid type filters and does not merge announcements into a typed page", async () => {
@@ -332,14 +344,15 @@ describe("POST /api/v1/forums/context", () => {
 		).json();
 		expect(typed.data.typeId).toBe(7);
 		expect(typed.data.display.threads.map((row: { id: number }) => row.id)).toEqual([8]);
-		expect(typed.data.count).toBe(1);
+		expect(typed.data.count).toBe(0);
 		expect(typed.data.announcementCount).toBe(0);
 		f.thread(101, { sticky: 2, type_id: 7, last_post_at: 60 });
+		f.values.delete("reading:v1:page:1:anon:7:20:1");
 		const typedGlobal = await (
 			await forumListContext(post(request({ typeId: 7, includeCount: true })), f.env)
 		).json();
 		expect(typedGlobal.data.display.threads.map((row: { id: number }) => row.id)).toEqual([101, 8]);
-		expect(typedGlobal.data.count).toBe(2);
+		expect(typedGlobal.data.count).toBe(0);
 		expect(typedGlobal.data.announcementCount).toBe(0);
 
 		const cold = await (
@@ -350,6 +363,7 @@ describe("POST /api/v1/forums/context", () => {
 				request({
 					typeId: 999,
 					cachedRevision: cold.data.revision,
+					cachedRead: cold.data.readSnapshot,
 					includeDisplay: false,
 					includeCount: false,
 				}),
@@ -358,7 +372,7 @@ describe("POST /api/v1/forums/context", () => {
 		);
 		const body = await normalized.json();
 		expect(body.data.typeId).toBeNull();
-		expect(body.data.count).toBe(cold.data.count);
+		expect(body.data.count).toBeUndefined();
 		expect(body.data.display).toBeDefined();
 		expect(
 			(await (await forumListContext(post(request({ typeId: 9 })), f.env)).json()).data.typeId,
@@ -367,6 +381,7 @@ describe("POST /api/v1/forums/context", () => {
 			(await (await forumListContext(post(request({ typeId: 70 })), f.env)).json()).data.typeId,
 		).toBe(null);
 		f.sqlite.exec("UPDATE forums SET thread_types_listable = 0 WHERE id = 1");
+		f.values.delete("reading:v1:config:1:anon");
 		expect(
 			(await (await forumListContext(post(request({ typeId: 7 })), f.env)).json()).data.typeId,
 		).toBe(null);
@@ -400,11 +415,11 @@ describe("POST /api/v1/forums/context", () => {
 		expect(empty.data.page).toBe(9);
 		expect(empty.data.display.threads).toEqual([]);
 		expect(empty.data.hasNext).toBe(false);
-		expect(empty.data.count).toBe(3);
+		expect(empty.data.count).toBe(0);
 	});
 
 	it.each([false, true])(
-		"bounds membership retries during concurrent deletion: %s",
+		"filters concurrent deletions without additional membership queries: %s",
 		async (keepChanging) => {
 			open();
 			for (let id = 1; id <= 5; id++) f.thread(id, { last_post_at: 100 - id });
@@ -420,16 +435,12 @@ describe("POST /api/v1/forums/context", () => {
 				post(request({ limit: 2, includeCount: true })),
 				f.env,
 			);
-			expect(membershipReads).toBe(2);
-			if (keepChanging) {
-				expect(response.status).toBe(503);
-				return;
-			}
+			expect(membershipReads).toBe(1);
 			expect(response.status).toBe(200);
 			const body = await response.json();
 			expect(body.data.display.threads.map((row: { id: number }) => row.id)).toEqual([2, 3]);
-			expect(body.data.hasNext).toBe(true);
-			expect(body.data.count).toBe(4);
+			expect(body.data.hasNext).toBe(false);
+			expect(body.data.count).toBe(0);
 		},
 	);
 
@@ -497,7 +508,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(error.error.details.message).toContain("response bound");
 	});
 
-	it("omits failed stats without writing a zero default", async () => {
+	it("uses empty approximate stats when no persisted daily snapshot exists", async () => {
 		open();
 		f.thread(8, { subject: "Still here" });
 		f.state.afterRead = async (sql) => {
@@ -509,9 +520,9 @@ describe("POST /api/v1/forums/context", () => {
 		);
 		expect(response.status).toBe(200);
 		const body = await response.json();
-		expect(body.data.stats).toBeUndefined();
+		expect(body.data.stats.totalThreads).toBe(0);
 		expect(body.data.display.threads[0].subject).toBe("Still here");
-		expect(f.env.KV.put).not.toHaveBeenCalled();
+		expect(f.env.KV.put).toHaveBeenCalled();
 		f.state.afterRead = undefined;
 		const recovered = await (
 			await forumListContext(post(request({ includeStats: true })), f.env)
@@ -519,7 +530,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(recovered.data.stats.totalThreads).toEqual(expect.any(Number));
 	});
 
-	it("forces display and count when the bucket hint does not match", async () => {
+	it("forces display without counting when the bucket hint does not match", async () => {
 		open();
 		f.thread(8, { subject: "Shown" });
 		const response = await forumListContext(
@@ -529,7 +540,7 @@ describe("POST /api/v1/forums/context", () => {
 		const body = await response.json();
 		expect(body.data.bucket).toBe("anon");
 		expect(body.data.display.threads[0].subject).toBe("Shown");
-		expect(body.data.count).toBe(1);
+		expect(body.data.count).toBeUndefined();
 	});
 
 	it("forces only display when only the cached revision changes", async () => {
@@ -548,7 +559,7 @@ describe("POST /api/v1/forums/context", () => {
 		const again = await mismatch.json();
 		expect(again.data.display.threads).toHaveLength(1);
 		expect(again.data.count).toBeUndefined();
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 		const sql = f.calls.map((call) => call.sql).join("\n");
 		expect(sql).not.toMatch(/COUNT\(\*\) AS total FROM threads/);
 	});
@@ -592,14 +603,14 @@ describe("POST /api/v1/forums/context", () => {
 		expect(response.headers.get("cache-control")).toContain("no-store");
 		expect((await response.json()).error.code).toBe(code);
 		expect(f.calls).toHaveLength(0);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 	});
 
 	it.each([
 		["{}", { "content-type": "text/plain" }],
 		["{}", { "content-length": "invalid" }],
-		["{}", { "content-length": "4097" }],
-		["x".repeat(4097), {}],
+		["{}", { "content-length": "262145" }],
+		["x".repeat(262145), {}],
 	] as const)("rejects invalid or oversized transport before D1: %j", async (body, headers) => {
 		open();
 		const response = await forumListContext(post(body, headers), f.env);
@@ -607,7 +618,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(response.headers.get("cache-control")).toContain("no-store");
 		expect((await response.json()).error.code).toBe("INVALID_REQUEST");
 		expect(f.calls).toHaveLength(0);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 	});
 
 	it("shares one revision between members in the same bucket", async () => {
@@ -642,7 +653,10 @@ describe("POST /api/v1/forums/context", () => {
 		const first = await (await forumListContext(post(request()), f.env)).json();
 		f.sqlite.exec("UPDATE threads SET author_id = 20, last_poster_id = 20 WHERE id = 8");
 		const second = await (
-			await forumListContext(post(request({ cachedRevision: first.data.revision })), f.env)
+			await forumListContext(
+				post(request({ cachedRevision: first.data.revision, cachedRead: first.data.readSnapshot })),
+				f.env,
+			)
 		).json();
 		expect(second.data.revision).toBe(first.data.revision);
 		expect(second.data.display).toBeUndefined();

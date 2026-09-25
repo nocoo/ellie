@@ -10,11 +10,12 @@ import { editThreadSubject } from "../../../src/handlers/thread-edit";
 import { deleteMyPost, deleteMyThread, editMyPost } from "../../../src/handlers/user-content";
 import { bumpPostAttachmentsGen, bumpPostListGen } from "../../../src/lib/cache/invalidate";
 import { readingCacheKey, rebuildThreadCache } from "../../../src/lib/cache/thread-loaders";
+import { refreshDailyStatistics } from "../../../src/lib/daily-statistics";
 import { createJwtForRole } from "../../helpers";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
-beforeEach(() => {
+beforeEach(async () => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(new Date("2026-09-17T00:00:00Z"));
 	f = readingFixture();
@@ -51,6 +52,9 @@ beforeEach(() => {
 		reason: "Helpful",
 		created_at: 1,
 	});
+	await refreshDailyStatistics(f.env);
+	f.calls.length = 0;
+	vi.mocked(f.env.KV.put).mockClear();
 });
 afterEach(async () => {
 	await Promise.all(f.ctx._waitUntilPromises);
@@ -130,7 +134,7 @@ describe("reading cache hot paths", () => {
 		async (query) => {
 			f.thread(2);
 			const cold = await (await listThreads(query)).json();
-			expect(f.calls).toHaveLength(query.includes("page=") ? 8 : 7); // Cursor reads omit COUNT.
+			expect(f.calls).toHaveLength(7);
 			const entries = f.snapshots("thread:list");
 			expect(
 				entries.every(
@@ -140,7 +144,7 @@ describe("reading cache hot paths", () => {
 			f.calls.length = 0;
 			const hot = await (await listThreads(query)).json();
 			expect(hot.data).toEqual(cold.data);
-			expect(f.calls).toHaveLength(query.includes("page=") ? 4 : 3);
+			expect(f.calls).toHaveLength(3);
 			expect(f.calls.every((call) => !call.sql.includes("subject"))).toBe(true);
 			expect(f.snapshots("thread:list")).toEqual(entries);
 		},
@@ -153,8 +157,8 @@ describe("reading cache hot paths", () => {
 		expect(offset.data).toEqual(first.data);
 		expect(offset.meta).toMatchObject({ total: 1, page: 1, limit: 1, pages: 1 });
 		expect(first.meta.nextCursor).toEqual(expect.any(String));
-		expect(f.calls).toHaveLength(4);
-		expect(f.calls.filter(({ sql }) => sql.includes("COUNT(*)"))).toHaveLength(1);
+		expect(f.calls).toHaveLength(3);
+		expect(f.calls.filter(({ sql }) => sql.includes("COUNT(*)"))).toHaveLength(0);
 	});
 
 	it.each([

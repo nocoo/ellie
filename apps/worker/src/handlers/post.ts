@@ -278,7 +278,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 
 	// Replies do not clear the current 60-second page/list/stat snapshots.
 	// The response below is the committed post for the writer's own view.
-	await incrementStatsOnPostCreate(env).catch((error) =>
+	await incrementStatsOnPostCreate(env, thread.forum_id).catch((error) =>
 		console.warn("[post:create] stats counter increment failed", error),
 	);
 

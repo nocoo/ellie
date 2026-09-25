@@ -18,16 +18,14 @@ import {
 describe("memory-cache viewmodel helpers", () => {
 	it("labels every managed family including forum-list", () => {
 		expect(MEMORY_FAMILY_LABELS["home-display"]).toBe("首页展示");
-		expect(MEMORY_FAMILY_LABELS["site-stats"]).toBe("站点统计");
+		expect(MEMORY_FAMILY_LABELS["forum-read"]).toBe("版块读取快照");
 		expect(MEMORY_FAMILY_LABELS["forum-summary"]).toBe("版块摘要");
-		expect(MEMORY_FAMILY_LABELS["thread-count"]).toBe("主题计数");
 		expect(MEMORY_FAMILY_LABELS["forum-list"]).toBe("版块列表");
 		expect(Object.keys(MEMORY_FAMILY_LABELS).sort()).toEqual([
 			"forum-list",
+			"forum-read",
 			"forum-summary",
 			"home-display",
-			"site-stats",
-			"thread-count",
 			"thread-detail",
 		]);
 	});
@@ -151,12 +149,12 @@ describe("memory-cache transport", () => {
 			.fn()
 			.mockResolvedValue(new Response(JSON.stringify({ data: { ok: true } }), { status: 200 }));
 		globalThis.fetch = fetchMock as never;
-		await mutateMemoryCache({ instanceId: "web-1", action: "clear", family: "site-stats" });
+		await mutateMemoryCache({ instanceId: "web-1", action: "clear", family: "forum-read" });
 		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
 		expect(url).toBe("http://localhost/api/admin/memory-cache");
 		expect(init.method).toBe("POST");
 		expect(init.body).toBe(
-			JSON.stringify({ instanceId: "web-1", action: "clear", family: "site-stats" }),
+			JSON.stringify({ instanceId: "web-1", action: "clear", family: "forum-read" }),
 		);
 	});
 });

@@ -63,7 +63,7 @@ it.each([
 		}
 	},
 );
-it("category counts and pages seek both forum and type while preserving pins", async () => {
+it("category pages seek both forum and type without counting when statistics are absent", async () => {
 	f.thread(1, { type_id: 1, sticky: 2 });
 	f.thread(2, { type_id: 1, sticky: 1 });
 	f.thread(3, { type_id: 2 });
@@ -75,7 +75,8 @@ it("category counts and pages seek both forum and type while preserving pins", a
 		cursor: null,
 	});
 	expect(page.items.map((row) => row.id)).toEqual([1, 2]);
-	expect(page.total).toBe(2);
+	expect(page.total).toBe(0);
+	expect(f.calls.some((call) => /COUNT\s*\(/i.test(call.sql))).toBe(false);
 	for (const call of f.calls.filter((c) => c.sql.includes("type_id = ?"))) {
 		const plan = f.sqlite
 			.prepare(`EXPLAIN QUERY PLAN ${call.sql}`)

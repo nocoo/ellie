@@ -26,6 +26,7 @@ import { spawn } from "bun";
 import { findOpenPort } from "./lib/find-port";
 import { initLocalD1, type Subprocess } from "./lib/local-d1";
 import { startLocalWorker, stopLocalWorker, waitForWorker } from "./lib/local-worker";
+import { seedDailyStatistics } from "./lib/test-worker-vars";
 
 // ─── Configuration ─────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ async function startWorker(): Promise<void> {
 		wranglerConfig: WRANGLER_CONFIG,
 	});
 	await waitForWorker(BASE_URL, workerProcess, WORKER_READY_TIMEOUT_MS);
+	await seedDailyStatistics(BASE_URL);
 }
 
 function stopWorker(): void {

@@ -5,7 +5,7 @@ import { proxyRoute } from "@/lib/forum-route-proxy";
  * DELETE /api/v1/moderation/posts/:id
  * Delete a post (Mod+ only)
  *
- * Deleting a post does not change the local thread-count. PostId is not
+ * PostId is not
  * a threadId, so the domain-flag default takes the bounded full clear.
  */
 export const DELETE = proxyRoute<{ id: string }>({
@@ -13,7 +13,7 @@ export const DELETE = proxyRoute<{ id: string }>({
 	path: ({ id }) => `/api/v1/moderation/posts/${id}`,
 	body: "empty",
 	transform: (result) => {
-		invalidateDisplayAfterWrite({ forumSummaries: true, siteStats: true });
+		invalidateDisplayAfterWrite({ forumSummaries: true });
 		return result;
 	},
 	debugTag: "moderation/posts/[id]/route",
@@ -28,7 +28,7 @@ export const PATCH = proxyRoute<{ id: string }>({
 	path: ({ id }) => `/api/v1/moderation/posts/${id}`,
 	body: "json",
 	transform: (result) => {
-		invalidateDisplayAfterWrite({ forumSummaries: true, siteStats: true });
+		invalidateDisplayAfterWrite({ forumSummaries: true });
 		return result;
 	},
 	debugTag: "moderation/posts/[id]/route",

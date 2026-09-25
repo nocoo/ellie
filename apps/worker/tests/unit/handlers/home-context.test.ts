@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { homeContext } from "../../../src/handlers/home";
+import { DAILY_STATISTICS_KEY, refreshDailyStatistics } from "../../../src/lib/daily-statistics";
 import {
 	loadHomeAuthority,
 	loadHomeDisplay,
@@ -83,13 +84,11 @@ describe("POST /api/v1/home/context", () => {
 		f.thread(8, { subject: "Still available", digest: 2 });
 		const jwt = await createJwtForRole(0, 10, f.env.JWT_SECRET);
 		const authority = deferred();
-		let statsStarted = false;
+		const statsStarted = () =>
+			vi.mocked(f.env.KV.get).mock.calls.some(([key]) => key === DAILY_STATISTICS_KEY);
+		f.state.readError = true;
 		f.state.afterRead = async (sql) => {
 			if (sql === "SELECT id, parent_id, status, visibility FROM forums") await authority.promise;
-			if (sql.includes("SELECT key, value FROM settings")) {
-				statsStarted = true;
-				throw new Error("stats read failed");
-			}
 		};
 		const request = () =>
 			post(
@@ -98,18 +97,20 @@ describe("POST /api/v1/home/context", () => {
 			);
 		const loading = homeContext(request(), f.env);
 		await new Promise<void>((resolve) => setImmediate(resolve));
-		expect(statsStarted).toBe(false);
+		expect(statsStarted()).toBe(false);
 		authority.resolve();
 		const response = await loading;
-		expect(statsStarted).toBe(true);
+		expect(statsStarted()).toBe(true);
 		expect(response.status).toBe(200);
 		const { data } = await response.json();
 		expect(data.user.id).toBe(10);
 		expect(data.allowedForumIds).toContain(1);
 		expect(data.display.forums).not.toHaveLength(0);
 		expect(data.display.digest[0].subject).toBe("Still available");
-		expect(data.stats).toBeUndefined();
+		expect(data.stats).toMatchObject({ totalThreads: 0, todayPosts: 0 });
 		f.state.afterRead = undefined;
+		f.state.readError = false;
+		await refreshDailyStatistics(f.env);
 		expect((await (await homeContext(request(), f.env)).json()).data.stats).toMatchObject({
 			totalThreads: expect.any(Number),
 		});

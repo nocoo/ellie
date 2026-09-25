@@ -6,6 +6,7 @@ import { PATCH as digest } from "@/app/api/v1/moderation/threads/[id]/digest/rou
 import { PATCH as sticky } from "@/app/api/v1/moderation/threads/[id]/sticky/route";
 import { POST as nuke } from "@/app/api/v1/moderation/users/[id]/nuke/route";
 import { POST as createReply } from "@/app/api/v1/posts/route";
+import { POST as createThread } from "@/app/api/v1/threads/route";
 import { PATCH as patchMe } from "@/app/api/v1/users/me/route";
 import {
 	invalidateDisplayAfterWrite,
@@ -17,6 +18,8 @@ import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { authPatch } from "@/lib/forum-auth";
 import { getMemoryRuntime } from "@/lib/memory-runtime";
 
+const optimistic = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/daily-statistics", () => ({ getDailyStatistics: () => ({ optimistic }) }));
 vi.mock("@/lib/forum-auth", () => ({
 	getWorkerJwt: vi.fn(async () => "verified-jwt"),
 	authPatch: vi.fn(),
@@ -53,6 +56,7 @@ describe("successful writes invalidate local display caches", () => {
 				}),
 			);
 			expect(response.status).toBe(201);
+			expect(optimistic).toHaveBeenCalledExactlyOnceWith({ kind: "post", forumId: 7 });
 			if (threadSticky === 0 || threadSticky === 1) {
 				expect(clearPrefix).toHaveBeenCalledExactlyOnceWith("forum-list", "forum:7:");
 				expect(clear).not.toHaveBeenCalledWith("forum-list");
@@ -64,6 +68,47 @@ describe("successful writes invalidate local display caches", () => {
 			expect(clear).toHaveBeenCalledWith("thread-detail", "thread:5");
 		},
 	);
+	it.each([undefined, 11])(
+		"increments successful thread creation without trusting the submitted forum id (%s)",
+		async (typeId) => {
+			vi.mocked(forumApi.postAuth).mockResolvedValue({
+				data: { id: 5, forumId: 7, typeId: typeId ?? 0 },
+			});
+			const response = await createThread(
+				new Request("https://web.example.com/api/v1/threads", {
+					method: "POST",
+					headers: { Origin: "https://web.example.com", "Content-Type": "application/json" },
+					body: JSON.stringify({ forumId: 99, typeId, subject: "Topic", content: "Body" }),
+				}),
+			);
+			expect(response.status).toBe(201);
+			expect(optimistic).toHaveBeenCalledExactlyOnceWith({
+				kind: "thread",
+				forumId: 7,
+				typeId: typeId ?? 0,
+			});
+		},
+	);
+
+	it.each([createThread, createReply])(
+		"does not increment daily statistics when creation fails",
+		async (route) => {
+			vi.mocked(forumApi.postAuth).mockRejectedValue(
+				new ForumApiError(403, { code: "FORBIDDEN", message: "Denied" }),
+			);
+			const response = await route(
+				new Request("https://web.example.com/api/v1/resource", {
+					method: "POST",
+					headers: { Origin: "https://web.example.com", "Content-Type": "application/json" },
+					body: JSON.stringify({ forumId: 7, threadId: 5, subject: "Topic", content: "Body" }),
+				}),
+			);
+			expect(response.status).toBe(403);
+			expect(optimistic).not.toHaveBeenCalled();
+			expect(clear).not.toHaveBeenCalled();
+		},
+	);
+
 	it.each([
 		["DELETE", deleteThread, forumApi.deleteAuth],
 		["DELETE", deletePost, forumApi.deleteAuth],
@@ -85,7 +130,6 @@ describe("successful writes invalidate local display caches", () => {
 				// Deleting a post does NOT change the local thread-count.
 				expect(families).toEqual([
 					["forum-summary", undefined],
-					["site-stats", undefined],
 					["home-display", undefined],
 					["forum-list", undefined],
 					["thread-detail", undefined],
@@ -94,8 +138,6 @@ describe("successful writes invalidate local display caches", () => {
 				// Both forward the route's `id` as a proven threadId.
 				expect(families).toEqual([
 					["forum-summary", undefined],
-					["thread-count", undefined],
-					["site-stats", undefined],
 					["home-display", undefined],
 					["forum-list", undefined],
 					["thread-detail", "thread:1"],
@@ -104,8 +146,6 @@ describe("successful writes invalidate local display caches", () => {
 				// nuke (POST): no threadId (userId), default full clear.
 				expect(families).toEqual([
 					["forum-summary", undefined],
-					["thread-count", undefined],
-					["site-stats", undefined],
 					["home-display", undefined],
 					["forum-list", undefined],
 					["thread-detail", undefined],
@@ -134,13 +174,8 @@ describe("successful writes invalidate local display caches", () => {
 	});
 
 	it("implies home-display from any existing domain flag", () => {
-		invalidateDisplayAfterWrite({ siteStats: true });
-		expect(clear.mock.calls).toEqual([
-			["site-stats"],
-			["home-display"],
-			["forum-list"],
-			["thread-detail"],
-		]);
+		invalidateDisplayAfterWrite({ homeDisplay: true });
+		expect(clear.mock.calls).toEqual([["home-display"], ["forum-list"], ["thread-detail"]]);
 	});
 
 	it("clears both display families for display-only triggers", () => {
@@ -309,34 +344,6 @@ describe("reply route thread-detail invalidation", () => {
 		// No precise selector => full clear via the forumSummaries default.
 		expect(clear).toHaveBeenCalledWith("thread-detail");
 		expect(clear).not.toHaveBeenCalledWith("thread-detail", "thread:99");
-	});
-});
-
-describe("threadCountScopes scoped clearPrefix", () => {
-	it("scopes thread-count clearPrefix to proven local forum ids", () => {
-		invalidateDisplayAfterWrite({ threadCounts: true, threadCountScopes: [7, 8, 7] });
-		expect(clearPrefix.mock.calls).toEqual([
-			["thread-count", "forum:7:"],
-			["thread-count", "forum:8:"],
-		]);
-		expect(clear).not.toHaveBeenCalledWith("thread-count");
-	});
-
-	it("falls back to full clear when any scope id is not a safe positive integer", () => {
-		invalidateDisplayAfterWrite({ threadCounts: true, threadCountScopes: [7, 0] });
-		expect(clear).toHaveBeenCalledWith("thread-count");
-		expect(clearPrefix).not.toHaveBeenCalled();
-	});
-
-	it("falls back to full clear when scopes are empty", () => {
-		invalidateDisplayAfterWrite({ threadCounts: true, threadCountScopes: [] });
-		expect(clear).toHaveBeenCalledWith("thread-count");
-		expect(clearPrefix).not.toHaveBeenCalled();
-	});
-
-	it("full clears thread-count when threadCountScopes is omitted", () => {
-		invalidateDisplayAfterWrite({ threadCounts: true });
-		expect(clear).toHaveBeenCalledWith("thread-count");
 	});
 });
 

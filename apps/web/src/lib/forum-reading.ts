@@ -1,7 +1,6 @@
 /**
  * Server-only reading-contract integration (docs/29): bounded forum
- * summaries with per-render authorization gates, authoritative thread
- * counts, and the memory-runtime families they live in.
+ * summaries with per-render authorization gates, daily numeric estimates, and the memory-runtime families they live in.
  *
  * Contract: packages/types/src/reading.ts (frozen). Invariants:
  *   - Every Worker call forwards the caller's JWT when present; no extra
@@ -16,8 +15,6 @@
  *     sticky>=0/anonymousAuthor===0/authorId equality. A state mismatch
  *     clears that forum's entry and re-reads once; anything still failing
  *     hides only the topic line, never the numeric summary.
- *   - Local counts cache per (forumId, typeId) after authorization; fresh
- *     caller-visible announcements are added separately on every read.
  */
 
 import "server-only";
@@ -434,12 +431,4 @@ function EMPTY_FORUM_SUMMARY(forumId: number): ForumSummaryTopic {
 		authorAvatar: "",
 		authorAvatarPath: "",
 	};
-}
-
-// ---------------------------------------------------------------------------
-// Local thread counts (cached per forumId + typeId)
-// ---------------------------------------------------------------------------
-
-export function threadCountKey(forumId: number, typeId: number | null) {
-	return `forum:${forumId}:type:${typeId ?? 0}`;
 }

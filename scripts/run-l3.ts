@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { TEST_WORKER_VARS } from "./lib/test-worker-vars";
 
 /**
  * L3 Browser E2E Test Runner — Forum app
@@ -90,6 +91,7 @@ async function startServer(): Promise<void> {
 			NODE_ENV: "test",
 			WORKER_API_URL: L3_WORKER_URL,
 			FORUM_API_KEY: L3_API_KEY,
+			WEB_STATISTICS_WRITE_KEY: TEST_WORKER_VARS.WEB_STATISTICS_WRITE_KEY,
 			// Both AUTH_SECRET (NextAuth) and JWT_SECRET (forwarded to anything
 			// that still reads it directly) use the same constant as the local
 			// Worker, so cross-process token verification stays consistent.

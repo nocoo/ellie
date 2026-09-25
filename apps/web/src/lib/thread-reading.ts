@@ -9,6 +9,7 @@ import {
 	type ThreadDetailSnapshot,
 	threadDetailSelection,
 } from "@ellie/types";
+import { getDailyStatistics } from "./daily-statistics";
 import { forumApi } from "./forum-api";
 import { getWorkerJwt } from "./forum-auth";
 import { getMemoryRuntime, type MemoryRuntime } from "./memory-runtime";
@@ -55,15 +56,14 @@ async function readContext(
 		throw new Error("Invalid thread cursor");
 	const selection = threadDetailSelection(params.threadId, params.limit, position, params.last);
 	const displayToken = runtime.capture("thread-detail");
-	const statsToken = runtime.capture("site-stats");
 	const stored = forceFresh ? undefined : runtime.peek<ThreadDetailSnapshot>("thread-detail", key);
 	const cached = stored?.selection === selection ? stored : undefined;
-	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
+	const daily = await getDailyStatistics().read();
 	const request: ThreadDetailContextRequest = {
 		...params,
 		cachedRevision: cached?.revision ?? null,
 		includeDisplay: !cached,
-		includeStats: cachedStats === undefined,
+		includeStats: false,
 	};
 	const signal = AbortSignal.timeout(15_000);
 	const { data } = jwt
@@ -103,11 +103,10 @@ async function readContext(
 	if (data.cacheable && data.display) {
 		runtime.admit(key, { selection, revision: data.revision, display }, displayToken);
 	}
-	if (data.stats) runtime.admit("site:v1", data.stats, statsToken);
 	if (data.user) runtime.recordActivity(data.user.id);
 	return {
 		...data,
 		display,
-		stats: data.stats ?? runtime.peek<HomeStats>("site-stats", "site:v1"),
+		stats: daily?.stats,
 	};
 }

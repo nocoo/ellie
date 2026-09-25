@@ -22,7 +22,7 @@ it("keeps at most 100 topics and replaces a topic's previous page", () => {
 
 it("bounds retained bytes without evicting other families or exposing cached content in previews", () => {
 	const cache = new MemoryRuntime();
-	cache.admit("forum:1:member", 22, cache.capture("thread-count"));
+	cache.admit("forum:1:member", 22, cache.capture("forum-summary"));
 	for (let id = 1; id <= 100; id++) {
 		cache.admit(
 			`thread:${id}`,
@@ -36,7 +36,7 @@ it("bounds retained bytes without evicting other families or exposing cached con
 		snapshot.entries.reduce((total, entry) => total + entry.estimatedBytes, 0),
 	).toBeLessThanOrEqual(4 * 1024 * 1024);
 	expect(snapshot.entries.every((entry) => !entry.preview.includes("secret"))).toBe(true);
-	expect(cache.peek("thread-count", "forum:1:member")).toBe(22);
+	expect(cache.peek("forum-summary", "forum:1:member")).toBe(22);
 	expect(cache.admit("thread:999", "x".repeat(256 * 1024), cache.capture("thread-detail"))).toBe(
 		false,
 	);
@@ -65,14 +65,14 @@ it("actively removes idle expired topics on the minute timer without extending t
 	}
 });
 
-it("caps thread and count snapshots at Shanghai midnight", () => {
+it("caps thread and summary snapshots at Shanghai midnight", () => {
 	let now = Date.UTC(2026, 8, 24, 15, 59);
 	const cache = new MemoryRuntime({ now: () => now });
 	const token = cache.capture("thread-detail");
 	cache.admit("thread:1", 1, token);
-	cache.admit("forum:1:member", 9, cache.capture("thread-count"));
+	cache.admit("forum:1:member", 9, cache.capture("forum-summary"));
 	now += 60_000;
 	expect(cache.peek("thread-detail", "thread:1")).toBeUndefined();
-	expect(cache.peek("thread-count", "forum:1:member")).toBeUndefined();
+	expect(cache.peek("forum-summary", "forum:1:member")).toBeUndefined();
 	expect(cache.admit("thread:1", 2, token)).toBe(false);
 });

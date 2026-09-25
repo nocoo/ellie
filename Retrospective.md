@@ -141,3 +141,13 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 - The new Worker paths initially passed every test while statement coverage was below the existing 95% gate. Add actual authorization, malformed-body, statistics-failure and concurrent-hide cases; do not lower the gate or treat targeted tests as complete verification.
 - Final deployment review found a protocol dependency in both directions: old Web required a count on display refill, while new Web needed a new Worker route. Checking only the final combined source missed this transition risk. Publish the endpoint and new reader first while retaining the old count policy, then remove the coupling in a second patch after Web is live. Verify both mixed-version combinations before choosing a rollout order.
 - Production observation then showed another scan spike after the thirty-minute count expiry. Approximate pagination totals need an independent lifetime, and a forced display retry must not discard a still-valid count. Retain event invalidation and absolute expiry, and test a second in-flight count invalidation explicitly when separating the two lifetimes. Report cold-start costs and steady windows separately without removing cold starts from the aggregate comparison.
+
+
+## 2026-09-25 — Daily statistics local bootstrap
+
+The first browser-lane bootstrap returned 503 because its Worker lifecycle still
+maintained a separate secret list and omitted the existing statistics credential.
+The failure was caught before deployment. L3 now uses `TEST_WORKER_VARS`, seeds the
+daily snapshot after Worker readiness, and passes the same test credential to Web.
+When adding startup-dependent state, validate every local lifecycle through real
+HTTP rather than assuming similarly named runners share their configuration.

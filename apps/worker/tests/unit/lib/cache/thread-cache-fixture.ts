@@ -65,6 +65,16 @@ export function readingFixture() {
 		return type === "json" && raw !== null ? JSON.parse(raw) : raw;
 	};
 	const kv = {
+		list: vi.fn(async (options: KVNamespaceListOptions = {}) => {
+			if (state.readError) throw new Error("KV unavailable");
+			const keys = [...values.keys()].filter((key) => key.startsWith(options.prefix ?? "")).sort();
+			const offset = Number(options.cursor ?? 0);
+			const end = offset + (options.limit ?? 1000);
+			const selected = keys.slice(offset, end).map((name) => ({ name }));
+			return end >= keys.length
+				? { keys: selected, list_complete: true, cacheStatus: null }
+				: { keys: selected, list_complete: false, cursor: String(end), cacheStatus: null };
+		}),
 		get: vi.fn(async (key: string | string[], type?: string) => {
 			if (state.readError) throw new Error("KV unavailable");
 			if (Array.isArray(key)) {

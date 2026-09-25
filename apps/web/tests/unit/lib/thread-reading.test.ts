@@ -1,3 +1,4 @@
+import { EMPTY_HOME_STATS } from "@ellie/types";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MemoryRuntime } from "@/lib/memory-runtime";
 import { loadThreadContext } from "@/lib/thread-reading";
@@ -7,6 +8,10 @@ const mocks = vi.hoisted(() => ({
 	postAuth: vi.fn(),
 	jwt: vi.fn(),
 	runtime: vi.fn(),
+	statistics: vi.fn(),
+}));
+vi.mock("@/lib/daily-statistics", () => ({
+	getDailyStatistics: () => ({ read: mocks.statistics }),
 }));
 vi.mock("@/lib/forum-api", () => ({ forumApi: { post: mocks.post, postAuth: mocks.postAuth } }));
 vi.mock("@/lib/forum-auth", () => ({ getWorkerJwt: mocks.jwt }));
@@ -15,6 +20,8 @@ vi.mock("@/lib/memory-runtime", async (original) => ({
 	getMemoryRuntime: mocks.runtime,
 }));
 
+const stats = { ...EMPTY_HOME_STATS, totalThreads: 9 };
+const daily = { stats, forums: {} };
 const params = { threadId: 4, limit: 20, cursor: null, last: false };
 const revision = "a".repeat(64);
 const display = {
@@ -42,10 +49,11 @@ beforeEach(() => {
 	runtime = new MemoryRuntime();
 	mocks.runtime.mockReturnValue(runtime);
 	mocks.jwt.mockResolvedValue(null);
+	mocks.statistics.mockReset().mockResolvedValue(daily);
 });
 
 it("always checks authority and preserves fresh identity/header outside the stored display", async () => {
-	mocks.post.mockResolvedValueOnce(response({ display, stats: { totalThreads: 9 } }));
+	mocks.post.mockResolvedValueOnce(response({ display, stats: { totalThreads: 999 } }));
 	await loadThreadContext(params);
 	const admit = vi.spyOn(runtime, "admit");
 	mocks.jwt.mockResolvedValue("jwt");
@@ -56,7 +64,8 @@ it("always checks authority and preserves fresh identity/header outside the stor
 	expect(hit.thread.views).toBe(20);
 	expect(hit.user).toEqual({ id: 8 });
 	expect(hit.display).toEqual(display);
-	expect(hit.stats).toEqual({ totalThreads: 9 });
+	expect(hit.stats).toEqual(stats);
+	expect(mocks.post.mock.calls[0][1]).toMatchObject({ includeStats: false });
 	expect(mocks.postAuth.mock.calls[0][1]).toMatchObject({
 		includeDisplay: false,
 		cachedRevision: revision,
@@ -68,6 +77,15 @@ it("always checks authority and preserves fresh identity/header outside the stor
 		display,
 		revision,
 	});
+});
+
+it("serves verified content without daily stats and ignores unsolicited Worker statistics", async () => {
+	mocks.statistics.mockResolvedValueOnce(null);
+	mocks.post.mockResolvedValueOnce(response({ display, stats: { totalThreads: 999 } }));
+	const result = await loadThreadContext(params);
+	expect(result.display).toEqual(display);
+	expect(result.stats).toBeUndefined();
+	expect(mocks.post.mock.calls[0][1]).toMatchObject({ includeStats: false });
 });
 
 it("never uses or admits the shared snapshot for an unmasked owner or privileged viewer", async () => {
@@ -167,11 +185,12 @@ it.each([Date.UTC(2026, 8, 24, 1), Date.UTC(2026, 8, 24, 15, 59)])(
 		mocks.post.mockResolvedValueOnce(response({ display: fresh, stats: { totalThreads: 2 } }));
 		const result = await loadThreadContext(params);
 		expect(result.display).toEqual(fresh);
-		expect(result.stats).toEqual({ totalThreads: 2 });
+		expect(result.stats).toEqual(stats);
 		expect(mocks.post).toHaveBeenCalledTimes(3);
 		expect(mocks.post.mock.calls[2][1]).toMatchObject({
 			cachedRevision: null,
 			includeDisplay: true,
+			includeStats: false,
 		});
 	},
 );

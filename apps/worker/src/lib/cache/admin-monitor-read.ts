@@ -111,7 +111,8 @@ function isRuntimeFamily(spec: KvFamilySpec): boolean {
 		spec.category === "rate-limit" ||
 		spec.category === "throttle" ||
 		spec.category === "gen" ||
-		spec.category === "sticky-stats"
+		spec.category === "sticky-stats" ||
+		spec.category === "snapshot"
 	);
 }
 

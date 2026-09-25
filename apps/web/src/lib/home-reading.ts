@@ -9,6 +9,7 @@ import {
 	UserRole,
 } from "@ellie/types";
 import { buildVisibleTree } from "@/viewmodels/forum/forum-list";
+import { getDailyStatistics } from "./daily-statistics";
 import { forumApi } from "./forum-api";
 import { getCurrentForumUser, getWorkerJwt } from "./forum-auth";
 import { composeForumDisplay, gateTopicIds, visibilityContextForBucket } from "./forum-reading";
@@ -84,9 +85,8 @@ async function readHomeContext(
 	const [jwt, session] = await Promise.all([getWorkerJwt(), getCurrentForumUser()]);
 	const hint = bucketHint(jwt, session?.role);
 	const displayToken = runtime.capture("home-display");
-	const statsToken = runtime.capture("site-stats");
 	const cached = forceFresh ? undefined : runtime.peek<HomeDisplay>("home-display", hint);
-	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
+	const daily = await getDailyStatistics().read();
 	const summaryTopicIds = gateTopicIds(cached?.summaries.map((row) => row.topicId) ?? []);
 	const digestTopicIds = gateTopicIds(cached?.digest.map((row) => row.id) ?? []);
 	const overflow =
@@ -97,7 +97,7 @@ async function readHomeContext(
 		{
 			cachedBucket: cached ? hint : null,
 			includeDisplay: !cached || overflow,
-			includeStats: !cachedStats,
+			includeStats: false,
 			summaryTopicIds: overflow ? [] : summaryTopicIds,
 			digestTopicIds: overflow ? [] : digestTopicIds,
 		},
@@ -112,7 +112,7 @@ async function readHomeContext(
 	}
 	const display =
 		data.display ?? (data.bucket === hint && !overflow && reusable ? current : undefined);
-	const stats = data.stats ?? runtime.peek<HomeStats>("site-stats", "site:v1");
+	const stats = daily?.stats;
 	if (
 		!display ||
 		!Array.isArray(display.forums) ||
@@ -139,7 +139,13 @@ async function readHomeContext(
 				bucket: data.bucket,
 			});
 			if (resolved.topicHidden) mismatch = true;
-			return resolved.forum;
+			const totals = daily?.forums[forum.id];
+			return {
+				...resolved.forum,
+				threads: totals?.threads ?? 0,
+				posts: totals?.posts ?? 0,
+				todayThreads: totals?.todayThreads ?? 0,
+			};
 		});
 	const digestGates = new Map(data.digestGates.map((row) => [row.topicId, row]));
 	const digest = display.digest
@@ -160,7 +166,6 @@ async function readHomeContext(
 	) {
 		runtime.admit(data.bucket, display, displayToken);
 	}
-	if (data.stats) runtime.admit("site:v1", data.stats, statsToken);
 	if (data.user) runtime.recordActivity(data.user.id);
 	return {
 		tree: buildVisibleTree(forums, visibilityContextForBucket(data.bucket)),

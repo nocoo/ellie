@@ -5,5 +5,7 @@ export async function register() {
 	) {
 		const { getMemoryRuntime } = await import("./lib/memory-runtime");
 		getMemoryRuntime().start();
+		const { getDailyStatistics } = await import("./lib/daily-statistics");
+		getDailyStatistics().start();
 	}
 }

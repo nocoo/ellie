@@ -6,9 +6,9 @@ import {
 	type Forum,
 	type ForumVisibility,
 } from "@ellie/types";
+import { readDailyStatistics } from "../daily-statistics";
 import type { Env } from "../env";
 import { parseModeratorIds, toForum } from "../mappers";
-import { shanghaiTodayStartUnix } from "../shanghaiTime";
 import { getUserProfiles } from "../user-cache";
 import { getGen, UNAVAILABLE_CACHE_GENERATION } from "./epoch";
 import {
@@ -99,23 +99,19 @@ function lastThreadFields(row: Record<string, unknown>) {
 	};
 }
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
-	const cutoff = shanghaiTodayStartUnix();
-	const [forums, counts] = await Promise.all([
+	const [forums, statistics] = await Promise.all([
 		env.DB.prepare(
-			`SELECT f.id, f.status, f.visibility, f.threads, f.posts, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS}`,
+			`SELECT f.id, f.status, f.visibility, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS}`,
 		).all<Record<string, unknown>>(),
-		env.DB.prepare(
-			"SELECT forum_id, COUNT(*) AS cnt FROM threads INDEXED BY idx_threads_created WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
-		)
-			.bind(cutoff)
-			.all<{ forum_id: number; cnt: number }>(),
+		readDailyStatistics(env),
 	]);
-	if (!forums.success || !counts.success) throw new Error("Forum summary could not be loaded");
-	const today = new Map(counts.results.map((row) => [row.forum_id, row.cnt]));
+	if (!forums.success) throw new Error("Forum summary could not be loaded");
 	return forums.results.map((row) => ({
 		...snapshot(row),
 		...lastThreadFields(row),
-		todayThreads: today.get(Number(row.id)) ?? 0,
+		threads: statistics?.forums[Number(row.id)]?.threads ?? 0,
+		posts: statistics?.forums[Number(row.id)]?.posts ?? 0,
+		todayThreads: statistics?.forums[Number(row.id)]?.todayThreads ?? 0,
 	}));
 }
 export function lazyForumSnapshot(env: Env): () => Promise<ForumSnapshotRow[]> {

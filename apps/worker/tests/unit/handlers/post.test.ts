@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create, getById, list } from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
+import * as statistics from "../../../src/lib/stats-counter";
 import {
 	createJwtForRole,
 	createMockDb,
@@ -320,6 +321,7 @@ describe("post handlers", () => {
 		it.each([0, 1, 2])(
 			"creates a reply and reports authoritative thread sticky %i",
 			async (sticky) => {
+				const increment = vi.spyOn(statistics, "incrementStatsOnPostCreate");
 				const token = await createJwtForRole(0, 42);
 				const createdPost = makeD1PostRow({
 					id: 50,
@@ -370,6 +372,8 @@ describe("post handlers", () => {
 				const body = await response.json();
 				expect(body.data.id).toBe(50);
 				expect(body.meta.threadSticky).toBe(sticky);
+				expect(increment).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), 10);
+				increment.mockRestore();
 
 				// Verify batch was called: UPDATE threads + UPDATE forums + UPDATE users = 3
 				expect(batchCalls.length).toBe(1);

@@ -11,16 +11,25 @@ import {
 	type ThreadListQuery,
 	threadListCacheKey,
 } from "../../../../src/lib/cache/thread-list-read";
+import {
+	DAILY_STATISTICS_KEY,
+	recordStatisticsDelta,
+	refreshDailyStatistics,
+} from "../../../../src/lib/daily-statistics";
 import { readingFixture } from "./thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
 type SqlCall = ReturnType<typeof readingFixture>["calls"][number];
 
-beforeEach(() => {
+beforeEach(async () => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(new Date("2026-09-17T00:00:00Z"));
 	f = readingFixture();
 	for (let id = 1; id <= 100; id++) f.thread(id, { type_id: id % 2 ? 8 : 9 });
+	await refreshDailyStatistics(f.env);
+	f.calls.length = 0;
+	vi.mocked(f.env.KV.get).mockClear();
+	vi.mocked(f.env.KV.put).mockClear();
 });
 
 afterEach(() => {
@@ -158,6 +167,8 @@ describe("thread-list SQL plans and pagination", () => {
 		"preserves sticky ranks, offsets, cursor ties and totals for typeId=%s",
 		async (typeId) => {
 			seedHistory();
+			await refreshDailyStatistics(f.env);
+			f.calls.length = 0;
 			const where =
 				typeId === null ? "(t.forum_id = ? OR t.sticky = 2)" : "t.forum_id = ? AND t.type_id = ?";
 			const expected: ThreadListMember[] = f.sqlite
@@ -218,7 +229,7 @@ describe("thread-list SQL plans and pagination", () => {
 						: null,
 				);
 			}
-			expect(countCalls()).toHaveLength(3 * 4 + cursors.length);
+			expect(countCalls()).toHaveLength(0);
 			if (typeId !== null) {
 				const captured = membershipCall();
 				expect(captured.sql).toContain("CASE WHEN t.sticky = 2 THEN 4 ELSE t.sticky END");
@@ -230,7 +241,7 @@ describe("thread-list SQL plans and pagination", () => {
 	);
 });
 
-describe("direct counts and cached membership budgets", () => {
+describe("daily counts and cached membership budgets", () => {
 	it.each([null, 8])(
 		"reads each generation once per response and observes later bumps for typeId=%s",
 		async (typeId) => {
@@ -246,8 +257,9 @@ describe("direct counts and cached membership budgets", () => {
 			expect(await getThreadListPage(f.env, undefined, query({ typeId }))).toEqual(initial);
 			expect(generationGets().sort()).toEqual(["thread:list:gen:1", "thread:list:gen:all"]);
 			expect(f.calls).toEqual(countCalls());
-			expect(countCalls()).toHaveLength(1);
+			expect(countCalls()).toHaveLength(0);
 			f.thread(101, { type_id: 8 });
+			await recordStatisticsDelta(f.env, { kind: "thread", forumId: 1, typeId: 8 });
 			await bumpThreadListGen(f.env, 1);
 			vi.mocked(f.env.KV.get).mockClear();
 			f.calls.length = 0;
@@ -255,13 +267,13 @@ describe("direct counts and cached membership budgets", () => {
 			expect(changed.total).toBe((initial.total ?? expect.fail("Missing total")) + 1);
 			expect(changed.items[0].id).toBe(101);
 			expect(generationGets().sort()).toEqual(["thread:list:gen:1", "thread:list:gen:all"]);
-			expect(countCalls()).toHaveLength(1);
+			expect(countCalls()).toHaveLength(0);
 			await bumpThreadListGenAll(f.env);
 			vi.mocked(f.env.KV.get).mockClear();
 			f.calls.length = 0;
 			expect(await getThreadListPage(f.env, undefined, query({ typeId }))).toEqual(changed);
 			expect(generationGets().sort()).toEqual(["thread:list:gen:1", "thread:list:gen:all"]);
-			expect(f.calls).toHaveLength(typeId === null ? 3 : 2);
+			expect(f.calls).toHaveLength(typeId === null ? 2 : 1);
 		},
 	);
 
@@ -272,7 +284,7 @@ describe("direct counts and cached membership budgets", () => {
 		f.state.readError = true;
 		vi.mocked(f.env.KV.put).mockClear();
 		const fresh = await getThreadListPage(f.env, undefined, query());
-		expect(fresh.total).toBe(101);
+		expect(fresh.total).toBe(0);
 		expect(fresh.items[0].id).toBe(101);
 		expect([...f.values]).toEqual(original);
 		expect(f.env.KV.put).not.toHaveBeenCalled();
@@ -303,7 +315,7 @@ describe("direct counts and cached membership budgets", () => {
 		expect(f.snapshots("thread:count")).toEqual([]);
 	});
 
-	it("exact counts stay fresh without renewing cached minute membership", async () => {
+	it("daily counts remain stale without rescanning or renewing cached minute membership", async () => {
 		const startedAt = Date.now();
 		const initial = await getThreadListPage(f.env, undefined, query({ limit: 25 }));
 		const local = f.snapshots("thread:list").find((item) => item.params.kind === "local");
@@ -313,17 +325,17 @@ describe("direct counts and cached membership budgets", () => {
 		vi.setSystemTime(startedAt + 59_999);
 		f.calls.length = 0;
 		const warm = await getThreadListPage(f.env, undefined, query({ limit: 25 }));
-		expect(warm).toEqual({ ...initial, total: 101 });
+		expect(warm).toEqual(initial);
 		expect(f.calls).toEqual(countCalls());
-		expect(countCalls()).toHaveLength(1);
+		expect(countCalls()).toHaveLength(0);
 		expect(f.values.get(local.key)).toBe(originalPage);
 		vi.setSystemTime(startedAt + 60_000);
 		f.thread(102);
 		f.calls.length = 0;
 		const refreshed = await getThreadListPage(f.env, undefined, query({ limit: 25 }));
 		expect(refreshed.items[0].id).toBe(102);
-		expect(refreshed.total).toBe(102);
-		expect(countCalls()).toHaveLength(1);
+		expect(refreshed.total).toBe(100);
+		expect(countCalls()).toHaveLength(0);
 		expect(f.calls.filter((call) => call.sql.includes("LIMIT"))).toHaveLength(1);
 		for (const snapshot of f.snapshots("thread:list")) {
 			expect(snapshot.tier).toBe("SHORT");
@@ -362,7 +374,7 @@ describe("direct counts and cached membership budgets", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("direct counts, rebuilds and fresh reads have no KV or business side effects", async () => {
+	it("daily counts read only KV while rebuilds and fresh memberships have no write side effects", async () => {
 		await getThreadListPage(f.env, undefined, query());
 		const snapshots = [...f.values];
 		f.thread(101);
@@ -370,7 +382,7 @@ describe("direct counts and cached membership budgets", () => {
 		f.calls.length = 0;
 		vi.mocked(f.env.KV.get).mockClear();
 		vi.mocked(f.env.KV.put).mockClear();
-		expect(await countLocalThreads(f.env, 1, null)).toBe(101);
+		expect(await countLocalThreads(f.env, 1, null)).toBe(100);
 		const local = await rebuildThreadListCache(f.env, f.ctx, localDescriptor());
 		expect(local).toMatchObject({
 			items: [expect.objectContaining({ id: 101 }), ...Array(19).fill(expect.any(Object))],
@@ -381,59 +393,57 @@ describe("direct counts and cached membership budgets", () => {
 			total: 1,
 		});
 		const page = await getThreadListPage(f.env, f.ctx, query(), true);
-		expect(page.total).toBe(102);
+		expect(page.total).toBe(101);
 		expect(page.items.slice(0, 2).map((item) => item.id)).toEqual([901, 101]);
-		expect(f.calls).toHaveLength(6);
+		expect(f.calls).toHaveLength(4);
 		expect(f.calls.every((call) => /^SELECT\b/.test(call.sql))).toBe(true);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.get).toHaveBeenCalledWith(DAILY_STATISTICS_KEY, "json");
 		expect(f.env.KV.put).not.toHaveBeenCalled();
 		expect(f.env.KV.delete).not.toHaveBeenCalled();
 		expect(f.ctx._waitUntilPromises).toHaveLength(0);
 		expect([...f.values]).toEqual(snapshots);
 	});
 
-	it("old combined pages reload membership, and failed counts never become zero", async () => {
+	it("old combined pages reload membership without rebuilding daily counts", async () => {
 		await getThreadListPage(f.env, undefined, query());
 		const local = f.snapshots("thread:list").find((item) => item.params.kind === "local");
 		f.values.set(local.key, JSON.stringify({ ...local, data: { ...local.data, total: 1 } }));
 		f.calls.length = 0;
 		expect((await getThreadListPage(f.env, undefined, query())).total).toBe(100);
-		expect(f.calls).toHaveLength(2);
-		expect(countCalls()).toHaveLength(1);
+		expect(f.calls).toHaveLength(1);
+		expect(countCalls()).toHaveLength(0);
 		expect(JSON.parse(f.values.get(local.key) ?? "null").data).not.toHaveProperty("total");
-		f.state.afterRead = async (sql) => {
-			if (sql.includes("COUNT(*)")) throw new Error("count query failed");
-		};
-		await expect(getThreadListPage(f.env, undefined, query())).rejects.toThrow(
-			"count query failed",
-		);
-		f.state.afterRead = undefined;
-		expect((await getThreadListPage(f.env, undefined, query())).total).toBe(100);
 	});
 
-	it("missing and malformed authoritative counts throw; empty counts remain zero", async () => {
-		const prepare = f.env.DB.prepare.bind(f.env.DB);
-		const spy = vi.spyOn(f.env.DB, "prepare");
-		for (const expression of ["NULL", "'100'", "-1", "0.5", "9007199254740992.0"]) {
-			spy.mockImplementation((sql) =>
-				prepare(sql.replace(/COUNT\(\*\) AS total/i, `MAX(${expression}) AS total`)),
-			);
-			await expect(countLocalThreads(f.env, 1, null)).rejects.toThrow();
+	it("missing, malformed and unavailable daily snapshots use zero without D1 fallback", async () => {
+		const original = f.values.get(DAILY_STATISTICS_KEY) ?? expect.fail("Missing fixture snapshot");
+		for (const value of [undefined, "null", '{"forums":{"1":{"threads":-1}}}']) {
+			if (value === undefined) f.values.delete(DAILY_STATISTICS_KEY);
+			else f.values.set(DAILY_STATISTICS_KEY, value);
+			expect(await countLocalThreads(f.env, 1, null)).toBe(0);
+			expect(await countLocalThreads(f.env, 1, 8)).toBe(0);
 		}
-		spy.mockImplementation((sql) => prepare(`${sql} HAVING COUNT(*) < 0`));
-		await expect(countLocalThreads(f.env, 1, null)).rejects.toThrow();
-		spy.mockRestore();
-		f.state.queryError = true;
-		for (const descriptor of [localDescriptor(), announcementsDescriptor])
+		f.values.set(DAILY_STATISTICS_KEY, original);
+		f.state.readError = true;
+		expect(await countLocalThreads(f.env, 1, null)).toBe(0);
+		f.state.readError = false;
+		expect(f.calls).toHaveLength(0);
+		for (const descriptor of [localDescriptor(), announcementsDescriptor]) {
+			f.state.queryError = true;
 			await expect(rebuildThreadListCache(f.env, undefined, descriptor)).rejects.toThrow();
+		}
 		f.state.queryError = false;
 		expect(await countLocalThreads(f.env, 2, null)).toBe(0);
 		f.thread(201, { sticky: 2, type_id: 8 });
 		f.thread(202, { sticky: -1, type_id: 8 });
+		await refreshDailyStatistics(f.env);
+		f.calls.length = 0;
+		vi.mocked(f.env.KV.put).mockClear();
 		expect(await countLocalThreads(f.env, 1, null)).toBe(100);
 		expect(await countLocalThreads(f.env, 1, 8)).toBe(51);
 		expect(await countLocalThreads(f.env, 1, 9)).toBe(50);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(await countLocalThreads(f.env, 1, 999)).toBe(0);
+		expect(f.calls).toHaveLength(0);
 		expect(f.env.KV.put).not.toHaveBeenCalled();
 	});
 });
@@ -452,5 +462,5 @@ it("cursor reads never load totals, including expired snapshots", async () => {
 	expect(f.snapshots("thread:count")).toEqual([]);
 	const page = await getThreadListPage(f.env, undefined, query());
 	expect(page.total).toBe(100);
-	expect(countCalls()).toHaveLength(1);
+	expect(countCalls()).toHaveLength(0);
 });

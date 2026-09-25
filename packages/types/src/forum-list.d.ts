@@ -2,12 +2,13 @@ import type { HomeStats, HomeUser } from "./home";
 import { type ReadingBucket } from "./reading";
 import type { Forum, ForumThreadType, ForumThreadTypeConfig, Thread } from "./types";
 export declare const FORUM_LIST_CONTEXT_PATH = "/api/v1/forums/context";
-export declare const FORUM_LIST_MAX_BODY_BYTES = 4096;
+export declare const FORUM_LIST_MAX_BODY_BYTES: number;
 export declare const FORUM_LIST_MAX_LIMIT = 100;
 export declare const FORUM_LIST_MAX_ENTRY_BYTES: number;
 export declare const FORUM_LIST_PAYLOAD_LIMIT_BYTES: number;
 export declare const FORUM_LIST_TTL_MS: number;
 export interface ForumListContextRequest {
+    cachedRead?: string | null;
     forumId: number;
     page: number;
     limit: number;
@@ -40,6 +41,7 @@ export interface ForumListSnapshot {
     display: ForumListDisplay;
 }
 export interface ForumListContextData {
+    readSnapshot?: string | null;
     bucket: ReadingBucket;
     user: HomeUser | null;
     revision: string;

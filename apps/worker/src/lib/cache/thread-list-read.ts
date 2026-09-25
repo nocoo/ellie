@@ -1,5 +1,6 @@
 // Cache membership, never viewer projections or copies of thread/user entities.
 import type { CacheDescriptor } from "@ellie/types";
+import { readDailyStatistics } from "../daily-statistics";
 import type { Env } from "../env";
 import { buildNextCursor } from "../pagination";
 import { STICKY_GLOBAL } from "../visibility";
@@ -377,18 +378,6 @@ export async function countLocalThreads(
 	forumId: number,
 	typeId: number | null,
 ): Promise<number> {
-	const localWhere =
-		typeId === null
-			? `t.forum_id = ? AND t.sticky >= 0 AND t.sticky != ${STICKY_GLOBAL}`
-			: "t.forum_id = ? AND t.type_id = ? AND t.sticky >= 0";
-	const localFrom = `threads t${typeId === null ? "" : " INDEXED BY idx_threads_forum_type"}`;
-	const bindings = typeId === null ? [forumId] : [forumId, typeId];
-	const local = await env.DB.prepare(
-		`SELECT COUNT(*) AS total FROM ${localFrom} WHERE ${localWhere}`,
-	)
-		.bind(...bindings)
-		.first<{ total: number }>();
-	if (!local || !Number.isSafeInteger(local.total) || local.total < 0)
-		throw new Error("Thread count was not returned");
-	return local.total;
+	const forum = (await readDailyStatistics(env))?.forums[forumId];
+	return (typeId === null ? forum?.threads : forum?.types[typeId]) ?? 0;
 }

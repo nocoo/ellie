@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create, getById, list } from "../../../src/handlers/thread";
+import { refreshDailyStatistics } from "../../../src/lib/daily-statistics";
 import type { Env } from "../../../src/lib/env";
+import * as statistics from "../../../src/lib/stats-counter";
 import {
 	createJwtForRole,
 	createMockDb,
@@ -119,6 +121,8 @@ describe("thread handlers", () => {
 
 		it("preserves offset totals/pages and response metadata", async () => {
 			for (let id = 1; id <= 50; id++) f.thread(id);
+			await refreshDailyStatistics(f.env);
+			f.calls.length = 0;
 			const body = await (await readList("forumId=1&page=2&limit=10")).json();
 			expect(body.meta).toMatchObject({ total: 50, page: 2, limit: 10, pages: 5 });
 			expect(body.data.map((row: { id: number }) => row.id)).toEqual([
@@ -355,6 +359,7 @@ describe("thread handlers", () => {
 		});
 
 		it("should create thread with first post and update counts", async () => {
+			const increment = vi.spyOn(statistics, "incrementStatsOnThreadCreate");
 			const token = await createJwtForRole(0, 42);
 			const createdThread = makeD1ThreadRow({ id: 100, forum_id: 1 });
 			const { db, batchCalls } = createMockDb({
@@ -397,6 +402,8 @@ describe("thread handlers", () => {
 			const body = await response.json();
 			expect(body.data.id).toBe(100);
 			expect(body.data.subject).toBe("Test Thread");
+			expect(increment).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), 1, 0);
+			increment.mockRestore();
 
 			// Verify batch was called: 1 post INSERT + 2 count updates = 3 statements
 			expect(batchCalls.length).toBe(1);

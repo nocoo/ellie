@@ -32,21 +32,19 @@ describe("memory cache management contract", () => {
 		expect(MEMORY_CACHE_ADMIN_PATH).toBe("/api/admin/memory-cache");
 		expect(MEMORY_CACHE_ADMIN_HEADER).toBe("X-Ellie-Memory-Key");
 		expect(MEMORY_CACHE_FAMILIES).toEqual([
-			"site-stats",
 			"forum-summary",
-			"thread-count",
 			"home-display",
 			"forum-list",
 			"thread-detail",
+			"forum-read",
 		]);
 		expect(MEMORY_CACHE_ACTIONS).toEqual(["clear", "flush"]);
 		expect(MEMORY_CACHE_FAMILY_CAPACITY).toEqual({
-			"site-stats": 1,
 			"forum-summary": 256,
-			"thread-count": 1024,
 			"home-display": 4,
 			"forum-list": 128,
 			"thread-detail": 100,
+			"forum-read": 128,
 		});
 		expect(MEMORY_CACHE_PAYLOAD_LIMIT_BYTES).toBe(8 * 1024 * 1024);
 		expect(MEMORY_CACHE_PREVIEW_MAX_BYTES).toBe(512);
@@ -58,9 +56,9 @@ describe("memory cache management contract", () => {
 	});
 
 	it("recognizes only the frozen family and action ids", () => {
-		expect(isMemoryCacheFamilyId("site-stats")).toBe(true);
+		expect(isMemoryCacheFamilyId("forum-read")).toBe(true);
 		expect(isMemoryCacheFamilyId("forum-summary")).toBe(true);
-		expect(isMemoryCacheFamilyId("thread-count")).toBe(true);
+		expect(isMemoryCacheFamilyId("forum-list")).toBe(true);
 		expect(isMemoryCacheFamilyId("home-display")).toBe(true);
 		expect(isMemoryCacheFamilyId("forum-list")).toBe(true);
 		expect(isMemoryCacheFamilyId("views")).toBe(false);
@@ -95,11 +93,11 @@ describe("parseMemoryCacheQuery", () => {
 
 	it("accepts a known family and bounded page", () => {
 		const parsed = parseMemoryCacheQuery(
-			new URLSearchParams({ family: "thread-count", page: "2", limit: "100" }),
+			new URLSearchParams({ family: "forum-list", page: "2", limit: "100" }),
 		);
 		expect(parsed).toEqual({
 			ok: true,
-			value: { family: "thread-count", page: 2, limit: MEMORY_CACHE_LIMIT_MAX },
+			value: { family: "forum-list", page: 2, limit: MEMORY_CACHE_LIMIT_MAX },
 		});
 	});
 
@@ -148,10 +146,10 @@ describe("parseMemoryCacheMutation", () => {
 			ok: true,
 			value: { instanceId, action: "clear" },
 		});
-		expect(parseMemoryCacheMutation({ instanceId, action: "clear", family: "site-stats" })).toEqual(
+		expect(parseMemoryCacheMutation({ instanceId, action: "clear", family: "forum-read" })).toEqual(
 			{
 				ok: true,
-				value: { instanceId, action: "clear", family: "site-stats" },
+				value: { instanceId, action: "clear", family: "forum-read" },
 			},
 		);
 		expect(
@@ -230,7 +228,7 @@ describe("parseMemoryCacheMutation", () => {
 			parseMemoryCacheMutation({
 				instanceId,
 				action: "flush",
-				family: "site-stats",
+				family: "forum-read",
 			}),
 		).toMatchObject({ error: { message: MEMORY_CACHE_MESSAGES.flushRejectsSelector } });
 		expect(parseMemoryCacheMutation({ instanceId, action: "flush", key: "forum:1" })).toMatchObject(

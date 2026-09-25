@@ -34,3 +34,16 @@ export const TEST_WORKER_VARS: Readonly<Record<string, string>> = Object.freeze(
 	// avoids any "missing var" warnings in worker boot logs.
 	DOVE_WEBHOOK_TOKEN: "test-token-not-real",
 });
+
+export async function seedDailyStatistics(baseUrl: string): Promise<void> {
+	const url = new URL(baseUrl);
+	if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))
+		throw new Error("Local statistics fixture requires loopback");
+	const response = await fetch(new URL("/api/internal/statistics/snapshot", url), {
+		method: "POST",
+		headers: { "X-Ellie-Statistics-Key": TEST_WORKER_VARS.WEB_STATISTICS_WRITE_KEY },
+		signal: AbortSignal.timeout(10_000),
+	});
+	if (!response.ok) throw new Error(`Local daily statistics seed failed: ${response.status}`);
+	await response.body?.cancel();
+}

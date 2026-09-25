@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
+import { getDailyStatistics } from "@/lib/daily-statistics";
 import {
 	invalidateDisplayAfterWrite,
 	mutationForumId,
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
 		const body = await request.json();
 		const result = await forumApi.postAuth<unknown>("/api/v1/posts", body, jwt, client);
 		const forumId = mutationForumId(result);
+		getDailyStatistics().optimistic({ kind: "post", forumId });
 		const sticky = result.meta && "threadSticky" in result.meta ? result.meta.threadSticky : null;
 		const threadId = mutationThreadId(result);
 		invalidateDisplayAfterWrite({
@@ -54,7 +56,6 @@ export async function POST(request: Request) {
 			forumIds: forumId && (sticky === 0 || sticky === 1) ? [forumId] : [],
 			threadDetail: threadId != null ? { threadId } : undefined,
 			forumSummaries: true,
-			siteStats: true,
 		});
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {

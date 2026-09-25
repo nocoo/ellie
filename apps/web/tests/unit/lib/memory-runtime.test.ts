@@ -32,23 +32,23 @@ describe("bounded process cache", () => {
 		const runtime = new MemoryRuntime({ now: () => now });
 		const value = deferred<{ total: number }>();
 		const load = vi.fn(() => value.promise);
-		const first = runtime.read("thread-count", "anon:1", load);
-		const second = runtime.read("thread-count", "anon:1", load);
+		const first = runtime.read("forum-summary", "anon:1", load);
+		const second = runtime.read("forum-summary", "anon:1", load);
 		value.resolve({ total: 2 });
 		const [a, b] = await Promise.all([first, second]);
 		a.total = 100;
 		expect(b.total).toBe(2);
 		expect(load).toHaveBeenCalledTimes(1);
-		expect(await runtime.read("thread-count", "anon:1", load)).toEqual({ total: 2 });
+		expect(await runtime.read("forum-summary", "anon:1", load)).toEqual({ total: 2 });
 		const before = runtime.snapshot(query);
 		runtime.snapshot(query);
 		expect(runtime.snapshot(query).families).toEqual(before.families);
 		now += 6 * 60 * 60_000;
 		const fail = vi.fn().mockRejectedValue(new Error("offline"));
-		await expect(runtime.read("thread-count", "anon:1", fail)).rejects.toThrow("offline");
-		await expect(runtime.read("thread-count", "anon:1", fail)).rejects.toThrow("offline");
+		await expect(runtime.read("forum-summary", "anon:1", fail)).rejects.toThrow("offline");
+		await expect(runtime.read("forum-summary", "anon:1", fail)).rejects.toThrow("offline");
 		expect(fail).toHaveBeenCalledTimes(2);
-		expect(runtime.snapshot(query).families.find((f) => f.id === "thread-count")?.loadErrors).toBe(
+		expect(runtime.snapshot(query).families.find((f) => f.id === "forum-summary")?.loadErrors).toBe(
 			2,
 		);
 	});
@@ -56,19 +56,19 @@ describe("bounded process cache", () => {
 	it("clear deduplicates new loads and fences old completion", async () => {
 		const runtime = new MemoryRuntime();
 		const value = deferred<number>();
-		const old = runtime.read("thread-count", "a", () => value.promise);
-		runtime.clear("thread-count", "a");
+		const old = runtime.read("forum-summary", "a", () => value.promise);
+		runtime.clear("forum-summary", "a");
 		const fresh = deferred<number>();
 		const load = vi.fn(() => fresh.promise);
-		const first = runtime.read("thread-count", "a", load);
-		const second = runtime.read("thread-count", "a", load);
+		const first = runtime.read("forum-summary", "a", load);
+		const second = runtime.read("forum-summary", "a", load);
 		fresh.resolve(3);
 		expect(await Promise.all([first, second])).toEqual([3, 3]);
 		expect(load).toHaveBeenCalledTimes(1);
 		value.resolve(2);
 		expect(await old).toBe(2);
-		expect(await runtime.read("thread-count", "a", async () => 4)).toBe(3);
-		runtime.clear("site-stats");
+		expect(await runtime.read("forum-summary", "a", async () => 4)).toBe(3);
+		runtime.clear("home-display");
 		expect(runtime.snapshot(query).entries).toHaveLength(1);
 		runtime.clear();
 		expect(runtime.snapshot(query).entries).toEqual([]);
@@ -79,45 +79,45 @@ describe("bounded process cache", () => {
 		const old = deferred<number>();
 		const tasks: Promise<number>[] = [];
 		for (let i = 0; i < 64; i++) {
-			tasks.push(runtime.read("thread-count", "same", () => old.promise));
+			tasks.push(runtime.read("forum-summary", "same", () => old.promise));
 			runtime.clear();
 		}
-		await expect(runtime.read("thread-count", "same", async () => 3)).rejects.toThrow(
+		await expect(runtime.read("forum-summary", "same", async () => 3)).rejects.toThrow(
 			"capacity exceeded",
 		);
 		expect(runtime.snapshot(query).entries).toEqual([]);
 		old.resolve(2);
 		await Promise.all(tasks);
-		await runtime.read("thread-count", "same", async () => 4);
+		await runtime.read("forum-summary", "same", async () => 4);
 		expect(runtime.snapshot(query).entries).toHaveLength(1);
 	});
 
 	it("expires at Shanghai midnight, including a load spanning the boundary", async () => {
 		let now = Date.UTC(2026, 8, 23, 15, 59, 59);
 		const runtime = new MemoryRuntime({ now: () => now });
-		await runtime.read("site-stats", "site", async () => ({ todayPosts: 4 }));
+		await runtime.read("home-display", "site", async () => ({ todayPosts: 4 }));
 		expect(runtime.snapshot(query).entries[0].expiresAt).toBe("2026-09-23T16:00:00.000Z");
-		await runtime.read("thread-count", "cached", async () => 7);
-		expect(runtime.snapshot({ ...query, family: "thread-count" }).entries[0].expiresAt).toBe(
+		await runtime.read("forum-summary", "cached", async () => 7);
+		expect(runtime.snapshot({ ...query, family: "forum-summary" }).entries[0].expiresAt).toBe(
 			"2026-09-23T16:00:00.000Z",
 		);
 		const value = deferred<number>();
-		const old = runtime.read("thread-count", "1", () => value.promise);
+		const old = runtime.read("forum-summary", "1", () => value.promise);
 		now += 1000;
 		value.resolve(1);
 		await old;
 		expect(runtime.snapshot(query).entries).toEqual([]);
 	});
 
-	it("actively prunes six-hour counts without an expiry-triggering read", async () => {
+	it("actively prunes five-minute summaries without an expiry-triggering read", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(Date.UTC(2026, 8, 24, 0));
 		const runtime = new MemoryRuntime({ send: confirm });
-		runtime.admit("count", 42, runtime.capture("thread-count"));
+		runtime.admit("count", 42, runtime.capture("forum-summary"));
 		runtime.start();
 		try {
-			await vi.advanceTimersByTimeAsync(6 * 60 * 60_000);
-			const snapshot = runtime.snapshot({ ...query, family: "thread-count" });
+			await vi.advanceTimersByTimeAsync(5 * 60_000);
+			const snapshot = runtime.snapshot({ ...query, family: "forum-summary" });
 			expect(snapshot.entries).toEqual([]);
 			expect(snapshot.history.at(-1)?.estimatedPayloadBytes).toBeLessThan(
 				snapshot.history.at(-2)?.estimatedPayloadBytes as number,
@@ -143,43 +143,45 @@ describe("bounded process cache", () => {
 		const runtime = new MemoryRuntime();
 		const value = deferred<number>();
 		const tasks = Array.from({ length: 64 }, (_, id) =>
-			runtime.read("thread-count", String(id), () => value.promise),
+			runtime.read("forum-summary", String(id), () => value.promise),
 		);
 		const overflow = vi.fn(async () => 12);
 		const rejected = await Promise.allSettled(
 			Array.from({ length: 300 }, (_, id) =>
-				runtime.read("thread-count", `overflow:${id}`, overflow),
+				runtime.read("forum-summary", `overflow:${id}`, overflow),
 			),
 		);
 		expect(rejected.every((result) => result.status === "rejected")).toBe(true);
 		expect(overflow).not.toHaveBeenCalled();
-		const duplicate = runtime.read("thread-count", "0", overflow);
+		const duplicate = runtime.read("forum-summary", "0", overflow);
 		expect(runtime.snapshot(query).pagination.total).toBe(0);
 		value.resolve(1);
 		await Promise.all(tasks);
 		expect(await duplicate).toBe(1);
 		expect(overflow).not.toHaveBeenCalled();
-		expect(await runtime.read("thread-count", "overflow", overflow)).toBe(12);
+		expect(await runtime.read("forum-summary", "overflow", overflow)).toBe(12);
 		await runtime.read("forum-summary", "private", async () => ({
 			topicId: 1,
 			topicSubject: "secret",
 			authorName: "private-user",
 			forumId: 2,
 		}));
-		const entry = runtime.snapshot({ ...query, family: "forum-summary" }).entries[0];
-		expect(entry.preview).toBe('{"forumId":2,"topicId":1}');
-		await runtime.read("thread-count", "oversize", async () => "a".repeat(20_000));
-		await expect(runtime.read("thread-count", "a".repeat(257), overflow)).rejects.toThrow(
+		const entry = runtime
+			.snapshot({ ...query, family: "forum-summary", limit: 100 })
+			.entries.find((item) => item.key === "private");
+		expect(entry?.preview).toBe('{"forumId":2,"topicId":1}');
+		await runtime.read("forum-summary", "oversize", async () => "a".repeat(20_000));
+		await expect(runtime.read("forum-summary", "a".repeat(257), overflow)).rejects.toThrow(
 			"key is too long",
 		);
 		for (let id = 0; id < 1024; id++)
-			await runtime.read("thread-count", String(id), async () => ({
+			await runtime.read("forum-summary", String(id), async () => ({
 				total: 1,
 				bounded: "a".repeat(15_000),
 			}));
 		const snapshot = runtime.snapshot(query);
 		expect(snapshot.memory.estimatedPayloadBytes).toBeLessThan(snapshot.memory.payloadLimitBytes);
-		expect(snapshot.families.find((f) => f.id === "thread-count")?.entries).toBeLessThan(1024);
+		expect(snapshot.families.find((f) => f.id === "forum-summary")?.entries).toBeLessThan(1024);
 	});
 });
 
@@ -257,11 +259,19 @@ describe("forum-list family memory", () => {
 	it("rejects a forum-list admission when global payload is full and the family is empty", async () => {
 		const runtime = new MemoryRuntime();
 		await runtime.read("home-display", "home:keep", async () => ({ value: "keep" }));
-		for (let i = 0; i < 600; i++) {
-			await runtime.read("thread-count", `tc:${i}`, async () => ({
+		for (let i = 0; i < 256; i++) {
+			await runtime.read("forum-summary", `summary:${i}`, async () => ({
 				filler: "x".repeat(15 * 1024),
 			}));
 		}
+		for (let i = 0; i < 15; i++) {
+			await runtime.read("thread-detail", `thread:${i}`, async () => ({
+				filler: "x".repeat(218 * 1024),
+			}));
+		}
+		await runtime.read("thread-detail", "thread:extra", async () => ({
+			filler: "x".repeat(190 * 1024),
+		}));
 		expect(runtime.snapshot(query).memory.estimatedPayloadBytes).toBeGreaterThan(
 			7 * 1024 * 1024 - 32 * 1024,
 		);
@@ -408,14 +418,14 @@ describe("lossy statistics buffer", () => {
 		expect(runtime.snapshot(query).buffers.unconfirmedViews).toBe(2);
 	});
 
-	it("throttles activities, preserves newer in-flight observations and invalidates online baselines", async () => {
+	it("throttles activities, preserves newer in-flight observations without invalidating daily statistics", async () => {
 		let now = Date.UTC(2026, 8, 23);
 		const response = deferred<StatisticsBatchResult>();
 		const send = vi.fn(async (body: StatisticsBatchRequest) =>
 			send.mock.calls.length === 1 ? response.promise : confirm(body),
 		);
 		const runtime = new MemoryRuntime({ now: () => now, send });
-		await runtime.read("site-stats", "site", async () => 3);
+
 		runtime.recordActivity(1);
 		const flush = runtime.flush();
 		await Promise.resolve();
@@ -511,11 +521,11 @@ describe("lossy statistics buffer", () => {
 	it("restart discards pending work and reloads the authoritative base", async () => {
 		const old = new MemoryRuntime();
 		old.recordView(1);
-		await old.read("thread-count", "1", async () => 2);
+		await old.read("forum-summary", "1", async () => 2);
 		const restarted = new MemoryRuntime();
 		expect(restarted.id).not.toBe(old.id);
 		expect(restarted.snapshot(query).buffers.pendingViews).toBe(0);
-		expect(await restarted.read("thread-count", "1", async () => 3)).toBe(3);
+		expect(await restarted.read("forum-summary", "1", async () => 3)).toBe(3);
 	});
 });
 

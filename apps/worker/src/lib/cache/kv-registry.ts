@@ -28,6 +28,7 @@ export type KvCategory =
 	| "rate-limit" // login/register/check-username/email lockouts
 	| "stats"
 	| "sticky-stats"
+	| "snapshot"
 	| "throttle";
 
 /**
@@ -636,6 +637,77 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description: "Single literal key holding admin settings JSON (lib/settings.ts).",
 	},
 	{
+		family: "statistics:daily:v1",
+		displayName: "Daily statistics base",
+		category: "sticky-stats",
+		status: "shipped",
+		listPrefix: "statistics:daily:v1",
+		keyKind: "exact",
+		pattern: "statistics:daily:v1",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Persistent daily statistics rebuilt at 03:00 Asia/Shanghai; foreground reads never recount.",
+	},
+	{
+		family: "statistics:daily:delta:v1",
+		displayName: "Daily statistics optimistic overlay",
+		category: "sticky-stats",
+		status: "shipped",
+		listPrefix: "statistics:daily:v1:delta:",
+		pattern: "statistics:daily:v1:delta:<version>",
+		ttl: 604800,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Approximate mutation overlay scoped to its daily base version; daily rebuild repairs drift.",
+	},
+	{
+		family: "reading:config:v1",
+		displayName: "Forum configuration snapshot",
+		category: "snapshot",
+		status: "shipped",
+		listPrefix: "reading:v1:config:",
+		pattern: "reading:v1:config:<forumId>:<bucket>",
+		ttl: 86400,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Bounded forum configuration restored by the signed reading flow; structural writes invalidate selections.",
+	},
+	{
+		family: "reading:recommended:v1",
+		displayName: "Recommendation ID snapshot",
+		category: "snapshot",
+		status: "shipped",
+		listPrefix: "reading:v1:recommended:",
+		pattern: "reading:v1:recommended:<forumId>",
+		ttl: 1800,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Recommendation IDs restored by the signed reading flow; recommendation writes invalidate selections.",
+	},
+	{
+		family: "reading:page:v1",
+		displayName: "Hot-page membership snapshot",
+		category: "snapshot",
+		status: "shipped",
+		listPrefix: "reading:v1:page:",
+		pattern: "reading:v1:page:<forumId>:<bucket>:<typeId>:<limit>:<page>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"First three pages store membership and order only; current authorization remains a D1 check.",
+	},
+	{
 		family: "stats:today_posts",
 		displayName: "Today's posts counter",
 		category: "stats",
@@ -647,14 +719,13 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "none" },
-		description:
-			"Legacy read-modify-write counter. Today now comes from committed indexed D1 rows.",
+		description: "Legacy read-modify-write counter, replaced by the daily statistics snapshot.",
 	},
 	{
 		family: "stats:today_date",
 		displayName: "Today's date marker",
 		category: "stats",
-		status: "shipped",
+		status: "historical",
 		listPrefix: "stats:today_date",
 		keyKind: "exact",
 		pattern: "stats:today_date",
@@ -662,8 +733,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "none" },
-		description:
-			"YYYY-MM-DD in Asia/Shanghai. Used by cron to detect day rollover for stats:today_posts.",
+		description: "Retired date-rollover marker; daily statistics now carry their own Shanghai day.",
 	},
 	// ─── Auth refresh tokens + email verify ────────────────────────
 	{
@@ -951,6 +1021,12 @@ export function resolveFamilyForKey(key: string): KvFamilySpec | null {
  * file and add the prefix to ALLOWLIST_OUT_OF_SCOPE below instead.
  */
 export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
+	"statistics:daily:v1",
+	"statistics:daily:v1:delta:",
+	"reading:v1:config:",
+	"reading:v1:recommended:",
+	"reading:v1:page:",
+
 	"forum:tree:v2:",
 	"thread:list:v2:",
 	"user:mini:",

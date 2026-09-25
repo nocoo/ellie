@@ -1548,6 +1548,7 @@ function KvMonitorLayout(props: {
 					<option value="gen">版本</option>
 					<option value="session">会话</option>
 					<option value="rate-limit">限流</option>
+					<option value="snapshot">读取快照</option>
 				</select>
 				<select
 					className="rounded-md border border-basalt-border bg-transparent px-2 py-1 text-xs"

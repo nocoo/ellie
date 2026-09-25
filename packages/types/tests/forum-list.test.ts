@@ -28,6 +28,18 @@ describe("forum list context contract", () => {
 		expect(parseForumListContextRequest(body).ok).toBe(false);
 	});
 
+	it("accepts only bounded opaque cached reads", () => {
+		for (const cachedRead of [null, "signed-token", "界".repeat(65_536)]) {
+			expect(parseForumListContextRequest({ ...request, cachedRead })).toEqual({
+				ok: true,
+				value: { ...request, cachedRead },
+			});
+		}
+		for (const cachedRead of [7, {}, "界".repeat(65_537)]) {
+			expect(parseForumListContextRequest({ ...request, cachedRead }).ok).toBe(false);
+		}
+	});
+
 	it("requires every field", () => {
 		for (const key of Object.keys(request)) {
 			const body = { ...request } as Record<string, unknown>;

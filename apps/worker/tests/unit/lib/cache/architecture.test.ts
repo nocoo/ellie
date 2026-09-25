@@ -8,7 +8,7 @@ const router = readFileSync(join(sourceRoot, "index.ts"), "utf8");
 const docs = readFileSync(resolve(sourceRoot, "../../../docs/20-worker-kv-reference.md"), "utf8");
 const reads = [
 	...router.matchAll(
-		/request\.method === "GET"\s*\)\s*\{\s*return await \(await import\("([^"]+)"\)\)\.(\w+)\(([^;]+)/g,
+		/request\.method === "GET"\s*\)\s*\{\s*return await \(\s*await import\("([^"]+)"\)\s*\)\.(\w+)\(([^;]+)/g,
 	),
 ];
 const documented = [
@@ -29,7 +29,8 @@ const rawKvOwners: Record<string, string> = {
 	"lib/cache/epoch.ts": "Resource versions",
 	"lib/cache/admin-monitor-read.ts": "Bounded metadata observations",
 	"lib/stats-job.ts": "Runtime job progress",
-	"lib/stats-rollover.ts": "Daily rollover state",
+	"lib/daily-statistics.ts": "Persistent daily base and approximate mutation overlay",
+	"lib/reading-snapshots.ts": "Bounded signed read selections restored after Web restart",
 };
 
 function sourceFiles(directory: string): string[] {

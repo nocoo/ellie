@@ -440,7 +440,7 @@ describe("POST /api/v1/threads/context", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("loads optional statistics and omits them when only their query fails", async () => {
+	it("uses empty daily estimates without querying statistics tables", async () => {
 		open();
 		const good = await (await threadContext(post({ ...body, includeStats: true }), f.env)).json();
 		expect(good.data.stats).toHaveProperty("totalOnline");
@@ -453,7 +453,7 @@ describe("POST /api/v1/threads/context", () => {
 			const response = await threadContext(post({ ...body, includeStats: true }), f.env);
 			expect(response.status).toBe(200);
 			const result = await response.json();
-			expect(result.data.stats).toBeUndefined();
+			expect(result.data.stats.totalThreads).toBe(0);
 			expect(result.data.display.posts).toHaveLength(1);
 		} finally {
 			prepare.mockRestore();

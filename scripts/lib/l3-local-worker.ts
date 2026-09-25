@@ -25,6 +25,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "bun";
 import { killTree, spawnDetached } from "./process-tree";
+import { seedDailyStatistics, TEST_WORKER_VARS } from "./test-worker-vars";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 // scripts/lib/l3-local-worker.ts → repo root is two levels up.
@@ -209,12 +210,7 @@ export async function startLocalL3WorkerProcess(): Promise<LocalWorkerHandle> {
 			"--local",
 			"--persist-to",
 			L3_PERSIST_TO,
-			"--var",
-			`API_KEY:${L3_API_KEY}`,
-			"--var",
-			`ADMIN_API_KEY:${L3_ADMIN_API_KEY}`,
-			"--var",
-			`JWT_SECRET:${L3_JWT_SECRET}`,
+			...Object.entries(TEST_WORKER_VARS).flatMap(([key, value]) => ["--var", `${key}:${value}`]),
 		],
 		{
 			cwd: REPO_ROOT,
@@ -224,6 +220,7 @@ export async function startLocalL3WorkerProcess(): Promise<LocalWorkerHandle> {
 
 	try {
 		await waitForWorker(proc);
+		await seedDailyStatistics(L3_WORKER_URL);
 	} catch (err) {
 		await killTree(proc, "L3 Worker (startup failure)");
 		throw err;

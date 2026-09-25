@@ -10,6 +10,7 @@
 // invalidations falls back to TTL.
 
 import type { Env } from "../env";
+import { invalidateReadingConfig, invalidateReadingRecommendations } from "../reading-snapshots";
 import { userMiniCacheKey } from "../user-cache";
 import { bumpGen } from "./epoch";
 import {
@@ -47,8 +48,12 @@ export function bumpPostAttachmentsGen(env: Env, postId: number): Promise<string
 	return bumpResource(env, postAttachmentsGenKey(postId), "post:attachments");
 }
 
-export function bumpRecommendedGen(env: Env, forumId: number): Promise<string> {
-	return bumpResource(env, recommendedGenKey(forumId), "recommended:threads");
+export async function bumpRecommendedGen(env: Env, forumId: number): Promise<string> {
+	const [generation] = await Promise.all([
+		bumpResource(env, recommendedGenKey(forumId), "recommended:threads"),
+		invalidateReadingRecommendations(env, forumId),
+	]);
+	return generation;
 }
 
 // ─── Single-key delete helpers ─────────────────────────────────────
@@ -103,7 +108,11 @@ export async function invalidateUserCaches(env: Env, userId: number): Promise<vo
 // ─── Generation bump helpers (per docs/20 §5) ──────────────────────
 
 export async function bumpForumTreeGen(env: Env): Promise<string> {
-	return bumpResource(env, forumTreeGenKey(), "forum:tree:v2");
+	const [generation] = await Promise.all([
+		bumpResource(env, forumTreeGenKey(), "forum:tree:v2"),
+		invalidateReadingConfig(env),
+	]);
+	return generation;
 }
 
 export async function bumpThreadListGen(env: Env, forumId: number): Promise<string> {

@@ -48,7 +48,7 @@ const OVERVIEW_DATA = {
 	memory: { rssBytes: 1, heapUsedBytes: 1, estimatedPayloadBytes: 1, payloadLimitBytes: 8_388_608 },
 	families: [
 		{
-			id: "site-stats",
+			id: "forum-read",
 			entries: 1,
 			maxEntries: 1,
 			hits: 2,
@@ -59,7 +59,7 @@ const OVERVIEW_DATA = {
 	],
 	entries: [
 		{
-			family: "site-stats",
+			family: "forum-read",
 			key: "site:1",
 			createdAt: "2026-09-23T09:01:00.000Z",
 			expiresAt: "2026-09-23T09:06:00.000Z",
@@ -307,7 +307,7 @@ describe("POST /api/admin/memory-cache", () => {
 			JSON.stringify({ instanceId: "web-1", action: "nuke" }),
 			JSON.stringify({ instanceId: "web-1", action: "clear", extra: 1 }),
 			JSON.stringify({ instanceId: "bad id!", action: "clear" }),
-			JSON.stringify({ instanceId: "web-1", action: "flush", family: "site-stats" }),
+			JSON.stringify({ instanceId: "web-1", action: "flush", family: "forum-read" }),
 			JSON.stringify({ instanceId: "web-1", action: "clear", key: "k" }),
 			"not json",
 		]) {

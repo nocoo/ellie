@@ -2,7 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHomeContext } from "@/lib/home-reading";
 import { MemoryRuntime } from "@/lib/memory-runtime";
 
-const mocks = vi.hoisted(() => ({ post: vi.fn(), jwt: vi.fn(), user: vi.fn(), runtime: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	post: vi.fn(),
+	jwt: vi.fn(),
+	user: vi.fn(),
+	runtime: vi.fn(),
+	statistics: vi.fn(),
+}));
+vi.mock("@/lib/daily-statistics", () => ({
+	getDailyStatistics: () => ({ read: mocks.statistics }),
+}));
 vi.mock("@/lib/forum-api", () => ({ forumApi: { postRead: mocks.post } }));
 vi.mock("@/lib/forum-auth", () => ({ getWorkerJwt: mocks.jwt, getCurrentForumUser: mocks.user }));
 vi.mock("@/lib/memory-runtime", async (original) => ({
@@ -57,6 +66,10 @@ const stats = {
 	peakOnline: 1,
 	peakDate: "",
 };
+const daily = {
+	stats,
+	forums: { 1: { threads: 10, posts: 20, todayThreads: 3, types: {} } },
+};
 function context(extra = {}) {
 	return {
 		bucket: "member",
@@ -86,6 +99,7 @@ beforeEach(() => {
 	mocks.runtime.mockReturnValue(runtime);
 	mocks.jwt.mockResolvedValue("jwt");
 	mocks.user.mockResolvedValue({ role: 0 });
+	mocks.statistics.mockReset().mockResolvedValue(daily);
 });
 
 describe("homepage context", () => {
@@ -95,7 +109,7 @@ describe("homepage context", () => {
 			finish = resolve;
 		});
 		const otherLoads = Array.from({ length: 63 }, (_, id) =>
-			runtime.read("thread-count", String(id), async () => {
+			runtime.read("forum-summary", String(id), async () => {
 				await pending;
 				return id;
 			}),
@@ -107,10 +121,10 @@ describe("homepage context", () => {
 		const peek = vi.spyOn(runtime, "peek");
 		const home = loadHomeContext();
 		await vi.waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
-		expect(peek).toHaveBeenCalledTimes(2);
+		expect(peek).toHaveBeenCalledTimes(1);
 		await expect(loadHomeContext()).rejects.toThrow("capacity exceeded");
 		expect(mocks.post).toHaveBeenCalledTimes(1);
-		expect(peek).toHaveBeenCalledTimes(2);
+		expect(peek).toHaveBeenCalledTimes(1);
 		expect(
 			runtime.snapshot({ page: 1, limit: 1 }).families.find((row) => row.id === "home-display")
 				?.loadErrors,
@@ -131,32 +145,39 @@ describe("homepage context", () => {
 		expect((await loadHomeContext()).tree).toHaveLength(1);
 	});
 
-	it("keeps verified content when stats are unavailable and retries without caching defaults", async () => {
-		mocks.post.mockResolvedValueOnce({ data: context({ display, user: { id: 9 } }) });
+	it("keeps verified content when daily stats are unavailable without asking Worker to recount", async () => {
+		mocks.statistics.mockResolvedValueOnce(null);
+		mocks.post.mockResolvedValueOnce({ data: context({ display, stats, user: { id: 9 } }) });
 		const first = await loadHomeContext();
 		expect(first.tree[0].lastThreadSubject).toBe("Latest");
 		expect(first.digest).toHaveLength(1);
 		expect(first.user).toEqual({ id: 9 });
 		expect(first.stats).toBeUndefined();
-		expect(runtime.peek("site-stats", "site:v1")).toBeUndefined();
+		expect(first.tree[0]).toMatchObject({ threads: 0, posts: 0, todayThreads: 0 });
 		mocks.post.mockResolvedValueOnce({ data: context({ stats }) });
 		expect((await loadHomeContext()).stats).toEqual(stats);
 		expect(mocks.post.mock.calls[1][1]).toMatchObject({
 			includeDisplay: false,
-			includeStats: true,
+			includeStats: false,
 		});
-		expect(runtime.peek("site-stats", "site:v1")).toEqual(stats);
 	});
 
 	it("loads cold data once, then gates warm display in one request without caching private fields", async () => {
 		mocks.post.mockResolvedValueOnce({ data: context({ display, stats, user: { id: 9 } }) });
-		expect((await loadHomeContext()).tree[0].lastThreadSubject).toBe("Latest");
+		const first = await loadHomeContext();
+		expect(first.tree[0]).toMatchObject({
+			lastThreadSubject: "Latest",
+			threads: 10,
+			posts: 20,
+			todayThreads: 3,
+		});
+		expect(first.stats).toEqual(stats);
 		expect(mocks.post).toHaveBeenLastCalledWith(
 			"/api/v1/home/context",
 			{
 				cachedBucket: null,
 				includeDisplay: true,
-				includeStats: true,
+				includeStats: false,
 				summaryTopicIds: [],
 				digestTopicIds: [],
 			},
@@ -193,7 +214,6 @@ describe("homepage context", () => {
 
 	it("removes entire forbidden forums and invalidates gated-out candidates", async () => {
 		runtime.admit("member", display, runtime.capture("home-display"));
-		runtime.admit("site:v1", stats, runtime.capture("site-stats"));
 		mocks.post.mockResolvedValue({
 			data: context({ allowedForumIds: [], summaryGates: [], digestGates: [] }),
 		});
@@ -227,7 +247,6 @@ describe("homepage context", () => {
 		});
 		await loadHomeContext();
 		expect(runtime.peek("home-display", "member")).toBeUndefined();
-		expect(runtime.peek("site-stats", "site:v1")).toBeUndefined();
 	});
 
 	it("fails closed on transport, authorization and malformed context", async () => {
@@ -306,7 +325,7 @@ it("rebuilds after restart and never substitutes a cached snapshot for missing c
 	await loadHomeContext();
 	expect(mocks.post.mock.calls[1][1]).toMatchObject({
 		includeDisplay: true,
-		includeStats: true,
+		includeStats: false,
 		cachedBucket: null,
 	});
 	mocks.post.mockResolvedValue({ data: context({ display: { forums: null } }) });
@@ -320,7 +339,6 @@ it.each(["2026-09-24T08:00:00Z", "2026-09-24T15:59:50Z"])(
 		runtime = new MemoryRuntime({ now: () => now });
 		mocks.runtime.mockReturnValue(runtime);
 		runtime.admit("member", display, runtime.capture("home-display"));
-		runtime.admit("site:v1", stats, runtime.capture("site-stats"));
 		const expiry = Date.parse(
 			runtime.snapshot({ family: "home-display", page: 1, limit: 1 }).entries[0].expiresAt,
 		);
@@ -332,12 +350,12 @@ it.each(["2026-09-24T08:00:00Z", "2026-09-24T15:59:50Z"])(
 		mocks.post.mockResolvedValueOnce({ data: context({ display: refreshed }) });
 		const result = await loadHomeContext();
 		expect(result.tree[0].name).toBe("Refreshed");
-		expect(result.stats).toBeUndefined();
+		expect(result.stats).toEqual(stats);
 		expect(mocks.post).toHaveBeenCalledTimes(2);
 		expect(mocks.post.mock.calls[1][1]).toMatchObject({
 			includeDisplay: true,
 			cachedBucket: null,
-			includeStats: true,
+			includeStats: false,
 			summaryTopicIds: [],
 			digestTopicIds: [],
 		});

@@ -4,10 +4,11 @@ import {
 	countRecentlyActiveUsers,
 	loadPublicStats,
 } from "../../../../src/lib/cache/public-stats-read";
+import { refreshDailyStatistics } from "../../../../src/lib/daily-statistics";
 import { shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "./thread-cache-fixture";
 
-describe("authoritative public statistics", () => {
+describe("public statistics snapshots", () => {
 	let f: ReturnType<typeof readingFixture>;
 	beforeEach(() => {
 		vi.useFakeTimers({ toFake: ["Date"] });
@@ -36,18 +37,20 @@ describe("authoritative public statistics", () => {
 		expect(f.calls.at(-1)?.sql).toContain("INDEXED BY idx_users_active_last_activity");
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 	});
-	it("reloads persisted counters and committed posts without KV reads or writes", async () => {
+	it("serves the persisted daily snapshot without recounting new posts", async () => {
 		f.sqlite.exec("UPDATE settings SET value='120' WHERE key='stats.total_threads'");
 		f.post(201, { created_at: shanghaiTodayStartUnix() });
+		await refreshDailyStatistics(f.env);
+		const before = f.calls.length;
 		expect(await loadPublicStats(f.env)).toMatchObject({ totalThreads: 120, todayPosts: 1 });
 		f.post(202, { created_at: shanghaiTodayStartUnix() + 1 });
-		expect(await loadPublicStats(f.env)).toMatchObject({ totalThreads: 120, todayPosts: 2 });
-		expect(f.env.KV.get).not.toHaveBeenCalled();
-		expect(f.env.KV.put).not.toHaveBeenCalled();
+		expect(await loadPublicStats(f.env)).toMatchObject({ totalThreads: 120, todayPosts: 1 });
+		expect(f.calls).toHaveLength(before);
 	});
-	it("rejects failed counter reads instead of caching zero", async () => {
+	it("returns empty display counts on a cold snapshot without a D1 fallback", async () => {
 		f.state.queryError = true;
-		await expect(loadPublicStats(f.env)).rejects.toThrow();
+		expect(await loadPublicStats(f.env)).toMatchObject({ todayPosts: 0, totalThreads: 0 });
+		expect(f.calls).toHaveLength(0);
 	});
 	it.each([null, { count: Number.NaN }])(
 		"rejects invalid daily and activity count results %j",

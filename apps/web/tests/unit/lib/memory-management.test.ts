@@ -35,9 +35,9 @@ describe("Web memory management boundary", () => {
 	});
 
 	it("returns the actual singleton and validates overview filters", async () => {
-		await getMemoryRuntime().read("thread-count", "anon:1", async () => 3);
+		await getMemoryRuntime().read("forum-summary", "anon:1", async () => 3);
 		const response = await GET(
-			new Request(`${url}?family=thread-count&page=1&limit=1`, {
+			new Request(`${url}?family=forum-summary&page=1&limit=1`, {
 				headers: { "X-Ellie-Memory-Key": key },
 			}),
 		);
@@ -55,14 +55,14 @@ describe("Web memory management boundary", () => {
 
 	it("fences old instances before mutation and clears only selected display entries", async () => {
 		const runtime = getMemoryRuntime();
-		await runtime.read("thread-count", "1", async () => 1);
-		await runtime.read("thread-count", "2", async () => 2);
+		await runtime.read("forum-summary", "1", async () => 1);
+		await runtime.read("forum-summary", "2", async () => 2);
 		const stale = await POST(request({ instanceId: "old-instance", action: "clear" }));
 		expect(stale.status).toBe(409);
 		expect(runtime.snapshot({ page: 1, limit: 50 }).entries).toHaveLength(2);
 		for (const selectors of [
-			{ family: "thread-count", key: "1" },
-			{ family: "thread-count" },
+			{ family: "forum-summary", key: "1" },
+			{ family: "forum-summary" },
 			{},
 		]) {
 			const response = await POST(
@@ -77,7 +77,7 @@ describe("Web memory management boundary", () => {
 	it("rejects unknown mutations, oversized and malformed streamed bodies", async () => {
 		for (const body of [
 			{ action: "edit" },
-			{ instanceId: getMemoryRuntime().id, action: "flush", family: "site-stats" },
+			{ instanceId: getMemoryRuntime().id, action: "flush", family: "home-display" },
 			{ padding: "x".repeat(4096) },
 		]) {
 			expect((await POST(request(body))).status).toBe(400);

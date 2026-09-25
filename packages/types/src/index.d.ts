@@ -1,3 +1,4 @@
+export * from "./daily-statistics";
 export type { CacheDescriptor, CacheEnvelope, CacheParams, CacheTier } from "./cache";
 export { CACHE_SCHEMA_VERSION, CACHE_TTL_SECONDS, getCacheTTL } from "./cache";
 export type { CheckinHistoryEntry, CheckinLevel, CheckinMood, UserCheckin, UserCheckinSummary, } from "./checkin";

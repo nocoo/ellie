@@ -1,25 +1,18 @@
-// Fresh forum-list context. Authority and page membership come from D1.
-// This route never reads or writes KV.
-
 import {
+	type DailyForumStatistics,
+	EMPTY_HOME_STATS,
 	type Forum,
 	type ForumListContextData,
 	type ForumListContextRequest,
 	type ForumListDisplay,
 	ForumType,
 	type ForumVisibility,
-	type HomeStats,
 	type HomeUser,
 	homeForumVisible,
 	type ReadingBucket,
 } from "@ellie/types";
 import { loadCatalogPage, loadThreadTypes, type ThreadTypesPayload } from "./cache/catalog-read";
-import { loadPublicStats } from "./cache/public-stats-read";
-import {
-	countLocalThreads,
-	getThreadListPage,
-	type ThreadListMember,
-} from "./cache/thread-list-read";
+import { getThreadListPage, type ThreadListMember } from "./cache/thread-list-read";
 import {
 	loadThreadAccessBatch,
 	loadThreadEntities,
@@ -27,10 +20,25 @@ import {
 	projectCurrentThread,
 	type ThreadAccess,
 } from "./cache/thread-loaders";
+import { readDailyStatistics } from "./daily-statistics";
 import type { Env } from "./env";
 import { deriveHomeBucket, selectAllowedForumIds } from "./home-read";
 import { enrichThreadsWithUserCache, parseModeratorIds, toThread } from "./mappers";
-import { shanghaiTodayStartUnix } from "./shanghaiTime";
+import {
+	decodeForumReadSnapshot,
+	encodeForumReadSnapshot,
+	isReadingConfig,
+	isReadingMembership,
+	isReadingRecommendations,
+	persistReadingSnapshot,
+	READING_CONFIG_TTL_MS,
+	READING_HOT_PAGES,
+	READING_MEMBERSHIP_TTL_MS,
+	READING_RECOMMENDED_TTL_MS,
+	type ReadingConfig,
+	type ReadingMembership,
+	restoreReadingSnapshot,
+} from "./reading-snapshots";
 import { loadUserMiniProfilesFromDb } from "./user-cache";
 import { STICKY_GLOBAL } from "./visibility";
 
@@ -113,70 +121,114 @@ export async function readForumListContext(
 	request: ForumListContextRequest,
 ): Promise<ForumListContextData> {
 	const bucket = deriveHomeBucket(user);
-	const forums = await loadBoundedForums(env);
-	const allowedIds = selectAllowedForumIds(forums, bucket);
-	const allowed = new Set(allowedIds);
-	const current = forums.find((row) => row.id === request.forumId);
-	if (current?.status !== 1) throw new ForumListAccessError(404);
-	if (!allowed.has(current.id)) {
-		const activeIds = selectAllowedForumIds(
-			forums.map(({ id, parent_id, status }) => ({
-				id,
-				parent_id,
-				status,
-				visibility: "public" as const,
-			})),
-			"anon",
+	const cached = await decodeForumReadSnapshot(env, request.cachedRead, request.forumId, bucket);
+	const configKey = `reading:v1:config:${request.forumId}:${bucket}`;
+	let config = await restoreReadingSnapshot(
+		env,
+		configKey,
+		READING_CONFIG_TTL_MS,
+		isReadingConfig,
+		cached?.config,
+	);
+	let forums: ForumAuthorityRow[] | undefined;
+	if (!config) {
+		forums = await loadBoundedForums(env);
+		const { current, allowed } = authorizeForums(forums, request.forumId, bucket);
+		config = await persistReadingSnapshot(
+			env,
+			configKey,
+			READING_CONFIG_TTL_MS,
+			await loadConfiguration(env, forums, allowed, current),
 		);
-		throw new ForumListAccessError(activeIds.includes(current.id) ? 403 : 404);
 	}
-	const [data, stats] = await Promise.all([
-		assemble(env, user, bucket, request, forums, allowed, current),
-		request.includeStats ? loadStats(env) : undefined,
+	const typeId = normalizeTypeId(request.typeId, config.data.threadTypes);
+	const group =
+		config.data.forums.find((row) => row.id === request.forumId)?.type === ForumType.Group;
+	const recommendedKey = `reading:v1:recommended:${request.forumId}`;
+	const pageKey = `reading:v1:page:${request.forumId}:${bucket}:${typeId ?? "all"}:${request.limit}:${request.page}`;
+	const cachePage = !group && request.page <= READING_HOT_PAGES;
+	const [savedRecommended, savedPage] = await Promise.all([
+		group
+			? null
+			: restoreReadingSnapshot(
+					env,
+					recommendedKey,
+					READING_RECOMMENDED_TTL_MS,
+					isReadingRecommendations,
+					cached?.recommended,
+				),
+		cachePage
+			? restoreReadingSnapshot(
+					env,
+					pageKey,
+					READING_MEMBERSHIP_TTL_MS,
+					(value): value is ReadingMembership =>
+						isReadingMembership(value) &&
+						value.page === request.page &&
+						value.limit === request.limit &&
+						value.typeId === typeId,
+					cached?.page,
+				)
+			: null,
 	]);
-	if (stats) data.stats = stats;
-	return data;
-}
-
-async function assemble(
-	env: Env,
-	user: HomeUser | null,
-	bucket: ReadingBucket,
-	request: ForumListContextRequest,
-	forums: readonly ForumAuthorityRow[],
-	allowed: Set<number>,
-	current: ForumAuthorityRow,
-): Promise<ForumListContextData> {
-	const group = current.type === ForumType.Group;
-	const [loadedTypes, recommended] = await Promise.all([
-		loadThreadTypes(env, current.id, MAX_TYPES + 1),
-		group ? [] : loadRecommended(env, current.id),
+	const announcements =
+		group || typeId !== null
+			? []
+			: (savedPage?.data.announcements ?? (await loadAnnouncements(env)));
+	forums ??= await loadScopedForums(env, [
+		request.forumId,
+		...config.data.forums.map((row) => row.id),
+		...announcements.map((row) => row.forum_id),
 	]);
-	const typeConfig = loadedTypes ?? EMPTY_TYPES;
-	if (typeConfig.types.length > MAX_TYPES) throw new ForumListBoundError();
-	const typeId = normalizeTypeId(request.typeId, typeConfig);
-	const { page, access } = group
-		? { page: emptyPage(), access: new Map<number, ThreadAccess>() }
-		: await loadVerifiedPage(env, request, typeId, allowed, bucket, recommended);
+	const { current, allowed } = authorizeForums(forums, request.forumId, bucket);
+	const eligibleAnnouncements = announcements.filter((row) => allowed.has(row.forum_id));
+	const recommended =
+		savedRecommended ??
+		(group
+			? { createdAt: Date.now(), data: [] }
+			: await persistReadingSnapshot(
+					env,
+					recommendedKey,
+					READING_RECOMMENDED_TTL_MS,
+					await loadRecommended(env, current.id),
+				));
+	let page = savedPage;
+	if (!page && current.type !== ForumType.Group) {
+		const loaded = await loadPage(env, request, typeId, eligibleAnnouncements);
+		const data: ReadingMembership = {
+			page: request.page,
+			limit: request.limit,
+			typeId,
+			window: loaded.window,
+			announcements: eligibleAnnouncements,
+		};
+		page = cachePage
+			? await persistReadingSnapshot(env, pageKey, READING_MEMBERSHIP_TTL_MS, data)
+			: { createdAt: Date.now(), data };
+	}
+	const access = await loadThreadAccessBatch(env, [
+		...(page?.data.window ?? []).map((row) => row.id),
+		...recommended.data.map((row) => row.id),
+	]);
+	const window = visiblePageMembers(
+		page?.data.window ?? [],
+		access,
+		current,
+		typeId,
+		allowed,
+		bucket,
+	);
 	const visible = {
-		members: page.window.slice(0, request.limit),
-		hasNext: page.window.length > request.limit,
+		members: window.slice(0, request.limit),
+		hasNext: window.length > request.limit,
 	};
-	const recommendedFlags = recommended.flatMap((row) => {
-		const gate = access.get(row.id);
-		return gate &&
-			gate.sticky >= 0 &&
-			gate.status === 1 &&
-			gate.forum_id === current.id &&
-			homeForumVisible(gate.visibility as ForumVisibility, bucket)
-			? [{ row, gate }]
-			: [];
-	});
+	const recommendedFlags = visibleRecommended(recommended.data, access, current, bucket);
 	const revision = await hashRevision({
 		query: { forumId: current.id, page: request.page, limit: request.limit, typeId },
 		bucket,
 		forums: relevantForums(forums, allowed, current.id),
-		types: typeConfig,
+		configurationTime: config.createdAt,
+		types: config.data.threadTypes,
 		page: visible.members.map((row) => pageFlag(row, access.get(row.id) as ThreadAccess)),
 		recommended: recommendedFlags.map(({ row, gate }) => ({
 			id: row.id,
@@ -185,31 +237,38 @@ async function assemble(
 			recommendedAt: row.recommendedAt,
 		})),
 	});
-	const bucketMismatch = request.cachedBucket !== bucket;
-	const typeNormalized = request.typeId !== typeId;
 	const forceDisplay =
 		request.includeDisplay ||
-		request.cachedRevision === null ||
 		request.cachedRevision !== revision ||
-		bucketMismatch ||
-		typeNormalized;
-	const needCount = request.includeCount || bucketMismatch || typeNormalized;
-	const [display, count] = await Promise.all([
+		request.cachedBucket !== bucket ||
+		request.typeId !== typeId;
+	const [display, statistics, readSnapshot] = await Promise.all([
 		forceDisplay
 			? loadDisplay(
 					env,
 					forums,
 					allowed,
 					current,
-					typeConfig,
+					config.data,
 					visible.members,
 					recommendedFlags,
 					access,
 				)
-			: Promise.resolve(undefined),
-		needCount
-			? loadCount(env, current.id, typeId, group, page.eligibleAnnouncements.length)
 			: undefined,
+		request.includeStats || request.includeCount ? readDailyStatistics(env) : undefined,
+		encodeForumReadSnapshot(env, {
+			forumId: current.id,
+			bucket,
+			config: {
+				...config,
+				data: { ...config.data, forums: config.data.forums.filter((row) => allowed.has(row.id)) },
+			},
+			recommended: { ...recommended, data: recommendedFlags.map(({ row }) => row) },
+			page:
+				cachePage && page
+					? { ...page, data: { ...page.data, window, announcements: eligibleAnnouncements } }
+					: null,
+		}),
 	]);
 	const data: ForumListContextData = {
 		bucket,
@@ -219,11 +278,132 @@ async function assemble(
 		limit: request.limit,
 		typeId,
 		hasNext: visible.hasNext,
-		announcementCount: page.eligibleAnnouncements.length,
+		announcementCount: eligibleAnnouncements.length,
+		readSnapshot,
+		display,
 	};
-	if (display) data.display = display;
-	if (count !== undefined) data.count = count;
+	if (request.includeStats) data.stats = statistics?.stats ?? { ...EMPTY_HOME_STATS };
+	if (request.includeCount)
+		data.count = estimateThreadCount(
+			statistics?.forums[current.id],
+			typeId,
+			eligibleAnnouncements.length,
+			current.type === ForumType.Group,
+		);
 	return data;
+}
+
+function visiblePageMembers(
+	members: readonly ThreadListMember[],
+	access: Map<number, ThreadAccess>,
+	current: ForumAuthorityRow,
+	typeId: number | null,
+	allowed: Set<number>,
+	bucket: ReadingBucket,
+): ThreadListMember[] {
+	if (current.type === ForumType.Group) return [];
+	return members.flatMap((row) => {
+		const gate = access.get(row.id);
+		return gate && pageVisible(gate, current.id, typeId, allowed, bucket)
+			? [{ ...row, sticky: gate.sticky }]
+			: [];
+	});
+}
+
+function visibleRecommended(
+	members: readonly RecommendedMember[],
+	access: Map<number, ThreadAccess>,
+	current: ForumAuthorityRow,
+	bucket: ReadingBucket,
+): { row: RecommendedMember; gate: ThreadAccess }[] {
+	if (current.type === ForumType.Group) return [];
+	return members.flatMap((row) => {
+		const gate = access.get(row.id);
+		return gate &&
+			gate.sticky >= 0 &&
+			gate.status === 1 &&
+			gate.forum_id === current.id &&
+			homeForumVisible(gate.visibility as ForumVisibility, bucket)
+			? [{ row, gate }]
+			: [];
+	});
+}
+
+function estimateThreadCount(
+	forum: DailyForumStatistics | undefined,
+	typeId: number | null,
+	announcements: number,
+	group: boolean,
+): number {
+	if (group) return 0;
+	if (typeId !== null) return forum?.types[typeId] ?? 0;
+	return Math.min(Number.MAX_SAFE_INTEGER, (forum?.threads ?? 0) + announcements);
+}
+
+function authorizeForums(
+	forums: readonly ForumAuthorityRow[],
+	forumId: number,
+	bucket: ReadingBucket,
+) {
+	const current = forums.find((row) => row.id === forumId);
+	if (current?.status !== 1) throw new ForumListAccessError(404);
+	const allowed = new Set(selectAllowedForumIds(forums, bucket));
+	if (!allowed.has(current.id)) {
+		const active = selectAllowedForumIds(
+			forums.map((row) => ({ ...row, visibility: "public" as const })),
+			"anon",
+		);
+		throw new ForumListAccessError(active.includes(current.id) ? 403 : 404);
+	}
+	return { current, allowed };
+}
+
+async function loadConfiguration(
+	env: Env,
+	forums: readonly ForumAuthorityRow[],
+	allowed: Set<number>,
+	current: ForumAuthorityRow,
+): Promise<ReadingConfig> {
+	const relevant = relevantForums(forums, allowed, current.id);
+	const [display, names, loadedTypes] = await Promise.all([
+		loadForumDisplayRows(
+			env,
+			relevant.map((row) => row.id),
+		),
+		loadModeratorNames(env, relevant),
+		loadThreadTypes(env, current.id, MAX_TYPES + 1),
+	]);
+	const threadTypes = loadedTypes ?? EMPTY_TYPES;
+	if (threadTypes.types.length > MAX_TYPES) throw new ForumListBoundError();
+	return {
+		forums: relevant.flatMap((row) => {
+			const text = display.get(row.id);
+			return text ? [projectForum({ ...text, ...row }, 0, names)] : [];
+		}),
+		threadTypes,
+	};
+}
+
+async function loadScopedForums(env: Env, ids: number[]): Promise<ForumAuthorityRow[]> {
+	const result = await env.DB.prepare(`WITH RECURSIVE authority AS (
+		SELECT id, parent_id, status, visibility, display_order, type,
+			CASE WHEN length(moderator_ids) <= ${MAX_MODERATOR_IDS_LENGTH} THEN moderator_ids ELSE NULL END AS moderator_ids
+		FROM forums WHERE id IN (SELECT value FROM json_each(?))
+		UNION
+		SELECT f.id, f.parent_id, f.status, f.visibility, f.display_order, f.type,
+			CASE WHEN length(f.moderator_ids) <= ${MAX_MODERATOR_IDS_LENGTH} THEN f.moderator_ids ELSE NULL END
+		FROM forums f JOIN authority a ON f.id = a.parent_id
+		LIMIT ${FORUM_LIST_AUTHORITY_LIMIT}
+	) SELECT * FROM authority ORDER BY id`)
+		.bind(JSON.stringify([...new Set(ids)]))
+		.all<ForumAuthorityRow>();
+	if (!result.success) throw new Error("Forum authority could not be loaded");
+	if (
+		result.results.length > FORUM_LIST_AUTHORITY_MAX ||
+		result.results.some((row) => row.moderator_ids === null)
+	)
+		throw new ForumListBoundError();
+	return result.results;
 }
 
 async function loadBoundedForums(env: Env): Promise<ForumAuthorityRow[]> {
@@ -248,10 +428,8 @@ async function loadPage(
 	env: Env,
 	request: ForumListContextRequest,
 	typeId: number | null,
-	allowed: Set<number>,
+	eligibleAnnouncements: AnnouncementRow[],
 ): Promise<PageSlice> {
-	const eligibleAnnouncements =
-		typeId === null ? await loadEligibleAnnouncements(env, allowed) : [];
 	const loaded = await getThreadListPage(
 		env,
 		undefined,
@@ -272,14 +450,7 @@ async function loadPage(
 	};
 }
 
-function emptyPage(): PageSlice {
-	return { window: [], eligibleAnnouncements: [] };
-}
-
-async function loadEligibleAnnouncements(
-	env: Env,
-	allowed: Set<number>,
-): Promise<ThreadListMember[]> {
+async function loadAnnouncements(env: Env): Promise<AnnouncementRow[]> {
 	const result = await env.DB.prepare(
 		`SELECT t.id, t.sticky, t.last_post_at, t.forum_id
 		 FROM threads t
@@ -290,9 +461,7 @@ async function loadEligibleAnnouncements(
 	).all<AnnouncementRow>();
 	if (!result.success) throw new Error("Announcements could not be loaded");
 	if (result.results.length > FORUM_LIST_ANNOUNCEMENT_MAX) throw new ForumListBoundError();
-	return result.results
-		.filter((row) => row.sticky === STICKY_GLOBAL && allowed.has(row.forum_id))
-		.map((row) => ({ id: row.id, sticky: row.sticky, last_post_at: row.last_post_at }));
+	return result.results;
 }
 
 async function loadRecommended(env: Env, forumId: number): Promise<RecommendedMember[]> {
@@ -302,33 +471,6 @@ async function loadRecommended(env: Env, forumId: number): Promise<RecommendedMe
 		params: { forumId },
 	});
 	return page.items.map(({ id, recommendedAt }) => ({ id, recommendedAt: recommendedAt ?? 0 }));
-}
-
-async function loadVerifiedPage(
-	env: Env,
-	request: ForumListContextRequest,
-	typeId: number | null,
-	allowed: Set<number>,
-	bucket: ReadingBucket,
-	recommended: readonly RecommendedMember[],
-): Promise<{ page: PageSlice; access: Map<number, ThreadAccess> }> {
-	for (let attempt = 0; attempt < 2; attempt++) {
-		const page = await loadPage(env, request, typeId, allowed);
-		const access = await loadThreadAccessBatch(env, [
-			...page.window.map((row) => row.id),
-			...recommended.map((row) => row.id),
-		]);
-		if (
-			page.window.every((row) => {
-				const gate = access.get(row.id);
-				return (
-					gate?.sticky === row.sticky && pageVisible(gate, request.forumId, typeId, allowed, bucket)
-				);
-			})
-		)
-			return { page, access };
-	}
-	throw new ForumListBoundError("Forum list changed during read");
 }
 
 function pageVisible(
@@ -354,24 +496,12 @@ function normalizeTypeId(typeId: number | null, config: ThreadTypesPayload): num
 	return config.types.some((row) => row.id === typeId) ? typeId : null;
 }
 
-async function loadCount(
-	env: Env,
-	forumId: number,
-	typeId: number | null,
-	group: boolean,
-	eligibleAnnouncements: number,
-): Promise<number> {
-	if (group) return 0;
-	const local = await countLocalThreads(env, forumId, typeId);
-	return typeId === null ? eligibleAnnouncements + local : local;
-}
-
 async function loadDisplay(
 	env: Env,
 	forums: readonly ForumAuthorityRow[],
 	allowed: Set<number>,
 	current: ForumAuthorityRow,
-	typeConfig: ThreadTypesPayload,
+	config: ReadingConfig,
 	members: readonly ThreadListMember[],
 	recommended: readonly { row: RecommendedMember; gate: ThreadAccess }[],
 	access: Map<number, ThreadAccess>,
@@ -380,18 +510,9 @@ async function loadDisplay(
 	const topicIds = [
 		...new Set([...members.map((row) => row.id), ...recommended.map(({ row }) => row.id)]),
 	];
-	const [forumDisplay, entities, stats, today, names] = await Promise.all([
-		loadForumDisplayRows(
-			env,
-			relevant.map((row) => row.id),
-		),
+	const [entities, stats] = await Promise.all([
 		loadThreadEntities(env, topicIds),
 		loadThreadStats(env, topicIds),
-		loadTodayCounts(
-			env,
-			relevant.map((row) => row.id),
-		),
-		loadModeratorNames(env, relevant),
 	]);
 	const topics = topicIds.flatMap((id) => {
 		const entity = entities.get(id);
@@ -411,14 +532,24 @@ async function loadDisplay(
 			.slice()
 			.sort((a, b) => a.display_order - b.display_order || a.id - b.id)
 			.flatMap((row) => {
-				const display = forumDisplay.get(row.id);
-				return display ? [projectForum({ ...display, ...row }, today.get(row.id) ?? 0, names)] : [];
+				const display = config.forums.find((entry) => entry.id === row.id);
+				return display
+					? [
+							{
+								...display,
+								parentId: row.parent_id,
+								status: row.status,
+								visibility: row.visibility,
+								type: row.type as ForumType,
+							},
+						]
+					: [];
 			}),
 		threads: members.flatMap(({ id }) => {
 			const thread = byId.get(id);
 			return thread ? [thread] : [];
 		}),
-		threadTypes: typeConfig,
+		threadTypes: config.threadTypes,
 		recommended: recommended.flatMap(({ row }) => {
 			const thread = byId.get(row.id);
 			return thread
@@ -542,23 +673,6 @@ function pageFlag(row: ThreadListMember, gate: ThreadAccess) {
 	};
 }
 
-async function loadTodayCounts(env: Env, ids: readonly number[]): Promise<Map<number, number>> {
-	const counts = new Map<number, number>();
-	if (ids.length === 0) return counts;
-	const result = await env.DB.prepare(
-		`SELECT forum_id, COUNT(*) AS cnt
-		 FROM threads INDEXED BY idx_threads_created
-		 WHERE created_at >= ? AND sticky >= 0
-		   AND forum_id IN (SELECT value FROM json_each(?))
-		 GROUP BY forum_id`,
-	)
-		.bind(shanghaiTodayStartUnix(), JSON.stringify(ids))
-		.all<{ forum_id: number; cnt: number }>();
-	if (!result.success) throw new Error("Forum counters could not be loaded");
-	for (const row of result.results) counts.set(row.forum_id, nonnegative(row.cnt));
-	return counts;
-}
-
 async function loadModeratorNames(
 	env: Env,
 	forums: readonly ForumAuthorityRow[],
@@ -583,15 +697,6 @@ async function loadModeratorNames(
 		for (const row of result.results) names.set(row.id, row.username);
 	}
 	return names;
-}
-
-async function loadStats(env: Env): Promise<HomeStats | undefined> {
-	try {
-		return await loadPublicStats(env);
-	} catch {
-		console.warn("[forum-list-context] Statistics unavailable; omitted from response");
-		return undefined;
-	}
 }
 
 async function hashRevision(value: unknown): Promise<string> {

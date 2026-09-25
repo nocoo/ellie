@@ -1,8 +1,8 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import { CacheLoadLimitError } from "./lib/cache/wrap";
+import { refreshDailyStatistics } from "./lib/daily-statistics";
 import type { CFRequest, Env } from "./lib/env";
-import { checkAndRolloverDailyStats } from "./lib/stats-rollover";
 import { validateApiKey } from "./middleware/apiKey";
 import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
@@ -24,7 +24,7 @@ export default {
 		configureAllowedOrigins(env.ALLOWED_ORIGINS);
 
 		// CORS preflight
-		if (request.method === "OPTIONS" && path !== "/api/internal/statistics/batch") {
+		if (request.method === "OPTIONS" && !path.startsWith("/api/internal/statistics/")) {
 			return new Response(null, {
 				status: 204,
 				headers: corsHeaders(origin),
@@ -37,6 +37,24 @@ export default {
 			// ── #1 Health check (no auth, no cache) ──────────
 			if (path === "/api/live" && request.method === "GET") {
 				return await (await import("./handlers/live")).live(request, env);
+			}
+
+			if (path === "/api/internal/statistics/snapshot" && request.method === "GET") {
+				return await (
+					await import("./handlers/internal/statisticsSnapshot")
+				).statisticsSnapshotHandler(request, env);
+			}
+
+			if (path === "/api/internal/statistics/snapshot" && request.method === "POST") {
+				return await (
+					await import("./handlers/internal/statisticsSnapshot")
+				).statisticsSnapshotHandler(request, env);
+			}
+
+			if (path === "/api/internal/statistics/snapshot") {
+				return await (
+					await import("./handlers/internal/statisticsSnapshot")
+				).statisticsSnapshotHandler(request, env);
 			}
 
 			if (path === "/api/internal/statistics/batch" && request.method !== "POST") {
@@ -836,43 +854,20 @@ export default {
 		}
 	},
 
-	/**
-	 * Scheduled handler — dispatched on `event.cron` to keep jobs independent.
-	 *
-	 *   - "* /5 * * * *"  → checkAndRolloverDailyStats
-	 *   - "0 19 * * *"    → cleanupLoginHistory  (19:00 UTC = 03:00 Asia/Shanghai)
-	 *
-	 * (The first cron string is escaped above so this JSDoc block does not
-	 * close prematurely; the real schedule in wrangler.toml has no space.)
-	 *
-	 * Each job is fired through `ctx.waitUntil` so the scheduled invocation
-	 * returns immediately; failures inside one job log via the worker's
-	 * scheduled-error path but never block the other.
-	 */
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-		switch (event.cron) {
-			case "*/5 * * * *":
-				ctx.waitUntil(
-					checkAndRolloverDailyStats(env).catch((err) => {
-						console.warn("[cron] checkAndRolloverDailyStats failed", err);
-					}),
-				);
-				return;
-			case "0 19 * * *":
-				ctx.waitUntil(
-					cleanupLoginHistory(env).catch((err) => {
-						// Surface to the platform log — cron retention failure is
-						// operational, never user-visible.
-						console.warn("[cron] cleanupLoginHistory failed", err);
-					}),
-				);
-
-				return;
-			default:
-				// Unknown cron — log so an accidental wrangler.toml drift is
-				// surfaced rather than silently swallowed.
-				console.warn("[cron] unknown schedule fired", { cron: event.cron });
-				return;
+		if (event.cron !== "0 19 * * *") {
+			console.warn("[cron] unknown schedule fired", { cron: event.cron });
+			return;
 		}
+		ctx.waitUntil(
+			refreshDailyStatistics(env).catch((err) => {
+				console.warn("[cron] refreshDailyStatistics failed", err);
+			}),
+		);
+		ctx.waitUntil(
+			cleanupLoginHistory(env).catch((err) => {
+				console.warn("[cron] cleanupLoginHistory failed", err);
+			}),
+		);
 	},
 };

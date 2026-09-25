@@ -5,10 +5,14 @@ import {
 	rebuildThreadListCache,
 	type ThreadListQuery,
 } from "../../../../src/lib/cache/thread-list-read";
+import {
+	recordStatisticsDelta,
+	refreshDailyStatistics,
+} from "../../../../src/lib/daily-statistics";
 import { readingFixture } from "./thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
-beforeEach(() => {
+beforeEach(async () => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(new Date("2026-09-17T00:00:00Z"));
 	f = readingFixture();
@@ -17,6 +21,10 @@ beforeEach(() => {
 	f.thread(901, { forum_id: 2, sticky: 2, last_post_at: 900 });
 	f.thread(902, { forum_id: 2, sticky: 2, last_post_at: 901 });
 	f.thread(903, { forum_id: 2, sticky: 2, last_post_at: 902 });
+	await refreshDailyStatistics(f.env);
+	f.calls.length = 0;
+	vi.mocked(f.env.KV.get).mockClear();
+	vi.mocked(f.env.KV.put).mockClear();
 });
 afterEach(() => {
 	f.close();
@@ -28,25 +36,25 @@ function query(overrides: Partial<ThreadListQuery> = {}): ThreadListQuery {
 }
 
 describe("all thread-list memberships", () => {
-	it("refreshes counts immediately while membership retains its minute lifetime", async () => {
+	it("uses optimistic snapshot counts while membership retains its minute lifetime", async () => {
 		const start = Date.now();
 		const initial = await getThreadListPage(f.env, undefined, query());
 		expect(initial.total).toBe(183);
 		const membership = f.snapshots("thread:list");
 		f.thread(999, { last_post_at: 9999 });
+		await recordStatisticsDelta(f.env, { kind: "thread", forumId: 1 });
 		f.calls.length = 0;
 		const warm = await getThreadListPage(f.env, undefined, query());
 		expect(warm.items).toEqual(initial.items);
 		expect(warm.total).toBe(184);
-		expect(f.calls).toHaveLength(1);
-		expect(f.calls[0].sql).toContain("COUNT(*)");
+		expect(f.calls).toHaveLength(0);
 		expect(f.snapshots("thread:list")).toEqual(membership);
 		vi.setSystemTime(start + 60_000);
 		f.calls.length = 0;
 		const updated = await getThreadListPage(f.env, undefined, query());
 		expect(updated.items.some((item) => item.id === 999)).toBe(true);
 		expect(updated.total).toBe(184);
-		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(1);
+		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(0);
 		expect(f.snapshots("thread:count")).toEqual([]);
 	});
 	it.each([1, 2, 17, 20, 25, 50, 99, 100])(
@@ -66,8 +74,7 @@ describe("all thread-list memberships", () => {
 				expect(result.total).toBe(183);
 				f.calls.length = 0;
 				expect(await getThreadListPage(f.env, undefined, params)).toEqual(result);
-				expect(f.calls).toHaveLength(1);
-				expect(f.calls[0].sql).toContain("COUNT(*)");
+				expect(f.calls).toHaveLength(0);
 			}
 		},
 	);
@@ -123,14 +130,13 @@ describe("all thread-list memberships", () => {
 		vi.setSystemTime(Date.now() + 59_999);
 		f.calls.length = 0;
 		await getThreadListPage(f.env, undefined, query({ page: 1 }));
-		expect(f.calls).toHaveLength(1);
-		expect(f.calls[0].sql).toContain("COUNT(*)");
+		expect(f.calls).toHaveLength(0);
 		expect(f.snapshots("thread:list")).toEqual(original);
 		f.calls.length = 0;
 		vi.setSystemTime(Date.now() + 1);
 		await getThreadListPage(f.env, undefined, query());
-		expect(f.calls).toHaveLength(3);
-		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(1);
+		expect(f.calls).toHaveLength(2);
+		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(0);
 	});
 
 	it("rebuild rejects injected parameters and has no KV I/O", async () => {
@@ -167,7 +173,7 @@ describe("all thread-list memberships", () => {
 				items: [membership.items[0], membership.items[0]],
 			}),
 		).toBe(false);
-		expect(f.values.size).toBe(0);
+		expect(f.values.size).toBe(1);
 		f.calls.length = 0;
 		for (const params of [
 			{ ...descriptor.params, limit: "20 OFFSET 0" },

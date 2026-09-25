@@ -36,7 +36,7 @@ describe("HomeFooter", () => {
 
 	it("shows approximate recent activity without a historical peak", () => {
 		const { container } = render(createElement(HomeFooter, { vm: makeVm() }));
-		expect(container.textContent).toContain("最近 30 分钟活跃会员约");
+		expect(container.textContent).toContain("上次统计时活跃会员约");
 		expect(screen.getByText("42")).toBeTruthy();
 		expect(container.textContent).not.toContain("最高记录");
 		expect(container.textContent).not.toContain("2011-9-29");

@@ -1,5 +1,4 @@
-// Historical cumulative counters are incremented atomically in D1.
-// Daily statistics are recovered from posts(created_at), with no per-post KV write.
+import { recordStatisticsDelta } from "./daily-statistics";
 import type { Env } from "./env";
 
 async function incrementCounters(env: Env, keys: string[]): Promise<void> {
@@ -10,14 +9,21 @@ async function incrementCounters(env: Env, keys: string[]): Promise<void> {
 		.run();
 }
 
-export function incrementStatsOnThreadCreate(env: Env): Promise<void> {
-	return incrementCounters(env, ["stats.total_threads", "stats.total_posts"]);
+export async function incrementStatsOnThreadCreate(
+	env: Env,
+	forumId?: number,
+	typeId?: number,
+): Promise<void> {
+	await incrementCounters(env, ["stats.total_threads", "stats.total_posts"]);
+	await recordStatisticsDelta(env, { kind: "thread", forumId, typeId });
 }
 
-export function incrementStatsOnPostCreate(env: Env): Promise<void> {
-	return incrementCounters(env, ["stats.total_posts"]);
+export async function incrementStatsOnPostCreate(env: Env, forumId?: number): Promise<void> {
+	await incrementCounters(env, ["stats.total_posts"]);
+	await recordStatisticsDelta(env, { kind: "post", forumId });
 }
 
-export function incrementStatsOnUserRegister(env: Env): Promise<void> {
-	return incrementCounters(env, ["stats.total_members"]);
+export async function incrementStatsOnUserRegister(env: Env): Promise<void> {
+	await incrementCounters(env, ["stats.total_members"]);
+	await recordStatisticsDelta(env, { kind: "member" });
 }

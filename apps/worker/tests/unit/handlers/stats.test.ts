@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicStats } from "../../../src/handlers/stats";
 import { stats } from "../../../src/handlers/stats";
+import { refreshDailyStatistics } from "../../../src/lib/daily-statistics";
 import { shanghaiTodayStartUnix } from "../../../src/lib/shanghaiTime";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
@@ -30,7 +31,7 @@ describe("public stats handler", () => {
 	});
 
 	describe("GET /api/v1/stats", () => {
-		it("should return correct stats from settings and posts count when cache is empty", async () => {
+		it("returns persisted snapshot statistics without rebuilding on access", async () => {
 			f.sqlite
 				.prepare("UPDATE settings SET value = '3000' WHERE key = 'stats.total_threads'")
 				.run();
@@ -46,6 +47,9 @@ describe("public stats handler", () => {
 			for (let i = 0; i < 5; i++) {
 				f.post(100 + i, { created_at: todayStart + i * 10 });
 			}
+			for (let i = 0; i < 12; i++) f.post(200 + i, { created_at: todayStart - i - 1 });
+			await refreshDailyStatistics(f.env);
+			const queries = f.calls.length;
 
 			const request = createRequest();
 			const response = await stats(request, f.env, f.ctx);
@@ -62,6 +66,7 @@ describe("public stats handler", () => {
 			expect(data.totalOnline).toBe(0);
 			expect(data.peakOnline).toBe(0);
 			expect(data.peakDate).toBe("");
+			expect(f.calls).toHaveLength(queries);
 		});
 
 		it("should include meta with timestamp and requestId", async () => {
@@ -74,14 +79,18 @@ describe("public stats handler", () => {
 			expect(typeof body.meta.requestId).toBe("string");
 		});
 
-		it("reads active members from D1 and performs no KV I/O", async () => {
+		it("returns the daily activity snapshot without querying live membership", async () => {
 			f.sqlite
 				.prepare("UPDATE users SET last_activity=? WHERE id=10")
 				.run(Math.floor(Date.now() / 1000));
+			await refreshDailyStatistics(f.env);
+			f.sqlite.prepare("UPDATE users SET last_activity=0 WHERE id=10").run();
+			const queries = f.calls.length;
+			vi.mocked(f.env.KV.put).mockClear();
 			const response = await stats(createRequest(), f.env, f.ctx);
 			expect(response.status).toBe(200);
 			expect((await response.json()).data.totalOnline).toBe(1);
-			expect(f.env.KV.get).not.toHaveBeenCalled();
+			expect(f.calls).toHaveLength(queries);
 			expect(f.env.KV.put).not.toHaveBeenCalled();
 		});
 	});

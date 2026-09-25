@@ -400,13 +400,16 @@ function buildReport(): CoverageReport {
 	const unmatched: L2Call[] = [];
 	const negativeAuthProbes: L2Call[] = [];
 	for (const c of calls) {
-		// These two deliberate middleware probes never exercise an endpoint.
+		// These deliberate middleware/protocol probes never exercise an endpoint.
 		// Classify only the known source/path/method; keep every router entry
 		// in the denominator, and keep all other unmatched calls strict errors.
 		if (
-			c.file === "tests/integration/fast/api-key.fast.test.ts" &&
-			c.method === "GET" &&
-			c.rawPath === "/foo/bar"
+			(c.file === "tests/integration/fast/api-key.fast.test.ts" &&
+				c.method === "GET" &&
+				c.rawPath === "/foo/bar") ||
+			(c.file === "tests/integration/http/memory-statistics.test.ts" &&
+				c.method === "OPTIONS" &&
+				c.rawPath === "/api/internal/statistics/snapshot")
 		) {
 			negativeAuthProbes.push(c);
 			continue;
@@ -457,7 +460,7 @@ function printSummary(rep: CoverageReport): void {
 	console.log(`Routes uncovered  : ${rep.missRoutes.length}`);
 	console.log(`Exemptions        : ${rep.exempt.length}`);
 	console.log(`Unmatched calls   : ${rep.unmatchedCalls.length}`);
-	console.log(`Negative auth probes: ${rep.negativeAuthProbes.length} (not endpoint coverage)`);
+	console.log(`Negative boundary probes: ${rep.negativeAuthProbes.length} (not endpoint coverage)`);
 	console.log("");
 	if (rep.missRoutes.length) {
 		console.log("Uncovered (method, pattern):");
@@ -477,7 +480,7 @@ function printSummary(rep: CoverageReport): void {
 	}
 	if (rep.negativeAuthProbes.length) {
 		console.log("");
-		console.log("Negative auth probes (excluded from endpoint coverage):");
+		console.log("Negative boundary probes (excluded from endpoint coverage):");
 		for (const c of rep.negativeAuthProbes) {
 			console.log(`  - ${c.method.padEnd(6)} ${c.templatePath}    (${c.file}:${c.line})`);
 		}
@@ -528,7 +531,9 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push(`| Routes uncovered | **${rep.missRoutes.length}** |`);
 	lines.push(`| Exemptions | ${rep.exempt.length} |`);
 	lines.push(`| Unmatched test calls | ${rep.unmatchedCalls.length} |`);
-	lines.push(`| Negative auth probes (not endpoint coverage) | ${rep.negativeAuthProbes.length} |`);
+	lines.push(
+		`| Negative boundary probes (not endpoint coverage) | ${rep.negativeAuthProbes.length} |`,
+	);
 	lines.push("");
 	lines.push("## 2. Parser contract");
 	lines.push("");
@@ -634,7 +639,7 @@ function renderMarkdown(rep: CoverageReport): string {
 		}
 	}
 	lines.push("");
-	lines.push("## 7. Negative auth probes");
+	lines.push("## 7. Negative boundary probes");
 	lines.push("");
 	lines.push("These middleware assertions are not endpoint coverage or route exemptions.");
 	lines.push("");

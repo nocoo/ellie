@@ -10,10 +10,10 @@ import {
 	type ReadingBucket,
 	UserRole,
 } from "@ellie/types";
+import { getDailyStatistics } from "./daily-statistics";
 import { forumApi } from "./forum-api";
 import { getCurrentForumUser, getWorkerJwt } from "./forum-auth";
 import type { ForumListLocation } from "./forum-list-location";
-import { threadCountKey } from "./forum-reading";
 import { getMemoryRuntime, type MemoryRuntime } from "./memory-runtime";
 
 type ListParams = ForumListLocation & { limit: number };
@@ -86,12 +86,10 @@ async function readContext(
 	const { forumId, page, limit, typeId } = params;
 	const key = forumListCacheKey(hint, forumId, page, limit, typeId);
 	const displayToken = runtime.capture("forum-list");
-	const statsToken = runtime.capture("site-stats");
-	const countToken = runtime.capture("thread-count");
+	const readToken = runtime.capture("forum-read");
+	const cachedRead = runtime.peek<string>("forum-read", key);
 	const cached = forceDisplay ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
-	const cachedStats = runtime.peek<HomeStats>("site-stats", "site:v1");
-	const countKey = threadCountKey(forumId, typeId);
-	const cachedCount = runtime.peek<number>("thread-count", countKey);
+	const daily = await getDailyStatistics().read();
 	const { data } = await forumApi.postRead<ForumListContextData>(
 		FORUM_LIST_CONTEXT_PATH,
 		{
@@ -99,36 +97,26 @@ async function readContext(
 			cachedBucket: hint,
 			cachedRevision: cached?.revision ?? null,
 			includeDisplay: !cached,
-			includeStats: cachedStats === undefined,
-			includeCount: cachedCount === undefined,
+			includeStats: false,
+			includeCount: false,
+			cachedRead: cachedRead ?? null,
 		},
 		jwt ?? undefined,
 	);
 	validateContext(data, params);
 	const sameKey = data.bucket === hint && data.typeId === typeId;
-	const sameCountKey = data.typeId === typeId;
 	const current =
 		data.display || forceDisplay ? undefined : runtime.peek<ForumListSnapshot>("forum-list", key);
-	const currentCount =
-		data.count === undefined && sameCountKey
-			? runtime.peek<number>("thread-count", countKey)
-			: undefined;
 	const reusable = sameKey && current?.revision === data.revision;
 	const lostDisplay = !data.display && sameKey && cached?.revision === data.revision && !reusable;
-	const lostCount =
-		data.count === undefined &&
-		sameCountKey &&
-		cachedCount !== undefined &&
-		currentCount === undefined;
-	if (!forceDisplay && (lostDisplay || lostCount)) return readContext(runtime, params, true);
+	if (!forceDisplay && lostDisplay) return readContext(runtime, params, true);
 	const display = data.display ?? (reusable ? current.display : undefined);
 	validateDisplay(display, forumId, limit);
-	const localCount = data.count === undefined ? currentCount : data.count - data.announcementCount;
-	if (localCount === undefined || !Number.isSafeInteger(localCount) || localCount < 0) {
-		throw new Error("Invalid forum list count");
-	}
+	const forumStats = daily?.forums[forumId];
+	const localCount =
+		data.typeId === null ? (forumStats?.threads ?? 0) : (forumStats?.types[data.typeId] ?? 0);
 	const total = localCount + data.announcementCount;
-	if (!Number.isSafeInteger(total)) throw new Error("Invalid forum list count");
+	if (!Number.isSafeInteger(total) || total < 0) throw new Error("Invalid forum list count");
 	if (data.display) {
 		runtime.admit(
 			forumListCacheKey(data.bucket, forumId, page, limit, data.typeId),
@@ -139,15 +127,31 @@ async function readContext(
 			displayToken,
 		);
 	}
-	if (data.stats) runtime.admit("site:v1", data.stats, statsToken);
-	if (data.count !== undefined)
-		runtime.admit(threadCountKey(forumId, data.typeId), localCount, countToken);
+	if (typeof data.readSnapshot === "string") {
+		runtime.admit(
+			forumListCacheKey(data.bucket, forumId, page, limit, data.typeId),
+			data.readSnapshot,
+			readToken,
+		);
+	}
 	if (data.user) runtime.recordActivity(data.user.id);
+	const { readSnapshot: _readSnapshot, ...publicData } = data;
 	return {
-		...data,
+		...publicData,
 		forumId,
-		display,
+		display: {
+			...display,
+			forums: display.forums.map((forum) => {
+				const values = daily?.forums[forum.id];
+				return {
+					...forum,
+					threads: values?.threads ?? 0,
+					posts: values?.posts ?? 0,
+					todayThreads: values?.todayThreads ?? 0,
+				};
+			}),
+		},
 		total,
-		stats: data.stats ?? runtime.peek<HomeStats>("site-stats", "site:v1"),
+		stats: daily?.stats,
 	};
 }

@@ -10,7 +10,7 @@ export const POST = proxyRoute<{ id: string }>({
 	path: ({ id }) => `/api/v1/moderation/users/${id}/nuke`,
 	body: "empty",
 	transform: (result) => {
-		invalidateDisplayAfterWrite({ forumSummaries: true, threadCounts: true, siteStats: true });
+		invalidateDisplayAfterWrite({ forumSummaries: true });
 		return result;
 	},
 	debugTag: "moderation/users/[id]/nuke/route",

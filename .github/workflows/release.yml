@@ -35,6 +35,15 @@ jobs:
           sleep 3
           if [ "$i" = "10" ]; then echo "❌ web failed to come up"; docker logs --tail 80 ellie-web; exit 1; fi
         done
+        docker exec ellie-web bun -e '
+          const origin = process.env.WORKER_API_URL;
+          const key = process.env.WEB_STATISTICS_WRITE_KEY;
+          if (!origin || !key) throw new Error("Daily statistics transport is not configured");
+          const r = await fetch(new URL("/api/internal/statistics/snapshot", origin), {
+            headers: {"X-Ellie-Statistics-Key": key}, signal: AbortSignal.timeout(10000)
+          });
+          if (!r.ok || !(await r.json()).data) throw new Error("Daily statistics snapshot is unavailable");
+          console.log("Daily statistics snapshot verified");'
         # Health check — admin
         for i in 1 2 3 4 5 6 7 8 9 10; do
           if docker exec ellie-admin bun -e \

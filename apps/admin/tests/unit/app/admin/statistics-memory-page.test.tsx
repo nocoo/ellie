@@ -28,7 +28,7 @@ function makeOverview(overrides: Partial<MemoryCacheOverview> = {}): MemoryCache
 		},
 		families: [
 			{
-				id: "site-stats",
+				id: "forum-read",
 				entries: 1,
 				maxEntries: 1,
 				hits: 4,
@@ -48,7 +48,7 @@ function makeOverview(overrides: Partial<MemoryCacheOverview> = {}): MemoryCache
 		],
 		entries: [
 			{
-				family: "site-stats",
+				family: "forum-read",
 				key: "site:1",
 				createdAt: "2026-09-23T09:01:00.000Z",
 				expiresAt: "2026-09-23T09:06:00.000Z",
@@ -169,11 +169,11 @@ describe("MemoryCachePage", () => {
 		);
 		fireEvent.click(screen.getByRole("button", { name: "刷新" }));
 		fireEvent.click(screen.getByRole("combobox", { name: "按家族筛选条目" }));
-		fireEvent.click(await screen.findByRole("option", { name: "主题计数" }));
+		fireEvent.click(await screen.findByRole("option", { name: "版块列表" }));
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		resolveOld(jsonResponse(200, { data: makeOverview() }));
 		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-		expect(getRequests()[2].url).toContain("family=thread-count");
+		expect(getRequests()[2].url).toContain("family=forum-list");
 	});
 
 	it("renders instance, families, entries, buffers and history from one overview", async () => {
@@ -182,7 +182,7 @@ describe("MemoryCachePage", () => {
 		expect(await screen.findByText("实例信息")).toBeTruthy();
 		expect(screen.getByText("web-instance-1")).toBeTruthy();
 		expect(screen.getByText("缓存家族")).toBeTruthy();
-		expect(screen.getByText("站点统计")).toBeTruthy();
+		expect(screen.getByText("版块读取快照")).toBeTruthy();
 		expect(screen.getByText("版块摘要")).toBeTruthy();
 		expect(screen.getByText("缓存条目")).toBeTruthy();
 		expect(screen.getByText("site:1")).toBeTruthy();
@@ -222,7 +222,7 @@ describe("MemoryCachePage", () => {
 			JSON.stringify({
 				instanceId: "web-instance-1",
 				action: "clear",
-				family: "site-stats",
+				family: "forum-read",
 				key: "site:1",
 			}),
 		);
@@ -254,7 +254,7 @@ describe("MemoryCachePage", () => {
 		render(<Page />);
 		await screen.findByText("实例信息");
 		fireEvent.click(screen.getAllByRole("button", { name: "清除整组" })[0]);
-		const dialog = screen.getByRole("dialog", { name: "清除家族 站点统计" });
+		const dialog = screen.getByRole("dialog", { name: "清除家族 版块读取快照" });
 		fetchMock.mockImplementationOnce(() =>
 			Promise.resolve(
 				jsonResponse(502, {

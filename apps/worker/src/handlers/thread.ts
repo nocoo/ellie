@@ -597,7 +597,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	]);
 	// Ordinary creation leaves SHORT list/summary snapshots alive. The
 	// submitter receives the committed entity directly below.
-	await incrementStatsOnThreadCreate(env).catch((error) =>
+	await incrementStatsOnThreadCreate(env, forumId, insertTypeId).catch((error) =>
 		console.warn("[thread:create] stats counter increment failed", error),
 	);
 

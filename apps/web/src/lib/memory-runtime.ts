@@ -35,7 +35,6 @@ const THREAD_DETAIL_ENTRY_BYTES = 256 * 1024;
 const THREAD_DETAIL_PAYLOAD_BYTES = 4 * 1024 * 1024;
 const DEFAULT_ENTRY_BYTES = 16 * 1024;
 const THIRTY_MINUTES_MS = 30 * 60_000;
-const THREAD_COUNT_TTL_MS = 6 * 60 * 60_000;
 
 interface Entry {
 	value: unknown;
@@ -283,14 +282,13 @@ export class MemoryRuntime {
 			return false;
 		const isHomeDisplay = token.family === "home-display";
 		const isForumList = token.family === "forum-list";
+		const isForumRead = token.family === "forum-read";
 		const isThreadDetail = token.family === "thread-detail";
 		const ttl =
-			token.family === "thread-count"
-				? THREAD_COUNT_TTL_MS
-				: isHomeDisplay || isForumList || isThreadDetail
-					? THIRTY_MINUTES_MS
-					: MEMORY_CACHE_TTL_MS;
-		const expiresAt = Math.min(token.startedAt + ttl, (day(now) + 1) * DAY_MS - SHANGHAI_OFFSET);
+			isHomeDisplay || isForumList || isThreadDetail ? THIRTY_MINUTES_MS : MEMORY_CACHE_TTL_MS;
+		const expiresAt = isForumRead
+			? token.startedAt + DAY_MS
+			: Math.min(token.startedAt + ttl, (day(now) + 1) * DAY_MS - SHANGHAI_OFFSET);
 		if (expiresAt <= now) return false;
 		const encoded = JSON.stringify(value);
 		const preview = boundMemoryCachePreview(safePreview(value));
@@ -298,21 +296,24 @@ export class MemoryRuntime {
 			encoded === undefined
 				? Infinity
 				: Buffer.byteLength(encoded) + Buffer.byteLength(preview) + key.length * 2 + 256;
-		const entryLimit = isHomeDisplay
-			? HOME_DISPLAY_ENTRY_BYTES
-			: isForumList
-				? FORUM_LIST_MAX_ENTRY_BYTES
-				: isThreadDetail
-					? THREAD_DETAIL_ENTRY_BYTES
-					: DEFAULT_ENTRY_BYTES;
+		const entryLimit = isForumRead
+			? 384 * 1024 + 1024
+			: isHomeDisplay
+				? HOME_DISPLAY_ENTRY_BYTES
+				: isForumList
+					? FORUM_LIST_MAX_ENTRY_BYTES
+					: isThreadDetail
+						? THREAD_DETAIL_ENTRY_BYTES
+						: DEFAULT_ENTRY_BYTES;
 		if (bytes > entryLimit) return false;
 		family.entries.delete(key);
 		while (family.entries.size >= family.stats.maxEntries) this.evict(family);
-		const familyLimit = isForumList
-			? FORUM_LIST_PAYLOAD_LIMIT_BYTES
-			: isThreadDetail
-				? THREAD_DETAIL_PAYLOAD_BYTES
-				: null;
+		const familyLimit =
+			isForumList || isForumRead
+				? FORUM_LIST_PAYLOAD_LIMIT_BYTES
+				: isThreadDetail
+					? THREAD_DETAIL_PAYLOAD_BYTES
+					: null;
 		if (!this.reservePayload(family, bytes, familyLimit)) return false;
 		family.entries.set(key, {
 			value: structuredClone(value),
@@ -534,8 +535,6 @@ export class MemoryRuntime {
 					this.detachedViews -= item.increment;
 				}
 				this.accountActivities(body, result);
-				if (result?.activities.some((item) => item.status === "confirmed"))
-					this.clear("site-stats");
 			}
 		} finally {
 			this.reservedViews = 0;

@@ -6,6 +6,7 @@ import {
 	handleCalibrateGet,
 	handleCalibratePost,
 } from "../../../../src/handlers/admin/statsCalibrate";
+import { refreshDailyStatistics } from "../../../../src/lib/daily-statistics";
 import { shanghaiDateLocal, shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "../../lib/cache/thread-cache-fixture";
 
@@ -74,7 +75,7 @@ describe("admin/statsCalibrate", () => {
 	});
 
 	describe("GET /api/admin/stats/calibrate", () => {
-		it("returns stored counter values and delegates getPublicStats(admin) for todayPosts", async () => {
+		it("returns stored counter values and the daily snapshot for todayPosts", async () => {
 			f.sqlite.prepare("UPDATE settings SET value = '100' WHERE key = 'stats.total_threads'").run();
 			f.sqlite.prepare("UPDATE settings SET value = '500' WHERE key = 'stats.total_posts'").run();
 			f.sqlite.prepare("UPDATE settings SET value = '50' WHERE key = 'stats.total_members'").run();
@@ -86,6 +87,7 @@ describe("admin/statsCalibrate", () => {
 			for (let i = 0; i < 10; i++) {
 				f.post(100 + i, { created_at: todayStart + i * 10 });
 			}
+			await refreshDailyStatistics(f.env);
 
 			const request = createAdminRequest("GET", "/api/admin/stats/calibrate");
 			const response = await handleCalibrateGet(request, f.env);

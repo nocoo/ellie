@@ -221,8 +221,8 @@ vi.mock("../../src/handlers/admin/announcement", () => ({
 	remove: mockHandler(),
 	batchDelete: mockHandler(),
 }));
-vi.mock("../../src/lib/stats-rollover", () => ({
-	checkAndRolloverDailyStats: vi.fn(async () => {}),
+vi.mock("../../src/lib/daily-statistics", () => ({
+	refreshDailyStatistics: vi.fn(async () => {}),
 }));
 vi.mock("../../src/lib/analytics/loginHistory", () => ({
 	cleanupLoginHistory: vi.fn(async () => 0),
@@ -690,20 +690,20 @@ describe("router (src/index.ts)", () => {
 	// ─── Scheduled Handler ──────────────────────────────────────────
 
 	describe("scheduled", () => {
-		it("dispatches the */5 cron to checkAndRolloverDailyStats via waitUntil", async () => {
+		it("dispatches the daily cron to statistics and retention independently", async () => {
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
-			const statsRollover = await import("../../src/lib/stats-rollover");
+			const statsRollover = await import("../../src/lib/daily-statistics");
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
-			(statsRollover.checkAndRolloverDailyStats as ReturnType<typeof vi.fn>).mockClear();
+			(statsRollover.refreshDailyStatistics as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
-			const event = { cron: "*/5 * * * *" } as ScheduledEvent;
+			const event = { cron: "0 19 * * *" } as ScheduledEvent;
 
 			await worker.scheduled(event, env, ctx);
 
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
-			expect(statsRollover.checkAndRolloverDailyStats).toHaveBeenCalledTimes(1);
-			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(statsRollover.refreshDailyStatistics).toHaveBeenCalledTimes(1);
+			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
 		});
 
 		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory", async () => {
@@ -717,7 +717,7 @@ describe("router (src/index.ts)", () => {
 
 			// All retention jobs are queued via waitUntil so a failure in
 			// one does not block the others (P5 reviewer pin).
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
 			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
 		});
 

@@ -7,11 +7,6 @@ export interface WriteInvalidation {
 	forumId?: number;
 	forumIds?: readonly number[];
 	forumSummaries?: boolean;
-	threadCounts?: boolean;
-	/** Proven local-only forum IDs for thread-count scoped clearPrefix.
-	 * Any non-safe-integer entry falls back to a full clear. */
-	threadCountScopes?: readonly number[];
-	siteStats?: boolean;
 	homeDisplay?: boolean;
 	forumLists?: boolean;
 	/** Thread-detail family invalidation. threadId targets one `thread:<id>`
@@ -21,7 +16,7 @@ export interface WriteInvalidation {
 
 function clearForumScopes(
 	runtime: MemoryRuntime,
-	family: "forum-list" | "thread-count",
+	family: "forum-list",
 	ids?: readonly number[],
 ): void {
 	if (!ids?.length || ids.some((id) => !Number.isSafeInteger(id) || id < 1)) {
@@ -40,10 +35,7 @@ export function invalidateDisplayAfterWrite(changed: WriteInvalidation): void {
 			}
 		} else runtime.clear("forum-summary");
 	}
-	if (changed.threadCounts) clearForumScopes(runtime, "thread-count", changed.threadCountScopes);
-	if (changed.siteStats) runtime.clear("site-stats");
-	const homeChanged =
-		changed.homeDisplay || changed.forumSummaries || changed.threadCounts || changed.siteStats;
+	const homeChanged = changed.homeDisplay || changed.forumSummaries;
 	const listsChanged = homeChanged || changed.forumLists;
 	if (homeChanged) runtime.clear("home-display");
 	if (listsChanged) {

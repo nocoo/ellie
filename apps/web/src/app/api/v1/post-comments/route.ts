@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 		};
 		const body = await request.json();
 		const result = await forumApi.postAuth<unknown>("/api/v1/post-comments", body, jwt, client);
-		invalidateDisplayAfterWrite({ forumSummaries: true, siteStats: true });
+		invalidateDisplayAfterWrite({ forumSummaries: true });
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
 		if (err instanceof ForumApiError) {

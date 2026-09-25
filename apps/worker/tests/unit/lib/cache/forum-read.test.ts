@@ -9,6 +9,7 @@ import {
 } from "../../../../src/lib/cache/forum-read";
 import { KV_REGISTRY } from "../../../../src/lib/cache/kv-registry";
 import { inspectCacheEntry, rebuildCacheEntry } from "../../../../src/lib/cache/manage";
+import { refreshDailyStatistics } from "../../../../src/lib/daily-statistics";
 import { shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "./thread-cache-fixture";
 
@@ -58,7 +59,7 @@ describe("forum origin budgets and pure rebuild", () => {
 		f.thread(200, { created_at: 1700000000, last_post_at: 1 });
 		const rows = await loadForumSnapshot(f.env);
 		expect(rows.find((row) => row.id === 1)?.lastThreadId).toBe(200);
-		expect(f.calls).toHaveLength(2);
+		expect(f.calls).toHaveLength(1);
 		expect(f.calls[0].sql).toContain("ORDER BY t.created_at DESC, t.id DESC LIMIT 1");
 	});
 	it("250 moderator IDs load only misses in bounded user batches", async () => {
@@ -91,7 +92,7 @@ describe("forum origin budgets and pure rebuild", () => {
 		f.calls.length = 0;
 		for (let i = 0; i < 20; i++) expect(await getForums(f.env, undefined, "anon")).toEqual(first);
 		expect(f.calls.length).toBeGreaterThan(0);
-		expect(f.calls.every((call) => /anonymous_author|GROUP BY forum_id/.test(call.sql))).toBe(true);
+		expect(f.calls.every((call) => /anonymous_author/.test(call.sql))).toBe(true);
 		expect(baseline).toBeGreaterThan(2);
 		expect(f.calls.every((call) => call.mode === "all")).toBe(true);
 	});
@@ -122,7 +123,7 @@ describe("forum origin budgets and pure rebuild", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("uses partial covering index and created_at index without temporary b-trees or full forum scans", async () => {
+	it("reads stored daily counts and uses the latest-thread index without request-time aggregation", async () => {
 		// Populate realistic distribution: old threads (past cutoff) and new threads
 		const cutoff = shanghaiTodayStartUnix();
 		for (let id = 1000; id <= 1050; id++) {
@@ -154,6 +155,7 @@ describe("forum origin budgets and pure rebuild", () => {
 			sticky: -1,
 		});
 
+		await refreshDailyStatistics(f.env);
 		f.calls.length = 0;
 
 		// Execute loadForumSnapshot and verify calls captured
@@ -179,19 +181,8 @@ describe("forum origin budgets and pure rebuild", () => {
 			false,
 		);
 
-		const capturedTodayCall = f.calls.find((c) => c.sql.includes("GROUP BY forum_id"));
-		expect(capturedTodayCall).toBeDefined();
-		const todayExplain = f.sqlite
-			.prepare(`EXPLAIN QUERY PLAN ${capturedTodayCall?.sql}`)
-			.all(...(capturedTodayCall?.params ?? [])) as { detail: string }[];
-
-		// Must search created_at range using idx_threads_created, not scanning entire idx_threads_forum
-		expect(
-			todayExplain.some((step) =>
-				step.detail.includes("SEARCH threads USING INDEX idx_threads_created (created_at>?)"),
-			),
-		).toBe(true);
-		expect(todayExplain.some((step) => step.detail.includes("idx_threads_forum"))).toBe(false);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls.some((call) => /COUNT\(|GROUP BY/.test(call.sql))).toBe(false);
 	});
 
 	it("reads current visible topics with the creation-time tie-breaker after hiding a topic", async () => {

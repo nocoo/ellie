@@ -34,6 +34,8 @@ const ALLOWLIST: readonly string[] = [
 	// server-only Worker client (Key A injection)
 	"lib/forum-api.ts",
 	"lib/memory-runtime.ts",
+	// Server-only daily snapshot transport uses the dedicated statistics credential.
+	"lib/daily-statistics.ts",
 	// NextAuth login/refresh — sits below the abstraction
 	"auth.ts",
 	// middleware feature-flag pull (Phase B target)

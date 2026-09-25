@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { list as listForums, summaries, summaryGates } from "../../../src/handlers/forum";
 import { count, list } from "../../../src/handlers/thread";
+import { refreshDailyStatistics } from "../../../src/lib/daily-statistics";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 describe("memory statistics guards", () => {
@@ -41,6 +42,8 @@ describe("memory statistics guards", () => {
 		f.thread(7, { forum_id: 2, sticky: 2, last_post_at: 500 });
 		f.thread(8, { forum_id: 1, sticky: 0, last_post_at: 20 });
 		f.thread(9, { forum_id: 1, sticky: 0, last_post_at: 10 });
+		await refreshDailyStatistics(f.env);
+		f.calls.length = 0;
 		const page1 = await call("/api/v1/threads?forumId=1&page=1&limit=1&includeTotal=false");
 		const page2 = await call("/api/v1/threads?forumId=1&page=2&limit=1&includeTotal=false");
 		const total = await call("/api/v1/threads/count?forumId=1");
@@ -49,6 +52,7 @@ describe("memory statistics guards", () => {
 		expect(page2.body.data.map((row: { id: number }) => row.id)).toEqual([9]);
 		expect(page2.body.meta.hasNext).toBe(false);
 		expect(total.body.data.total).toBe(2);
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 	});
 
 	it("does not rebuild membership on a warm page that already has the extra row", async () => {

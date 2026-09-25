@@ -15,6 +15,9 @@ import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForumApiError } from "@/lib/forum-api";
 
+const optimistic = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/daily-statistics", () => ({ getDailyStatistics: () => ({ optimistic }) }));
+
 const postAuthMock = vi.fn();
 const patchAuthMock = vi.fn();
 const getWorkerJwtMock = vi.fn();
@@ -39,6 +42,7 @@ vi.mock("@/lib/forum-auth", () => ({
 
 beforeEach(() => {
 	postAuthMock.mockReset();
+	optimistic.mockReset();
 	patchAuthMock.mockReset();
 	getWorkerJwtMock.mockReset();
 	authPatchMock.mockReset();
@@ -81,6 +85,7 @@ describe("POST /api/v1/threads", () => {
 		expect(res.status).toBe(403);
 		expect(getWorkerJwtMock).not.toHaveBeenCalled();
 		expect(postAuthMock).not.toHaveBeenCalled();
+		expect(optimistic).not.toHaveBeenCalled();
 	});
 
 	it("returns 401 wrapped { error: { code, message } } when no session JWT is available", async () => {
@@ -109,6 +114,7 @@ describe("POST /api/v1/threads", () => {
 		expect(res.status).toBe(403);
 		const body = await res.json();
 		expect(body).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
+		expect(optimistic).not.toHaveBeenCalled();
 	});
 
 	it("collapses other ForumApiError into wrapped shape and preserves status", async () => {

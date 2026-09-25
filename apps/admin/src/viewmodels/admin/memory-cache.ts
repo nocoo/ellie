@@ -11,11 +11,10 @@ import { ApiError, apiClient } from "@/lib/api-client";
 
 export const MEMORY_FAMILY_LABELS: Record<MemoryCacheFamilyId, string> = {
 	"home-display": "首页展示",
-	"site-stats": "站点统计",
 	"forum-summary": "版块摘要",
-	"thread-count": "主题计数",
 	"forum-list": "版块列表",
 	"thread-detail": "主题详情",
+	"forum-read": "版块读取快照",
 };
 
 export class MemoryCacheRequestError extends Error {

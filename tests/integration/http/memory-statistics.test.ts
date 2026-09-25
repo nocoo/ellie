@@ -179,7 +179,7 @@ describe("L2: Next.js statistics trust boundary", () => {
 });
 
 describe("L2: offset pages without exact totals", () => {
-	test("retains exact totals for existing offset callers", async () => {
+	test("serves daily estimates for offset callers", async () => {
 		for (const suffix of ["", "&includeTotal=true"]) {
 			const response = await workerFetch(`/api/v1/threads?forumId=114&page=1&limit=5${suffix}`);
 			expect(response.status).toBe(200);
@@ -288,7 +288,7 @@ describe("L2: offset pages without exact totals", () => {
 	});
 });
 
-describe("L2: authoritative count and summary reads", () => {
+describe("L2: approximate counts and authoritative visibility", () => {
 	test("structural forum reads omit computed counters and topic content", async () => {
 		const response = await workerFetch("/api/v1/forums?view=structure");
 		expect(response.status).toBe(200);
@@ -402,5 +402,42 @@ describe("L2: authoritative count and summary reads", () => {
 				200,
 			);
 		}
+	});
+});
+
+describe("L2: daily statistics snapshot", () => {
+	test("GET and POST require the dedicated server credential", async () => {
+		for (const method of ["GET", "POST"]) {
+			for (const headers of [
+				{},
+				{ "X-API-Key": getApiKeyA() },
+				{ "X-API-Key": getApiKeyB() },
+				{ "X-Ellie-Statistics-Key": "wrong" },
+			]) {
+				const result = await fetch(`${getWorkerUrl()}/api/internal/statistics/snapshot`, {
+					method,
+					headers,
+				});
+				expect(result.status).toBe(401);
+			}
+		}
+		expect(
+			(await fetch(`${getWorkerUrl()}/api/internal/statistics/snapshot`, { method: "OPTIONS" }))
+				.status,
+		).toBe(405);
+	});
+	test("explicitly refreshes, then restores a bounded snapshot without cacheable responses", async () => {
+		const headers = { "X-Ellie-Statistics-Key": TEST_WORKER_VARS.WEB_STATISTICS_WRITE_KEY };
+		const rebuilt = await fetch(`${getWorkerUrl()}/api/internal/statistics/snapshot`, {
+			method: "POST",
+			headers,
+		});
+		expect(rebuilt.status).toBe(200);
+		const base = (await rebuilt.json()).data;
+		const read = await fetch(`${getWorkerUrl()}/api/internal/statistics/snapshot`, { headers });
+		expect(read.status).toBe(200);
+		expect(read.headers.get("cache-control")).toBe("no-store");
+		expect((await read.json()).data.version).toBe(base.version);
+		expect(base.forums[114].threads).toBe(25);
 	});
 });

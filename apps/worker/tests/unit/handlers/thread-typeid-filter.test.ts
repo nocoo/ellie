@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { list } from "../../../src/handlers/thread";
+import { refreshDailyStatistics } from "../../../src/lib/daily-statistics";
 import { readingFixture } from "../lib/cache/thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
@@ -64,6 +65,8 @@ describe("GET threads typeId filter", () => {
 
 	it("filters counts and rows to the exact forum/type and caches deep pages", async () => {
 		for (let id = 4; id <= 34; id++) f.thread(id, { type_id: 11, type_name: "Question" });
+		await refreshDailyStatistics(f.env);
+		f.calls.length = 0;
 		const response = await read("&typeId=11&page=2&limit=25");
 		expect(response.status).toBe(200);
 		const body = await response.json();
@@ -78,8 +81,8 @@ describe("GET threads typeId filter", () => {
 		});
 		f.calls.length = 0;
 		expect((await (await read("&typeId=11&page=2&limit=25")).json()).data).toEqual(body.data);
-		expect(f.calls).toHaveLength(5);
-		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(1);
+		expect(f.calls).toHaveLength(4);
+		expect(f.calls.filter((call) => call.sql.includes("COUNT(*)"))).toHaveLength(0);
 		expect(f.calls.filter((call) => call.sql.includes("t.replies, t.views"))).toHaveLength(1);
 		expect(f.calls.some((call) => call.sql.includes("ORDER BY"))).toBe(false);
 	});

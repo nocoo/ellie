@@ -212,7 +212,8 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/digest.list` | `/api/v1/digest` | 部分复用 | `digest:list`、`thread:entity`、`user:mini:v1` | T3；年份、级别、版块与全部游标 |
 | `handlers/digest.stats` | `/api/v1/digest/stats` | 部分复用 | `digest:stats` | T3；当前可见版块投影 |
 | `handlers/digest.filters` | `/api/v1/digest/filters` | 部分复用 | `digest:filters` | T3；当前可见版块投影 |
-| `handlers/stats.stats` | `/api/v1/stats` | 明确例外 | — | Direct D1 aggregates; bounded five-minute Next.js site-stats cache (doc/29) |
+| `handlers/internal/statisticsSnapshot.statisticsSnapshotHandler` | `/api/internal/statistics/snapshot` | 明确例外 | — | Dedicated server credential; KV-only GET, explicit POST rebuild (doc/36) |
+| `handlers/stats.stats` | `/api/v1/stats` | 明确例外 | — | Persistent daily KV estimate; warm Web reads use process memory (doc/36) |
 | `handlers/settings.list` | `/api/v1/settings` | 整份复用 | `settings:all` | T4；公开展示设置投影 |
 | `handlers/auth.me` | `/api/v1/auth/me` | 部分复用 | `user:self` | T4；当前身份与用户状态 |
 | `handlers/auth.checkUsername` | `/api/v1/auth/check-username` | 明确例外 | — | T9；当前唯一性与限流检查 |
@@ -714,3 +715,13 @@ v1.11.2 修复如下，三档 TTL 保持不变：
 - Worker 入口为 `src/entry.ts`，导出原 HTTP Worker 及内存类；`TODAY_VISITS` 绑定在生产/测试环境分别声明。SQLite-backed namespace 仅用于平台注册，应用不写其存储。兼容日期提升至 2024-04-03 以使用 DO RPC。
 
 验证覆盖固定过期、不续期、修改版本失效、不同 DB 包装对象的缓存复用、跨 Worker 批次合并、日期隔离、实例重建清零、内存上限，以及真实本地 Worker 的 ingest→报表读取。前文各版本记录为历史行为，本节是这批功能的当前策略。
+
+
+## Daily maintenance-mode snapshots (v1.14.9)
+
+`lib/daily-statistics.ts` owns the persistent `statistics:daily:v1` base and its
+version-scoped optimistic overlay. `lib/reading-snapshots.ts` owns bounded signed
+read selections used by Web. These state owners intentionally avoid generic cache
+generation lookups: daily totals never trigger a foreground D1 refill, and signed
+warm reads perform no KV operations. Missing state returns estimates or rebuilds
+only the bounded non-statistical selection. See [doc/36](36-daily-statistics-and-read-snapshots.md).

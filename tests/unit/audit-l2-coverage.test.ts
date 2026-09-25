@@ -108,14 +108,29 @@ describe("L2 audit CLI keeps route coverage strict", () => {
 		expect(result.stdout).toMatch(/Routes hit\s+: 1/);
 		expect(result.stdout).toMatch(/Exemptions\s+: 0/);
 		expect(result.stdout).toMatch(/Unmatched calls\s+: 0/);
-		expect(result.stdout).toMatch(/Negative auth probes\s*: 2/);
+		expect(result.stdout).toMatch(/Negative boundary probes\s*: 2/);
 		const matrix = readFileSync(join(root, "docs/18-l2-coverage-matrix.md"), "utf8");
 		expect(matrix).toContain("| Routes hit | **1** (100.00%) |");
 		expect(matrix).toContain("| Exemptions | 0 |");
-		expect(matrix).toContain("| Negative auth probes (not endpoint coverage) | 2 |");
-		expect(matrix).toContain("## 7. Negative auth probes");
+		expect(matrix).toContain("| Negative boundary probes (not endpoint coverage) | 2 |");
+		expect(matrix).toContain("## 7. Negative boundary probes");
 		expect(matrix).toContain("tests/integration/fast/api-key.fast.test.ts:1");
 		expect(matrix).toContain("tests/integration/fast/api-key.fast.test.ts:2");
+	});
+
+	test("counts rejected snapshot preflight separately without covering GET or POST", () => {
+		write(
+			"apps/worker/src/index.ts",
+			`${FORUM_ROUTE}\nif (path === "/api/internal/statistics/snapshot" && request.method === "POST") {}`,
+		);
+		write(
+			"tests/integration/http/memory-statistics.test.ts",
+			'fetch("http://localhost:17031/api/internal/statistics/snapshot", {method: "OPTIONS"});',
+		);
+		const result = audit("--strict-coverage");
+		expect(result.status).toBe(1);
+		expect(result.stdout).toMatch(/Negative boundary probes\s*: 1/);
+		expect(result.stdout).toMatch(/Routes uncovered\s+: 1/);
 	});
 
 	test("auth probes cannot cover a missing route or remove a route from the denominator", () => {

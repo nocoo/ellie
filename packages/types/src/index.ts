@@ -1,3 +1,4 @@
+export * from "./daily-statistics";
 // @ellie/types — Shared type definitions for Ellie monorepo
 
 export type { CacheDescriptor, CacheEnvelope, CacheParams, CacheTier } from "./cache";

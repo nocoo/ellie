@@ -345,35 +345,44 @@ There is no browser-facing proxy for this read. The response uses `no-store`.
 
 The strict JSON request is defined by `packages/types/src/forum-list.ts`:
 `{ forumId, page, limit, typeId, cachedBucket, cachedRevision, includeDisplay,
-includeStats, includeCount }`. Nullable fields are explicit; every field is
-required. `limit` is 1..100; ids/page/offset are safe integers; revision is null
-or SHA-256 hex. Unknown fields/query parameters and oversized bodies are rejected.
+includeStats, includeCount, cachedRead? }`. The optional `cachedRead` is a signed
+opaque server-only snapshot, bounded to 192 KiB including JSON escaping. The
+request body is bounded to 256 KiB. Existing nullable fields remain explicit.
 
-The response data is `{ bucket, user, revision, page, limit, typeId, hasNext, announcementCount,
-display?, stats?, count? }`. Worker derives the current bucket and normalized type,
-verifies full forum ancestry and current page membership, and returns fresh display
-and count when reuse is unsafe. Otherwise Next combines the response with its
-bounded `forum-list` display entry, six-hour local thread counts and five-minute statistics.
-`count` remains the full caller-authorized total when requested. Next stores only
-`count - announcementCount` per forum/type, shared across buckets, and adds the
-fresh caller-visible `announcementCount` after every successful access check.
-Groups and type-filtered lists return zero announcement contribution; typed local
-counts retain their existing inclusion of matching global topics. Full privileged
-totals are never shared. Invalid contributions, remainders or overflow fail the read.
-Count-changing writes actively invalidate totals; their six-hour absolute lifetime is
-capped at Shanghai midnight and is never renewed by reads. Lost notifications can
-leave only the displayed total stale until expiry; permissions, page membership and
-`hasNext` are checked on each request, and restart rebuilds totals from D1.
-Display revision changes do not force a new total unless the bucket or normalized
-type changes. Reusing a total does not renew its expiry; fresh `hasNext` remains authoritative.
-No identity or permission result is admitted into process display memory.
-Deploy and verify the Worker announcement field, including `includeCount:false`,
-before pushing main and triggering the automatic Web deployment.
+The response data is `{ bucket, user, revision, page, limit, typeId, hasNext,
+announcementCount, display?, stats?, count?, readSnapshot? }`. Worker verifies
+current forum ancestry, topic visibility and anonymous identity on every request.
+Configuration is retained for 24 hours, recommendation IDs for 30 minutes, and
+membership/order for pages 1–3 for 5 minutes. Deep pages read membership directly.
+Warm Web requests echo `cachedRead` and set `includeStats:false, includeCount:false`.
+The separate bounded `forum-read` memory family outlives the 30-minute display
+entry; Web strips the response token before returning any public DTO. Hot list
+reads need only current ancestry and topic gates; cold starts restore selections
+from KV. Snapshots never authorize a request.
 
-List anonymous authors and anonymous last posters are masked for all viewers,
-including their owners and staff. Thread details retain viewer-specific identity
-projection. Context fills read D1 directly and do not touch KV. All page/filtered
-variants share the existing write invalidation mechanism and Admin memory panel.
+Web derives approximate local/category counts from its daily statistics memory,
+then adds only the current authorized announcement contribution. Typed totals
+already include matching global topics. `includeCount:true` remains available to
+other callers and reads only the daily KV estimate; missing data means zero local
+count, never a foreground D1 recount. Statistics can lag until the next daily
+rebuild. Permission changes, deletion/hiding/moves and anonymous projection remain
+immediate; administrative configuration/recommendation writes invalidate KV and notify Web. Lost notifications may leave display changes delayed until the snapshot expires. List anonymous author and last-poster identities remain
+masked for all viewers.
+
+`GET /api/internal/statistics/snapshot` reads the persistent KV base and matching
+optimistic overlay. `POST` explicitly rebuilds it from D1. Both require the existing
+server-only `X-Ellie-Statistics-Key`, reject Key A/B credentials, and return
+`no-store`. The response is bounded to 2 MiB. Daily cron at 03:00 Asia/Shanghai
+rebuilds the snapshot with five aggregate queries. Web hydrates once on startup,
+refreshes from KV hourly in the background, and serves warm reads from process
+memory; failures retain the last snapshot and retry after five minutes. Successful
+writes update local memory and a version-scoped KV overlay. Races may lose small
+increments until the daily rebuild. Daily memory is separately bounded to 2 MiB;
+read/display families share the existing 8 MiB runtime payload ceiling.
+
+Deploy the migration-first Worker, bootstrap the snapshot using the authenticated
+POST, then deploy Web/Admin. Old Web can continue requesting approximate `count`
+during this cutover. See [the daily-read design](36-daily-statistics-and-read-snapshots.md).
 
 `POST /api/v1/posts` success also returns `meta.threadSticky`, read from the reply's
 thread. The Next proxy uses local values 0/1 to clear the affected forum's list

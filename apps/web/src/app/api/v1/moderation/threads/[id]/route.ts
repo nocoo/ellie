@@ -13,8 +13,6 @@ export const DELETE = proxyRoute<{ id: string }>({
 		const threadId = parseRouteId(params.id);
 		invalidateDisplayAfterWrite({
 			forumSummaries: true,
-			threadCounts: true,
-			siteStats: true,
 			threadDetail: threadId != null ? { threadId } : { all: true },
 		});
 		return result;

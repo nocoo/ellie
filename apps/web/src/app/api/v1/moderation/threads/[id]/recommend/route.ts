@@ -1,17 +1,10 @@
 import { invalidateDisplayAfterWrite, parseRouteId } from "@/lib/display-invalidation";
 import { proxyRoute } from "@/lib/forum-route-proxy";
+import { getMemoryRuntime } from "@/lib/memory-runtime";
 
-/**
- * POST   /api/v1/moderation/threads/:id/recommend — add thread to its
- *                                                   forum's recommended list
- * DELETE /api/v1/moderation/threads/:id/recommend — remove it
- *
- * Mod+ only (worker enforces canModerate). Both verbs are idempotent —
- * see `apps/worker/src/handlers/recommended.ts`. Display caps at 6 newest
- * threads; recommend cards do not affect thread-count.
- */
 const invalidate = <T>(result: T, ctx: { params: { id: string } }): T => {
 	const threadId = parseRouteId(ctx.params.id);
+	getMemoryRuntime().clear("forum-read");
 	invalidateDisplayAfterWrite({
 		homeDisplay: true,
 		threadDetail: threadId != null ? { threadId } : { all: true },

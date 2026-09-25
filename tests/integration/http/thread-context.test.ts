@@ -73,16 +73,17 @@ describe("L2: POST /api/v1/threads/context", () => {
 		expect(
 			(await workerPost("/api/v1/threads/context", request(1, { cursor: "bad" }))).status,
 		).toBe(400);
-		for (const [key, suffix, status] of [
-			[getApiKeyB(), "", 401],
-			[getApiKeyA(), "?page=1", 400],
-		] as const) {
-			const response = await fetch(`${getWorkerUrl()}/api/v1/threads/context${suffix}`, {
-				method: "POST",
-				headers: { "X-API-Key": key, "Content-Type": "application/json" },
-				body: JSON.stringify(request(1)),
-			});
-			expect(response.status).toBe(status);
-		}
+		const denied = await fetch(`${getWorkerUrl()}/api/v1/threads/context`, {
+			method: "POST",
+			headers: { "X-API-Key": getApiKeyB(), "Content-Type": "application/json" },
+			body: JSON.stringify(request(1)),
+		});
+		expect(denied.status).toBe(401);
+		const query = await fetch(`${getWorkerUrl()}/api/v1/threads/context?page=1`, {
+			method: "POST",
+			headers: { "X-API-Key": getApiKeyA(), "Content-Type": "application/json" },
+			body: JSON.stringify(request(1)),
+		});
+		expect(query.status).toBe(400);
 	});
 });

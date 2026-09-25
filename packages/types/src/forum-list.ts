@@ -3,13 +3,14 @@ import { isReadingBucket, type ReadingBucket } from "./reading";
 import type { Forum, ForumThreadType, ForumThreadTypeConfig, Thread } from "./types";
 
 export const FORUM_LIST_CONTEXT_PATH = "/api/v1/forums/context";
-export const FORUM_LIST_MAX_BODY_BYTES = 4096;
+export const FORUM_LIST_MAX_BODY_BYTES = 256 * 1024;
 export const FORUM_LIST_MAX_LIMIT = 100;
 export const FORUM_LIST_MAX_ENTRY_BYTES = 128 * 1024;
 export const FORUM_LIST_PAYLOAD_LIMIT_BYTES = 4 * 1024 * 1024;
 export const FORUM_LIST_TTL_MS = 30 * 60_000;
 
 export interface ForumListContextRequest {
+	cachedRead?: string | null;
 	forumId: number;
 	page: number;
 	limit: number;
@@ -44,6 +45,7 @@ export interface ForumListSnapshot {
 }
 
 export interface ForumListContextData {
+	readSnapshot?: string | null;
 	bucket: ReadingBucket;
 	user: HomeUser | null;
 	revision: string;
@@ -81,10 +83,21 @@ export function parseForumListContextRequest(body: unknown): ForumListParseResul
 	const fail = (message: string): ForumListParseResult => ({ ok: false, message });
 	if (!body || typeof body !== "object" || Array.isArray(body)) return fail("Invalid request body");
 	const record = body as Record<string, unknown>;
-	if (Object.keys(record).some((key) => !(REQUEST_KEYS as readonly string[]).includes(key))) {
+	if (
+		Object.keys(record).some(
+			(key) => key !== "cachedRead" && !(REQUEST_KEYS as readonly string[]).includes(key),
+		)
+	) {
 		return fail("Unknown field");
 	}
 	if (REQUEST_KEYS.some((key) => !Object.hasOwn(record, key))) return fail("Invalid request body");
+	if (
+		record.cachedRead !== undefined &&
+		record.cachedRead !== null &&
+		(typeof record.cachedRead !== "string" ||
+			new TextEncoder().encode(record.cachedRead).byteLength > 192 * 1024)
+	)
+		return fail("Invalid cachedRead");
 	if (!positive(record.forumId)) return fail("Invalid forumId");
 	if (!positive(record.page)) return fail("Invalid page");
 	if (!positive(record.limit) || record.limit > FORUM_LIST_MAX_LIMIT) return fail("Invalid limit");
@@ -109,6 +122,9 @@ export function parseForumListContextRequest(body: unknown): ForumListParseResul
 	return {
 		ok: true,
 		value: {
+			...(record.cachedRead === undefined
+				? {}
+				: { cachedRead: record.cachedRead as string | null }),
 			forumId: record.forumId,
 			page: record.page,
 			limit: record.limit,

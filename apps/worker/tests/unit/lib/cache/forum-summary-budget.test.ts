@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadForumSnapshot } from "../../../../src/lib/cache/forum-read";
+import { refreshDailyStatistics } from "../../../../src/lib/daily-statistics";
 import { shanghaiTodayStartUnix } from "../../../../src/lib/shanghaiTime";
 import { readingFixture } from "./thread-cache-fixture";
 
@@ -12,7 +13,7 @@ describe("forum summary query plan and row budget under high historical volume",
 
 	afterEach(() => f.close());
 
-	it("satisfies today count and latest thread lookup with bounded index searches across 10,000 historical rows", async () => {
+	it("serves persisted daily counts and bounded latest-thread lookups across 10,000 historical rows", async () => {
 		const cutoff = shanghaiTodayStartUnix();
 
 		// One SQL statement keeps large fixture setup cheap under coverage instrumentation.
@@ -43,6 +44,7 @@ describe("forum summary query plan and row budget under high historical volume",
 			});
 		}
 
+		await refreshDailyStatistics(f.env);
 		f.calls.length = 0;
 
 		// Execute loadForumSnapshot and verify exact aggregated counts
@@ -70,18 +72,7 @@ describe("forum summary query plan and row budget under high historical volume",
 		).toBe(true);
 		expect(latestExplain.some((row) => row.detail.includes("USE TEMP B-TREE"))).toBe(false);
 
-		const capturedTodayCall = f.calls.find((c) => c.sql.includes("GROUP BY forum_id"));
-		expect(capturedTodayCall).toBeDefined();
-		const todayExplain = f.sqlite
-			.prepare(`EXPLAIN QUERY PLAN ${capturedTodayCall?.sql}`)
-			.all(...(capturedTodayCall?.params ?? [])) as { detail: string }[];
-
-		// Must search idx_threads_created bounded by created_at range, never full-scanning 10,000 rows
-		expect(
-			todayExplain.some((row) =>
-				row.detail.includes("SEARCH threads USING INDEX idx_threads_created (created_at>?)"),
-			),
-		).toBe(true);
-		expect(todayExplain.some((row) => row.detail.includes("idx_threads_forum"))).toBe(false);
+		expect(f.calls).toHaveLength(1);
+		expect(f.calls.some((call) => /COUNT\(|GROUP BY/.test(call.sql))).toBe(false);
 	});
 });
