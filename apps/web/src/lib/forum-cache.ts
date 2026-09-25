@@ -34,10 +34,9 @@ import { loadForumListContext } from "./forum-list-reading";
 import { type ForumSettings, parseForumSettings } from "./forum-settings";
 import { loadHomeContext } from "./home-reading";
 import { getMemoryRuntime } from "./memory-runtime";
-import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
+import { getPublicSettings, type SettingsMap } from "./public-settings";
 import { parseThreadLocation, THREAD_LOCATION_HEADER } from "./thread-location";
 import { loadThreadContext } from "./thread-reading";
-import { createTtlCache } from "./ttl-cache";
 
 export const getCachedHomeContext = cache(loadHomeContext);
 export const getCachedForumListContext = cache(async () => {
@@ -77,10 +76,7 @@ export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
 // Forum settings
 // ---------------------------------------------------------------------------
 
-const publicSettings = createTtlCache({ expirationMs: 5 * 60_000, load: fetchPublicSettingsRaw });
-export const getCachedPublicSettings = cache(async () =>
-	structuredClone(await publicSettings.get()),
-);
+export const getCachedPublicSettings = cache(getPublicSettings);
 export const getCachedForumSettings = cache(async () => {
 	try {
 		return parseForumSettings(await getCachedPublicSettings());

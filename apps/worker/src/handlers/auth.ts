@@ -113,18 +113,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 		const ipLockoutKey = `login-lockout-ip:${ip}`;
 		const ipRateLimitKey = `login-ip:${ip}`;
 
-		// Lockout check + hourly rate-limit + user fetch are all independent
-		// reads. Fan them out so the slowest dominates instead of summing the
-		// three round-trips.
-		const [ipLocked, ipAttemptsStr, result] = await Promise.all([
-			ipWhitelisted ? Promise.resolve(null) : env.KV.get(ipLockoutKey),
-			ipWhitelisted ? Promise.resolve(null) : env.KV.get(ipRateLimitKey),
-			env.DB.prepare(
-				"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
-			)
-				.bind(username)
-				.first(),
-		]);
+		const ipLocked = ipWhitelisted ? null : await env.KV.get(ipLockoutKey);
 
 		if (ipLocked) {
 			scheduleLoginHistory(
@@ -140,6 +129,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			);
 		}
 
+		const ipAttemptsStr = ipWhitelisted ? null : await env.KV.get(ipRateLimitKey);
 		const ipAttempts = Number.parseInt(ipAttemptsStr ?? "0", 10);
 
 		if (ipAttempts >= 5) {
@@ -157,6 +147,12 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 				origin,
 			);
 		}
+
+		const result = await env.DB.prepare(
+			"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
+		)
+			.bind(username)
+			.first();
 
 		if (!result) {
 			// Increment rate limit counter on invalid username

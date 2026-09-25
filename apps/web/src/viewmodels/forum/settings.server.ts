@@ -2,8 +2,8 @@
  * Public settings server-only reader.
  * Used by forum Server Components to read typed settings via Key A.
  *
- * The actual fetch is defined in `lib/public-settings.ts` (a pure loader
- * with no cache). RSC render-pass deduplication is handled by
+ * The process snapshot is defined in `lib/public-settings.ts`.
+ * RSC render-pass deduplication is handled by
  * `lib/forum-cache.ts` which wraps it with React `cache()`.
  */
 

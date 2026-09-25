@@ -88,7 +88,7 @@ describe("auth handlers", () => {
 		});
 
 		it("should return 429 when IP is locked out for 24 hours", async () => {
-			const { db } = createMockDb({ firstResult: null });
+			const { db, prepareSpy } = createMockDb({ firstResult: null });
 			const env = {
 				...mockEnv,
 				DB: db,
@@ -111,11 +111,13 @@ describe("auth handlers", () => {
 			expect(response.status).toBe(429);
 			const data = await response.json();
 			expect(data.error.code).toBe("RATE_LIMITED");
+			expect(prepareSpy).not.toHaveBeenCalled();
+			expect(env.KV.get).toHaveBeenCalledExactlyOnceWith("login-lockout-ip:127.0.0.1");
 		});
 
 		it("should return 429 and trigger 24h lockout after 5 failed attempts", async () => {
 			const kvPutSpy = vi.fn(() => Promise.resolve());
-			const { db } = createMockDb({ firstResult: null });
+			const { db, prepareSpy } = createMockDb({ firstResult: null });
 			const env = {
 				...mockEnv,
 				DB: db,
@@ -142,6 +144,8 @@ describe("auth handlers", () => {
 			const data = await response.json();
 			expect(data.error.code).toBe("RATE_LIMITED");
 			expect(data.error.details?.message).toContain("24 hours");
+			expect(prepareSpy).not.toHaveBeenCalled();
+			expect(env.KV.get).toHaveBeenCalledTimes(2);
 
 			// Verify lockout key was set with 24h TTL (IP only, no user lockout)
 			const lockoutCalls = kvPutSpy.mock.calls.filter((call) =>

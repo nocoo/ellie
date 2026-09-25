@@ -1,19 +1,21 @@
-/**
- * Pure public-settings loader (unwrapped).
- *
- * Phase B: this is a pure-loader only. RSC render-pass dedupe is handled
- * by `lib/forum-cache.ts` which wraps it with React `cache()`. Do not
- * import React `cache()` here — the static guard
- * (`tests/unit/architecture/no-adhoc-cache.test.ts`) forbids it.
- */
-
 import "server-only";
 
 import { forumApi } from "./forum-api";
+import { createTtlCache, type TtlCache } from "./ttl-cache";
 
 export type SettingsMap = Record<string, string | number | boolean | object>;
 
-export async function fetchPublicSettingsRaw(): Promise<SettingsMap> {
-	const res = await forumApi.get<SettingsMap>("/api/v1/settings");
-	return res.data;
+const processState = globalThis as typeof globalThis & {
+	__elliePublicSettings?: TtlCache<SettingsMap>;
+};
+const publicSettings =
+	processState.__elliePublicSettings ??
+	createTtlCache({
+		expirationMs: 5 * 60_000,
+		load: async () => (await forumApi.get<SettingsMap>("/api/v1/settings")).data,
+	});
+processState.__elliePublicSettings = publicSettings;
+
+export async function getPublicSettings(): Promise<SettingsMap> {
+	return structuredClone(await publicSettings.get());
 }

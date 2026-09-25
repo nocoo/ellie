@@ -16,11 +16,15 @@ describe("forum-settings (via lib/forum-cache)", () => {
 	beforeEach(async () => {
 		vi.resetAllMocks();
 		vi.resetModules();
+		Reflect.deleteProperty(globalThis, "__elliePublicSettings");
 		vi.useFakeTimers();
 		({ getCachedForumSettings, getCachedPageSize, getCachedPostsPerPage, getCachedPublicSettings } =
 			await import("@/lib/forum-cache"));
 	});
-	afterEach(() => vi.useRealTimers());
+	afterEach(() => {
+		vi.useRealTimers();
+		Reflect.deleteProperty(globalThis, "__elliePublicSettings");
+	});
 
 	describe("getCachedForumSettings", () => {
 		it("returns parsed settings from API", async () => {
@@ -92,6 +96,47 @@ describe("forum-settings (via lib/forum-cache)", () => {
 		mockGet.mockResolvedValue({ data: { "general.pagination.page_size": 35 } });
 		expect(await getCachedPageSize()).toBe(35);
 		expect(mockGet).toHaveBeenCalledTimes(2);
+	});
+
+	it("shares one settings load across concurrent page and API requests and route modules", async () => {
+		const settings = {
+			"general.site.name": "Ellie",
+			"features.access.require_login": true,
+		};
+		mockGet.mockResolvedValue({ data: settings });
+		const { GET } = await import("@/app/api/v1/settings/route");
+		const [page, response] = await Promise.all([
+			getCachedPublicSettings(),
+			GET(new Request("https://example.com/api/v1/settings?prefix=features.")),
+		]);
+		expect(page).toEqual(settings);
+		expect(await response.json()).toEqual({ "features.access.require_login": true });
+		vi.resetModules();
+		const otherRoute = await import("@/app/api/v1/settings/route");
+		for (const prefix of ["", "general.", "private."]) {
+			const result = await otherRoute.GET(
+				new Request(`https://example.com/api/v1/settings?prefix=${prefix}`),
+			);
+			expect(await result.json()).toEqual(
+				Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith(prefix))),
+			);
+		}
+		expect(mockGet).toHaveBeenCalledExactlyOnceWith("/api/v1/settings");
+	});
+
+	it("does not cache the settings API error response", async () => {
+		const { GET } = await import("@/app/api/v1/settings/route");
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			mockGet.mockRejectedValueOnce(new Error("offline"));
+			const request = new Request("https://example.com/api/v1/settings");
+			expect(await (await GET(request)).json()).toEqual({});
+			mockGet.mockResolvedValue({ data: { "general.site.name": "Ellie" } });
+			expect(await (await GET(request)).json()).toEqual({ "general.site.name": "Ellie" });
+			expect(mockGet).toHaveBeenCalledTimes(2);
+		} finally {
+			error.mockRestore();
+		}
 	});
 
 	it.each([

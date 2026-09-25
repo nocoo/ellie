@@ -104,7 +104,7 @@ The Worker is the **single source of truth** for all data operations.
 - `GET /api/v1/threads?forumId=X` - List threads
 - `GET /api/v1/posts?threadId=X` - List posts
 - `POST /api/v1/auth/login` - Login, returns JWT
-- `GET /api/v1/settings` - Feature flags
+- `GET /api/v1/settings` - Feature flags. Web shares one five-minute public-settings snapshot with page rendering; prefix filtering stays in memory and failed loads are not cached. The page access-policy check retains its separate 60-second cache and runs only for anonymous content pages whose access depends on `require_login`.
 - `PATCH /api/v1/users/me` - Update profile (requires JWT)
 
 ### Layer 2: Next.js API Routes (Proxy Layer)

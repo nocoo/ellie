@@ -227,11 +227,12 @@ export async function proxy(request: NextRequest) {
 		return NextResponse.redirect(new URL(legacy.destination, request.nextUrl.origin), 301);
 	}
 
-	// Fetch require_login setting (cached, from Worker API)
-	const requireLogin = await getRequireLogin();
-
-	// Get forum session
 	const forumSession = await auth();
+	const pathname = request.nextUrl.pathname;
+	const requireLogin =
+		!forumSession?.user && isPublicRoute(pathname) && !isAlwaysPublicRoute(pathname)
+			? await getRequireLogin()
+			: false;
 
 	const action = resolveProxyAction(request.nextUrl, forumSession, requireLogin);
 

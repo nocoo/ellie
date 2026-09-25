@@ -371,6 +371,47 @@ describe("proxy", () => {
 		expect(result.type).toBe("next");
 	});
 
+	it.each(["/login", "/register", "/api/auth/csrf", "/api/auth/callback/credentials"])(
+		"keeps %s reachable without reading the access policy",
+		async (path) => {
+			mockAuth.mockResolvedValue(null);
+			const result = await proxy(makeMockNextRequest(path));
+			expect(result.type).toBe("next");
+			expect(globalThis.fetch).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(["/threads/new", "/messages?to=123", "/unknown"])(
+		"rejects unauthenticated %s without reading the access policy",
+		async (path) => {
+			mockAuth.mockResolvedValue(null);
+			const result = await proxy(makeMockNextRequest(path));
+			expect(result.type).toBe("redirect");
+			expect(result.url.pathname).toBe("/login");
+			if (path.startsWith("/messages")) {
+				expect(result.url.searchParams.get("redirect")).toBe(path);
+			}
+			expect(globalThis.fetch).not.toHaveBeenCalled();
+		},
+	);
+
+	it("skips policy reads only for a verified user, not a cookie or empty session", async () => {
+		mockAuth.mockResolvedValueOnce({ user: { name: "user" } });
+		expect((await proxy(makeMockNextRequest("/"))).type).toBe("next");
+		expect(globalThis.fetch).not.toHaveBeenCalled();
+
+		vi.mocked(globalThis.fetch).mockResolvedValue(
+			new Response(JSON.stringify({ data: { "features.access.require_login": true } })),
+		);
+		for (const session of [null, {}]) {
+			mockAuth.mockResolvedValueOnce(session);
+			const request = makeMockNextRequest("/");
+			request.headers = new Headers({ cookie: "authjs.session-token=unverified" });
+			expect((await proxy(request)).type).toBe("redirect");
+		}
+		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+	});
+
 	it.each(["/", "/threads/42"])("overwrites the homepage hint for %s", async (path) => {
 		mockAuth.mockResolvedValue(null);
 		const request = makeMockNextRequest(path);

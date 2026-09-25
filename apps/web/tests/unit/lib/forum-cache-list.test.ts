@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ headers: vi.fn(), read: vi.fn(), settings: vi.
 vi.mock("react", () => ({ cache: (fn: unknown) => fn }));
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("@/lib/forum-list-reading", () => ({ loadForumListContext: mocks.read }));
-vi.mock("@/lib/public-settings", () => ({ fetchPublicSettingsRaw: mocks.settings }));
+vi.mock("@/lib/public-settings", () => ({ getPublicSettings: mocks.settings }));
 
 beforeEach(() => {
 	vi.clearAllMocks();

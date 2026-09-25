@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.13] - 2026-09-25
+
+### Fixed
+
+- Skip access-policy reads for authentication endpoints, verified sessions and routes that already require login. Keep existing redirects, access rules and monitoring unchanged.
+- Share the five-minute public-settings memory snapshot across Web pages and the settings API, including concurrent requests and prefix filters. Failed loads remain retryable.
+- Check login lockout before reading the attempt counter or D1 user row. Preserve existing limits, successful login, password upgrades and audit writes.
+
 ## [1.14.12] - 2026-09-25
 
 ### Fixed
