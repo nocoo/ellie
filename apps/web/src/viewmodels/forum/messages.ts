@@ -87,6 +87,12 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
 // API Functions (client-side)
 // ---------------------------------------------------------------------------
 
+export const MESSAGE_BADGE_REFRESH_EVENT = "ellie:messages-changed";
+
+function notifyMailboxActivity(): void {
+	if (typeof window !== "undefined") window.dispatchEvent(new Event(MESSAGE_BADGE_REFRESH_EVENT));
+}
+
 /**
  * Fetch messages list (inbox or outbox).
  */
@@ -102,6 +108,7 @@ export async function fetchMessages(
 
 	// The meta may include nextCursor and unreadCount
 	const meta = result.meta as { nextCursor?: string | null; unreadCount?: number };
+	notifyMailboxActivity();
 
 	return {
 		messages: result.data,
@@ -128,6 +135,7 @@ export async function fetchUnreadCount(): Promise<number> {
  */
 export async function fetchMessage(id: number): Promise<Message> {
 	const result = await apiClient.get<Message>(`/api/v1/messages/${id}`);
+	notifyMailboxActivity();
 	return result.data;
 }
 
@@ -136,6 +144,7 @@ export async function fetchMessage(id: number): Promise<Message> {
  */
 export async function sendMessage(payload: SendMessagePayload): Promise<SendMessageResult> {
 	const result = await apiClient.post<SendMessageResult>("/api/v1/messages", payload);
+	notifyMailboxActivity();
 	return result.data;
 }
 
@@ -144,6 +153,7 @@ export async function sendMessage(payload: SendMessagePayload): Promise<SendMess
  */
 export async function deleteMessage(id: number): Promise<void> {
 	await apiClient.delete(`/api/v1/messages/${id}`);
+	notifyMailboxActivity();
 }
 
 /**
@@ -151,6 +161,7 @@ export async function deleteMessage(id: number): Promise<void> {
  */
 export async function markAllMessagesRead(): Promise<void> {
 	await apiClient.post("/api/v1/messages/mark-all-read", {});
+	notifyMailboxActivity();
 }
 
 /**

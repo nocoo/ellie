@@ -40,7 +40,7 @@ export function SiteFooter({ vm }: { vm: GlobalFooterViewModel }) {
 					</div>
 				</div>
 				<nav aria-label="页脚导航" className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-					<Link href="/" className="hover:text-primary">
+					<Link prefetch={false} href="/" className="hover:text-primary">
 						{vm.homeLabel}
 					</Link>
 					{vm.quickLinks

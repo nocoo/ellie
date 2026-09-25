@@ -13,8 +13,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockUpdateAvatar = vi.fn();
+const mockAvatarUrl = vi.fn((uid: number, _path?: string | null) => `/api/avatar/${uid}`);
 vi.mock("@/contexts/avatar-context", () => ({
-	useAvatarUrl: (uid: number) => `/api/avatar/${uid}`,
+	useAvatarUrl: (uid: number, path?: string | null) => mockAvatarUrl(uid, path),
 	useAvatarContext: () => ({ updateAvatar: mockUpdateAvatar }),
 }));
 
@@ -42,11 +43,17 @@ afterEach(() => {
 	cleanup();
 	mockRefresh.mockReset();
 	mockUpdateAvatar.mockReset();
+	mockAvatarUrl.mockClear();
 	lastAvatarUploadProps.currentUrl = undefined;
 	lastAvatarUploadProps.onUploadComplete = undefined;
 });
 
 describe("MeAvatarSection", () => {
+	it.each(["", "avatars/self.jpg"])("forwards existing avatar metadata (%s)", (avatarPath) => {
+		render(createElement(MeAvatarSection, { userId: 42, avatarPath }));
+		expect(mockAvatarUrl).toHaveBeenCalledWith(42, avatarPath);
+	});
+
 	it("renders heading and passes the user's avatar URL to AvatarUpload", () => {
 		render(createElement(MeAvatarSection, { userId: 42 }));
 

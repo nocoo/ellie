@@ -71,7 +71,7 @@ export function NewThreadForm({
 				<Button
 					variant="outline"
 					size="sm"
-					render={<Link href={`/forums/${forumId}`} />}
+					render={<Link prefetch={false} href={`/forums/${forumId}`} />}
 					nativeButton={false}
 					disabled={busy || uploading}
 				>

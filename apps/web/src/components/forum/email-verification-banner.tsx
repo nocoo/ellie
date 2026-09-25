@@ -29,6 +29,7 @@ export function EmailVerificationBanner({ self }: EmailVerificationBannerProps) 
 				<span className="text-amber-900/80 dark:text-amber-100/80">{vm.body}</span>
 			</div>
 			<Link
+				prefetch={false}
 				href={vm.ctaHref}
 				className={buttonVariants({
 					variant: "default",

@@ -26,7 +26,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 			className="width-container flex h-14 items-center justify-between gap-3 sm:h-[76px]"
 			data-testid="forum-top-bar"
 		>
-			<Link href="/" className="min-w-0 shrink-0" aria-label={vm.homeLabel}>
+			<Link prefetch={false} href="/" className="min-w-0 shrink-0" aria-label={vm.homeLabel}>
 				<ForumLogo
 					height={52}
 					lightSrc={vm.logoLight}
@@ -91,11 +91,16 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 								variant="ghost"
 								nativeButton={false}
 								role="link"
-								render={<Link href="/login" />}
+								render={<Link prefetch={false} href="/login" />}
 							>
 								登录
 							</Button>
-							<Button size="sm" nativeButton={false} role="link" render={<Link href="/register" />}>
+							<Button
+								size="sm"
+								nativeButton={false}
+								role="link"
+								render={<Link prefetch={false} href="/register" />}
+							>
 								注册
 							</Button>
 						</>
@@ -120,6 +125,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 						pathname === tab.href || (tab.href !== "/" && pathname.startsWith(`${tab.href}/`));
 					return (
 						<Link
+							prefetch={false}
 							key={tab.href}
 							href={tab.href}
 							aria-current={isActive ? "page" : undefined}

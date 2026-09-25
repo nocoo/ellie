@@ -3,6 +3,7 @@ import "server-only";
 import type { Forum, HomeContextData, HomeDisplay, HomeStats, ReadingBucket } from "@ellie/types";
 import {
 	HOME_CONTEXT_PATH,
+	HOME_DIGEST_LIMIT,
 	HOME_DIGEST_TOPIC_MAX,
 	HOME_SUMMARY_TOPIC_MAX,
 	homeDigestGatePasses,
@@ -67,7 +68,8 @@ function validateContext(data: HomeContextData) {
 		!["anon", "member", "staff", "admin"].includes(data.bucket) ||
 		!Array.isArray(data.allowedForumIds) ||
 		!Array.isArray(data.summaryGates) ||
-		!Array.isArray(data.digestGates)
+		!Array.isArray(data.digestGates) ||
+		!Array.isArray(data.recent)
 	) {
 		throw new Error("Invalid homepage context");
 	}
@@ -79,6 +81,7 @@ async function readHomeContext(
 ): Promise<{
 	tree: ReturnType<typeof buildVisibleTree>;
 	digest: HomeDisplay["digest"];
+	recent: HomeContextData["recent"];
 	stats: HomeStats | undefined;
 	user: HomeContextData["user"];
 }> {
@@ -170,6 +173,7 @@ async function readHomeContext(
 	return {
 		tree: buildVisibleTree(forums, visibilityContextForBucket(data.bucket)),
 		digest,
+		recent: data.recent.filter((topic) => allowed.has(topic.forumId)).slice(0, HOME_DIGEST_LIMIT),
 		stats,
 		user: data.user,
 	};

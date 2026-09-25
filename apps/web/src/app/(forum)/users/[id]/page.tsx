@@ -46,7 +46,11 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			<Card size="sm">
 				<CardContent className="text-center py-4">
 					<p className="text-sm text-destructive">无效的用户 ID</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+					<Link
+						prefetch={false}
+						href="/"
+						className="mt-4 inline-block text-sm text-primary hover:underline"
+					>
 						返回首页
 					</Link>
 				</CardContent>
@@ -74,7 +78,11 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			<Card size="sm">
 				<CardContent className="text-center py-4">
 					<p className="text-sm text-destructive">{error ?? "用户不存在"}</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+					<Link
+						prefetch={false}
+						href="/"
+						className="mt-4 inline-block text-sm text-primary hover:underline"
+					>
 						返回首页
 					</Link>
 				</CardContent>
@@ -134,6 +142,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					const className = "flex min-w-0 flex-col items-center gap-1.5 px-1 py-4";
 					return href ? (
 						<Link
+							prefetch={false}
 							key={label}
 							href={href}
 							className={`${className} transition-colors hover:bg-accent`}
@@ -174,6 +183,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								</span>
 							) : (
 								<Link
+									prefetch={false}
 									key={t.key}
 									href={`/users/${userId}?tab=${t.key}`}
 									className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"

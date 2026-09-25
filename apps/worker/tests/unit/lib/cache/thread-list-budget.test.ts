@@ -16,6 +16,7 @@ import {
 	recordStatisticsDelta,
 	refreshDailyStatistics,
 } from "../../../../src/lib/daily-statistics";
+import { markStatisticsForums } from "../../../../src/lib/recent-activity";
 import { readingFixture } from "./thread-cache-fixture";
 
 let f: ReturnType<typeof readingFixture>;
@@ -167,6 +168,7 @@ describe("thread-list SQL plans and pagination", () => {
 		"preserves sticky ranks, offsets, cursor ties and totals for typeId=%s",
 		async (typeId) => {
 			seedHistory();
+			await markStatisticsForums(f.env, [1, 2]);
 			await refreshDailyStatistics(f.env);
 			f.calls.length = 0;
 			const where =
@@ -436,6 +438,7 @@ describe("daily counts and cached membership budgets", () => {
 		expect(await countLocalThreads(f.env, 2, null)).toBe(0);
 		f.thread(201, { sticky: 2, type_id: 8 });
 		f.thread(202, { sticky: -1, type_id: 8 });
+		await markStatisticsForums(f.env, [1]);
 		await refreshDailyStatistics(f.env);
 		f.calls.length = 0;
 		vi.mocked(f.env.KV.put).mockClear();

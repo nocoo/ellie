@@ -1,6 +1,6 @@
 # Daily statistics and read snapshots
 
-Implementation: v1.14.9. Operational receipts and timestamped observations accompany the matching GitHub Release.
+Implementation: v1.14.10. The v1.14.9 evidence below records the initial rollout. Operational receipts and timestamped observations accompany the matching GitHub Release.
 
 ## Accepted behavior
 
@@ -11,6 +11,31 @@ The forum is in low-traffic maintenance operation. Statistics may lag until the 
 A daily Worker job at 03:00 Asia/Shanghai builds one bounded statistics snapshot: site totals, day totals, per-forum counts and per-category counts. It writes a persistent KV base and a version-tagged optimistic delta. Successful business writes update approximate deltas without recounting. Concurrent/lost deltas and snapshot-boundary discrepancies are accepted until the next successful rebuild. Separate base ownership prevents old mutation requests overwriting a newly rebuilt base.
 
 Web stores the merged snapshot in process memory. Cold starts hydrate from the authenticated KV-only Worker endpoint. Warm rendering performs no statistics I/O. Hourly background refresh discovers newer daily snapshots and cross-process mutations; errors preserve the last good snapshot. No request-time D1 fallback, midnight eviction or exact recount. Missing data is an unavailable/zero estimate, never a reason to scan business tables. Current-day projection resets yesterday's today counters without requiring a rebuild.
+
+## Recent activity and selective daily correction
+
+The homepage displays up to five recent topics beside the five digest topics,
+stacked on small screens. A recent row contains its forum, title, reply count and
+last activity time, with no author identity. New topics and replies optimistically
+update Worker memory and one KV snapshot. Reads prune the rolling 24-hour window;
+current home authority and topic gates remove hidden, deleted, moved and restricted
+candidates before returning text. Each isolate restores once from KV and refreshes
+its memory after five minutes. The stored snapshot is bounded to 512 candidates.
+
+The nightly job refreshes activity with one indexed query and collects affected
+forum IDs before trimming candidates. A separate persistent mutation journal also
+captures historical deletions, moves, category changes and thread hiding/restoring.
+The daily count query only searches those affected forums, retaining all other
+forum/type totals; a quiet day skips it. Shanghai day rollover still resets today
+counts. A missing initial baseline is bootstrapped only by the explicit/nightly
+refresh. Dirty event keys are acknowledged only after successful publication, and
+new keys arriving during a refresh remain for the next run.
+
+Known avatar paths resolve directly to the CDN, and all forum Link prefetch is
+disabled. The private-message badge checks at most hourly, with a 256-account Web
+memory cache shared across route instances. Successful actual mailbox operations
+invalidate estimates and refresh the current browser badge. Mailbox permissions
+remain fresh; passive unread hints may lag for an hour across instances.
 
 ## Other read reductions
 

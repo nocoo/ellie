@@ -29,6 +29,7 @@ function FilterTab({
 }) {
 	return (
 		<Link
+			prefetch={false}
 			href={href}
 			aria-current={active ? "page" : undefined}
 			className={cn(
@@ -90,7 +91,11 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 			<Card size="sm">
 				<CardContent className="text-center py-4">
 					<p className="text-sm text-destructive">{error ?? "加载出错"}</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+					<Link
+						prefetch={false}
+						href="/"
+						className="mt-4 inline-block text-sm text-primary hover:underline"
+					>
 						返回首页
 					</Link>
 				</CardContent>

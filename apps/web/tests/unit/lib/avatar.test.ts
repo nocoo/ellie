@@ -1,63 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { getAvatarUrl } from "@/lib/avatar";
+import { FALLBACK_URL } from "@/lib/avatar-proxy";
 
 describe("getAvatarUrl", () => {
-	it("returns proxy URL for UID without avatarPath", () => {
-		expect(getAvatarUrl(12345, "big")).toBe("/api/avatar/12345?v=current");
-	});
-
-	it("bypasses previously cached UID URLs after a full page reload", () => {
-		expect(getAvatarUrl(1, "big")).toBe("/api/avatar/1?v=current");
-	});
-
-	it("size param is deprecated and ignored - always returns same URL", () => {
-		// Size param kept for backward compatibility but ignored
-		expect(getAvatarUrl(42, "big")).toBe("/api/avatar/42?v=current");
-		expect(getAvatarUrl(42, "middle")).toBe("/api/avatar/42?v=current");
-		expect(getAvatarUrl(42, "small")).toBe("/api/avatar/42?v=current");
-	});
-
-	it("default size is 'big'", () => {
+	it("resolves unknown paths through the revalidating proxy", () => {
 		expect(getAvatarUrl(12345)).toBe("/api/avatar/12345?v=current");
+		expect(getAvatarUrl(42, undefined, 1712345678000)).toBe("/api/avatar/42?v=1712345678000");
 	});
 
-	it("returns direct CDN URL when avatarPath is provided", () => {
-		expect(getAvatarUrl(42, "big", "avatars/abc123.jpg")).toBe(
-			"https://t.no.mt/avatars/abc123.jpg",
-		);
+	it.each(["", null])("uses direct legacy CDN access for known empty paths (%s)", (path) => {
+		expect(getAvatarUrl(12345, path)).toBe("https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg");
 	});
 
-	it("returns direct CDN URL for any size when avatarPath is provided", () => {
-		// Size is ignored, avatarPath determines direct CDN
-		expect(getAvatarUrl(99, "small", "avatars/def456.png")).toBe(
-			"https://t.no.mt/avatars/def456.png",
-		);
+	it("uses the uploaded GUID path directly", () => {
+		expect(getAvatarUrl(42, "avatars/abc123.jpg")).toBe("https://t.no.mt/avatars/abc123.jpg");
 	});
 
-	it("supports cacheBust with avatarPath", () => {
-		const timestamp = 1712345678000;
-		expect(getAvatarUrl(42, "big", "avatars/xyz.jpg", timestamp)).toBe(
+	it("applies explicit cache versions to both known path formats", () => {
+		expect(getAvatarUrl(42, "avatars/xyz.jpg", 1712345678000)).toBe(
 			"https://t.no.mt/avatars/xyz.jpg?v=1712345678000",
 		);
+		expect(getAvatarUrl(42, "", 1712345678000)).toBe(
+			"https://t.no.mt/avatar/000/00/00/42_avatar_big.jpg?v=1712345678000",
+		);
 	});
 
-	it("supports cacheBust parameter for legacy proxy path", () => {
-		const timestamp = 1712345678000;
-		expect(getAvatarUrl(42, "big", undefined, timestamp)).toBe("/api/avatar/42?v=1712345678000");
-	});
-
-	it("cacheBust parameter works with any size (legacy proxy)", () => {
-		const timestamp = 1234567890;
-		// Size is ignored, cacheBust is applied
-		expect(getAvatarUrl(99, "small", undefined, timestamp)).toBe("/api/avatar/99?v=1234567890");
-		expect(getAvatarUrl(99, "middle", undefined, timestamp)).toBe("/api/avatar/99?v=1234567890");
-	});
-
-	it("uses the revalidating URL when the in-memory upload version is absent", () => {
-		expect(getAvatarUrl(42, "big", undefined, undefined)).toBe("/api/avatar/42?v=current");
-	});
-
-	it("empty avatarPath falls back to proxy", () => {
-		expect(getAvatarUrl(42, "big", "")).toBe("/api/avatar/42?v=current");
-	});
+	it.each([0, -1, 0.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+		"uses static fallback for anonymous or invalid UID %s",
+		(uid) => {
+			expect(getAvatarUrl(uid)).toBe(FALLBACK_URL);
+			expect(getAvatarUrl(uid, "avatars/hidden.jpg")).toBe(FALLBACK_URL);
+		},
+	);
 });

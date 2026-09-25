@@ -632,6 +632,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 			{form}
 			<AuthDivider label="已有账号" />
 			<Link
+				prefetch={false}
 				href={`/login?redirect=${encodeURIComponent(callbackUrl)}`}
 				className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full")}
 			>

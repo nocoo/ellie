@@ -173,3 +173,32 @@ describe("ttl-cache", () => {
 		expect(cache.peek("b")).toBe("b-fresh");
 	});
 });
+
+it("bounds settled entries and pending loaders without restoring evicted values", async () => {
+	const load = vi.fn(async (key: number | undefined) => key ?? 0);
+	const bounded = createTtlCache<number, number>({ expirationMs: 1000, maxEntries: 2, load });
+	await bounded.get(1);
+	await bounded.get(2);
+	await bounded.get(3);
+	expect(bounded.peek(1)).toBeUndefined();
+	expect(bounded.peek(2)).toBe(2);
+	expect(bounded.peek(3)).toBe(3);
+
+	let resolve: (value: number) => void = () => {};
+	const deferred = new Promise<number>((done) => {
+		resolve = done;
+	});
+	const busy = createTtlCache<number, number>({
+		expirationMs: 1000,
+		maxEntries: 1,
+		load: async () => deferred,
+	});
+	const first = busy.get(1);
+	busy.clear(1);
+	await expect(busy.get(2)).rejects.toThrow("capacity");
+	resolve(7);
+	await first;
+	expect(busy.peek(1)).toBeUndefined();
+	expect(await busy.get(2)).toBe(7);
+	expect(() => createTtlCache({ expirationMs: 1000, maxEntries: 0, load })).toThrow("positive");
+});

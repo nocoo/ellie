@@ -1,12 +1,14 @@
 import { DAILY_STATISTICS_PATH, type DailyStatistics, STATISTICS_WRITE_HEADER } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { statisticsSnapshotHandler } from "../../../src/handlers/internal/statisticsSnapshot";
+import { invalidateThreadListForForums } from "../../../src/lib/cache/invalidate";
 import {
 	DAILY_STATISTICS_KEY,
 	readDailyStatistics,
 	recordStatisticsDelta,
 	refreshDailyStatistics,
 } from "../../../src/lib/daily-statistics";
+import { markStatisticsForums, readChangedForums } from "../../../src/lib/recent-activity";
 import {
 	incrementStatsOnPostCreate,
 	incrementStatsOnThreadCreate,
@@ -30,7 +32,7 @@ describe("daily statistics persistence", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("aggregates every forum/category once and bounds daily posts by indexed Shanghai dates", async () => {
+	it("bootstraps the baseline once and bounds daily posts by indexed Shanghai dates", async () => {
 		f.insert("forums", { id: 0, name: "Deleted", status: 0, posts: 67_161 });
 		f.thread(6, { forum_id: 0, created_at: START - 1 });
 		f.thread(1, { type_id: 9, created_at: START });
@@ -55,7 +57,7 @@ describe("daily statistics persistence", () => {
 		expect(data.forums[2]).toEqual({ threads: 1, posts: 0, todayThreads: 0, types: { "0": 1 } });
 		expect(data.forums[999]).toBeUndefined();
 		expect(data.stats).toMatchObject({ totalThreads: 120, todayPosts: 2, yesterdayPosts: 2 });
-		expect(f.calls).toHaveLength(5);
+		expect(f.calls).toHaveLength(6);
 		expect(f.calls.find((c) => c.sql.includes("FROM posts"))?.sql).toContain(
 			"INDEXED BY idx_posts_created",
 		);
@@ -112,7 +114,7 @@ describe("daily statistics persistence", () => {
 	it("preserves the last complete snapshot when aggregation or publication fails", async () => {
 		const base = await refreshDailyStatistics(f.env);
 		f.state.queryError = true;
-		await expect(refreshDailyStatistics(f.env)).rejects.toThrow("aggregation failed");
+		await expect(refreshDailyStatistics(f.env)).rejects.toThrow("refresh failed");
 		f.state.queryError = false;
 		f.sqlite.exec("UPDATE settings SET value='-1' WHERE key='stats.total_threads'");
 		await expect(refreshDailyStatistics(f.env)).rejects.toThrow("aggregation was invalid");
@@ -132,7 +134,7 @@ describe("daily statistics persistence", () => {
 		expect(
 			f.sqlite.prepare("SELECT value FROM settings WHERE key='stats.total_posts'").get(),
 		).toMatchObject({ value: "2" });
-		expect(warn).toHaveBeenCalledTimes(3);
+		expect(warn).toHaveBeenCalledTimes(5);
 		f.state.readError = true;
 		expect(await readDailyStatistics(f.env)).toBeNull();
 		await expect(recordStatisticsDelta(f.env, { kind: "member" })).resolves.toBeUndefined();
@@ -160,5 +162,66 @@ describe("daily statistics persistence", () => {
 		expect(await read.json()).toEqual(body);
 		f.state.queryError = true;
 		expect((await statisticsSnapshotHandler(request("POST", "dedicated"), f.env)).status).toBe(503);
+	});
+	it("skips historical thread counts on a quiet day and retains all unaffected type totals", async () => {
+		f.thread(1, { forum_id: 1, type_id: 8 });
+		f.thread(2, { forum_id: 2, type_id: 9 });
+		const first = await refreshDailyStatistics(f.env);
+		f.calls.length = 0;
+		vi.setSystemTime(NOW + 86_400_000);
+		const next = await refreshDailyStatistics(f.env);
+		expect(next.forums).toEqual(first.forums);
+		expect(f.calls).toHaveLength(5);
+		expect(f.calls.some((call) => call.sql.includes("COUNT(*) AS threads"))).toBe(false);
+		expect(f.calls.filter((call) => call.sql.includes("FROM threads"))).toHaveLength(1);
+	});
+
+	it("corrects only recent or marked forums using index searches and resets today counts", async () => {
+		f.thread(1, { forum_id: 1, type_id: 8, created_at: START + 1 });
+		f.thread(2, { forum_id: 2, type_id: 9 });
+		const first = await refreshDailyStatistics(f.env);
+		f.thread(3, { forum_id: 1, type_id: 8, last_post_at: NOW / 1000, created_at: START + 2 });
+		f.calls.length = 0;
+		const next = await refreshDailyStatistics(f.env);
+		expect(next.forums[1]).toMatchObject({ threads: 2, todayThreads: 2, types: { "8": 2 } });
+		expect(next.forums[2]).toEqual(first.forums[2]);
+		const query = f.calls.find((call) => call.sql.includes("COUNT(*) AS threads"));
+		expect(query?.params[2]).toBe("[1]");
+		if (!query) throw new Error("Missing changed-forum count query");
+		const plan = f.sqlite.prepare(`EXPLAIN QUERY PLAN ${query.sql}`).all(...query.params);
+		expect(JSON.stringify(plan)).toContain("SEARCH threads USING INDEX idx_threads_forum");
+		vi.setSystemTime(NOW + 86_400_000);
+		expect((await refreshDailyStatistics(f.env)).forums[1]).toMatchObject({
+			threads: 2,
+			todayThreads: 0,
+		});
+	});
+
+	it("corrects both sides of historical moves and deletions from the mutation journal", async () => {
+		f.thread(1, { forum_id: 1, type_id: 8 });
+		f.thread(2, { forum_id: 1, type_id: 9 });
+		await refreshDailyStatistics(f.env);
+		f.sqlite.exec(
+			"UPDATE threads SET forum_id=2, type_id=0 WHERE id=1; DELETE FROM threads WHERE id=2",
+		);
+		await invalidateThreadListForForums(f.env, [1, 2]);
+		const next = await refreshDailyStatistics(f.env);
+		expect(next.forums[1]).toMatchObject({ threads: 0, types: {} });
+		expect(next.forums[2]).toMatchObject({ threads: 1, types: { "0": 1 } });
+		expect((await readChangedForums(f.env)).forumIds).toEqual([]);
+	});
+
+	it("keeps dirty markers after failure and preserves markers arriving during a refresh", async () => {
+		await refreshDailyStatistics(f.env);
+		await markStatisticsForums(f.env, [1]);
+		f.state.writeError = true;
+		await expect(refreshDailyStatistics(f.env)).rejects.toThrow("KV 429");
+		expect((await readChangedForums(f.env)).keys).toHaveLength(1);
+		f.state.writeError = false;
+		f.state.afterRead = async (sql) => {
+			if (sql.includes("COUNT(*) AS threads")) await markStatisticsForums(f.env, [1]);
+		};
+		await refreshDailyStatistics(f.env);
+		expect((await readChangedForums(f.env)).keys).toHaveLength(1);
 	});
 });

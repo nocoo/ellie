@@ -82,10 +82,11 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 describe("projectSelfForumUser — narrow projection", () => {
-	it("keeps only id, username, email, emailVerifiedAt, emailChangedAt, role, status", () => {
+	it("keeps only account, avatar, email verification and permission fields", () => {
 		const u = makeUser({
 			id: 7,
 			username: "bob",
+			avatarPath: "avatars/bob.jpg",
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
 			emailChangedAt: 1699999999,
@@ -99,6 +100,7 @@ describe("projectSelfForumUser — narrow projection", () => {
 		expect(projectSelfForumUser(u)).toEqual({
 			id: 7,
 			username: "bob",
+			avatarPath: "avatars/bob.jpg",
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
 			emailChangedAt: 1699999999,
@@ -194,6 +196,7 @@ describe("getSelfForumUser", () => {
 		expect(await getSelfForumUser()).toEqual({
 			id: 99,
 			username: "carol",
+			avatarPath: "",
 			email: "c@x.io",
 			emailVerifiedAt: 123,
 			emailChangedAt: 0,

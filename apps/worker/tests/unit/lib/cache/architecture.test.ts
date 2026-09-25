@@ -29,6 +29,7 @@ const rawKvOwners: Record<string, string> = {
 	"lib/cache/epoch.ts": "Resource versions",
 	"lib/cache/admin-monitor-read.ts": "Bounded metadata observations",
 	"lib/stats-job.ts": "Runtime job progress",
+	"lib/recent-activity.ts": "Persistent recent activity and acknowledged forum-change journal",
 	"lib/daily-statistics.ts": "Persistent daily base and approximate mutation overlay",
 	"lib/reading-snapshots.ts": "Bounded signed read selections restored after Web restart",
 };

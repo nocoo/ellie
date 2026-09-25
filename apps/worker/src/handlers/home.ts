@@ -8,6 +8,7 @@ import { loadPublicStats } from "../lib/cache/public-stats-read";
 import type { Env } from "../lib/env";
 import { loadHomeAuthority, loadHomeDisplay, loadHomeGates, loadHomeUser } from "../lib/home-read";
 import { isTokenExpired, verifyJwt } from "../lib/jwt";
+import { readRecentActivity, selectRecentCandidates } from "../lib/recent-activity";
 import { jsonNoStoreResponse } from "../lib/response";
 import { errorResponse } from "../middleware/error";
 
@@ -50,13 +51,26 @@ export async function homeContext(request: Request, env: Env): Promise<Response>
 	const viewer = await verifiedViewer(request, env, origin);
 	if (viewer instanceof Response) return viewer;
 	const authority = await loadHomeAuthority(env, viewer);
+	const recent = selectRecentCandidates(await readRecentActivity(env), authority.allowed);
 	const includeDisplay =
 		parsed.value.includeDisplay || parsed.value.cachedBucket !== authority.bucket;
 	const sections: Promise<
 		Awaited<ReturnType<typeof loadHomeDisplay>> | Awaited<ReturnType<typeof loadHomeGates>>
 	> = includeDisplay
-		? loadHomeDisplay(env, authority, parsed.value.summaryTopicIds, parsed.value.digestTopicIds)
-		: loadHomeGates(env, authority, parsed.value.summaryTopicIds, parsed.value.digestTopicIds);
+		? loadHomeDisplay(
+				env,
+				authority,
+				parsed.value.summaryTopicIds,
+				parsed.value.digestTopicIds,
+				recent,
+			)
+		: loadHomeGates(
+				env,
+				authority,
+				parsed.value.summaryTopicIds,
+				parsed.value.digestTopicIds,
+				recent,
+			);
 	const [loaded, stats] = await Promise.all([
 		sections,
 		parsed.value.includeStats
@@ -72,6 +86,7 @@ export async function homeContext(request: Request, env: Env): Promise<Response>
 		allowedForumIds: authority.allowedForumIds,
 		summaryGates: loaded.summaryGates,
 		digestGates: loaded.digestGates,
+		recent: loaded.recent,
 	};
 	if (includeDisplay && "forums" in loaded) {
 		data.display = {

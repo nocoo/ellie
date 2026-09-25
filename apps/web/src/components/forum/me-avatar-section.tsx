@@ -24,12 +24,13 @@ import { useAvatarContext, useAvatarUrl } from "@/contexts/avatar-context";
 
 export interface MeAvatarSectionProps {
 	userId: number;
+	avatarPath?: string | null;
 }
 
-export function MeAvatarSection({ userId }: MeAvatarSectionProps) {
+export function MeAvatarSection({ userId, avatarPath }: MeAvatarSectionProps) {
 	const router = useRouter();
 	const { updateAvatar } = useAvatarContext();
-	const avatarUrl = useAvatarUrl(userId);
+	const avatarUrl = useAvatarUrl(userId, avatarPath);
 
 	const handleAvatarUploadComplete = (newUrl: string) => {
 		updateAvatar(userId, newUrl);

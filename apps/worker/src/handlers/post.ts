@@ -1,3 +1,4 @@
+import { recordRecentActivity } from "../lib/recent-activity";
 // Post handlers for Cloudflare Worker
 
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
@@ -193,7 +194,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	// hot path.
 	const [thread, posResult, authorRow] = await Promise.all([
 		env.DB.prepare(
-			`SELECT t.id, t.forum_id, t.closed, t.sticky, f.status, f.visibility
+			`SELECT t.id, t.forum_id, t.subject, t.replies, t.closed, t.sticky, f.name AS forum_name, f.status, f.visibility
 			 FROM threads t
 			 JOIN forums f ON f.id = t.forum_id
 			 WHERE t.id = ?`,
@@ -202,6 +203,9 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 			.first<{
 				id: number;
 				forum_id: number;
+				subject: string;
+				replies: number;
+				forum_name: string;
 				closed: number;
 				sticky: number;
 				status: number;
@@ -281,6 +285,15 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	await incrementStatsOnPostCreate(env, thread.forum_id).catch((error) =>
 		console.warn("[post:create] stats counter increment failed", error),
 	);
+
+	await recordRecentActivity(env, {
+		id: threadId,
+		forumId: thread.forum_id,
+		forumName: (thread.forum_name ?? "").slice(0, 200),
+		subject: (thread.subject ?? "").slice(0, 200),
+		lastPostAt: now,
+		replies: (thread.replies ?? 0) + 1,
+	});
 
 	return jsonResponse(
 		toPost(createdPost as Record<string, unknown>, EMPTY_RATING_AGGREGATE, {

@@ -25,7 +25,11 @@ export function ForumGroup({ group }: { group: ForumTreeNode }) {
 				<Layers3 className="size-4 shrink-0 text-primary" aria-hidden="true" />
 				<div className="min-w-0 flex-1">
 					<h2 className="text-sm font-semibold">
-						<Link href={`/forums/${group.id}`} className="text-foreground hover:text-primary">
+						<Link
+							prefetch={false}
+							href={`/forums/${group.id}`}
+							className="text-foreground hover:text-primary"
+						>
 							{group.name}
 						</Link>
 					</h2>

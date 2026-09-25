@@ -6,6 +6,7 @@
 import { Loader2, Upload } from "lucide-react";
 import { type DragEvent, useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
+import { UserAvatar } from "@/components/forum/user-avatar";
 import { AVATAR_ALLOWED_TYPES, AVATAR_MAX_UPLOAD_MB } from "@/lib/avatar";
 import { uploadAvatar } from "@/lib/forum-browser-api";
 import { cn } from "@/lib/utils";
@@ -134,7 +135,7 @@ export function AvatarUpload({
 				<div className="flex flex-col items-center gap-3">
 					{/* Preview */}
 					<div className="relative">
-						<img
+						<UserAvatar
 							src={previewUrl}
 							alt="头像预览"
 							className="h-20 w-20 rounded-full object-cover border-2 border-background shadow-sm"

@@ -373,7 +373,11 @@ masked for all viewers.
 optimistic overlay. `POST` explicitly rebuilds it from D1. Both require the existing
 server-only `X-Ellie-Statistics-Key`, reject Key A/B credentials, and return
 `no-store`. The response is bounded to 2 MiB. Daily cron at 03:00 Asia/Shanghai
-rebuilds the snapshot with five aggregate queries. Web hydrates once on startup,
+refreshes the indexed recent-activity snapshot with one query, then updates the four
+small global/forum aggregates. Historical topic/category counts run only for forums
+in that activity result or the persistent mutation journal; a missing initial base
+requires a one-time full count. Unchanged forum/type totals are retained and daily
+counts roll over in Shanghai time. Web hydrates once on startup,
 refreshes from KV hourly in the background, and serves warm reads from process
 memory; failures retain the last snapshot and retry after five minutes. Successful
 writes update local memory and a version-scoped KV overlay. Races may lose small
@@ -445,8 +449,12 @@ separate requests.
 The request contains `cachedBucket`, `includeDisplay`, `includeStats`,
 `summaryTopicIds` and `digestTopicIds`. The bucket is a rebuild hint, never
 an authorization claim. Responses contain fresh `bucket`, `user`,
-`allowedForumIds`, `summaryGates` and `digestGates`, with optional `display`
-and `stats`. Normal `meta.timestamp` and `meta.requestId` remain present.
+`allowedForumIds`, `summaryGates`, `digestGates` and `recent`, with optional `display`
+and `stats`. `recent` contains at most five `{ id, forumId, forumName, subject,
+lastPostAt, replies }` rows from the last 24 hours, without author identities.
+It is refreshed on every context request from Worker memory/KV candidates, filtered
+against the existing fresh forum and topic gates, and never cached in Web display.
+New topics and replies update the bounded KV snapshot optimistically. Normal `meta.timestamp` and `meta.requestId` remain present.
 Invalid supplied JWTs fail instead of silently becoming anonymous.
 Statistics query errors omit `stats` while preserving verified identity and
 display. Web uses its existing display defaults without caching them and retries
@@ -478,3 +486,18 @@ read the instance ID and clear all display families, without flushing statistica
 buffers. An instance conflict gets one retry. Manual KV and memory controls
 remain independent. Notification failure converges via TTL; this channel targets
 one configured Web instance, not a broadcast to multiple replicas.
+
+## Quiet-forum reads (v1.14.10)
+
+Known avatar paths, including an explicitly empty legacy path, resolve directly to
+CDN URLs. Unknown paths retain the authenticated server lookup route; anonymous
+identities use the static placeholder. All forum Next.js Links disable speculative
+prefetch; normal click navigation is unchanged.
+
+The unread-message badge polls at most hourly and shares a bounded 256-account
+Web process cache keyed by the decrypted session identity. A memory hit does not
+call Worker or KV. Successful mailbox access and mutations clear the current
+account's estimate; sending also clears the recipient's estimate in the same
+process. The client refreshes its badge after mailbox activity. Actual mailbox
+contents and writes still pass the original Worker authorization checks. Remote
+messages and other Web processes may leave an estimate stale for up to an hour.

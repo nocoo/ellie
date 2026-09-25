@@ -6,6 +6,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAvatarUrl } from "@/contexts/avatar-context";
+import { FALLBACK_URL } from "@/lib/avatar-proxy";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,17 @@ interface UserAvatarProps {
 }
 
 export function UserAvatar({ src, alt, className }: UserAvatarProps) {
-	return <img src={src} alt={alt} className={className} loading="lazy" />;
+	return (
+		<img
+			src={src}
+			alt={alt}
+			className={className}
+			loading="lazy"
+			onError={(event) => {
+				if (event.currentTarget.src !== FALLBACK_URL) event.currentTarget.src = FALLBACK_URL;
+			}}
+		/>
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -31,6 +42,7 @@ export function UserAvatar({ src, alt, className }: UserAvatarProps) {
 interface TrackedUserAvatarProps {
 	uid: number;
 	username?: string;
+	avatarPath?: string | null;
 	size?: "sm" | "md" | "lg";
 	className?: string;
 }
@@ -44,10 +56,11 @@ const sizeClasses = {
 export function TrackedUserAvatar({
 	uid,
 	username,
+	avatarPath,
 	size = "md",
 	className,
 }: TrackedUserAvatarProps) {
-	const avatarUrl = useAvatarUrl(uid);
+	const avatarUrl = useAvatarUrl(uid, avatarPath);
 
 	return (
 		<Avatar
@@ -91,7 +104,7 @@ export function ForumAvatar({
 	shadow = false,
 	className,
 }: ForumAvatarProps) {
-	const avatarUrl = useAvatarUrl(userId, avatarPath ?? undefined);
+	const avatarUrl = useAvatarUrl(userId, avatarPath);
 	const sizeClass = size === "xs" ? "h-5 w-5" : size === "lg" ? "h-12 w-12" : undefined;
 
 	return (

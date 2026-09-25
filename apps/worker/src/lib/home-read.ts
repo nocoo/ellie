@@ -7,6 +7,7 @@ import {
 	type HomeDigestGate,
 	type HomeDigestTopic,
 	type HomeForum,
+	type HomeRecentTopic,
 	type HomeUser,
 	homeForumVisible,
 	maskHomeDigestAuthor,
@@ -50,6 +51,8 @@ interface TopicRow {
 	created_at: number;
 	replies: number;
 	views: number;
+	forum_name: string;
+	last_post_at: number;
 	forum_status: number;
 	visibility: ForumVisibility;
 }
@@ -154,12 +157,14 @@ export async function loadHomeDisplay(
 	authority: HomeAuthority,
 	summaryTopicIds: readonly number[],
 	digestTopicIds: readonly number[],
+	recentCandidates: readonly HomeRecentTopic[] = [],
 ): Promise<{
 	forums: HomeForum[];
 	summaries: ForumSummaryTopic[];
 	digest: HomeDigestTopic[];
 	summaryGates: ForumSummaryGate[];
 	digestGates: HomeDigestGate[];
+	recent: HomeRecentTopic[];
 }> {
 	const forums = await loadForumText(env, authority.allowedForumIds);
 	const [snapshot, digestIds, names] = await Promise.all([
@@ -173,6 +178,7 @@ export async function loadHomeDisplay(
 		...digestTopicIds,
 		...summaries.map((row) => row.topicId),
 		...digestIds,
+		...recentCandidates.map((row) => row.id),
 	]);
 	const topics = await loadTopicRows(env, topicIds, true);
 	const summaryWanted = new Set([...summaryTopicIds, ...summaries.map((row) => row.topicId)]);
@@ -189,6 +195,7 @@ export async function loadHomeDisplay(
 	const digestByTopic = new Map(digestGates.map((gate) => [gate.topicId, gate]));
 	const topicById = new Map(topics.map((row) => [row.id, row]));
 	return {
+		recent: toRecentTopics(topics, recentCandidates, authority),
 		forums: forums.map((row) => toHomeForum(row, names)),
 		summaries: summaries.map((row) =>
 			row.topicId === 0 || summaryByTopic.has(row.topicId) ? row : clearTopic(row),
@@ -208,11 +215,20 @@ export async function loadHomeGates(
 	authority: HomeAuthority,
 	summaryTopicIds: readonly number[],
 	digestTopicIds: readonly number[],
-): Promise<{ summaryGates: ForumSummaryGate[]; digestGates: HomeDigestGate[] }> {
-	const topics = await loadTopicRows(env, uniqueIds([...summaryTopicIds, ...digestTopicIds]));
+	recentCandidates: readonly HomeRecentTopic[] = [],
+): Promise<{
+	summaryGates: ForumSummaryGate[];
+	digestGates: HomeDigestGate[];
+	recent: HomeRecentTopic[];
+}> {
+	const topics = await loadTopicRows(
+		env,
+		uniqueIds([...summaryTopicIds, ...digestTopicIds, ...recentCandidates.map((row) => row.id)]),
+	);
 	const summaryWanted = new Set(summaryTopicIds);
 	const digestWanted = new Set(digestTopicIds);
 	return {
+		recent: toRecentTopics(topics, recentCandidates, authority),
 		summaryGates: topics
 			.flatMap((row) => {
 				const gate = toSummaryGate(row, authority);
@@ -362,15 +378,15 @@ async function selectDigestIds(env: Env, allowedIds: readonly number[]): Promise
 
 async function loadTopicRows(env: Env, ids: number[], includeDisplay = false): Promise<TopicRow[]> {
 	const displayColumns = includeDisplay
-		? "COALESCE(u.username, t.author_name) AS author_name, t.subject, t.created_at, t.replies, t.views"
-		: "'' AS author_name, '' AS subject, 0 AS created_at, 0 AS replies, 0 AS views";
+		? "COALESCE(u.username, t.author_name) AS author_name, t.created_at, t.views"
+		: "'' AS author_name, 0 AS created_at, 0 AS views";
 	const authorJoin = includeDisplay ? "LEFT JOIN users u ON u.id = t.author_id" : "";
 	const rows: TopicRow[] = [];
 	for (let start = 0; start < ids.length; start += SQL_BATCH) {
 		const part = ids.slice(start, start + SQL_BATCH);
 		const result = await env.DB.prepare(
 			`SELECT t.id, t.forum_id, t.sticky, t.anonymous_author, t.author_id,
-			        t.digest, ${displayColumns},
+			        t.digest, t.subject, t.replies, t.last_post_at, f.name AS forum_name, ${displayColumns},
 			        f.status AS forum_status, f.visibility
 			 FROM threads t JOIN forums f ON f.id = t.forum_id ${authorJoin}
 			 WHERE t.id IN (${part.map(() => "?").join(",")})`,
@@ -413,4 +429,40 @@ function cut(value: string, max: number): string {
 
 function nonnegative(value: number): number {
 	return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function toRecentTopics(
+	rows: TopicRow[],
+	candidates: readonly HomeRecentTopic[],
+	authority: HomeAuthority,
+): HomeRecentTopic[] {
+	const byId = new Map(rows.map((row) => [row.id, row]));
+	const now = Math.floor(Date.now() / 1000);
+	return candidates
+		.flatMap((candidate) => {
+			const row = byId.get(candidate.id);
+			if (
+				!row ||
+				!authority.allowed.has(row.forum_id) ||
+				row.forum_id !== candidate.forumId ||
+				row.sticky < 0 ||
+				row.forum_status !== 1 ||
+				!homeForumVisible(row.visibility, authority.bucket) ||
+				row.last_post_at <= now - 86_400 ||
+				row.last_post_at > now
+			)
+				return [];
+			return [
+				{
+					id: row.id,
+					forumId: row.forum_id,
+					forumName: cut(row.forum_name, 200),
+					subject: cut(row.subject, SUBJECT_MAX),
+					lastPostAt: row.last_post_at,
+					replies: nonnegative(row.replies),
+				},
+			];
+		})
+		.sort((a, b) => b.lastPostAt - a.lastPostAt || b.id - a.id)
+		.slice(0, HOME_DIGEST_LIMIT);
 }

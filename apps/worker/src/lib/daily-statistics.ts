@@ -9,6 +9,7 @@ import {
 	statisticsDay,
 } from "@ellie/types";
 import type { Env } from "./env";
+import { markStatisticsForums, readChangedForums, refreshRecentActivity } from "./recent-activity";
 
 export const DAILY_STATISTICS_KEY = "statistics:daily:v1";
 const DELTA_TTL = 7 * 86_400;
@@ -62,6 +63,12 @@ export async function readDailyStatistics(
 }
 
 export async function refreshDailyStatistics(env: Env, now = Date.now()): Promise<DailyStatistics> {
+	const previous = await readBase(env);
+	const [changed, activeForums] = await Promise.all([
+		readChangedForums(env),
+		refreshRecentActivity(env, Math.floor(now / 1000)),
+	]);
+	const affected = new Set([...changed.forumIds, ...activeForums]);
 	const day = statisticsDay(now);
 	const start = Math.floor(Date.parse(`${day}T00:00:00+08:00`) / 1000);
 	const [counters, forums, groups, dailyPosts, online] = await Promise.all([
@@ -70,19 +77,25 @@ export async function refreshDailyStatistics(env: Env, now = Date.now()): Promis
 		)
 			.bind(...COUNTERS)
 			.all<{ key: string; value: string }>(),
-		env.DB.prepare("SELECT id, posts FROM forums").all<{ id: number; posts: number }>(),
-		env.DB.prepare(`SELECT forum_id, type_id, COUNT(*) AS threads,
+		env.DB.prepare("SELECT id, posts FROM forums").all<{
+			id: number;
+			posts: number;
+		}>(),
+		!previous || affected.size > 0
+			? env.DB.prepare(`SELECT forum_id, type_id, COUNT(*) AS threads,
 			SUM(CASE WHEN sticky != 2 THEN 1 ELSE 0 END) AS local_threads,
 			SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END) AS today_threads
-			FROM threads WHERE sticky >= 0 GROUP BY forum_id, type_id`)
-			.bind(start, start + 86_400)
-			.all<{
-				forum_id: number;
-				type_id: number;
-				threads: number;
-				local_threads: number;
-				today_threads: number;
-			}>(),
+			FROM threads INDEXED BY idx_threads_forum WHERE ${previous ? "forum_id IN (SELECT value FROM json_each(?)) AND" : ""}
+			sticky >= 0 GROUP BY forum_id, type_id`)
+					.bind(start, start + 86_400, ...(previous ? [JSON.stringify([...affected])] : []))
+					.all<{
+						forum_id: number;
+						type_id: number;
+						threads: number;
+						local_threads: number;
+						today_threads: number;
+					}>()
+			: { success: true, results: [] },
 		env.DB.prepare(`SELECT
 			COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) AS today,
 			COALESCE(SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END), 0) AS yesterday
@@ -116,10 +129,11 @@ export async function refreshDailyStatistics(env: Env, now = Date.now()): Promis
 			forums.results.map((forum) => [
 				forum.id,
 				{
-					threads: 0,
+					threads:
+						!previous || affected.has(forum.id) ? 0 : (previous.forums[forum.id]?.threads ?? 0),
 					posts: forum.posts,
 					todayThreads: 0,
-					types: {},
+					types: affected.has(forum.id) ? {} : { ...previous?.forums[forum.id]?.types },
 				},
 			]),
 		),
@@ -132,10 +146,12 @@ export async function refreshDailyStatistics(env: Env, now = Date.now()): Promis
 		forum.types[row.type_id] = row.threads;
 	}
 	await env.KV.put(DAILY_STATISTICS_KEY, serialize(snapshot));
+	for (const key of changed.keys) await env.KV.delete(key);
 	return snapshot;
 }
 
 export async function recordStatisticsDelta(env: Env, delta: StatisticsDelta): Promise<void> {
+	if (delta.forumId !== undefined) await markStatisticsForums(env, [delta.forumId]);
 	try {
 		const base = await readBase(env);
 		if (!base) return;

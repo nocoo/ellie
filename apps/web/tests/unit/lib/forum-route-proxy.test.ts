@@ -557,3 +557,9 @@ describe("error handling", () => {
 		expect(errSpy).toHaveBeenCalled();
 	});
 });
+
+it("restricts custom memory reads to authenticated GET dispatch", () => {
+	expect(() =>
+		proxyRoute({ method: "POST", path: () => "/messages", body: "json", read: async () => ({}) }),
+	).toThrow("read is only valid for GET");
+});

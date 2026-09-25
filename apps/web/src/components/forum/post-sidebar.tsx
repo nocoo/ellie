@@ -89,7 +89,7 @@ export function PostSidebar({
 				>
 					<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1 cursor-pointer">
 						<UserAvatar
-							src={getAvatarUrl(author.id, "big", author.avatarPath)}
+							src={getAvatarUrl(author.id, author.avatarPath)}
 							alt={author.username}
 							className="block size-20 rounded-lg object-cover"
 						/>

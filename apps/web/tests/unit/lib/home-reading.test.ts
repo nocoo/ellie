@@ -86,6 +86,7 @@ function context(extra = {}) {
 				authorId: 9,
 			},
 		],
+		recent: [],
 		digestGates: [
 			{ topicId: 4, forumId: 1, sticky: 0, digest: 1, anonymousAuthor: 0, authorId: 9 },
 		],
@@ -391,4 +392,36 @@ it("does not repeat an incomplete forced homepage refill", async () => {
 	});
 	await expect(loadHomeContext()).rejects.toThrow("Incomplete homepage context");
 	expect(mocks.post).toHaveBeenCalledTimes(2);
+});
+
+it("uses freshly authorized recent activity without freezing it in the display cache", async () => {
+	const recent = {
+		id: 8,
+		forumId: 1,
+		forumName: "Forum",
+		subject: "Recent",
+		lastPostAt: 100,
+		replies: 2,
+	};
+	mocks.post.mockResolvedValueOnce({ data: context({ display, recent: [recent] }) });
+	expect((await loadHomeContext()).recent).toEqual([recent]);
+	expect(runtime.peek("home-display", "member")).not.toHaveProperty("recent");
+	mocks.post.mockResolvedValueOnce({ data: context({ recent: [] }) });
+	expect((await loadHomeContext()).recent).toEqual([]);
+	expect(mocks.post).toHaveBeenCalledTimes(2);
+});
+
+it("filters forbidden recent forums and bounds the homepage recent list", async () => {
+	const recent = Array.from({ length: 8 }, (_, index) => ({
+		id: index + 1,
+		forumId: index === 0 ? 2 : 1,
+		forumName: "Forum",
+		subject: "Recent",
+		lastPostAt: 100,
+		replies: 2,
+	}));
+	mocks.post.mockResolvedValueOnce({ data: context({ display, recent }) });
+	const result = await loadHomeContext();
+	expect(result.recent).toHaveLength(5);
+	expect(result.recent.every((row) => row.forumId === 1)).toBe(true);
 });

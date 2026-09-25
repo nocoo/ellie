@@ -11,6 +11,7 @@ export default function NotFound() {
 				链接可能已失效，或内容已被移除。回到首页，继续发现社区里的新讨论。
 			</p>
 			<Link
+				prefetch={false}
 				href="/"
 				className="mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
 			>

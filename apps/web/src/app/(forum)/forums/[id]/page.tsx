@@ -47,7 +47,11 @@ export default async function ForumThreadsPage({ params }: ForumThreadsPageProps
 			<Card size="sm">
 				<CardContent className="text-center py-4">
 					<p className="text-sm text-destructive">无效的版块 ID</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+					<Link
+						prefetch={false}
+						href="/"
+						className="mt-4 inline-block text-sm text-primary hover:underline"
+					>
 						返回首页
 					</Link>
 				</CardContent>

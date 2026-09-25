@@ -725,3 +725,30 @@ read selections used by Web. These state owners intentionally avoid generic cach
 generation lookups: daily totals never trigger a foreground D1 refill, and signed
 warm reads perform no KV operations. Missing state returns estimates or rebuilds
 only the bounded non-statistical selection. See [doc/36](36-daily-statistics-and-read-snapshots.md).
+
+## Recent activity and selective correction (v1.14.10)
+
+`lib/recent-activity.ts` owns two persistent state families. `activity:recent:v1`
+holds up to 512 recent topic projections, without author identities. An isolate
+hydrates it once and reuses it for five minutes; every read removes candidates
+outside the rolling 24-hour window. Posting/replying updates the current isolate
+and KV without a count query. KV write races may delay other isolates until the
+nightly repair. The homepage shares its existing current-authority query with up
+to 20 activity candidates and returns at most five visible rows.
+
+The 03:00 Asia/Shanghai job uses one `idx_threads_latest` range query to refresh
+activity. Its complete affected-forum set is collected before the stored candidate
+list is truncated. `statistics:changed:v1:<forumId>:<eventId>` additionally records
+content mutations, including historical deletions, moves and classification or
+visibility changes. Event keys are independent: the job deletes only observed
+markers after the new daily base is persisted, so concurrent mutations and failed
+refreshes remain pending. No foreground read scans this journal.
+
+Daily counts retain unaffected forum/type totals and query only affected forums
+through `idx_threads_forum`; a quiet day executes no historical topic COUNT. The
+initial missing-base bootstrap remains explicit/nightly, never a foreground
+fallback. Forum zero remains valid for imported deleted-content statistics.
+
+Avatar CDN reads, disabled Link prefetch and hourly Web process-memory unread
+estimates remove redundant Worker/KV traffic. These changes do not cache current
+content authorization or replace mailbox authorization with an estimate.

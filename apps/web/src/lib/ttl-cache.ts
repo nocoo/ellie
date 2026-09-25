@@ -38,6 +38,7 @@ const DEFAULT_KEY = "__default";
 export interface TtlCacheOptions<T, K> {
 	/** Time-to-live in milliseconds. */
 	expirationMs: number;
+	maxEntries?: number;
 	/**
 	 * Loader. Called when the cache misses or expires. Reject → cache
 	 * untouched, the next `get` retries.
@@ -71,7 +72,9 @@ function normalizeKey<K>(key: K | undefined): string {
 }
 
 export function createTtlCache<T, K = void>(opts: TtlCacheOptions<T, K>): TtlCache<T, K> {
-	const { expirationMs, load } = opts;
+	const { expirationMs, load, maxEntries = Number.POSITIVE_INFINITY } = opts;
+	if (maxEntries < 1) throw new Error("Cache capacity must be positive");
+	let activeLoads = 0;
 	const now = opts.now ?? Date.now;
 	const entries = new Map<string, Entry<T>>();
 	const inFlight = new Map<string, { id: symbol; promise: Promise<T> }>();
@@ -86,6 +89,14 @@ export function createTtlCache<T, K = void>(opts: TtlCacheOptions<T, K>): TtlCac
 			const flight = inFlight.get(k);
 			if (flight) return flight.promise;
 
+			entries.delete(k);
+			while (entries.size + inFlight.size >= maxEntries && entries.size > 0) {
+				const oldest = entries.keys().next().value;
+				if (oldest !== undefined) entries.delete(oldest);
+			}
+			if (activeLoads >= maxEntries)
+				return Promise.reject(new Error("Cache load capacity exceeded"));
+			activeLoads++;
 			const flightId = Symbol();
 			const promise = (async () => {
 				try {
@@ -95,6 +106,7 @@ export function createTtlCache<T, K = void>(opts: TtlCacheOptions<T, K>): TtlCac
 					}
 					return value;
 				} finally {
+					activeLoads--;
 					const current = inFlight.get(k);
 					if (current && current.id === flightId) inFlight.delete(k);
 				}

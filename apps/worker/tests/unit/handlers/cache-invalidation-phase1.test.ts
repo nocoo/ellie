@@ -112,7 +112,7 @@ describe("ordinary thread/post creation uses natural cache expiry", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"t.forum_id, t.closed, t.sticky, f.status, f.visibility": {
+				"t.forum_id, t.subject, t.replies, t.closed, t.sticky": {
 					id: 1,
 					forum_id: 7,
 					closed: 0,

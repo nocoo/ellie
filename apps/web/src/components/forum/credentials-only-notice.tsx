@@ -27,10 +27,10 @@ export function CredentialsOnlyNotice({ feature }: CredentialsOnlyNoticeProps) {
 					{feature}功能仅对论坛账号用户开放。您当前使用的是 Google 账号登录，无法使用此功能。
 				</p>
 				<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-					<Link href="/" className={buttonVariants({ variant: "outline" })}>
+					<Link prefetch={false} href="/" className={buttonVariants({ variant: "outline" })}>
 						返回首页
 					</Link>
-					<Link href="/login" className={buttonVariants()}>
+					<Link prefetch={false} href="/login" className={buttonVariants()}>
 						使用论坛账号登录
 					</Link>
 				</div>

@@ -173,7 +173,7 @@ describe("all thread-list memberships", () => {
 				items: [membership.items[0], membership.items[0]],
 			}),
 		).toBe(false);
-		expect(f.values.size).toBe(1);
+		expect([...f.values.keys()].sort()).toEqual(["activity:recent:v1", "statistics:daily:v1"]);
 		f.calls.length = 0;
 		for (const params of [
 			{ ...descriptor.params, limit: "20 OFFSET 0" },

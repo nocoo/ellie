@@ -4,6 +4,7 @@ import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/messages/mark-all-read
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { invalidateUnreadEstimate } from "@/lib/message-unread";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 
 export async function POST(request: Request) {
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
 			jwt,
 			client,
 		);
+		await invalidateUnreadEstimate();
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {

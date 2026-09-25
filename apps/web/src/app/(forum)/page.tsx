@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DigestShowcase } from "@/components/forum/digest-showcase";
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
+import { RecentShowcase } from "@/components/forum/recent-showcase";
 import { Button } from "@/components/ui/button";
 import { getCachedHomeContext } from "@/lib/forum-cache";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
@@ -47,7 +48,11 @@ export default async function ForumHomePage() {
 						{group.name}
 					</a>
 				))}
-				<Button className="ml-auto" nativeButton={false} render={<Link href="/checkin" />}>
+				<Button
+					className="ml-auto"
+					nativeButton={false}
+					render={<Link href="/checkin" prefetch={false} />}
+				>
 					<CalendarCheck className="size-4" aria-hidden="true" />
 					每日签到
 				</Button>
@@ -58,8 +63,10 @@ export default async function ForumHomePage() {
 				</div>
 			)}
 
-			{/* Digest showcase — at the top */}
-			<DigestShowcase threads={digestThreads} />
+			<div className="grid gap-4 lg:grid-cols-2">
+				<DigestShowcase threads={digestThreads} />
+				<RecentShowcase threads={home.value?.recent ?? []} />
+			</div>
 
 			{tree.map((group) => (
 				<ForumGroup key={group.id} group={group} />

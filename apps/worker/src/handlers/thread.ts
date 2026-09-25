@@ -1,3 +1,4 @@
+import { recordRecentActivity } from "../lib/recent-activity";
 // Thread handlers for Cloudflare Worker
 
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
@@ -492,11 +493,12 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	// path doesn't go through the cached forum:meta:v2 reader).
 	const [forum, authorRow] = await Promise.all([
 		env.DB.prepare(
-			"SELECT id, status, visibility, thread_types_enabled, thread_types_required FROM forums WHERE id = ?",
+			"SELECT id, name, status, visibility, thread_types_enabled, thread_types_required FROM forums WHERE id = ?",
 		)
 			.bind(forumId)
 			.first<{
 				id: number;
+				name: string;
 				status: number;
 				visibility: string;
 				thread_types_enabled: number;
@@ -600,6 +602,15 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	await incrementStatsOnThreadCreate(env, forumId, insertTypeId).catch((error) =>
 		console.warn("[thread:create] stats counter increment failed", error),
 	);
+
+	await recordRecentActivity(env, {
+		id: threadId,
+		forumId,
+		forumName: forum.name,
+		subject: filteredSubject,
+		lastPostAt: now,
+		replies: 0,
+	});
 
 	return jsonResponse(
 		toThread(createdThread as Record<string, unknown>, {

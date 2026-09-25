@@ -67,7 +67,11 @@ function ThreadHeaderAuthor({
 		return <span className="text-muted-foreground">未知用户</span>;
 	}
 	return (
-		<Link href={`/users/${thread.authorId}`} className="hover:text-primary transition-colors">
+		<Link
+			prefetch={false}
+			href={`/users/${thread.authorId}`}
+			className="hover:text-primary transition-colors"
+		>
 			{thread.authorName}
 		</Link>
 	);
@@ -83,7 +87,11 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			<Card size="sm">
 				<CardContent className="text-center py-4">
 					<p className="text-sm text-destructive">无效的主题 ID</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+					<Link
+						prefetch={false}
+						href="/"
+						className="mt-4 inline-block text-sm text-primary hover:underline"
+					>
 						返回首页
 					</Link>
 				</CardContent>
@@ -124,7 +132,11 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			<Card size="sm">
 				<CardContent className="text-center py-4">
 					<p className="text-sm text-destructive">{error ?? "主题不存在"}</p>
-					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+					<Link
+						prefetch={false}
+						href="/"
+						className="mt-4 inline-block text-sm text-primary hover:underline"
+					>
 						返回首页
 					</Link>
 				</CardContent>
@@ -190,6 +202,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				description={
 					<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 						<Link
+							prefetch={false}
 							href={`/forums/${thread.forumId}`}
 							className="font-medium text-primary hover:underline"
 						>
@@ -211,6 +224,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					</span>
 					{thread.lastPostAt > 0 && (
 						<Link
+							prefetch={false}
 							href={getThreadPageUrl(thread.id, threadPages, validReturnTo ?? undefined)}
 							className="inline-flex items-center gap-1.5 hover:text-primary"
 						>

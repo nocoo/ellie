@@ -186,7 +186,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 						<Button
 							variant="ghost"
 							nativeButton={false}
-							render={<Link href="/messages" role="link" />}
+							render={<Link prefetch={false} href="/messages" role="link" />}
 						>
 							<ArrowLeft className="size-4" aria-hidden="true" />
 							返回列表
@@ -212,7 +212,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 			<article className="overflow-hidden rounded-2xl border border-border bg-card">
 				<div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-4 sm:px-5">
 					{message.senderId > 0 ? (
-						<Link href={`/users/${message.senderId}`} className="shrink-0">
+						<Link prefetch={false} href={`/users/${message.senderId}`} className="shrink-0">
 							<ForumAvatar userId={message.senderId} userName={message.senderName} size="md" />
 						</Link>
 					) : (
@@ -221,6 +221,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 					<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
 						{message.senderId > 0 ? (
 							<Link
+								prefetch={false}
 								href={`/users/${message.senderId}`}
 								className="break-all font-medium hover:text-primary"
 							>
@@ -232,6 +233,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 						<span className="text-xs text-muted-foreground">发给</span>
 						{message.receiverId > 0 ? (
 							<Link
+								prefetch={false}
 								href={`/users/${message.receiverId}`}
 								className="break-all font-medium hover:text-primary"
 							>

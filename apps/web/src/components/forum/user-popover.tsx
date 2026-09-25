@@ -330,6 +330,7 @@ export function UserPopover({
 
 							{/* View profile link */}
 							<Link
+								prefetch={false}
 								href={`/users/${user.id}`}
 								onClick={() => setOpen(false)}
 								className="inline-flex items-center justify-center h-6 px-2 rounded-lg border border-border bg-background text-xs font-medium gap-1 hover:bg-muted transition-colors"
@@ -440,10 +441,10 @@ function UserHeader({
 			<div className="relative px-4 pt-4 pb-3">
 				<div className="flex items-start gap-3">
 					{/* Avatar */}
-					<Link href={`/users/${user.id}`} onClick={onClose}>
+					<Link prefetch={false} href={`/users/${user.id}`} onClick={onClose}>
 						<div className="bg-card p-1 rounded-lg shadow-md ring-1 ring-border/50">
 							<UserAvatar
-								src={getAvatarUrl(user.id, "middle", user.avatarPath)}
+								src={getAvatarUrl(user.id, user.avatarPath)}
 								alt={user.username}
 								className="h-16 w-16 rounded-md"
 							/>
@@ -454,6 +455,7 @@ function UserHeader({
 					<div className="flex-1 min-w-0 pt-1">
 						<div className="flex items-center gap-2 flex-wrap">
 							<Link
+								prefetch={false}
 								href={`/users/${user.id}`}
 								onClick={onClose}
 								className="text-base font-bold text-foreground hover:text-primary transition-colors truncate"

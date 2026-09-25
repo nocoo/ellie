@@ -11,14 +11,14 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { HeaderTooltip } from "@/components/header-links";
 import { cn } from "@/lib/utils";
-import { fetchUnreadCount } from "@/viewmodels/forum/messages";
+import { fetchUnreadCount, MESSAGE_BADGE_REFRESH_EVENT } from "@/viewmodels/forum/messages";
 
 // ---------------------------------------------------------------------------
 // Refresh interval for polling unread count
 // ---------------------------------------------------------------------------
 
-// Passive checks are at most once per ten minutes, including tab refocus.
-const POLL_INTERVAL_MS = 600_000;
+// Passive checks are at most once per hour, including tab refocus.
+const POLL_INTERVAL_MS = 3_600_000;
 // Browser effects alone populate this single-account snapshot. Route remounts
 // share the request as well as its result, so navigation cannot restart polling.
 let lastCheck: { userId: string; at: number; result: Promise<number> } | undefined;
@@ -49,21 +49,28 @@ export function MessageBadgeIcon() {
 				lastCheck = { userId, at: Date.now(), result: fetchUnreadCount() };
 			}
 
-			void lastCheck.result
+			const checkResult = lastCheck;
+			void checkResult.result
 				.then((count) => {
-					if (!cancelled) setUnreadCount(count);
+					if (!cancelled && lastCheck === checkResult) setUnreadCount(count);
 				})
 				.catch(() => {
 					/* Retry at the next passive check. */
 				});
 			timer = setTimeout(check, Math.max(1, POLL_INTERVAL_MS - (Date.now() - lastCheck.at)));
 		};
+		const refresh = () => {
+			lastCheck = undefined;
+			check();
+		};
 		check();
+		window.addEventListener(MESSAGE_BADGE_REFRESH_EVENT, refresh);
 		document.addEventListener("visibilitychange", check);
 		return () => {
 			cancelled = true;
 			clearTimeout(timer);
 			document.removeEventListener("visibilitychange", check);
+			window.removeEventListener(MESSAGE_BADGE_REFRESH_EVENT, refresh);
 		};
 	}, [isCredentialsUser, userId]);
 
@@ -71,6 +78,7 @@ export function MessageBadgeIcon() {
 		<HeaderTooltip label="站内信">
 			<Link
 				href="/messages"
+				prefetch={false}
 				className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 				aria-label="站内信"
 			>

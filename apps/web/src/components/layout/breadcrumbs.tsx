@@ -69,6 +69,7 @@ export function Breadcrumbs({ items, mobileCompact = "none" }: BreadcrumbsProps)
 						{index > 0 && <ChevronRight className="h-3 w-3 shrink-0" aria-hidden="true" />}
 						{item.href ? (
 							<Link
+								prefetch={false}
 								href={item.href}
 								className="flex min-w-0 items-center gap-1 break-words hover:text-foreground transition-colors"
 							>

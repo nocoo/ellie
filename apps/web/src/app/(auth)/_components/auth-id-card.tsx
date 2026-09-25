@@ -19,7 +19,7 @@ export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 				<div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border bg-card shadow-sm lg:grid-cols-[0.8fr_1.2fr]">
 					<div className="relative flex flex-col overflow-hidden bg-[#123a56] p-6 text-white sm:p-8 lg:p-10">
 						<div className="relative z-10 flex items-center justify-between gap-4">
-							<Link href="/" aria-label="同济网论坛首页">
+							<Link prefetch={false} href="/" aria-label="同济网论坛首页">
 								<ForumLogo height={32} variant="dark" />
 							</Link>
 							<span className="text-xs tracking-wide text-white/65">{topCenter}</span>

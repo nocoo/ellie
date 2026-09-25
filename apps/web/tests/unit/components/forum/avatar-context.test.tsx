@@ -5,7 +5,7 @@ import { AvatarProvider, useAvatarContext, useAvatarUrl } from "@/contexts/avata
 
 afterEach(cleanup);
 
-function AvatarReader({ uid, path }: { uid: number; path?: string }) {
+function AvatarReader({ uid, path }: { uid: number; path?: string | null }) {
 	return <img src={useAvatarUrl(uid, path)} alt={`avatar-${uid}`} />;
 }
 
@@ -24,6 +24,8 @@ describe("saved avatar propagation", () => {
 			<AvatarProvider>
 				<UploadResult />
 				<AvatarReader uid={42} />
+				<AvatarReader uid={42} path="" />
+				<AvatarReader uid={42} path={null} />
 				<AvatarReader uid={42} path="avatars/old.jpg" />
 				<AvatarReader uid={7} />
 			</AvatarProvider>,
@@ -39,6 +41,13 @@ describe("saved avatar propagation", () => {
 		render(<AvatarReader uid={42} path="avatars/existing.jpg" />);
 		expect(screen.getByAltText("avatar-42").getAttribute("src")).toBe(
 			"https://t.no.mt/avatars/existing.jpg",
+		);
+	});
+
+	it.each(["", null])("preserves known legacy metadata without a provider (%s)", (path) => {
+		render(<AvatarReader uid={42} path={path} />);
+		expect(screen.getByAltText("avatar-42").getAttribute("src")).toBe(
+			"https://t.no.mt/avatar/000/00/00/42_avatar_big.jpg",
 		);
 	});
 });

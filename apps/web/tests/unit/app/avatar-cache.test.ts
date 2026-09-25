@@ -71,6 +71,20 @@ describe("mutable avatar proxy caching", () => {
 });
 
 describe("avatar failure cache boundaries", () => {
+	it.each([{}, { data: {} }, { data: { avatarPath: null } }, { data: { avatarPath: 42 } }])(
+		"does not treat malformed avatar metadata as a known legacy avatar (%j)",
+		async (metadata) => {
+			fetchMock.mockResolvedValueOnce(Response.json(metadata));
+			fetchMock.mockResolvedValueOnce(new Response("fallback"));
+			const response = await avatarRequest("");
+			expect(await response.text()).toBe("fallback");
+			expect(response.headers.get("Cache-Control")).toBe("no-store");
+			expect(response.headers.get("Cloudflare-CDN-Cache-Control")).toBe("no-store");
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(fetchMock).toHaveBeenLastCalledWith("https://t.no.mt/static/image/common/tavatar.gif");
+		},
+	);
+
 	it.each(["missing-user", "cdn-error", "network-error", "fallback-error"])(
 		"never caches %s",
 		async (failure) => {

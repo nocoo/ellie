@@ -666,6 +666,35 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 			"Approximate mutation overlay scoped to its daily base version; daily rebuild repairs drift.",
 	},
 	{
+		family: "activity:recent:v1",
+		displayName: "Recent topic activity",
+		category: "snapshot",
+		status: "shipped",
+		listPrefix: "activity:recent:v1",
+		keyKind: "exact",
+		pattern: "activity:recent:v1",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "mask-value",
+		refresh: { kind: "none" },
+		description:
+			"Bounded 24-hour activity snapshot, updated on posting and rebuilt nightly; current permissions gate every response.",
+	},
+	{
+		family: "statistics:changed:v1",
+		displayName: "Forums awaiting statistics correction",
+		category: "sticky-stats",
+		status: "shipped",
+		listPrefix: "statistics:changed:v1:",
+		pattern: "statistics:changed:v1:<forumId>:<eventId>",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Independent mutation markers acknowledged only after a successful daily statistics publication.",
+	},
+	{
 		family: "reading:config:v1",
 		displayName: "Forum configuration snapshot",
 		category: "snapshot",
@@ -1021,6 +1050,8 @@ export function resolveFamilyForKey(key: string): KvFamilySpec | null {
  * file and add the prefix to ALLOWLIST_OUT_OF_SCOPE below instead.
  */
 export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
+	"activity:recent:v1",
+	"statistics:changed:v1:",
 	"statistics:daily:v1",
 	"statistics:daily:v1:delta:",
 	"reading:v1:config:",

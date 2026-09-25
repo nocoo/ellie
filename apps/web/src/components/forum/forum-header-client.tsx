@@ -111,6 +111,7 @@ export function ForumHeaderClient({
 							</strong>
 						</span>
 						<Link
+							prefetch={false}
 							href="/digest"
 							className="ml-auto inline-flex items-center gap-1.5 text-primary hover:underline"
 						>

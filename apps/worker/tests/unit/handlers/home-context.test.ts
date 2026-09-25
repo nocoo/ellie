@@ -43,7 +43,7 @@ describe("POST /api/v1/home/context", () => {
 		return f;
 	}
 
-	it("returns no-store anon authority without display, stats, KV, or writes", async () => {
+	it("returns no-store anon authority and hydrates recent activity once without writes", async () => {
 		open();
 		f.thread(8, { subject: "Visible", digest: 2, last_post_at: 80 });
 		const response = await homeContext(post(warm), f.env);
@@ -55,7 +55,9 @@ describe("POST /api/v1/home/context", () => {
 		expect(body.data.allowedForumIds).toEqual([1]);
 		expect(body.data.display).toBeUndefined();
 		expect(body.data.stats).toBeUndefined();
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
+		await homeContext(post(warm), f.env);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
 		expect(f.env.KV.put).not.toHaveBeenCalled();
 		expect(f.calls.some((call) => call.mode === "run")).toBe(false);
 		expect(f.calls.some((call) => call.sql.includes("idx_threads_digest"))).toBe(false);
@@ -64,7 +66,7 @@ describe("POST /api/v1/home/context", () => {
 		expect(forumSql.every((call) => !/name|description|moderator_ids/.test(call.sql))).toBe(true);
 	});
 
-	it("rebuilds current author names after rename and keeps hot gates free of display text", async () => {
+	it("rebuilds current author names after rename and keeps hot gates free of user joins", async () => {
 		open();
 		f.thread(8, { digest: 2, author_name: "Old name" });
 		await f.env.DB.prepare("UPDATE users SET username = ? WHERE id = ?").bind("Renamed", 10).run();
@@ -74,7 +76,7 @@ describe("POST /api/v1/home/context", () => {
 		f.calls.length = 0;
 		await homeContext(post({ ...warm, summaryTopicIds: [8], digestTopicIds: [8] }), f.env);
 		const queries = f.calls.map((call) => call.sql).join("\n");
-		expect(queries).not.toContain("t.subject");
+		expect(queries).toContain("t.subject");
 		expect(queries).not.toContain("t.author_name");
 		expect(queries).not.toContain("JOIN users");
 	});

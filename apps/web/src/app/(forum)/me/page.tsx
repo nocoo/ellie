@@ -63,7 +63,7 @@ export default async function MePage() {
 					<Button
 						variant="outline"
 						nativeButton={false}
-						render={<Link href={`/users/${self.id}`} role="link" />}
+						render={<Link prefetch={false} href={`/users/${self.id}`} role="link" />}
 					>
 						个人主页
 						<ArrowUpRight className="size-4" aria-hidden="true" />
@@ -96,7 +96,7 @@ export default async function MePage() {
 					aria-labelledby="avatar-section-heading"
 					className="min-w-0 scroll-mt-24"
 				>
-					<MeAvatarSection userId={self.id} />
+					<MeAvatarSection userId={self.id} avatarPath={self.avatarPath} />
 				</section>
 			</div>
 		</div>

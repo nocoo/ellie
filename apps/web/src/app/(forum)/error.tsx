@@ -18,6 +18,7 @@ export default function ForumError({ retry }: { retry: () => void }) {
 					重新加载
 				</Button>
 				<Link
+					prefetch={false}
 					href="/"
 					className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted"
 				>

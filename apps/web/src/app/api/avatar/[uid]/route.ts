@@ -47,7 +47,9 @@ async function getUserAvatarPath(uid: number): Promise<AvatarPathResult> {
 		}
 
 		const json = (await res.json()) as { data?: { avatarPath?: string } };
-		return { status: "found", avatarPath: json.data?.avatarPath ?? "" };
+		return typeof json.data?.avatarPath === "string"
+			? { status: "found", avatarPath: json.data.avatarPath }
+			: { status: "error" };
 	} catch {
 		return { status: "error" };
 	}

@@ -66,6 +66,7 @@ function FriendLinksSection({ vm }: { vm: HomeFooterViewModel }) {
 				<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-4 gap-y-2 text-sm">
 					{vm.friendLinks.map((link) => (
 						<Link
+							prefetch={false}
 							key={link.label}
 							href={link.href}
 							target="_blank"

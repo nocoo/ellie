@@ -41,7 +41,11 @@ export default async function CheckinPage() {
 					<CardContent>
 						<p className="text-muted-foreground">
 							请先{" "}
-							<Link href="/login?redirect=/checkin" className="text-primary underline">
+							<Link
+								prefetch={false}
+								href="/login?redirect=/checkin"
+								className="text-primary underline"
+							>
 								登录
 							</Link>{" "}
 							后再签到。

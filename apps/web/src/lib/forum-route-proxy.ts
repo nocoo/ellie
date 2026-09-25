@@ -77,6 +77,7 @@ export interface ProxyRouteOptions<P> {
 	query?: ProxyQueryMode;
 	/** Default 200. Set 201 for create endpoints. */
 	successStatus?: number;
+	read?: () => Promise<unknown>;
 	transform?: (result: unknown, ctx: { params: P }) => unknown;
 	/** Future-batch hook; default `forumApiErrorToProxyResponse`. */
 	onForumApiError?: (err: ForumApiError) => Response;
@@ -203,6 +204,7 @@ function validateOptions<P>(opts: ProxyRouteOptions<P>): void {
 			throw new Error("proxyRoute: GET handlers must not declare a body strategy");
 		}
 	} else {
+		if (opts.read) throw new Error("proxyRoute: read is only valid for GET handlers");
 		if (opts.body === undefined) {
 			throw new Error(
 				`proxyRoute: ${opts.method} handlers must declare body: "json" | "empty" | fn`,
@@ -241,6 +243,7 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 	const successStatus = opts.successStatus ?? 200;
 	const transform = opts.transform ?? ((x: unknown) => x);
 	const onForumApiError = opts.onForumApiError ?? forumApiErrorToProxyResponse;
+	const perform = opts.read ?? dispatch;
 
 	return async function handler(request, ctx) {
 		// 1. CSRF
@@ -282,7 +285,7 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 
 		// 6. Dispatch + error mapping
 		try {
-			const result = await dispatch({
+			const result = await perform({
 				method: opts.method,
 				path,
 				jwt,

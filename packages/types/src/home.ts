@@ -91,6 +91,15 @@ export interface HomeDigestGate {
 	authorId: number;
 }
 
+export interface HomeRecentTopic {
+	id: number;
+	forumId: number;
+	forumName: string;
+	subject: string;
+	lastPostAt: number;
+	replies: number;
+}
+
 export interface HomeStats {
 	todayPosts: number;
 	yesterdayPosts: number;
@@ -114,6 +123,7 @@ export interface HomeContextData {
 	allowedForumIds: number[];
 	summaryGates: ForumSummaryGate[];
 	digestGates: HomeDigestGate[];
+	recent: HomeRecentTopic[];
 	display?: HomeDisplay;
 	stats?: HomeStats;
 }

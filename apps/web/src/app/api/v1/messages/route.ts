@@ -4,6 +4,7 @@ import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: GET/POST /api/v1/messages
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { invalidateUnreadEstimate } from "@/lib/message-unread";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 
 export async function GET(request: Request) {
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
 			Object.fromEntries(url.searchParams),
 			client,
 		);
+		await invalidateUnreadEstimate();
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
@@ -83,7 +85,13 @@ export async function POST(request: Request) {
 			userAgent: request.headers.get("User-Agent") || undefined,
 		};
 		const body = await request.json();
-		const result = await forumApi.postAuth<unknown>("/api/v1/messages", body, jwt, client);
+		const result = await forumApi.postAuth<{ receiverId: number }>(
+			"/api/v1/messages",
+			body,
+			jwt,
+			client,
+		);
+		await invalidateUnreadEstimate(result.data.receiverId);
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
 		if (err instanceof ForumApiError) {

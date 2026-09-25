@@ -42,6 +42,7 @@ export interface ProfileEditDialogProps {
 	onOpenChange: (open: boolean) => void;
 	user: {
 		id: number;
+		avatarPath?: string | null;
 		gender: number;
 		birthYear: number;
 		birthMonth: number;
@@ -65,7 +66,7 @@ export interface ProfileEditDialogProps {
 export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialogProps) {
 	const router = useRouter();
 	const { updateAvatar } = useAvatarContext();
-	const avatarUrl = useAvatarUrl(user.id);
+	const avatarUrl = useAvatarUrl(user.id, user.avatarPath);
 	const [avatarUploading, setAvatarUploading] = useState(false);
 
 	// Use ViewModel hook for profile editing

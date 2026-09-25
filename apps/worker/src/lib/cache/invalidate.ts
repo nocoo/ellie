@@ -11,6 +11,7 @@
 
 import type { Env } from "../env";
 import { invalidateReadingConfig, invalidateReadingRecommendations } from "../reading-snapshots";
+import { markStatisticsForums } from "../recent-activity";
 import { userMiniCacheKey } from "../user-cache";
 import { bumpGen } from "./epoch";
 import {
@@ -116,7 +117,11 @@ export async function bumpForumTreeGen(env: Env): Promise<string> {
 }
 
 export async function bumpThreadListGen(env: Env, forumId: number): Promise<string> {
-	return bumpResource(env, threadListGenKey(forumId), "thread:list");
+	const [generation] = await Promise.all([
+		bumpResource(env, threadListGenKey(forumId), "thread:list"),
+		markStatisticsForums(env, [forumId]),
+	]);
+	return generation;
 }
 
 /**
@@ -145,7 +150,7 @@ export async function invalidateThreadListForForums(
 	forumIds: readonly number[],
 ): Promise<void> {
 	if (forumIds.length === 0) return;
-	const unique = [...new Set(forumIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+	const unique = [...new Set(forumIds.filter((id) => Number.isSafeInteger(id) && id >= 0))];
 	for (let start = 0; start < unique.length; start += 50) {
 		await Promise.all(unique.slice(start, start + 50).map((id) => bumpThreadListGen(env, id)));
 	}

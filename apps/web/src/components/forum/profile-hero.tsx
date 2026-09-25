@@ -23,6 +23,7 @@ interface ProfileHeroProps {
 	user: {
 		id: number;
 		username: string;
+		avatarPath?: string | null;
 		role: number;
 		regDate: number;
 		gender: number;
@@ -59,6 +60,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 						<TrackedUserAvatar
 							uid={user.id}
 							username={user.username}
+							avatarPath={user.avatarPath}
 							size="lg"
 							className="size-16 rounded-xl after:rounded-xl sm:size-20 [&_img]:rounded-xl"
 						/>
@@ -103,7 +105,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 									variant="ghost"
 									size="sm"
 									nativeButton={false}
-									render={<Link href="/me" role="link" />}
+									render={<Link prefetch={false} href="/me" role="link" />}
 								>
 									<Settings2 className="size-4" aria-hidden="true" />
 									我的账号
@@ -113,7 +115,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 								<Button
 									size="sm"
 									nativeButton={false}
-									render={<Link href={`/messages?to=${user.id}`} role="link" />}
+									render={<Link prefetch={false} href={`/messages?to=${user.id}`} role="link" />}
 								>
 									<Mail className="size-4" aria-hidden="true" />
 									发站内信

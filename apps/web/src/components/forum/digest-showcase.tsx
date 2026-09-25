@@ -1,8 +1,5 @@
-// components/forum/digest-showcase.tsx — Homepage digest threads showcase
-// Shows recent digest threads with a link to full digest page
-
 import type { HomeDigestTopic } from "@ellie/types";
-import { getThreadBadges } from "@ellie/types";
+import { getThreadBadges, HOME_DIGEST_LIMIT } from "@ellie/types";
 import { Award, Eye, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
@@ -15,10 +12,9 @@ interface DigestShowcaseProps {
 }
 
 export function DigestShowcase({ threads }: DigestShowcaseProps) {
-	// Empty state: show a friendly message instead of disappearing
 	if (threads.length === 0) {
 		return (
-			<Card size="sm">
+			<Card size="sm" className="min-w-0">
 				<CardHeader className="flex flex-row items-center justify-between">
 					<div className="flex items-center gap-2">
 						<Award className="h-5 w-5 text-muted-foreground" />
@@ -35,7 +31,7 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 	}
 
 	return (
-		<Card size="sm">
+		<Card size="sm" className="min-w-0">
 			<CardHeader className="flex flex-row items-center justify-between">
 				<div className="flex items-center gap-2">
 					<Award className="h-5 w-5 text-success" />
@@ -46,7 +42,7 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 					variant="outline"
 					className="gap-1.5"
 					nativeButton={false}
-					render={<Link href="/digest" />}
+					render={<Link href="/digest" prefetch={false} />}
 				>
 					<Award className="h-4 w-4" />
 					精华帖
@@ -55,8 +51,7 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 
 			<CardContent>
 				<div className="divide-y divide-border/50">
-					{threads.map((thread) => {
-						// Only show digest badge in this showcase
+					{threads.slice(0, HOME_DIGEST_LIMIT).map((thread) => {
 						const badges = getThreadBadges({
 							digest: thread.digest,
 							typeName: "",
@@ -65,42 +60,43 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 							special: 0,
 						}).filter((b) => b.type === "digest");
 						return (
-							<div
-								key={thread.id}
-								className="flex items-center gap-2 py-2.5 transition-colors hover:bg-accent/50"
-							>
-								{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-								<Link
-									href={`/threads/${thread.id}`}
-									prefetch={false}
-									className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
-								>
-									{thread.subject}
-								</Link>
-								<div className="hidden items-center gap-3 text-xs text-muted-foreground tabular-nums lg:flex">
-									<span className="inline-flex items-center gap-1" title="回复">
-										<MessageSquare className="size-3" aria-hidden="true" />
-										{thread.replies}
-									</span>
-									<span className="inline-flex items-center gap-1" title="查看">
-										<Eye className="size-3" aria-hidden="true" />
-										{thread.views}
-									</span>
+							<div key={thread.id} className="space-y-1 py-2.5">
+								<div className="flex items-center gap-2">
+									{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+									<Link
+										href={`/threads/${thread.id}`}
+										prefetch={false}
+										className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
+									>
+										{thread.subject}
+									</Link>
 								</div>
-								<div className="hidden sm:flex items-center justify-end gap-2 text-xs text-muted-foreground shrink-0 sm:w-48">
-									{thread.authorId > 0 ? (
-										<Link
-											href={`/users/${thread.authorId}`}
-											prefetch={false}
-											className="truncate hover:text-primary transition-colors"
-										>
-											{thread.authorName}
-										</Link>
-									) : (
-										<span>{thread.anonymousAuthor === 1 ? "匿名" : "未知用户"}</span>
-									)}
-									<span>·</span>
-									<span>{formatRelativeTime(thread.createdAt)}</span>
+								<div className="flex items-center gap-2 text-xs text-muted-foreground">
+									<div className="flex items-center gap-3 tabular-nums">
+										<span className="inline-flex items-center gap-1" title="回复">
+											<MessageSquare className="size-3" aria-hidden="true" />
+											{thread.replies}
+										</span>
+										<span className="inline-flex items-center gap-1" title="查看">
+											<Eye className="size-3" aria-hidden="true" />
+											{thread.views}
+										</span>
+									</div>
+									<div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+										{thread.authorId > 0 ? (
+											<Link
+												href={`/users/${thread.authorId}`}
+												prefetch={false}
+												className="truncate hover:text-primary transition-colors"
+											>
+												{thread.authorName}
+											</Link>
+										) : (
+											<span>{thread.anonymousAuthor === 1 ? "匿名" : "未知用户"}</span>
+										)}
+										<span>·</span>
+										<span className="shrink-0">{formatRelativeTime(thread.createdAt)}</span>
+									</div>
 								</div>
 							</div>
 						);
