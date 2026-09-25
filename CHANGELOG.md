@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.11] - 2026-09-25
+
+### Fixed
+
+- Rename the homepage activity list to "Recent discussions" and add compact discussion icons aligned with the adjacent digest recommendations.
+- Fill quiet periods with historical discussions, showing up to five currently authorized topics. The nightly indexed query retains up to 20 older candidates in the existing KV snapshot; restarts restore them without foreground backfill queries.
+- Keep historical backfill out of the daily affected-forum recount set. Recent activity, mutation journals and current content authorization retain their existing behavior.
+
+### Deployment
+
+Initialize the recent-activity snapshot once with the matching refresh implementation, deploy the migration-first Worker, then roll out Web/Admin. Initialization uses one D1 selection and one KV write, without rebuilding daily statistics. No schema, binding or secret change is required.
+
 ## [1.14.10] - 2026-09-25
 
 ### Changed
