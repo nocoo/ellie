@@ -56,7 +56,7 @@ describe("recent activity", () => {
 		expect(f.calls).toHaveLength(0);
 	});
 
-	it("optimistically replaces and sorts activity, excludes future/expired rows, and never recounts", async () => {
+	it("optimistically replaces and sorts activity, excludes future rows, and keeps quiet-day history", async () => {
 		await recordRecentActivity(f.env, topic);
 		await recordRecentActivity(f.env, { ...topic, id: 2, lastPostAt: SECOND - 20 });
 		await recordRecentActivity(f.env, { ...topic, replies: 3 });
@@ -69,7 +69,7 @@ describe("recent activity", () => {
 		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
 		expect(f.calls).toHaveLength(0);
 		vi.setSystemTime(NOW + 86_400_000);
-		expect(await readRecentActivity(f.env)).toEqual([]);
+		expect((await readRecentActivity(f.env)).map((row) => row.id)).toEqual([1, 2]);
 		expect(f.calls).toHaveLength(0);
 	});
 
@@ -104,6 +104,33 @@ describe("recent activity", () => {
 		expect(rows.some((row) => row.id >= 513)).toBe(false);
 	});
 
+	it("backfills five authorized discussions from bounded history without marking quiet forums for recount", async () => {
+		for (let id = 1; id <= 30; id++)
+			f.thread(id, { last_post_at: SECOND - 86_400 - id, forum_id: id <= 3 ? 2 : 1 });
+		f.thread(31, { last_post_at: SECOND - 86_400, sticky: -1 });
+		f.thread(32, { last_post_at: SECOND + 1 });
+		expect(await refreshRecentActivity(f.env)).toEqual([]);
+		expect(f.calls).toHaveLength(1);
+		const query = f.calls[0];
+		const plan = f.sqlite.prepare(`EXPLAIN QUERY PLAN ${query.sql}`).all(...query.params);
+		expect(JSON.stringify(plan)).toContain("SEARCH threads USING INDEX idx_threads_latest");
+		expect(f.env.KV.put).toHaveBeenCalledTimes(1);
+		expect(await readRecentActivity(f.env)).toHaveLength(20);
+		vi.setSystemTime(NOW + 86_400_000);
+		const restarted = { ...f.env, KV: { ...f.env.KV } };
+		expect(await readRecentActivity(restarted)).toHaveLength(20);
+		expect(f.calls).toHaveLength(1);
+		vi.mocked(f.env.KV.get).mockClear();
+		f.calls.length = 0;
+		const body = await (await homeContext(request(), restarted)).json();
+		expect(body.data.recent.map((row: { id: number }) => row.id)).toEqual([4, 5, 6, 7, 8]);
+		expect(f.calls).toHaveLength(2);
+		expect(f.env.KV.get).not.toHaveBeenCalled();
+		f.sqlite.exec("DELETE FROM threads WHERE id=32");
+		expect(await refreshRecentActivity(restarted)).toEqual([]);
+		expect(await readRecentActivity(restarted)).toHaveLength(20);
+	});
+
 	it("keeps unique dirty markers for forum zero, deduplicates IDs, and pages across old markers", async () => {
 		await markStatisticsForums(f.env, [0, 1, 1, -1, 1.5]);
 		for (let id = 0; id < 1001; id++) f.values.set(`statistics:changed:v1:2:${id}`, "");
@@ -115,7 +142,7 @@ describe("recent activity", () => {
 		await expect(markStatisticsForums(f.env, [1])).resolves.toBeUndefined();
 	});
 
-	it("shares home authority queries and removes hidden, moved, expired and deleted candidates immediately", async () => {
+	it("shares home authority queries and removes hidden, moved, future and deleted candidates immediately", async () => {
 		f.thread(1, { last_post_at: SECOND, replies: 2, anonymous_author: 1 });
 		await recordRecentActivity(f.env, topic);
 		vi.mocked(f.env.KV.get).mockClear();
@@ -128,7 +155,8 @@ describe("recent activity", () => {
 		for (const sql of [
 			"UPDATE threads SET sticky=-1 WHERE id=1",
 			"UPDATE threads SET sticky=0, forum_id=2 WHERE id=1",
-			`UPDATE threads SET forum_id=1, last_post_at=${SECOND - 86_400} WHERE id=1`,
+			`UPDATE threads SET forum_id=1, last_post_at=${SECOND + 1} WHERE id=1`,
+			"UPDATE threads SET last_post_at=0 WHERE id=1",
 			`UPDATE threads SET last_post_at=${SECOND} WHERE id=1; UPDATE forums SET status=0 WHERE id=1`,
 		]) {
 			f.sqlite.exec(sql);

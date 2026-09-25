@@ -1,6 +1,6 @@
 # Daily statistics and read snapshots
 
-Implementation: v1.14.10. The v1.14.9 evidence below records the initial rollout. Operational receipts and timestamped observations accompany the matching GitHub Release.
+Implementation: v1.14.11. The v1.14.9 evidence below records the initial rollout. Operational receipts and timestamped observations accompany the matching GitHub Release.
 
 ## Accepted behavior
 
@@ -17,13 +17,16 @@ Web stores the merged snapshot in process memory. Cold starts hydrate from the a
 The homepage displays up to five recent topics beside the five digest topics,
 stacked on small screens. A recent row contains its forum, title, reply count and
 last activity time, with no author identity. New topics and replies optimistically
-update Worker memory and one KV snapshot. Reads prune the rolling 24-hour window;
-current home authority and topic gates remove hidden, deleted, moved and restricted
+update Worker memory and one KV snapshot. The nightly snapshot includes the last
+24 hours plus up to 20 older topics to fill quiet days. Historical candidates
+survive restarts and quiet days without a foreground backfill query. Current home
+authority and topic gates remove hidden, deleted, moved and restricted
 candidates before returning text. Each isolate restores once from KV and refreshes
 its memory after five minutes. The stored snapshot is bounded to 512 candidates.
 
-The nightly job refreshes activity with one indexed query and collects affected
-forum IDs before trimming candidates. A separate persistent mutation journal also
+The nightly job refreshes activity with one query using two disjoint indexed time
+ranges, and collects affected forum IDs only from the last 24 hours before trimming
+candidates. Historical backfill never triggers a forum recount. A separate persistent mutation journal also
 captures historical deletions, moves, category changes and thread hiding/restoring.
 The daily count query only searches those affected forums, retaining all other
 forum/type totals; a quiet day skips it. Shanghai day rollover still resets today

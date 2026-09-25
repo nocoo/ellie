@@ -448,7 +448,7 @@ function toRecentTopics(
 				row.sticky < 0 ||
 				row.forum_status !== 1 ||
 				!homeForumVisible(row.visibility, authority.bucket) ||
-				row.last_post_at <= now - 86_400 ||
+				row.last_post_at <= 0 ||
 				row.last_post_at > now
 			)
 				return [];

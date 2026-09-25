@@ -726,19 +726,20 @@ generation lookups: daily totals never trigger a foreground D1 refill, and signe
 warm reads perform no KV operations. Missing state returns estimates or rebuilds
 only the bounded non-statistical selection. See [doc/36](36-daily-statistics-and-read-snapshots.md).
 
-## Recent activity and selective correction (v1.14.10)
+## Recent activity and selective correction (v1.14.11)
 
 `lib/recent-activity.ts` owns two persistent state families. `activity:recent:v1`
 holds up to 512 recent topic projections, without author identities. An isolate
-hydrates it once and reuses it for five minutes; every read removes candidates
-outside the rolling 24-hour window. Posting/replying updates the current isolate
+hydrates it once and reuses it for five minutes. Older candidates remain available
+on quiet days, while future timestamps are excluded. Posting/replying updates the current isolate
 and KV without a count query. KV write races may delay other isolates until the
 nightly repair. The homepage shares its existing current-authority query with up
 to 20 activity candidates and returns at most five visible rows.
 
-The 03:00 Asia/Shanghai job uses one `idx_threads_latest` range query to refresh
-activity. Its complete affected-forum set is collected before the stored candidate
-list is truncated. `statistics:changed:v1:<forumId>:<eventId>` additionally records
+The 03:00 Asia/Shanghai job uses one query with two disjoint `idx_threads_latest`
+ranges: all last-24-hour activity and up to 20 older topics for homepage backfill.
+Only last-24-hour rows contribute to the affected-forum set, collected before the
+stored candidate list is truncated. `statistics:changed:v1:<forumId>:<eventId>` additionally records
 content mutations, including historical deletions, moves and classification or
 visibility changes. Event keys are independent: the job deletes only observed
 markers after the new daily base is persisted, so concurrent mutations and failed

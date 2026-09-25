@@ -451,7 +451,10 @@ The request contains `cachedBucket`, `includeDisplay`, `includeStats`,
 an authorization claim. Responses contain fresh `bucket`, `user`,
 `allowedForumIds`, `summaryGates`, `digestGates` and `recent`, with optional `display`
 and `stats`. `recent` contains at most five `{ id, forumId, forumName, subject,
-lastPostAt, replies }` rows from the last 24 hours, without author identities.
+lastPostAt, replies }` rows ordered by last activity, without author identities.
+The nightly snapshot includes the last 24 hours and up to 20 historical candidates
+so quiet periods can still display five discussions. Historical rows pass the same
+current-authority gates and do not trigger daily forum recounts.
 It is refreshed on every context request from Worker memory/KV candidates, filtered
 against the existing fresh forum and topic gates, and never cached in Web display.
 New topics and replies update the bounded KV snapshot optimistically. Normal `meta.timestamp` and `meta.requestId` remain present.

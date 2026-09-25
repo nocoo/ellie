@@ -167,3 +167,10 @@ whole-database projections must reuse documented import edge cases in fixtures.
 ## 2026-09-25 — Release registry URLs in the lockfile
 
 The v1.14.10 release helper synchronized workspace versions with a temporary allowed registry. Bun also expanded 560 package download URLs to that mirror despite changing no dependency versions. The pre-commit review caught this before publication. The generated mirror URLs were removed, and the resulting file was asserted byte-for-byte equal to the previous lockfile apart from the intended workspace versions. Temporary registry selection is not enough: every release must also verify that no mirror URLs or dependency changes entered the lockfile.
+
+## 2026-09-25 — Discussion backfill query aliases
+
+The first local SQLite run rejected the compound backfill query because its final
+`ORDER BY id` did not resolve the joined result column. Explicitly alias compound
+query outputs and execute the real SQL before relying on its TypeScript types.
+The corrected query and both indexed ranges passed before deployment.

@@ -5,11 +5,12 @@ export const RECENT_ACTIVITY_KEY = "activity:recent:v1";
 const DIRTY_PREFIX = "statistics:changed:v1:";
 const DAY = 86_400;
 const MAX_TOPICS = 512;
+const CANDIDATE_LIMIT = HOME_DIGEST_LIMIT * 4;
 const memory = new WeakMap<KVNamespace, { topics: HomeRecentTopic[]; expiresAt: number }>();
 
 function prune(topics: HomeRecentTopic[], now: number): HomeRecentTopic[] {
 	return topics
-		.filter((topic) => topic.lastPostAt > now - DAY && topic.lastPostAt <= now)
+		.filter((topic) => topic.lastPostAt <= now)
 		.sort((a, b) => b.lastPostAt - a.lastPostAt || b.id - a.id)
 		.slice(0, MAX_TOPICS);
 }
@@ -106,15 +107,29 @@ export async function refreshRecentActivity(
 	env: Env,
 	now = Math.floor(Date.now() / 1000),
 ): Promise<number[]> {
-	const result = await env.DB.prepare(`SELECT t.id, t.forum_id AS forumId, f.name AS forumName,
+	const result = await env.DB.prepare(`WITH older AS (
+		SELECT id, forum_id, subject, last_post_at, replies
+		FROM threads INDEXED BY idx_threads_latest
+		WHERE last_post_at > 0 AND last_post_at <= ? AND sticky >= 0
+		ORDER BY last_post_at DESC, id DESC LIMIT ?
+	)
+		SELECT t.id AS id, t.forum_id AS forumId, f.name AS forumName,
 		t.subject, t.last_post_at AS lastPostAt, t.replies
 		FROM threads t INDEXED BY idx_threads_latest JOIN forums f ON f.id = t.forum_id
 		WHERE t.last_post_at > ? AND t.last_post_at <= ? AND t.sticky >= 0
-		ORDER BY t.last_post_at DESC, t.id DESC`)
-		.bind(now - DAY, now)
+		UNION ALL
+		SELECT t.id AS id, t.forum_id AS forumId, f.name AS forumName,
+		t.subject, t.last_post_at AS lastPostAt, t.replies
+		FROM older t JOIN forums f ON f.id = t.forum_id
+		ORDER BY lastPostAt DESC, id DESC`)
+		.bind(now - DAY, CANDIDATE_LIMIT, now - DAY, now)
 		.all<HomeRecentTopic>();
 	if (!result.success) throw new Error("Recent activity refresh failed");
-	const forumIds = [...new Set(result.results.map((row) => row.forumId))];
+	const forumIds = [
+		...new Set(
+			result.results.filter((row) => row.lastPostAt > now - DAY).map((row) => row.forumId),
+		),
+	];
 	const topics = result.results.map((row) => ({
 		...row,
 		subject: row.subject.slice(0, 200),
@@ -129,5 +144,5 @@ export function selectRecentCandidates(
 	allowed: ReadonlySet<number>,
 ): HomeRecentTopic[] {
 	// Keep replacements available when fresh topic gates reject a cached candidate.
-	return topics.filter((topic) => allowed.has(topic.forumId)).slice(0, HOME_DIGEST_LIMIT * 4);
+	return topics.filter((topic) => allowed.has(topic.forumId)).slice(0, CANDIDATE_LIMIT);
 }
