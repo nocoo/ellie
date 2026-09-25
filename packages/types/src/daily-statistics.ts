@@ -66,7 +66,7 @@ export function isDailyStatistics(value: unknown): value is DailyStatistics {
 	}
 	return Object.entries(value.forums).every(
 		([id, forum]) =>
-			/^[1-9]\d*$/.test(id) &&
+			/^(0|[1-9]\d*)$/.test(id) &&
 			record(forum) &&
 			count(forum.threads) &&
 			count(forum.posts) &&

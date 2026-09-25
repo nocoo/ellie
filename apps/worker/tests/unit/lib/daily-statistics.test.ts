@@ -31,6 +31,8 @@ describe("daily statistics persistence", () => {
 	});
 
 	it("aggregates every forum/category once and bounds daily posts by indexed Shanghai dates", async () => {
+		f.insert("forums", { id: 0, name: "Deleted", status: 0, posts: 67_161 });
+		f.thread(6, { forum_id: 0, created_at: START - 1 });
 		f.thread(1, { type_id: 9, created_at: START });
 		f.thread(2, { type_id: 9, sticky: 2, created_at: START + 1 });
 		f.thread(3, { type_id: 9, sticky: -1, created_at: START + 1 });
@@ -43,6 +45,12 @@ describe("daily statistics persistence", () => {
 		for (const [i, offset] of [-86_401, -86_400, -1, 0, 86_399, 86_400].entries())
 			f.post(i + 1, { created_at: START + offset });
 		const data = await refreshDailyStatistics(f.env);
+		expect(data.forums[0]).toEqual({
+			threads: 1,
+			posts: 67_161,
+			todayThreads: 0,
+			types: { "0": 1 },
+		});
 		expect(data.forums[1]).toEqual({ threads: 1, posts: 100, todayThreads: 2, types: { "9": 2 } });
 		expect(data.forums[2]).toEqual({ threads: 1, posts: 0, todayThreads: 0, types: { "0": 1 } });
 		expect(data.forums[999]).toBeUndefined();

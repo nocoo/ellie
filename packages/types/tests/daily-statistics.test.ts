@@ -30,6 +30,7 @@ function snapshot(): DailyStatistics {
 describe("daily statistics transport", () => {
 	it("validates complete counters and rejects malformed persistent data", () => {
 		expect(isDailyStatistics(snapshot())).toBe(true);
+		expect(isDailyStatistics({ ...snapshot(), forums: { "0": snapshot().forums[1] } })).toBe(true);
 		for (const value of [
 			null,
 			[],
@@ -41,6 +42,8 @@ describe("daily statistics transport", () => {
 			{ ...snapshot(), stats: {} },
 			{ ...snapshot(), forums: JSON.parse('{"__proto__":{}}') },
 			{ ...snapshot(), forums: { bad: snapshot().forums[1] } },
+			{ ...snapshot(), forums: { "-1": snapshot().forums[1] } },
+			{ ...snapshot(), forums: { "01": snapshot().forums[1] } },
 			{ ...snapshot(), forums: { "1": { ...snapshot().forums[1], types: { "2": -1 } } } },
 			{ ...snapshot(), forums: { "1": { ...snapshot().forums[1], types: { bad: 1 } } } },
 			{ ...snapshot(), forums: { "1": { ...snapshot().forums[1], types: null } } },

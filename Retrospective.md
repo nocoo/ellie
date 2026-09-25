@@ -151,3 +151,15 @@ The failure was caught before deployment. L3 now uses `TEST_WORKER_VARS`, seeds 
 daily snapshot after Worker readiness, and passes the same test credential to Web.
 When adding startup-dependent state, validate every local lifecycle through real
 HTTP rather than assuming similarly named runners share their configuration.
+
+
+## 2026-09-25 — Daily statistics deleted-forum sentinel
+
+The first production bootstrap failed validation before writing KV or deploying
+Worker: the imported database retains deleted forum `id=0`, while the new internal
+statistics validator accepted only positive forum IDs. This known production shape
+was absent from the daily aggregation fixture despite an earlier cache incident.
+The internal snapshot now accepts the canonical zero sentinel while public request
+IDs and current authorization stay unchanged. Real SQLite aggregation and transport
+regressions retain the sentinel and reject negative or noncanonical IDs. New
+whole-database projections must reuse documented import edge cases in fixtures.
