@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.9] - 2026-09-25
+
+### Changed
+
+- Replace request-time statistics recounts with a persistent daily KV snapshot rebuilt at 03:00 Asia/Shanghai. Web serves statistics from bounded process memory, hydrates after restart, and applies approximate successful-write deltas without recounting.
+- Reuse bounded forum configuration, recommendation IDs, and the first three pages of membership/order through KV and server-held signed snapshots. Current authorization, hidden/deleted/moved content and anonymous identity checks remain authoritative.
+- Preserve `includeCount=true` with daily estimates for existing readers during Worker-first deployment. New Web readers request no Worker statistics/count reads.
+- Invalidate configuration and recommendation snapshots after administrative writes and expose their ownership in KV monitoring. Remove obsolete exact-count memory families and rollover work.
+
+### Deployment
+
+Bootstrap the first daily snapshot through the same aggregation implementation before the migration-first Worker deployment, then deploy the matching Web/Admin revision. No schema migration or secret rotation is introduced.
+
 ## [1.14.8] - 2026-09-24
 
 ### Fixed

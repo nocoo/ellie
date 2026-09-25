@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/types",
-	"version": "1.14.8",
+	"version": "1.14.9",
 	"private": true,
 	"type": "module",
 	"exports": "./src/index.ts"
