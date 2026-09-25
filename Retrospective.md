@@ -174,3 +174,13 @@ The first local SQLite run rejected the compound backfill query because its fina
 `ORDER BY id` did not resolve the joined result column. Explicitly alias compound
 query outputs and execute the real SQL before relying on its TypeScript types.
 The corrected query and both indexed ranges passed before deployment.
+
+## 2026-09-25 — Populated homepage navigation regression
+
+The v1.14.11 browser CI failed because an existing navigation test selected a forum
+link across the entire page. Historical discussion backfill made that link repeat.
+The focused visual check had passed, but did not exercise the forum-to-thread
+journey. Scope the navigation action to forum groups and assert five populated
+discussions in the maintained homepage test. Preserve the published v1.14.11 tag
+and release the verified correction as v1.14.12. Run the affected journey before
+tagging changes that add repeated links to shared pages.

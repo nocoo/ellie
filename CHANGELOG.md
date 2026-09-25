@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.12] - 2026-09-25
+
+### Fixed
+
+- Scope the homepage-to-forum browser journey to the forum section now that discussion rows also link to forums, and verify five populated discussions in the maintained homepage scenario.
+
+### Deployment
+
+Complete the recent-discussions rollout from v1.14.11 after its browser CI caught the ambiguous navigation selector. The published v1.14.11 tag remains unchanged. The recent snapshot is already initialized; no second backfill or daily recount is needed.
+
 ## [1.14.11] - 2026-09-25
 
 ### Fixed

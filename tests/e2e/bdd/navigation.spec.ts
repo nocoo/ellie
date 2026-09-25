@@ -37,6 +37,10 @@ test.describe("Feature: Forum Navigation", () => {
 
 		// Then: digest showcase link is visible
 		await expect(homePage.digestShowcase).toBeVisible();
+		const discussions = page
+			.locator('[data-slot="card"]')
+			.filter({ has: page.getByText("最近讨论", { exact: true }) });
+		await expect(discussions.locator('a[href^="/threads/"]')).toHaveCount(5);
 
 		// Then: site footer carries copyright text (© or "All rights reserved")
 		const footer = page.locator("footer").first();

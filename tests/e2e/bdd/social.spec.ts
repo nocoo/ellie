@@ -129,7 +129,7 @@ test.describe("Feature: Social & User Journey", () => {
 		expect(await homePage.isLoaded()).toBe(true);
 
 		// When: click into populated forum
-		const forumLink = page.locator(`a[href="/forums/${POPULATED_FORUM_ID}"]`);
+		const forumLink = homePage.forumGroups.locator(`a[href="/forums/${POPULATED_FORUM_ID}"]`);
 		await expect(forumLink).toBeVisible();
 		await forumLink.click();
 		await page.waitForURL(new RegExp(`/forums/${POPULATED_FORUM_ID}`));

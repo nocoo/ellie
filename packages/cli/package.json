@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/cli",
-	"version": "1.14.11",
+	"version": "1.14.12",
 	"private": true,
 	"type": "module",
 	"bin": "./src/index.ts",
