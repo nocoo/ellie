@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.10] - 2026-09-25
+
+### Changed
+
+- Show up to five topics active in the last 24 hours beside homepage digest recommendations. Posting and replies update a bounded KV/memory snapshot; one indexed nightly query repairs it. Existing current-authority queries filter hidden, moved, deleted and restricted topics, without exposing author identities.
+- Recount only forums present in recent activity or the persistent mutation journal. Preserve unaffected forum/category totals and Shanghai day rollover; quiet days skip historical topic COUNT queries. A full count is limited to initial missing-base bootstrap.
+- Resolve known custom and legacy avatars directly to the CDN, keep upload overrides and missing-image handling, and disable remaining forum Link prefetch.
+- Share hourly private-message unread estimates across Web routes in bounded per-account memory. Successful mailbox activity invalidates estimates; actual mailbox reads and writes retain Worker authorization.
+
+### Deployment
+
+Deploy the migration-first Worker and initialize recent activity using the existing statistics refresh implementation before Web/Admin rollout. Preserve the existing daily base; no new schema, binding or secret is required. Observe recurring traffic separately from initialization and daily correction costs.
+
 ## [1.14.9] - 2026-09-25
 
 ### Changed
