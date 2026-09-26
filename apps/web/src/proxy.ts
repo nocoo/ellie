@@ -30,6 +30,7 @@ import { createTtlCache } from "@/lib/ttl-cache";
 
 /** Routes that are always public (auth pages, API, static assets). */
 function isAlwaysPublicRoute(pathname: string): boolean {
+	if (process.env.NODE_ENV === "development" && pathname === "/dev/pins") return true;
 	// Auth endpoints are always accessible
 	if (pathname === "/login" || pathname === "/register") return true;
 	if (pathname.startsWith("/api/auth")) return true;

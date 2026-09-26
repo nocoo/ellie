@@ -200,3 +200,8 @@ The patch-release script ran `bun install` with the required temporary mirror an
 ## 2026-09-26 — Removed smiley tab blocked the web rollout
 
 The v1.14.15 picker removed the Coolmonkey tab as requested, but the maintained browser scenario still required that label. Local commit/push hooks passed because they do not run L3; GitHub L3 then failed and the deployment workflow skipped both web applications. Worker deployment alone left production versions split. Update existing behavioral assertions whenever controls are removed, and distinguish a pushed release from a completed web deployment. The scenario now checks the two supported tabs, the default selected tab, the forum search and the shared recent-history region.
+
+
+## 2026-09-26 — Local preview blocked by authentication
+
+The sticky icon mock page used a new route without accounting for the proxy default login guard. The shared preview URL redirected to login. Allow only `/dev/pins` in development and keep the page unavailable in production. Check anonymous access before sharing local preview links.
