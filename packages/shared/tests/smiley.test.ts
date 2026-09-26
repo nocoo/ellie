@@ -561,9 +561,9 @@ describe("SMILEY_PACKS picker data", () => {
 		}
 	});
 
-	test("default pack contains numbered 1-16 followed by every whitelist name", () => {
+	test("default pack retains numbered 1-16 and every whitelist name", () => {
 		const def = SMILEY_PACKS.default;
-		// Numbered 1-16 lead the picker grid.
+		// Numbered entries remain available in the curated order.
 		for (let i = 1; i <= 16; i++) {
 			const item = def.find((s) => s.code === `:${i}:`);
 			expect(item).toBeDefined();

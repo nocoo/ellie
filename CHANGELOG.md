@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.15] - 2026-09-26
+
+### Fixed
+
+- Simplify the emoji picker to Forum and Emoji tabs with equal panel heights and one compact, shared recent-history strip persisted in browser storage.
+- Remove Emoji Mart's duplicate recent section and nested card styling; bundle Chinese labels locally and follow the site's selected theme.
+- Apply the user-curated order to all 107 default forum smileys. Retain historical pack rendering while removing other packs from new-post selection and recent-history shortcuts.
+- Render historical grapeman images inline and rewrite recognized legacy image hosts to the existing R2 assets.
+
 ## [1.14.14] - 2026-09-26
 
 ### Fixed

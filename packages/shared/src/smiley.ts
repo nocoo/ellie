@@ -16,13 +16,13 @@
 //   - {:1_NNN:} default-pack numeric tokens (need legacy cache_smiley map)
 //   - {:soso_eNNN:} (CDN missing soso/ directory)
 //   - {:3_NN:} for NN ∉ [149..172] (no historical hits)
-//   - grapeman tokens (format unknown, no historical hits)
+//   - grapeman tokens (format unknown; historical image tags are handled by renderContent)
 
 // ---------------------------------------------------------------------------
 // Default-pack named smileys (closed whitelist).
 //
 // Source of truth: the file inventory zheng-li produced from the R2 bucket
-// on 2026-05-08. We list the *names* once (DEFAULT_NAMED_SMILEY_NAMES) and
+// on 2026-05-08. We list the names once in the user-approved picker order (DEFAULT_SMILEY_NAMES) and
 // derive everything else from it:
 //   - DEFAULT_NAMED_SMILEY_SET — O(1) gate for the renderer
 //   - SMILEY_PACKS.default named entries — picker grid
@@ -45,63 +45,76 @@
 // when current hits are zero). Names that have 0 hits AND were never in the
 // prior whitelist (icon1..icon9, *_smile variants the CDN stores but nobody
 // posts) stay out of the picker and renderer.
-const DEFAULT_NAMED_SMILEY_NAMES = [
-	"angel_smile",
-	"angry",
-	"beer_smile",
-	"biggrin",
-	"bigsmile",
-	"bowwow_smile",
-	"broken_heart_smile",
-	"cake_smile",
-	"call",
-	"camera_smile",
-	"clock_smile",
-	"coffee_smile",
-	"confused_smile",
-	"cool",
-	"crazy",
-	"cry",
-	"curse",
-	"devil_smile",
-	"dizzy",
-	"dozingoff",
-	"dude_hug_smile",
-	"eh",
-	"embaressed_smile",
-	"envelope_smile",
-	"fight_smile",
-	"film_smile",
-	"food_smile",
-	"funk",
-	"handshake",
-	"heart_smile",
-	"huffy",
-	"hug",
-	"ico29",
-	"kiss",
-	"kiss_smile",
-	"kittykay_smile",
+const DEFAULT_SMILEY_NAMES = [
 	"laugh",
-	"lightbulb_smile",
-	"lol",
-	"loveliness",
-	"mad",
-	"moon_smile",
-	"music_smile",
-	"musical_note_smile",
-	"omg",
-	"phone_smile",
+	"ico29",
+	"tounge",
+	"w00t",
+	"eh",
+	"unhappy",
+	"wink",
+	"dozingoff",
+	"smile_cool",
+	"bigsmile",
 	"rolleyes",
+	"angry",
+	"omg",
+	"crazy",
+	"cool",
+	"beer_smile",
+	"thumbs_down_smile",
+	"thumbs_up_smile",
+	"food_smile",
+	"music_smile",
+	"stupid_smile",
+	"kiss_smile",
+	"fight_smile",
+	"devil_smile",
+	"titter",
+	"smile",
+	"angel_smile",
+	"embaressed_smile",
+	"biggrin",
+	"dizzy",
+	"mad",
+	"sweat",
+	"curse",
+	"confused_smile",
+	"cry",
+	"wink_smile",
+	"whatchutalkingabout_smile",
+	"heart_smile",
+	"broken_heart_smile",
 	"rose_smile",
+	"wilted_rose_smile",
+	"victory",
+	"handshake",
+	"tongue",
 	"sad",
 	"shades_smile",
 	"shocked",
 	"shutup",
-	"shy",
+	"loveliness",
+	"lol",
 	"sleepy",
+	"huffy",
+	"shy",
+	"funk",
+	"smile_cry",
+	"6",
+	"7",
+	"8",
+	"9",
+	"10",
+	"11",
+	"12",
+	"15",
+	"16",
+	"bowwow_smile",
+	"cake_smile",
+	"hug",
+	"lightbulb_smile",
 	"sleepy_smile",
-	"smile",
 	"smile_8ball",
 	"smile_angry",
 	"smile_approve",
@@ -109,8 +122,6 @@ const DEFAULT_NAMED_SMILEY_NAMES = [
 	"smile_blackeye",
 	"smile_blush",
 	"smile_clown",
-	"smile_cool",
-	"smile_cry",
 	"smile_dead",
 	"smile_disapprove",
 	"smile_evil",
@@ -122,22 +133,29 @@ const DEFAULT_NAMED_SMILEY_NAMES = [
 	"smile_tongue",
 	"smile_wink",
 	"star_smile",
-	"stupid_smile",
-	"sweat",
-	"thumbs_down_smile",
-	"thumbs_up_smile",
 	"time",
-	"titter",
-	"tongue",
-	"tounge",
-	"unhappy",
-	"victory",
-	"w00t",
-	"whatchutalkingabout_smile",
-	"wilted_rose_smile",
-	"wink",
-	"wink_smile",
+	"2",
+	"1",
+	"3",
+	"5",
+	"4",
+	"14",
+	"13",
+	"musical_note_smile",
+	"phone_smile",
+	"moon_smile",
+	"kiss",
+	"call",
+	"camera_smile",
+	"clock_smile",
+	"coffee_smile",
+	"dude_hug_smile",
+	"envelope_smile",
+	"film_smile",
+	"kittykay_smile",
 ] as const;
+
+const DEFAULT_NAMED_SMILEY_NAMES = DEFAULT_SMILEY_NAMES.filter((name) => /^[a-z]/.test(name));
 
 const DEFAULT_NAMED_SMILEY_SET: ReadonlySet<string> = new Set(DEFAULT_NAMED_SMILEY_NAMES);
 
@@ -413,7 +431,7 @@ export {
 };
 
 // ---------------------------------------------------------------------------
-// Smiley pack data for UI display (SmileyPanel, UnifiedEmojiPicker).
+// Smiley pack data shared by the picker and historical renderer.
 //
 // Driven by the same DEFAULT_NAMED_SMILEY_NAMES whitelist + range constants
 // that the renderer uses, so picker-emitted tokens always round-trip through
@@ -426,18 +444,10 @@ export interface SmileyItem {
 }
 
 export const SMILEY_PACKS: Record<string, SmileyItem[]> = {
-	default: [
-		// Numbered 1-16 first so the picker leads with the iconic faces
-		...Array.from({ length: 16 }, (_, i) => ({
-			code: `:${i + 1}:`,
-			file: `${i + 1}.gif`,
-		})),
-		// Then the named whitelist, in source order
-		...DEFAULT_NAMED_SMILEY_NAMES.map((name) => ({
-			code: `:${name}:`,
-			file: `${name}.gif`,
-		})),
-	],
+	default: DEFAULT_SMILEY_NAMES.map((name) => ({
+		code: `:${name}:`,
+		file: `${name}.gif`,
+	})),
 	coolmonkey: Array.from({ length: 16 }, (_, i) => ({
 		code: `{:2_${COOLMONKEY_ID_START + i}:}`,
 		file: `${String(i + 1).padStart(2, "0")}.gif`,

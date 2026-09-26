@@ -324,6 +324,20 @@ function sanitizeHtml(html: string): string {
 		},
 		transformTags: {
 			a: sanitize.simpleTransform("a", { target: "_blank", rel: "nofollow noopener noreferrer" }),
+			img: (tagName, attribs) => {
+				const grapeman = attribs.src?.match(
+					/^https?:\/\/(?:t\.no\.mt|bbs\.tongji\.net|jobs\.tongji\.net)\/static\/image\/smiley\/grapeman\/(0[1-9]|1\d|2[0-4])\.gif$/,
+				);
+				if (!grapeman) return { tagName, attribs };
+				return {
+					tagName,
+					attribs: {
+						...attribs,
+						src: `https://t.no.mt/static/image/smiley/grapeman/${grapeman[1]}.gif`,
+						class: [...new Set(`${attribs.class ?? ""} smiley`.trim().split(/\s+/))].join(" "),
+					},
+				};
+			},
 		},
 		nonTextTags: [
 			"script",

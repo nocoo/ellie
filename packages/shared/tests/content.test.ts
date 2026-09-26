@@ -632,3 +632,41 @@ describe("CETagParser legacy decode pipeline", () => {
 		expect(result).not.toContain("CETagParser");
 	});
 });
+
+describe("historical grapeman images", () => {
+	it.each(["http://jobs.tongji.net", "https://bbs.tongji.net", "https://t.no.mt"])(
+		"renders %s images through the CDN as inline smileys",
+		(origin) => {
+			for (let index = 1; index <= 24; index++) {
+				const file = `${String(index).padStart(2, "0")}.gif`;
+				const result = renderContent(
+					`<img src="${origin}/static/image/smiley/grapeman/${file}" class="legacy" alt="grapeman">`,
+				);
+				expect(result).toContain(`src="https://t.no.mt/static/image/smiley/grapeman/${file}"`);
+				expect(result).toContain('class="legacy smiley"');
+				expect(result).toContain('alt="grapeman"');
+			}
+		},
+	);
+
+	it("handles images without classes and remains idempotent", () => {
+		const result = renderContent(
+			'<img src="http://jobs.tongji.net/static/image/smiley/grapeman/06.gif">',
+		);
+		expect(result).toContain('class="smiley"');
+		expect(renderContent(result)).toBe(result);
+	});
+
+	it.each([
+		"https://t.no.mt/static/image/smiley/grapeman/00.gif",
+		"https://t.no.mt/static/image/smiley/grapeman/25.gif",
+		"https://t.no.mt.evil.test/static/image/smiley/grapeman/06.gif",
+		"https://example.com/static/image/smiley/grapeman/06.gif",
+	])("does not reinterpret unrecognized image URLs: %s", (src) => {
+		expect(renderContent(`<img src="${src}">`)).not.toContain('class="smiley"');
+	});
+
+	it("tolerates images without a source", () => {
+		expect(renderContent('<img alt="missing">')).not.toContain('class="smiley"');
+	});
+});

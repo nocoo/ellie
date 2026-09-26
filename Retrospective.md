@@ -192,3 +192,7 @@ The patch release script ran Bun with a temporary approved registry and rewrote 
 ## 2026-09-26 — Authority snapshot rejected the historical zero forum
 
 The v1.14.14 authority validator required positive forum IDs, but production contains a historical `forums.id = 0` row. Local fixtures omitted that row, so unit and L2 tests passed while the first production homepage smoke returned 500. The Worker was rolled back to v1.14.13 while retaining the compatible revision migration. The validator now accepts nonnegative IDs, and homepage card selection excludes the self-parented zero row from root groups. A regression covers both cold D1 and restored KV reads. Future cache validators must preserve the domain of existing database values, including documented zero/global sentinels, rather than impose positive-ID assumptions from request validators.
+
+## 2026-09-26 — Temporary registry URLs in a release lockfile
+
+The patch-release script ran `bun install` with the required temporary mirror and rewrote dependency source URLs in `bun.lock`. The change was staged before the lockfile diff was reviewed. The commit was stopped before completion; only the generated mirror URL fields were cleared, preserving workspace version updates and dependency integrity hashes. Review and normalize the generated lockfile before staging a release, even when Bun reports no dependency changes.

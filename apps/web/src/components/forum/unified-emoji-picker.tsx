@@ -1,77 +1,23 @@
 "use client";
 
-// Unified emoji picker combining Unicode emojis and forum smileys
-// Features: Tab switching, search, recent usage tracking with localStorage
-
 import { getSmileyImageUrl, SMILEY_PACKS } from "@ellie/shared/smiley";
 import data from "@emoji-mart/data";
+import zh from "@emoji-mart/data/i18n/zh.json";
 import Picker from "@emoji-mart/react";
-import { Clock3, MessageCircle, Search, Smile } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { MessageCircle, Search, Smile } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const RECENT_KEY = "ellie_recent_emojis";
-const MAX_RECENT = 16;
-
-type EmojiTab = "unicode" | "forum" | "recent";
-
-interface RecentEmoji {
-	type: "unicode" | "forum";
-	value: string; // native emoji or smiley code
-	pack?: string; // for forum smileys
-	file?: string; // for forum smileys
-}
-
-// ---------------------------------------------------------------------------
-// localStorage helpers
-// ---------------------------------------------------------------------------
-
-function loadRecent(): RecentEmoji[] {
-	if (typeof window === "undefined") return [];
-	try {
-		const stored = localStorage.getItem(RECENT_KEY);
-		return stored ? JSON.parse(stored) : [];
-	} catch {
-		return [];
-	}
-}
-
-function saveRecent(items: RecentEmoji[]) {
-	if (typeof window === "undefined") return;
-	try {
-		localStorage.setItem(RECENT_KEY, JSON.stringify(items.slice(0, MAX_RECENT)));
-	} catch {
-		// Ignore storage errors
-	}
-}
-
-function addToRecent(emoji: RecentEmoji, current: RecentEmoji[]): RecentEmoji[] {
-	// Remove duplicate if exists
-	const filtered = current.filter((e) => !(e.type === emoji.type && e.value === emoji.value));
-	// Add to front
-	return [emoji, ...filtered].slice(0, MAX_RECENT);
-}
-
-// ---------------------------------------------------------------------------
-// Forum smiley tabs
-// ---------------------------------------------------------------------------
-
-const FORUM_TABS = [
-	{ id: "default", name: "默认" },
-	{ id: "coolmonkey", name: "酷猴" },
-	{ id: "comcom", name: "兔斯基" },
-] as const;
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+import { useTheme } from "@/hooks/use-theme";
+import {
+	addRecentEmoji,
+	loadRecentEmojis,
+	type RecentEmoji,
+	saveRecentEmojis,
+} from "@/viewmodels/forum/emoji-picker";
 
 interface UnifiedEmojiPickerProps {
 	onSelect: (emoji: string) => void;
@@ -80,64 +26,32 @@ interface UnifiedEmojiPickerProps {
 
 export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiPickerProps) {
 	const [open, setOpen] = useState(false);
-	// Forum tab (with default pack) is the initial view — zheng-li wants
-	// users to land on the legacy default smiley group when opening the
-	// picker, since that's what posts most commonly use.
-	const [activeTab, setActiveTab] = useState<EmojiTab>("forum");
-	const [forumPack, setForumPack] = useState<string>("default");
 	const [recent, setRecent] = useState<RecentEmoji[]>([]);
 	const [searchQuery, setSearchQuery] = useState("");
-
-	// Load recent on mount
-	useEffect(() => {
-		setRecent(loadRecent());
-	}, []);
-
-	// Handle Unicode emoji selection
-	const handleUnicodeSelect = useCallback(
-		(emoji: { native: string }) => {
-			const newRecent = addToRecent({ type: "unicode", value: emoji.native }, recent);
-			setRecent(newRecent);
-			saveRecent(newRecent);
-			onSelect(emoji.native);
-			setOpen(false);
-		},
-		[onSelect, recent],
+	const { resolved } = useTheme();
+	const smileys = SMILEY_PACKS.default.filter((item) =>
+		item.code.toLowerCase().includes(searchQuery.toLowerCase()),
 	);
 
-	// Handle forum smiley selection
-	const handleForumSelect = useCallback(
-		(code: string, pack: string, file: string) => {
-			const newRecent = addToRecent({ type: "forum", value: code, pack, file }, recent);
-			setRecent(newRecent);
-			saveRecent(newRecent);
-			onSelect(code);
-			setOpen(false);
-		},
-		[onSelect, recent],
-	);
-
-	// Handle recent emoji selection
-	const handleRecentSelect = useCallback(
-		(item: RecentEmoji) => {
-			// Move to front of recent
-			const newRecent = addToRecent(item, recent);
-			setRecent(newRecent);
-			saveRecent(newRecent);
-			onSelect(item.value);
-			setOpen(false);
-		},
-		[onSelect, recent],
-	);
-
-	// Get current forum smileys filtered by search
-	const forumSmileys = SMILEY_PACKS[forumPack] ?? [];
-	const filteredSmileys = searchQuery
-		? forumSmileys.filter((s) => s.code.toLowerCase().includes(searchQuery.toLowerCase()))
-		: forumSmileys;
+	function select(item: RecentEmoji) {
+		const next = addRecentEmoji(item, loadRecentEmojis());
+		setRecent(next);
+		saveRecentEmojis(next);
+		onSelect(item.value);
+		setOpen(false);
+	}
 
 	return (
-		<Popover open={open && !disabled} onOpenChange={setOpen}>
+		<Popover
+			open={open && !disabled}
+			onOpenChange={(next) => {
+				if (next) {
+					setRecent(loadRecentEmojis());
+					setSearchQuery("");
+				}
+				setOpen(next);
+			}}
+		>
 			<Tooltip>
 				<TooltipTrigger
 					render={
@@ -152,198 +66,129 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 				/>
 				<TooltipContent>插入表情</TooltipContent>
 			</Tooltip>
-			<PopoverContent className="w-[320px] p-0 overflow-hidden" align="end" sideOffset={8}>
-				{/* Main tabs */}
-				<div className="flex border-b bg-muted/30">
-					<TabButton active={activeTab === "forum"} onClick={() => setActiveTab("forum")}>
-						<MessageCircle className="size-3.5" aria-hidden="true" />
-						论坛
-					</TabButton>
-					<TabButton active={activeTab === "unicode"} onClick={() => setActiveTab("unicode")}>
-						<Smile className="size-3.5" aria-hidden="true" />
-						Emoji
-					</TabButton>
-					<TabButton active={activeTab === "recent"} onClick={() => setActiveTab("recent")}>
-						<Clock3 className="size-3.5" aria-hidden="true" />
-						最近
-					</TabButton>
-				</div>
-
-				{/* Content based on active tab */}
-				{activeTab === "unicode" && (
-					<Picker
-						data={data}
-						onEmojiSelect={handleUnicodeSelect}
-						locale="zh"
-						theme="auto"
-						previewPosition="none"
-						skinTonePosition="search"
-						navPosition="bottom"
-						perLine={8}
-						emojiSize={22}
-						emojiButtonSize={32}
-					/>
-				)}
-
-				{activeTab === "forum" && (
-					<div className="flex flex-col">
-						{/* Forum pack tabs */}
-						<div className="flex gap-1 px-2 py-1.5 border-b bg-muted/20">
-							{FORUM_TABS.map((tab) => (
-								<button
-									key={tab.id}
-									type="button"
-									onClick={() => setForumPack(tab.id)}
-									aria-pressed={forumPack === tab.id}
-									className={cn(
-										"px-2 py-0.5 text-xs rounded transition-colors",
-										forumPack === tab.id
-											? "bg-primary text-primary-foreground"
-											: "text-muted-foreground hover:text-foreground hover:bg-muted",
-									)}
-								>
-									{tab.name}
-								</button>
-							))}
-						</div>
-
-						{/* Search bar */}
-						<div className="px-2 py-1.5 border-b">
-							<div className="relative">
-								<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-								<Input
-									type="text"
-									placeholder="搜索表情..."
-									aria-label="搜索表情"
-									value={searchQuery}
-									onChange={(e) => setSearchQuery(e.target.value)}
-									className="w-full h-7 pl-7 pr-2 text-xs bg-muted/50 rounded border-0 outline-none focus:ring-1 focus:ring-primary/50"
-								/>
-							</div>
-						</div>
-
-						{/* Smiley grid */}
-						<div className="grid grid-cols-8 gap-0.5 p-2 max-h-[200px] overflow-y-auto">
-							{filteredSmileys.map((smiley) => (
-								<button
-									key={smiley.code}
-									type="button"
-									onClick={() => handleForumSelect(smiley.code, forumPack, smiley.file)}
-									className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
-									title={smiley.code}
-								>
-									<img
-										src={getSmileyImageUrl(forumPack, smiley.file)}
-										alt={smiley.code}
-										className="w-6 h-6 object-contain"
-										loading="lazy"
+			<PopoverContent
+				className="w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0"
+				align="end"
+				sideOffset={8}
+			>
+				<Tabs defaultValue="forum" className="w-full flex-col gap-0">
+					<TabsList variant="line" className="h-9 w-full shrink-0 border-b bg-muted/30 p-0">
+						<TabsTrigger
+							value="forum"
+							className="rounded-none border-b-2 data-active:border-b-primary after:bottom-0"
+						>
+							<MessageCircle aria-hidden="true" />
+							论坛
+						</TabsTrigger>
+						<TabsTrigger
+							value="unicode"
+							className="rounded-none border-b-2 data-active:border-b-primary after:bottom-0"
+						>
+							<Smile aria-hidden="true" />
+							Emoji
+						</TabsTrigger>
+					</TabsList>
+					<div className="h-[min(20rem,calc(100dvh-12rem))] min-h-0 overflow-hidden">
+						<TabsContent value="forum" className="flex h-full min-h-0 flex-col">
+							<div className="shrink-0 px-3 py-2">
+								<div className="relative">
+									<Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+									<Input
+										placeholder="搜索表情..."
+										aria-label="搜索论坛表情"
+										value={searchQuery}
+										onChange={(event) => setSearchQuery(event.target.value)}
+										className="h-8 pl-8 text-sm"
 									/>
-								</button>
-							))}
-							{filteredSmileys.length === 0 && (
-								<div className="col-span-8 py-4 text-center text-xs text-muted-foreground">
-									没有找到表情
 								</div>
-							)}
-						</div>
-					</div>
-				)}
-
-				{activeTab === "recent" && (
-					<div className="p-3">
-						{recent.length > 0 ? (
-							<div className="grid grid-cols-8 gap-1">
-								{recent.map((item, idx) => (
-									<button
-										// biome-ignore lint/suspicious/noArrayIndexKey: composite key includes index to disambiguate duplicate emojis in recent list
-										key={`${item.type}-${item.value}-${idx}`}
-										type="button"
-										onClick={() => handleRecentSelect(item)}
-										className="w-8 h-8 flex items-center justify-center rounded hover:bg-accent transition-colors text-lg"
-										title={item.value}
-									>
-										{item.type === "unicode" ? (
-											item.value
-										) : (
+							</div>
+							<div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
+								<div className="grid grid-cols-8">
+									{smileys.map((item) => (
+										<Button
+											key={item.code}
+											variant="ghost"
+											size="icon"
+											className="h-9 w-full"
+											title={item.code}
+											onClick={() =>
+												select({
+													type: "forum",
+													value: item.code,
+													pack: "default",
+													file: item.file,
+												})
+											}
+										>
 											<img
-												src={getSmileyImageUrl(item.pack ?? "default", item.file ?? "")}
-												alt={item.value}
-												className="w-6 h-6 object-contain"
+												src={getSmileyImageUrl("default", item.file)}
+												alt={item.code}
+												className="size-6 object-contain"
 												loading="lazy"
 											/>
-										)}
-									</button>
-								))}
+										</Button>
+									))}
+								</div>
+								{smileys.length === 0 && (
+									<p className="py-4 text-center text-sm text-muted-foreground">没有找到表情</p>
+								)}
 							</div>
-						) : (
-							<div className="py-8 text-center text-sm text-muted-foreground">
-								暂无最近使用
-								<p className="text-xs mt-1">选择表情后会显示在这里</p>
-							</div>
-						)}
+						</TabsContent>
+						<TabsContent value="unicode" className="forum-emoji-picker h-full min-h-0">
+							<Picker
+								data={data}
+								i18n={zh}
+								onEmojiSelect={(emoji: { native: string }) =>
+									select({ type: "unicode", value: emoji.native })
+								}
+								locale="zh"
+								theme={resolved}
+								maxFrequentRows={0}
+								previewPosition="none"
+								skinTonePosition="search"
+								navPosition="bottom"
+								dynamicWidth
+								perLine={8}
+								emojiSize={24}
+								emojiButtonSize={36}
+							/>
+						</TabsContent>
 					</div>
-				)}
-
-				{/* Quick access bar (recent) */}
-				{activeTab !== "recent" && recent.length > 0 && (
-					<div className="border-t px-2 py-1.5 bg-muted/20">
-						<div className="flex items-center gap-0.5">
-							<span className="text-xs text-muted-foreground mr-1.5">最近：</span>
-							{recent.slice(0, 8).map((item, idx) => (
-								<button
-									// biome-ignore lint/suspicious/noArrayIndexKey: composite key includes index to disambiguate duplicate emojis in quick access bar
-									key={`quick-${item.type}-${item.value}-${idx}`}
-									type="button"
-									onClick={() => handleRecentSelect(item)}
-									className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent transition-colors text-sm"
+				</Tabs>
+				<section
+					aria-label="最近使用的表情"
+					className="flex h-12 shrink-0 items-center gap-2 border-t bg-muted/20 px-3 py-2"
+				>
+					<span className="shrink-0 text-xs text-muted-foreground">最近</span>
+					{recent.length ? (
+						<div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+							{recent.map((item) => (
+								<Button
+									key={`${item.type}:${item.value}`}
+									variant="ghost"
+									size="icon-sm"
+									className="shrink-0 text-lg"
 									title={item.value}
+									onClick={() => select(item)}
 								>
 									{item.type === "unicode" ? (
 										item.value
 									) : (
 										<img
-											src={getSmileyImageUrl(item.pack ?? "default", item.file ?? "")}
+											src={getSmileyImageUrl(item.pack, item.file)}
 											alt={item.value}
-											className="w-4 h-4 object-contain"
+											className="size-5 object-contain"
 											loading="lazy"
 										/>
 									)}
-								</button>
+								</Button>
 							))}
 						</div>
-					</div>
-				)}
+					) : (
+						<p className="shrink-0 text-xs text-muted-foreground">使用过的表情会显示在这里</p>
+					)}
+				</section>
 			</PopoverContent>
 		</Popover>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Tab button component
-// ---------------------------------------------------------------------------
-
-function TabButton({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			aria-pressed={active}
-			className={cn(
-				"inline-flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors",
-				active
-					? "text-foreground border-b-2 border-primary"
-					: "text-muted-foreground hover:text-foreground",
-			)}
-		>
-			{children}
-		</button>
 	);
 }
