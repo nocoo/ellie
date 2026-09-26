@@ -1,14 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
  <title>Hot thread</title>
-  <defs><linearGradient id="face" x2=".3" y2="1"><stop stop-color="#b2edff"/><stop offset="1" stop-color="#50c1e7"/></linearGradient></defs>
-  <path d="M1 7h18v14H1Z" fill="#26333c" opacity=".13"/>
-  <path d="M2 6h18v14H2Z" fill="#26333c" opacity=".09"/>
-  <path d="M3 5V3.7c0-.7.5-1.2 1.2-1.2h5.5l2 2.5h8.1c.7 0 1.2.5 1.2 1.2V19H3Z" fill="#19a6d6" stroke="#078bb9" stroke-width=".8" stroke-linejoin="round"/>
+ <style>
+  @media (prefers-color-scheme: dark) {
+   svg {
+    --shadow: #020617;
+    --face-top: #53b3cf;
+    --face-bottom: #246580;
+    --tab: #24556f;
+    --edge: #65b8d1;
+    --highlight: #a4d9e6;
+    --flame: #f58b51;
+    --flame-core: #ffdfa0;
+    --overlay-outline: #253344;
+   }
+  }
+ </style>
+  <defs><linearGradient id="face" x2=".3" y2="1"><stop stop-color="var(--face-top, #b2edff)"/><stop offset="1" stop-color="var(--face-bottom, #50c1e7)"/></linearGradient></defs>
+  <path d="M1 7h18v14H1Z" fill="var(--shadow, #26333c)" opacity=".13"/>
+  <path d="M2 6h18v14H2Z" fill="var(--shadow, #26333c)" opacity=".09"/>
+  <path d="M3 5V3.7c0-.7.5-1.2 1.2-1.2h5.5l2 2.5h8.1c.7 0 1.2.5 1.2 1.2V19H3Z" fill="var(--tab, #19a6d6)" stroke="var(--edge, #078bb9)" stroke-width=".8" stroke-linejoin="round"/>
   <rect x="3.4" y="6.3" width="17.2" height="12.2" rx=".7" fill="url(#face)"/>
-  <path d="M4.2 7.1h15.5" stroke="#ffffff" stroke-opacity=".6" stroke-width=".7"/>
-  <path d="m3.8 13 5 5h11.4" fill="none" stroke="#078bb9" stroke-opacity=".12" stroke-width="1"/>
+  <path d="M4.2 7.1h15.5" stroke="var(--highlight, #ffffff)" stroke-opacity=".6" stroke-width=".7"/>
+  <path d="m3.8 13 5 5h11.4" fill="none" stroke="var(--edge, #078bb9)" stroke-opacity=".12" stroke-width="1"/>
   <g transform="translate(12 11)">
-    <path d="M5.5 0C7 2.5 6 3.4 8 4.3l1-2C11.5 5.3 11.5 9 8 10.7c-2.9 1.5-7.5-.1-7.5-3.6C.5 4.6 3 3.5 3.2 1.8L4.5 4C5.8 3 5.6 1.5 5.5 0Z" fill="#ff7133" stroke="#ffffff" stroke-width=".8" stroke-linejoin="round"/>
-    <path d="M5.6 5c1.5 2 3.3 2.5 2.4 4.4-1 2.1-4.6 1.5-4.6-.6 0-1.4 1.6-2.2 2.2-3.8Z" fill="#ffe082"/>
+    <path d="M5.5 0C7 2.5 6 3.4 8 4.3l1-2C11.5 5.3 11.5 9 8 10.7c-2.9 1.5-7.5-.1-7.5-3.6C.5 4.6 3 3.5 3.2 1.8L4.5 4C5.8 3 5.6 1.5 5.5 0Z" fill="var(--flame, #ff7133)" stroke="var(--overlay-outline, #ffffff)" stroke-width=".8" stroke-linejoin="round"/>
+    <path d="M5.6 5c1.5 2 3.3 2.5 2.4 4.4-1 2.1-4.6 1.5-4.6-.6 0-1.4 1.6-2.2 2.2-3.8Z" fill="var(--flame-core, #ffe082)"/>
   </g>
 </svg>

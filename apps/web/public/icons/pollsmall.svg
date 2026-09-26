@@ -1,16 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
  <title>Poll</title>
+ <style>
+  @media (prefers-color-scheme: dark) {
+   svg {
+    --pink-top: #e9a0b9;
+    --pink-bottom: #a95b80;
+    --blue-top: #8bc9e0;
+    --blue-bottom: #3e7f9f;
+    --green-top: #add196;
+    --green-bottom: #648d55;
+    --shadow: #020617;
+    --pink-side: #874465;
+    --green-side: #4c6f43;
+    --blue-side: #315e7b;
+   }
+  }
+ </style>
  <defs>
-  <linearGradient id="pink" x2=".8" y2="1"><stop stop-color="#ffabc0"/><stop offset="1" stop-color="#e96b98"/></linearGradient>
-  <linearGradient id="blue" x2=".8" y2="1"><stop stop-color="#99daf1"/><stop offset="1" stop-color="#399bd1"/></linearGradient>
-  <linearGradient id="green" x2=".8" y2="1"><stop stop-color="#b5e59a"/><stop offset="1" stop-color="#69b65c"/></linearGradient>
+  <linearGradient id="pink" x2=".8" y2="1"><stop stop-color="var(--pink-top, #ffabc0)"/><stop offset="1" stop-color="var(--pink-bottom, #e96b98)"/></linearGradient>
+  <linearGradient id="blue" x2=".8" y2="1"><stop stop-color="var(--blue-top, #99daf1)"/><stop offset="1" stop-color="var(--blue-bottom, #399bd1)"/></linearGradient>
+  <linearGradient id="green" x2=".8" y2="1"><stop stop-color="var(--green-top, #b5e59a)"/><stop offset="1" stop-color="var(--green-bottom, #69b65c)"/></linearGradient>
  </defs>
- <path d="M2 21h20" stroke="#40566a" stroke-opacity=".15" stroke-width="1.2" stroke-linecap="round"/>
+ <path d="M2 21h20" stroke="var(--shadow, #40566a)" stroke-opacity=".15" stroke-width="1.2" stroke-linecap="round"/>
  <rect x="2" y="8" width="6.7" height="13" rx=".7" fill="url(#pink)"/>
- <path d="M7.5 8h1.2v13H7.5Z" fill="#cd5789" opacity=".45"/>
+ <path d="M7.5 8h1.2v13H7.5Z" fill="var(--pink-side, #cd5789)" opacity=".45"/>
  <rect x="15.3" y="12" width="6.7" height="9" rx=".7" fill="url(#green)"/>
- <path d="M20.8 12H22v9h-1.2Z" fill="#4d9c48" opacity=".45"/>
+ <path d="M20.8 12H22v9h-1.2Z" fill="var(--green-side, #4d9c48)" opacity=".45"/>
  <rect x="8.7" y="2.5" width="6.6" height="18.5" rx=".7" fill="url(#blue)"/>
- <path d="M14.1 2.5h1.2V21h-1.2Z" fill="#2b85bd" opacity=".4"/>
+ <path d="M14.1 2.5h1.2V21h-1.2Z" fill="var(--blue-side, #2b85bd)" opacity=".4"/>
  <path d="M3 9h4.5M9.7 3.5h4.5M16.3 13h4.5" stroke="#fff" stroke-opacity=".4" stroke-width=".7"/>
 </svg>

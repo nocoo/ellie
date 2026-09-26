@@ -1,17 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
  <title>Locked thread</title>
-  <defs><linearGradient id="face" x2=".3" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#d9dde1"/></linearGradient></defs>
-  <path d="M1 7h18v14H1Z" fill="#26333c" opacity=".13"/>
-  <path d="M2 6h18v14H2Z" fill="#26333c" opacity=".09"/>
-  <path d="M3 5V3.7c0-.7.5-1.2 1.2-1.2h5.5l2 2.5h8.1c.7 0 1.2.5 1.2 1.2V19H3Z" fill="#b8bdc2" stroke="#a3a9af" stroke-width=".8" stroke-linejoin="round"/>
+ <style>
+  @media (prefers-color-scheme: dark) {
+   svg {
+    --shadow: #020617;
+    --highlight: #a9bacb;
+    --face-bottom: #526477;
+    --tab: #36485b;
+    --edge: #8496a9;
+    --lock-outline: #253344;
+    --shackle: #bdcbd9;
+    --lock: #8597aa;
+    --lock-shine: #c1ccda;
+    --keyhole: #26364a;
+    --overlay-outline: #253344;
+   }
+  }
+ </style>
+  <defs><linearGradient id="face" x2=".3" y2="1"><stop stop-color="var(--highlight, #ffffff)"/><stop offset="1" stop-color="var(--face-bottom, #d9dde1)"/></linearGradient></defs>
+  <path d="M1 7h18v14H1Z" fill="var(--shadow, #26333c)" opacity=".13"/>
+  <path d="M2 6h18v14H2Z" fill="var(--shadow, #26333c)" opacity=".09"/>
+  <path d="M3 5V3.7c0-.7.5-1.2 1.2-1.2h5.5l2 2.5h8.1c.7 0 1.2.5 1.2 1.2V19H3Z" fill="var(--tab, #b8bdc2)" stroke="var(--edge, #a3a9af)" stroke-width=".8" stroke-linejoin="round"/>
   <rect x="3.4" y="6.3" width="17.2" height="12.2" rx=".7" fill="url(#face)"/>
-  <path d="M4.2 7.1h15.5" stroke="#ffffff" stroke-opacity=".6" stroke-width=".7"/>
-  <path d="m3.8 13 5 5h11.4" fill="none" stroke="#a3a9af" stroke-opacity=".12" stroke-width="1"/>
+  <path d="M4.2 7.1h15.5" stroke="var(--highlight, #ffffff)" stroke-opacity=".6" stroke-width=".7"/>
+  <path d="m3.8 13 5 5h11.4" fill="none" stroke="var(--edge, #a3a9af)" stroke-opacity=".12" stroke-width="1"/>
   <g transform="translate(12 11)">
-    <path d="M2.5 4V3a3 3 0 0 1 6 0v1" fill="none" stroke="#f8fafc" stroke-width="2.8"/>
-    <path d="M2.5 4V3a3 3 0 0 1 6 0v1" fill="none" stroke="#586675" stroke-width="1.6"/>
-    <rect x=".5" y="4" width="10" height="7" rx="1.4" fill="#738396" stroke="#ffffff" stroke-width=".8"/>
-    <path d="M1.4 5h8.2v2H1.4Z" fill="#a8b5c4"/>
-    <path d="M5.5 7v2" stroke="#344454" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M2.5 4V3a3 3 0 0 1 6 0v1" fill="none" stroke="var(--lock-outline, #f8fafc)" stroke-width="2.8"/>
+    <path d="M2.5 4V3a3 3 0 0 1 6 0v1" fill="none" stroke="var(--shackle, #586675)" stroke-width="1.6"/>
+    <rect x=".5" y="4" width="10" height="7" rx="1.4" fill="var(--lock, #738396)" stroke="var(--overlay-outline, #ffffff)" stroke-width=".8"/>
+    <path d="M1.4 5h8.2v2H1.4Z" fill="var(--lock-shine, #a8b5c4)"/>
+    <path d="M5.5 7v2" stroke="var(--keyhole, #344454)" stroke-width="1.4" stroke-linecap="round"/>
   </g>
 </svg>

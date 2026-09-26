@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.17] - 2026-09-26
+
+### Fixed
+
+- Add dark palettes to all 16 classic forum, thread, sticky, special-topic and digest SVG icons while preserving their geometry and light appearance.
+- Follow the selected site color scheme, including manual overrides of the system theme, without waiting for client hydration.
+
 ## [1.14.16] - 2026-09-26
 
 ### Fixed

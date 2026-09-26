@@ -1,10 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
  <title>Reward</title>
- <defs><linearGradient id="gold" x2=".7" y2="1"><stop stop-color="#ffe882"/><stop offset=".5" stop-color="#ffc820"/><stop offset="1" stop-color="#ed960a"/></linearGradient></defs>
- <ellipse cx="12" cy="20.5" rx="8" ry="1.2" fill="#99632b" opacity=".16"/>
- <path d="m3 8 4-2 2-3h6l2 3 4 2-1.5 9-5 3h-5l-5-3Z" fill="url(#gold)" stroke="#e49b23" stroke-width=".7" stroke-linejoin="round"/>
- <path d="m3.5 8.5 5 3h7l5-3-2 8-5 2.5h-3l-5-2.5Z" fill="#ffce29"/>
- <path d="m7 6 2 4.5h6L17 6l-3 1h-4Z" fill="#fff082"/>
- <path d="m4.5 10 1.5 6 4.5 2M9.5 4h5" fill="none" stroke="#fff4b3" stroke-width="1" stroke-linecap="round"/>
- <path d="m15 11 4.5-2-1.8 7-4 2Z" fill="#efaa11" opacity=".55"/>
+ <style>
+  @media (prefers-color-scheme: dark) {
+   svg {
+    --gold-top: #e8d391;
+    --gold-middle: #c9a952;
+    --gold-bottom: #9c722c;
+    --shadow: #020617;
+    --edge: #e2bc6a;
+    --face: #bfa052;
+    --top: #eedca8;
+    --highlight: #fff0c6;
+    --side: #8c642b;
+   }
+  }
+ </style>
+ <defs><linearGradient id="gold" x2=".7" y2="1"><stop stop-color="var(--gold-top, #ffe882)"/><stop offset=".5" stop-color="var(--gold-middle, #ffc820)"/><stop offset="1" stop-color="var(--gold-bottom, #ed960a)"/></linearGradient></defs>
+ <ellipse cx="12" cy="20.5" rx="8" ry="1.2" fill="var(--shadow, #99632b)" opacity=".16"/>
+ <path d="m3 8 4-2 2-3h6l2 3 4 2-1.5 9-5 3h-5l-5-3Z" fill="url(#gold)" stroke="var(--edge, #e49b23)" stroke-width=".7" stroke-linejoin="round"/>
+ <path d="m3.5 8.5 5 3h7l5-3-2 8-5 2.5h-3l-5-2.5Z" fill="var(--face, #ffce29)"/>
+ <path d="m7 6 2 4.5h6L17 6l-3 1h-4Z" fill="var(--top, #fff082)"/>
+ <path d="m4.5 10 1.5 6 4.5 2M9.5 4h5" fill="none" stroke="var(--highlight, #fff4b3)" stroke-width="1" stroke-linecap="round"/>
+ <path d="m15 11 4.5-2-1.8 7-4 2Z" fill="var(--side, #efaa11)" opacity=".55"/>
 </svg>

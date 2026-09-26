@@ -1,25 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 36">
  <title>Forum with a recent topic</title>
+ <style>
+  @media (prefers-color-scheme: dark) {
+   svg {
+    --shadow: #020617;
+    --top-start: #82bac7;
+    --top-end: #4d879a;
+    --left-start: #285566;
+    --left-end: #3d7180;
+    --right-start: #427f90;
+    --right-end: #64a3b0;
+    --edge: #8cbcc9;
+    --highlight: #c4e9ec;
+    --mountain-back: #75ce6c;
+    --mountain-back-shade: #358b54;
+    --mountain-right: #86d57a;
+    --mountain-right-shade: #40965a;
+    --mountain-front: #96e087;
+    --mountain-front-shade: #46a567;
+   }
+  }
+ </style>
   <defs>
-    <linearGradient id="top" x2="1" y2="1"><stop stop-color="#f2feff"/><stop offset="1" stop-color="#bee5ec"/></linearGradient>
-    <linearGradient id="left" x2="0.4" y2="1"><stop stop-color="#9fc9d7"/><stop offset="1" stop-color="#e1f2f3"/></linearGradient>
-    <linearGradient id="right" x2="0.2" y2="1"><stop stop-color="#c4e6ec"/><stop offset="1" stop-color="#f0fafb"/></linearGradient>
+    <linearGradient id="top" x2="1" y2="1"><stop stop-color="var(--top-start, #f2feff)"/><stop offset="1" stop-color="var(--top-end, #bee5ec)"/></linearGradient>
+    <linearGradient id="left" x2="0.4" y2="1"><stop stop-color="var(--left-start, #9fc9d7)"/><stop offset="1" stop-color="var(--left-end, #e1f2f3)"/></linearGradient>
+    <linearGradient id="right" x2="0.2" y2="1"><stop stop-color="var(--right-start, #c4e6ec)"/><stop offset="1" stop-color="var(--right-end, #f0fafb)"/></linearGradient>
   </defs>
   <g transform="translate(0 -.3) scale(1 1.15)">
-  <path d="m2 23 12-4 15 6-11 5-16-5Z" fill="#26333c" opacity=".12"/>
-  <path d="m5 24 11-4 13 5-11 4Z" fill="#26333c" opacity=".09"/>
-  <path d="m8 8 10-6 11 6-11 6Z" fill="url(#top)" stroke="#7599a5" stroke-width=".65" stroke-linejoin="round"/>
-  <path d="m8 8 10 6v15L8 23Z" fill="url(#left)" stroke="#7599a5" stroke-width=".65" stroke-linejoin="round"/>
-  <path d="m18 14 11-6v15l-11 6Z" fill="url(#right)" stroke="#7599a5" stroke-width=".65" stroke-linejoin="round"/>
+  <path d="m2 23 12-4 15 6-11 5-16-5Z" fill="var(--shadow, #26333c)" opacity=".12"/>
+  <path d="m5 24 11-4 13 5-11 4Z" fill="var(--shadow, #26333c)" opacity=".09"/>
+  <path d="m8 8 10-6 11 6-11 6Z" fill="url(#top)" stroke="var(--edge, #7599a5)" stroke-width=".65" stroke-linejoin="round"/>
+  <path d="m8 8 10 6v15L8 23Z" fill="url(#left)" stroke="var(--edge, #7599a5)" stroke-width=".65" stroke-linejoin="round"/>
+  <path d="m18 14 11-6v15l-11 6Z" fill="url(#right)" stroke="var(--edge, #7599a5)" stroke-width=".65" stroke-linejoin="round"/>
   <g stroke-linejoin="round">
-    <path d="m10.5 21 4-8.5 4.5 9Z" fill="#4adb28"/>
-    <path d="m14.5 12.5 4.5 9-4-2Z" fill="#21aa23"/>
-    <path d="m18.5 20.5 3.5-7 5.5 8.5Z" fill="#56e92b"/>
-    <path d="m22 13.5 5.5 8.5-5-2Z" fill="#25b523"/>
-    <path d="m13.5 25 5.5-8 6 8Z" fill="#63ef2e"/>
-    <path d="m19 17 6 8-6 2Z" fill="#20bd26"/>
+    <path d="m10.5 21 4-8.5 4.5 9Z" fill="var(--mountain-back, #4adb28)"/>
+    <path d="m14.5 12.5 4.5 9-4-2Z" fill="var(--mountain-back-shade, #21aa23)"/>
+    <path d="m18.5 20.5 3.5-7 5.5 8.5Z" fill="var(--mountain-right, #56e92b)"/>
+    <path d="m22 13.5 5.5 8.5-5-2Z" fill="var(--mountain-right-shade, #25b523)"/>
+    <path d="m13.5 25 5.5-8 6 8Z" fill="var(--mountain-front, #63ef2e)"/>
+    <path d="m19 17 6 8-6 2Z" fill="var(--mountain-front-shade, #20bd26)"/>
   </g>
-  <path d="M18 2.7v10.8M8.8 8.4l9.2 5.1 10.2-5.6M18 14v14" fill="none" stroke="#ffffff" stroke-opacity=".65" stroke-width=".7"/>
-  <path d="M18.6 14v14" fill="none" stroke="#7599a5" stroke-opacity=".55" stroke-width=".7"/>
+  <path d="M18 2.7v10.8M8.8 8.4l9.2 5.1 10.2-5.6M18 14v14" fill="none" stroke="var(--highlight, #ffffff)" stroke-opacity=".65" stroke-width=".7"/>
+  <path d="M18.6 14v14" fill="none" stroke="var(--edge, #7599a5)" stroke-opacity=".55" stroke-width=".7"/>
   </g>
 </svg>
