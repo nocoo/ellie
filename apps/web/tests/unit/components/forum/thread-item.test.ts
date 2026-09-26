@@ -158,12 +158,16 @@ describe("ThreadItem — returnTo propagation", () => {
 	});
 });
 
-describe("ThreadItem — sticky icons", () => {
+describe("ThreadItem — state icons", () => {
 	it.each([
 		["pin_1.gif", false, "板块置顶", "pin_1.svg"],
 		["pin_3.gif", false, "分区置顶", "pin_2.svg"],
 		["pin_2.gif", true, "全局置顶", "pin_3.svg"],
 		["folder_lock.gif", true, "全局置顶", "pin_3.svg"],
+		["pollsmall.gif", false, "投票", "pollsmall.svg"],
+		["rewardsmall.gif", false, "悬赏", "rewardsmall.svg"],
+		["debatesmall.gif", false, "辩论", "debatesmall.svg"],
+		["activitysmall.gif", false, "活动", "group.svg"],
 	] as const)("renders %s with its matching SVG", (filename, global, label, asset) => {
 		const item = makeDisplayItem({ iconSrc: `/static/${filename}`, isGlobalAnnouncement: global });
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));

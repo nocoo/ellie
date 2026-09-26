@@ -21,6 +21,10 @@ export default function PinPreviewPage() {
 		{ sticky: StickyLevel.None, subject: "活跃主题 · 24 小时内有新帖或回复", replies: 8 },
 		{ sticky: StickyLevel.None, subject: "锁定主题 · 本次讨论已结束", closed: 1, replies: 80 },
 		{ sticky: StickyLevel.None, subject: "热门主题 · 回复已超过三页", replies: 61 },
+		{ sticky: StickyLevel.None, subject: "投票 · 选出你最喜欢的校园角落", special: 1 },
+		{ sticky: StickyLevel.None, subject: "悬赏 · 求解一道数学题", special: 3 },
+		{ sticky: StickyLevel.None, subject: "辩论 · 课堂上是否应该使用电脑", special: 5 },
+		{ sticky: StickyLevel.None, subject: "活动 · 周末校园摄影小聚", special: 4 },
 	].map((item, index) => ({
 		id: index + 1,
 		forumId: 1,

@@ -1,20 +1,20 @@
-import { CalendarDays, CircleDollarSign, Gift, MessagesSquare, Pin, Vote } from "lucide-react";
+import { CircleDollarSign, Pin } from "lucide-react";
 
 import Image from "next/image";
 
-const FOLDER_LABELS = {
-	"folder_common.gif": "普通主题",
-	"folder_new.gif": "24 小时内发布或有回复",
-	"folder_lock.gif": "已锁定",
-	"folder_hot.gif": "热门主题：回复超过 3 页",
+const SVG_ICONS = {
+	"folder_common.gif": ["folder_common", "普通主题"],
+	"folder_new.gif": ["folder_new", "24 小时内发布或有回复"],
+	"folder_lock.gif": ["folder_lock", "已锁定"],
+	"folder_hot.gif": ["folder_hot", "热门主题：回复超过 3 页"],
+	"pollsmall.gif": ["pollsmall", "投票"],
+	"rewardsmall.gif": ["rewardsmall", "悬赏"],
+	"debatesmall.gif": ["debatesmall", "辩论"],
+	"activitysmall.gif": ["group", "活动"],
 } as const;
 
 const THREAD_ICONS = {
-	"pollsmall.gif": [Vote, "投票"],
 	"tradesmall.gif": [CircleDollarSign, "交易"],
-	"rewardsmall.gif": [Gift, "悬赏"],
-	"activitysmall.gif": [CalendarDays, "活动"],
-	"debatesmall.gif": [MessagesSquare, "辩论"],
 	"pin_4.gif": [Pin, "置顶"],
 } as const;
 
@@ -51,12 +51,11 @@ export function ThreadRowIcon({
 	}
 	const special = THREAD_ICONS[filename as keyof typeof THREAD_ICONS];
 	if (!special) {
-		const folder =
-			filename in FOLDER_LABELS ? (filename as keyof typeof FOLDER_LABELS) : "folder_common.gif";
-		const label = FOLDER_LABELS[folder];
+		const key = filename in SVG_ICONS ? (filename as keyof typeof SVG_ICONS) : "folder_common.gif";
+		const [asset, label] = SVG_ICONS[key];
 		return (
 			<Image
-				src={`/icons/${folder.replace(".gif", ".svg")}`}
+				src={`/icons/${asset}.svg`}
 				alt={label}
 				title={label}
 				width={20}
