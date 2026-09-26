@@ -47,10 +47,10 @@ export function ThreadRowIcon({
 				src={`/icons/pin_${pin.asset}.svg`}
 				alt={pin.label}
 				title={pin.label}
-				width={16}
-				height={16}
+				width={17.6}
+				height={17.6}
 				unoptimized
-				className={`size-4 shrink-0 ${extraClass}`}
+				className={`size-[1.1rem] shrink-0 ${extraClass}`}
 			/>
 		);
 	}

@@ -205,3 +205,8 @@ The v1.14.15 picker removed the Coolmonkey tab as requested, but the maintained 
 ## 2026-09-26 — Local preview blocked by authentication
 
 The sticky icon mock page used a new route without accounting for the proxy default login guard. The shared preview URL redirected to login. Allow only `/dev/pins` in development and keep the page unavailable in production. Check anonymous access before sharing local preview links.
+
+
+## 2026-09-26 — Misread classic sticky icon geometry
+
+The initial SVG redraw interpreted the small GIF glyphs as arrows and omitted the continuous rounded border. All three originals use two chevrons. Inspect enlarged source geometry before redrawing tiny raster icons; preserve glyph count, negative space, border, and corner shape.
