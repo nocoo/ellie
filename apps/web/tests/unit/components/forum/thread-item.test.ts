@@ -176,7 +176,7 @@ describe("ThreadItem — sticky icons", () => {
 	});
 	it("keeps the ordinary thread icon", () => {
 		render(createElement(ThreadItem, { item: makeDisplayItem(), postsPerPage: 15 }));
-		expect(screen.getAllByRole("img", { name: "主题" })).toHaveLength(2);
+		expect(screen.getAllByRole("img", { name: "普通主题" })).toHaveLength(2);
 	});
 });
 

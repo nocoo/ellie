@@ -256,6 +256,8 @@ describe("highlightStyle", () => {
 describe("getThreadIconSrc", () => {
 	it("returns lock icon for closed thread", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 1,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -267,6 +269,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns poll icon for special=1 thread", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 1,
 			sticky: StickyLevel.None,
@@ -278,6 +282,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns trade icon for special=2 thread", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 2,
 			sticky: StickyLevel.None,
@@ -289,6 +295,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns reward icon for special=3 thread", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 3,
 			sticky: StickyLevel.None,
@@ -300,6 +308,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns activity icon for special=4 thread", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 4,
 			sticky: StickyLevel.None,
@@ -311,6 +321,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns debate icon for special=5 thread", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 5,
 			sticky: StickyLevel.None,
@@ -322,6 +334,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns pin icon for forum-level sticky", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.Forum,
@@ -333,6 +347,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns pin icon for global sticky", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.Global,
@@ -344,6 +360,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns pin icon for category sticky (level 3)", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.Category,
@@ -355,6 +373,8 @@ describe("getThreadIconSrc", () => {
 
 	it("caps sticky level at 4 for pin icon filename", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: 5 as StickyLevel, // Higher than max
@@ -368,6 +388,8 @@ describe("getThreadIconSrc", () => {
 	it("returns folder_new for digest thread with recent reply (digest shown separately)", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -381,6 +403,8 @@ describe("getThreadIconSrc", () => {
 	it("returns folder_common for digest thread with old reply", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -393,6 +417,8 @@ describe("getThreadIconSrc", () => {
 	it("returns folder_new for thread with recent reply (within 24 hours)", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -405,6 +431,8 @@ describe("getThreadIconSrc", () => {
 	it("returns folder_common for old thread (no recent reply)", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -416,6 +444,8 @@ describe("getThreadIconSrc", () => {
 
 	it("prioritizes closed over all other states", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 1,
 			special: 1,
 			sticky: StickyLevel.Global,
@@ -427,6 +457,8 @@ describe("getThreadIconSrc", () => {
 
 	it("prioritizes special over sticky/digest/recent", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 1,
 			sticky: StickyLevel.Global,
@@ -438,6 +470,8 @@ describe("getThreadIconSrc", () => {
 
 	it("prioritizes sticky over digest/recent", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.Forum,
@@ -450,6 +484,8 @@ describe("getThreadIconSrc", () => {
 	it("digest does not affect icon column (falls through to folder)", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -461,6 +497,8 @@ describe("getThreadIconSrc", () => {
 
 	it("returns CDN URLs", () => {
 		const result = getThreadIconSrc({
+			createdAt: 0,
+			replies: 0,
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
@@ -958,5 +996,21 @@ describe("validateReturnTo", () => {
 
 	it("rejects empty string", () => {
 		expect(validateReturnTo("", forumId)).toBeNull();
+	});
+});
+
+describe("thread folder activity", () => {
+	it("marks newly published threads active even before the first reply", () => {
+		expect(
+			getThreadIconSrc(makeThread({ id: 1, createdAt: Date.now() / 1000, lastPostAt: 0 })),
+		).toContain("folder_new.gif");
+	});
+	it("uses the configured three-page reply threshold and prioritizes hot over new", () => {
+		const thread = makeThread({ id: 1, createdAt: Date.now() / 1000, replies: 30 });
+		expect(getThreadIconSrc(thread, 10)).toContain("folder_new.gif");
+		expect(getThreadIconSrc({ ...thread, replies: 31 }, 10)).toContain("folder_hot.gif");
+		expect(getThreadIconSrc({ ...thread, replies: 31, closed: 1 }, 10)).toContain(
+			"folder_lock.gif",
+		);
 	});
 });

@@ -11,6 +11,16 @@ export default function PinPreviewPage() {
 		{ sticky: StickyLevel.Forum, subject: "板块置顶 · 新生报到与版面使用指南" },
 		{ sticky: StickyLevel.Category, subject: "分区置顶 · 校园生活分区活动汇总" },
 		{ sticky: StickyLevel.Global, subject: "全局置顶 · 同济论坛站务公告" },
+		{
+			sticky: StickyLevel.None,
+			subject: "普通主题 · 校园生活随手记",
+			createdAt: now - 172800,
+			lastPostAt: now - 172800,
+			replies: 5,
+		},
+		{ sticky: StickyLevel.None, subject: "活跃主题 · 24 小时内有新帖或回复", replies: 8 },
+		{ sticky: StickyLevel.None, subject: "锁定主题 · 本次讨论已结束", closed: 1, replies: 80 },
+		{ sticky: StickyLevel.None, subject: "热门主题 · 回复已超过三页", replies: 61 },
 	].map((item, index) => ({
 		id: index + 1,
 		forumId: 1,
@@ -66,9 +76,9 @@ export default function PinPreviewPage() {
 	}));
 	return (
 		<main className="mx-auto max-w-6xl p-6">
-			<h1 className="mb-2 text-xl font-semibold">置顶图标预览</h1>
+			<h1 className="mb-2 text-xl font-semibold">主题图标预览</h1>
 			<p className="mb-6 text-sm text-muted-foreground">
-				三个模拟帖子 · 原尺寸 SVG · 调整窗口宽度可查看手机布局
+				置顶与文件夹状态 · 原尺寸 SVG · 调整窗口宽度可查看手机布局
 			</p>
 			<div className="overflow-hidden rounded-lg border border-border bg-card">
 				{enrichThreads(threads).map((item) => (

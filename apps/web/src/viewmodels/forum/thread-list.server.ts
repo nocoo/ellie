@@ -9,7 +9,7 @@ import {
 	type HomeUser,
 } from "@ellie/types";
 import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getCachedForumListContext } from "@/lib/forum-cache";
+import { getCachedForumListContext, getCachedPostsPerPage } from "@/lib/forum-cache";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { fetchPublicSettings, getStr } from "./settings.server";
 import { enrichThreads, lowerBoundPages, type ThreadDisplayItem } from "./thread-list";
@@ -32,9 +32,10 @@ export interface ThreadListPagedData {
 }
 
 export async function loadThreadListPaged(forumId: number): Promise<ThreadListPagedData> {
-	const [context, settings] = await Promise.all([
+	const [context, settings, postsPerPage] = await Promise.all([
 		getCachedForumListContext(),
 		fetchPublicSettings(),
+		getCachedPostsPerPage(),
 	]);
 	const { display, page, limit, total, hasNext } = context;
 	if (context.forumId !== forumId) throw new Error("Forum context does not match route");
@@ -45,6 +46,7 @@ export async function loadThreadListPaged(forumId: number): Promise<ThreadListPa
 		forum,
 		forums,
 		items: enrichThreads(display.threads, {
+			postsPerPage,
 			includeTypeNameBadge: shouldShowTypeNameBadge(display.threadTypes),
 		}),
 		page,

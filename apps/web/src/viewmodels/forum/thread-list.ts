@@ -78,14 +78,14 @@ export function lowerBoundPages(
  */
 export function enrichThreads(
 	threads: Thread[],
-	options: { includeTypeNameBadge?: boolean } = {},
+	options: { includeTypeNameBadge?: boolean; postsPerPage?: number } = {},
 ): ThreadDisplayItem[] {
-	const { includeTypeNameBadge = true } = options;
+	const { includeTypeNameBadge = true, postsPerPage = 20 } = options;
 	return threads.map((thread) => ({
 		thread,
 		badges: filterIconRedundantBadges(getThreadBadges(thread, { includeTypeNameBadge })),
 		highlight: decodeHighlight(thread.highlight),
-		iconSrc: getThreadIconSrc(thread),
+		iconSrc: getThreadIconSrc(thread, postsPerPage),
 		digestSrc: getDigestIconSrc(thread.digest),
 		isGlobalAnnouncement: thread.sticky === StickyLevel.Global,
 	}));
@@ -112,18 +112,23 @@ export function highlightStyle(
  * Returns a CDN URL for the appropriate GIF icon.
  *
  * Priority matches forumdisplay_list.htm <td class="icn">:
- *   closed → special(1-5) → sticky(1-4) → folder_new/common
+ *   closed → special(1-5) → sticky(1-4) → folder_hot/new/common
  *
  * Note: digest is NOT included here — it appears to the right of the
  * title (see getDigestIconSrc), matching the original Discuz <th> layout.
  */
-export function getThreadIconSrc(thread: {
-	closed: number;
-	special: number;
-	sticky: StickyLevel;
-	digest: number;
-	lastPostAt: number;
-}): string {
+export function getThreadIconSrc(
+	thread: {
+		closed: number;
+		special: number;
+		sticky: StickyLevel;
+		digest: number;
+		lastPostAt: number;
+		createdAt: number;
+		replies: number;
+	},
+	postsPerPage = 20,
+): string {
 	if (thread.closed === 1) return getStaticImageUrl("folder_lock.gif");
 	// Special thread types: poll/trade/reward/activity/debate
 	if (thread.special === 1) return getStaticImageUrl("pollsmall.gif");
@@ -134,9 +139,11 @@ export function getThreadIconSrc(thread: {
 	// Sticky: displayorder 1-4 → pin_1..4.gif; clamp >4 to pin_4
 	if (thread.sticky >= StickyLevel.Forum)
 		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 4)}.gif`);
-	// folder_new: last reply within 24 hours
+	if (thread.replies > 3 * postsPerPage) return getStaticImageUrl("folder_hot.gif");
+	// A recent topic or reply makes the thread active.
 	const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
-	if (thread.lastPostAt > oneDayAgo) return getStaticImageUrl("folder_new.gif");
+	if (Math.max(thread.createdAt, thread.lastPostAt) > oneDayAgo)
+		return getStaticImageUrl("folder_new.gif");
 	return getStaticImageUrl("folder_common.gif");
 }
 

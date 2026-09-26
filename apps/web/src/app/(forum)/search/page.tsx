@@ -83,7 +83,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 	}
 
 	const postsPerPage = await getCachedPostsPerPage();
-	const items = enrichThreads(data.results.items);
+	const items = enrichThreads(data.results.items, { postsPerPage });
 	const total = sp.cursor ? null : data.results.total;
 	const countLabel = total === null ? "本页显示" : "找到";
 	const breadcrumbs = [

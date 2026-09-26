@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ context: vi.fn() }));
-vi.mock("@/lib/forum-cache", () => ({ getCachedForumListContext: mocks.context }));
+vi.mock("@/lib/forum-cache", () => ({
+	getCachedForumListContext: mocks.context,
+	getCachedPostsPerPage: async () => 20,
+}));
 vi.mock("@/viewmodels/forum/settings.server", () => ({
 	fetchPublicSettings: vi.fn(async () => ({})),
 	getStr: (_s: unknown, _k: string, fallback: string) => fallback,

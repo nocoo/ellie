@@ -1,26 +1,21 @@
-import {
-	CalendarDays,
-	CircleDollarSign,
-	Gift,
-	LockKeyhole,
-	MessageSquare,
-	MessagesSquare,
-	Pin,
-	Vote,
-} from "lucide-react";
+import { CalendarDays, CircleDollarSign, Gift, MessagesSquare, Pin, Vote } from "lucide-react";
 
 import Image from "next/image";
 
+const FOLDER_LABELS = {
+	"folder_common.gif": "普通主题",
+	"folder_new.gif": "24 小时内发布或有回复",
+	"folder_lock.gif": "已锁定",
+	"folder_hot.gif": "热门主题：回复超过 3 页",
+} as const;
+
 const THREAD_ICONS = {
-	"folder_lock.gif": [LockKeyhole, "已关闭"],
 	"pollsmall.gif": [Vote, "投票"],
 	"tradesmall.gif": [CircleDollarSign, "交易"],
 	"rewardsmall.gif": [Gift, "悬赏"],
 	"activitysmall.gif": [CalendarDays, "活动"],
 	"debatesmall.gif": [MessagesSquare, "辩论"],
 	"pin_4.gif": [Pin, "置顶"],
-	"folder_new.gif": [MessageSquare, "最近有回复"],
-	"folder_common.gif": [MessageSquare, "主题"],
 } as const;
 
 export function ThreadRowIcon({
@@ -54,8 +49,24 @@ export function ThreadRowIcon({
 			/>
 		);
 	}
-	const [Icon, label] =
-		THREAD_ICONS[filename as keyof typeof THREAD_ICONS] ?? THREAD_ICONS["folder_common.gif"];
+	const special = THREAD_ICONS[filename as keyof typeof THREAD_ICONS];
+	if (!special) {
+		const folder =
+			filename in FOLDER_LABELS ? (filename as keyof typeof FOLDER_LABELS) : "folder_common.gif";
+		const label = FOLDER_LABELS[folder];
+		return (
+			<Image
+				src={`/icons/${folder.replace(".gif", ".svg")}`}
+				alt={label}
+				title={label}
+				width={20}
+				height={20}
+				unoptimized
+				className={`size-5 shrink-0 ${extraClass}`}
+			/>
+		);
+	}
+	const [Icon, label] = special;
 	return (
 		<Icon
 			role="img"
