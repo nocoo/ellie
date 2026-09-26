@@ -18,10 +18,9 @@
 // so future tweaks don't have to chase 2 layouts.
 
 import type { ForumTreeNode } from "@ellie/types";
-import { MessagesSquare } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { formatCount } from "@/viewmodels/forum/forum-list";
+import { formatCount, hasRecentForumActivity } from "@/viewmodels/forum/forum-list";
 import { formatDateTime, formatDateTimeMobile } from "@/viewmodels/shared/formatting";
 import { SafeHtml } from "./safe-html";
 import { ForumAvatar } from "./user-avatar";
@@ -32,17 +31,19 @@ interface ForumCardProps {
 	layout?: "wide" | "grid";
 }
 
-function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
+function ForumIcon({ lastPostAt }: { lastPostAt: number }) {
+	const hasActivity = hasRecentForumActivity(lastPostAt);
+	const label = hasActivity ? "最近 24 小时有新主题" : "最近 24 小时无新主题";
 	return (
-		<span
-			aria-hidden="true"
-			className={cn(
-				"inline-flex size-8 shrink-0 items-center justify-center rounded-lg",
-				hasActivity ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-			)}
-		>
-			<MessagesSquare className="size-[18px]" />
-		</span>
+		<Image
+			src={hasActivity ? "/icons/forum_new.svg" : "/icons/forum.svg"}
+			alt={label}
+			title={label}
+			width={32}
+			height={36}
+			unoptimized
+			className="h-9 w-8 shrink-0"
+		/>
 	);
 }
 
@@ -357,7 +358,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 			 */}
 			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_112px] lg:grid-cols-[36px_minmax(0,1fr)_120px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
 				<div className="self-start pt-0.5">
-					<ForumIcon hasActivity={forum.todayThreads > 0} />
+					<ForumIcon lastPostAt={forum.lastPostAt} />
 				</div>
 
 				<div className="min-w-0">
@@ -404,7 +405,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 			    on the user/date meta. */}
 			<div className="sm:hidden px-3 py-2.5">
 				<div className="flex items-center gap-2">
-					<ForumIcon hasActivity={forum.todayThreads > 0} />
+					<ForumIcon lastPostAt={forum.lastPostAt} />
 					<Link
 						href={`/forums/${forum.id}`}
 						prefetch={false}
@@ -432,7 +433,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 			data-testid="forum-card"
 		>
 			<div className="mt-0.5 shrink-0">
-				<ForumIcon hasActivity={forum.todayThreads > 0} />
+				<ForumIcon lastPostAt={forum.lastPostAt} />
 			</div>
 
 			<div className="min-w-0 flex-1">

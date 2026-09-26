@@ -19,10 +19,6 @@ vi.mock("@/lib/cdn", () => ({
 	getStaticImageUrl: (name: string) => `/static/${name}`,
 }));
 
-vi.mock("@/viewmodels/forum/forum-list", () => ({
-	formatCount: (n: number) => n.toLocaleString("zh-CN"),
-}));
-
 vi.mock("@/viewmodels/shared/formatting", () => ({
 	formatDateTime: (t: number) => `t=${t}`,
 	formatDateTimeMobile: (t: number) => `m=${t}`,
@@ -482,5 +478,22 @@ describe("ForumCard — mobile 2-row contract", () => {
 		expect(screen.queryByTestId("grid-last-post-row")).toBeNull();
 		const empty = screen.getByTestId("mobile-last-post-empty");
 		expect(empty.textContent).toBe("暂无最新主题");
+	});
+});
+
+describe("ForumCard activity icon", () => {
+	it.each(["wide", "grid"] as const)("uses the cached topic time in %s layout", (layout) => {
+		const forum = makeForum({ lastPostAt: Math.floor(Date.now() / 1000) - 3600, todayThreads: 0 });
+		render(createElement(ForumCard, { forum, layout }));
+		for (const icon of screen.getAllByRole("img", { name: "最近 24 小时有新主题" })) {
+			expect(icon.getAttribute("src")).toBe("/icons/forum_new.svg");
+		}
+	});
+	it("uses the empty block for an older topic", () => {
+		const forum = makeForum({ lastPostAt: Math.floor(Date.now() / 1000) - 172800 });
+		render(createElement(ForumCard, { forum }));
+		for (const icon of screen.getAllByRole("img", { name: "最近 24 小时无新主题" })) {
+			expect(icon.getAttribute("src")).toBe("/icons/forum.svg");
+		}
 	});
 });

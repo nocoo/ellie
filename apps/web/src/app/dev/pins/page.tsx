@@ -1,5 +1,6 @@
-import { StickyLevel, type Thread } from "@ellie/types";
+import { type ForumTreeNode, ForumType, StickyLevel, type Thread } from "@ellie/types";
 import { notFound } from "next/navigation";
+import { ForumCard } from "@/components/forum/forum-card";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { enrichThreads } from "@/viewmodels/forum/thread-list";
 
@@ -37,6 +38,32 @@ export default function PinPreviewPage() {
 		isRecommended: false,
 		...item,
 	}));
+	const forums: ForumTreeNode[] = [true, false].map((active, index) => ({
+		id: index + 1,
+		parentId: 0,
+		name: active ? "校园生活 · 近期有新主题" : "学习交流 · 近期无新主题",
+		description: "论坛首页图标预览",
+		announcement: "",
+		icon: "",
+		displayOrder: index,
+		threads: 1234,
+		posts: 5678,
+		type: ForumType.Forum,
+		status: 1,
+		visibility: "public",
+		moderators: "",
+		moderatorList: [],
+		todayThreads: 0,
+		lastThreadId: index + 1,
+		lastPostAt: now - (active ? 3600 : 172800),
+		lastPoster: "预览用户",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
+		lastThreadSubject: active ? "一小时前发布的新主题" : "两天前发布的主题",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
+		children: [],
+	}));
 	return (
 		<main className="mx-auto max-w-6xl p-6">
 			<h1 className="mb-2 text-xl font-semibold">置顶图标预览</h1>
@@ -46,6 +73,12 @@ export default function PinPreviewPage() {
 			<div className="overflow-hidden rounded-lg border border-border bg-card">
 				{enrichThreads(threads).map((item) => (
 					<ThreadItem key={item.thread.id} item={item} postsPerPage={20} />
+				))}
+			</div>
+			<h2 className="mb-3 mt-8 text-xl font-semibold">论坛首页图标预览</h2>
+			<div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+				{forums.map((forum) => (
+					<ForumCard key={forum.id} forum={forum} />
 				))}
 			</div>
 		</main>

@@ -5,6 +5,7 @@ import {
 	buildVisibleTree,
 	formatCount,
 	GRID_THRESHOLD,
+	hasRecentForumActivity,
 	parseModerators,
 	totalStats,
 } from "@/viewmodels/forum/forum-list";
@@ -257,5 +258,18 @@ describe("GRID_THRESHOLD", () => {
 	it("is a number constant", () => {
 		expect(typeof GRID_THRESHOLD).toBe("number");
 		expect(GRID_THRESHOLD).toBe(10);
+	});
+});
+
+describe("hasRecentForumActivity", () => {
+	it.each([
+		[200000 - 86399, true],
+		[200000 - 86400, false],
+		[200000 - 86401, false],
+		[0, false],
+		[200001, false],
+		[200000, true],
+	])("checks the rolling 24-hour window for %s", (timestamp, expected) => {
+		expect(hasRecentForumActivity(timestamp, 200000)).toBe(expected);
 	});
 });

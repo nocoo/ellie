@@ -73,3 +73,7 @@ export function totalStats(node: ForumTreeNode): { threads: number; posts: numbe
 	}
 	return { threads, posts };
 }
+
+export function hasRecentForumActivity(lastPostAt: number, now = Date.now() / 1000): boolean {
+	return lastPostAt > 0 && lastPostAt > now - 86400 && lastPostAt <= now;
+}
