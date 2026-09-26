@@ -304,9 +304,14 @@ test.describe("Feature: System & Layout", () => {
 		await expect(smileyTrigger).toBeVisible();
 		await smileyTrigger.click();
 
-		// Then: forum tab is the default landing view, so its 酷猴 pack label
-		// is visible immediately. Popover lives outside the dialog (Portal).
-		await expect(page.getByText("酷猴", { exact: true }).first()).toBeVisible({ timeout: 5000 });
+		const picker = page.locator('[data-slot="popover-content"]');
+		await expect(picker.getByRole("tab")).toHaveText(["论坛", "Emoji"]);
+		await expect(picker.getByRole("tab", { name: "论坛", exact: true })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await expect(picker.getByRole("textbox", { name: "搜索论坛表情" })).toBeVisible();
+		await expect(picker.getByRole("region", { name: "最近使用的表情" })).toBeVisible();
 		await page.keyboard.press("Escape");
 
 		// When: resize to narrow

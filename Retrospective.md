@@ -196,3 +196,7 @@ The v1.14.14 authority validator required positive forum IDs, but production con
 ## 2026-09-26 — Temporary registry URLs in a release lockfile
 
 The patch-release script ran `bun install` with the required temporary mirror and rewrote dependency source URLs in `bun.lock`. The change was staged before the lockfile diff was reviewed. The commit was stopped before completion; only the generated mirror URL fields were cleared, preserving workspace version updates and dependency integrity hashes. Review and normalize the generated lockfile before staging a release, even when Bun reports no dependency changes.
+
+## 2026-09-26 — Removed smiley tab blocked the web rollout
+
+The v1.14.15 picker removed the Coolmonkey tab as requested, but the maintained browser scenario still required that label. Local commit/push hooks passed because they do not run L3; GitHub L3 then failed and the deployment workflow skipped both web applications. Worker deployment alone left production versions split. Update existing behavioral assertions whenever controls are removed, and distinguish a pushed release from a completed web deployment. The scenario now checks the two supported tabs, the default selected tab, the forum search and the shared recent-history region.
