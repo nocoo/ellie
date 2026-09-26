@@ -43,7 +43,7 @@ describe("POST /api/v1/home/context", () => {
 		return f;
 	}
 
-	it("returns no-store anon authority and hydrates recent activity once without writes", async () => {
+	it("returns no-store authority and restores each snapshot only once", async () => {
 		open();
 		f.thread(8, { subject: "Visible", digest: 2, last_post_at: 80 });
 		const response = await homeContext(post(warm), f.env);
@@ -55,10 +55,10 @@ describe("POST /api/v1/home/context", () => {
 		expect(body.data.allowedForumIds).toEqual([1]);
 		expect(body.data.display).toBeUndefined();
 		expect(body.data.stats).toBeUndefined();
-		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(2);
 		await homeContext(post(warm), f.env);
-		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
-		expect(f.env.KV.put).not.toHaveBeenCalled();
+		expect(f.env.KV.get).toHaveBeenCalledTimes(2);
+		expect(f.env.KV.put).toHaveBeenCalledTimes(1);
 		expect(f.calls.some((call) => call.mode === "run")).toBe(false);
 		expect(f.calls.some((call) => call.sql.includes("idx_threads_digest"))).toBe(false);
 		const forumSql = f.calls.filter((call) => call.sql.includes("FROM forums"));
@@ -363,7 +363,13 @@ describe("POST /api/v1/home/context", () => {
 	it("returns all 513 fresh summary candidates using bounded SQL batches", async () => {
 		open();
 		for (let id = 100; id < 613; id++) {
-			f.insert("forums", { id, name: `Forum ${id}`, visibility: "public", moderator_ids: "10,20" });
+			f.insert("forums", {
+				id,
+				parent_id: 1,
+				name: `Forum ${id}`,
+				visibility: "public",
+				moderator_ids: "10,20",
+			});
 			f.thread(id + 1000, { forum_id: id, digest: id < 105 ? 1 : 0 });
 		}
 		const response = await homeContext(post({ ...warm, includeDisplay: true }), f.env);
@@ -383,9 +389,40 @@ describe("POST /api/v1/home/context", () => {
 		expect((await hot.json()).data.digestGates).toHaveLength(2);
 	});
 
+	it("only reads latest topics for homepage cards, preserving deep links and digest topics", async () => {
+		open();
+		f.insert("forums", { id: 4, name: "Card", parent_id: 1 });
+		f.insert("forums", { id: 5, name: "Deep link", parent_id: 4 });
+		f.insert("forums", { id: 6, name: "Hidden", parent_id: 1, visibility: "admin" });
+		f.thread(8, { forum_id: 4 });
+		f.thread(9, { forum_id: 5 });
+		f.thread(10, { forum_id: 5, digest: 1 });
+		f.thread(11, { forum_id: 6 });
+		const response = await homeContext(
+			post({ ...warm, includeDisplay: true, summaryTopicIds: [9, 11] }),
+			f.env,
+		);
+		const { data } = await response.json();
+		expect(data.display.forums.map((row: { id: number }) => row.id)).toEqual([1, 4, 5]);
+		expect(data.display.summaries.map((row: { forumId: number }) => row.forumId)).toEqual([4]);
+		expect(data.summaryGates.map((row: { topicId: number }) => row.topicId)).toEqual([8]);
+		expect(data.display.digest.map((row: { id: number }) => row.id)).toEqual([10]);
+		const latest = f.calls.find((call) => call.sql.startsWith("SELECT f.id, f.status"));
+		expect(latest?.params).toEqual(["[4]"]);
+		const topics = f.calls.filter((call) => call.sql.includes("f.name AS forum_name"));
+		expect(topics.flatMap((call) => call.params)).toEqual([8, 10]);
+		const plan = f.sqlite
+			.prepare(`EXPLAIN QUERY PLAN ${latest?.sql}`)
+			.all(...(latest?.params ?? []));
+		expect(
+			plan.some((row) => String(row.detail).includes("SEARCH f USING INTEGER PRIMARY KEY")),
+		).toBe(true);
+	});
+
 	it("clears a summary selected before a concurrent moderation hide", async () => {
 		open();
-		f.thread(8, { subject: "Must disappear" });
+		f.insert("forums", { id: 4, parent_id: 1, name: "Child", visibility: "public" });
+		f.thread(8, { forum_id: 4, subject: "Must disappear" });
 		f.state.afterRead = async (sql) => {
 			if (sql.startsWith("SELECT f.id, f.status"))
 				f.sqlite.prepare("UPDATE threads SET sticky = -1 WHERE id = 8").run();
@@ -403,9 +440,10 @@ describe("POST /api/v1/home/context", () => {
 	it("propagates D1 read failures instead of caching empty authority or display", async () => {
 		open();
 		const authority = await loadHomeAuthority(f.env, null);
+		f.sqlite.prepare("UPDATE forums SET status = 0 WHERE id = 1").run();
 		f.state.queryError = true;
 		await expect(loadHomeAuthority(f.env, null)).rejects.toThrow("Home forums");
 		await expect(loadHomeGates(f.env, authority, [1], [])).rejects.toThrow("Home topic gates");
-		await expect(loadHomeDisplay(f.env, authority, [], [])).rejects.toThrow("Home forum text");
+		await expect(loadHomeDisplay(f.env, authority)).rejects.toThrow("Home forum text");
 	});
 });

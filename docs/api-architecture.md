@@ -463,6 +463,23 @@ Statistics query errors omit `stats` while preserving verified identity and
 display. Web uses its existing display defaults without caching them and retries
 statistics on the next context request. Authority failures still fail closed.
 
+Homepage forum authority uses a one-row D1 revision check and an immutable
+`home:authority:v1:<revision>` KV snapshot, backed by one process-memory snapshot.
+Migration `0056_forum_authority_revision.sql` atomically rotates the revision with
+forum inserts, deletes, and changes to ID, parent, status, visibility or type.
+Counter/name edits and no-op updates do not rotate it. Cold rebuilds read revision
+and hierarchy in a single D1 batch transaction; old KV generations cannot satisfy
+new revisions. KV failure rebuilds from D1, while revision/read failures fail closed.
+KV keys expire after 30 days for obsolete-generation cleanup; active memory has no
+TTL and always requires the current D1 revision before reuse.
+
+Homepage latest-topic summaries cover only visible direct children of root groups,
+matching the rendered cards. Deeper forum names/links remain in the structure.
+Latest-topic SQL receives this ID scope before selecting threads and authors.
+Full display rebuilds gate only their newly selected topics, digest and recent
+candidates; replaced display IDs are not read again. Single-forum metadata requests
+scope latest-topic selection to that forum. Topic and viewer authorization remain fresh.
+
 Web caches only the coherent `display` projection (forum structure, numeric
 summaries/latest nonanonymous topics, and five digest topics). It never caches
 context users or authorization gates. `home-display` has four entries at most,

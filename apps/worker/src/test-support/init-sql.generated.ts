@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: e3e990c442c7507eed2a322fab98af237b8d18cbd1592f1a0b2a0559b9c48fa1):
+ * Source migrations (sha256: d52840426e956290675cf79569651f30237e5ab00081b39325631f6cd1e0b3c2):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -39,6 +39,7 @@
  *   - 0053_read_query_indexes.sql
  *   - 0054_same_ip_indexes.sql
  *   - 0055_memory_statistics_indexes.sql
+ *   - 0056_forum_authority_revision.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1723,9 +1724,35 @@ CREATE INDEX IF NOT EXISTS idx_threads_forum_visible_created
 CREATE INDEX IF NOT EXISTS idx_users_active_last_activity
   ON users(last_activity)
   WHERE status = 0;
+
+-- ── 0056_forum_authority_revision.sql ────────────────────────────────────────────
+CREATE TABLE forum_authority_revision (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  revision TEXT NOT NULL
+);
+INSERT INTO forum_authority_revision VALUES (1, lower(hex(randomblob(16))));
+
+CREATE TRIGGER forum_authority_insert AFTER INSERT ON forums
+BEGIN
+  UPDATE forum_authority_revision SET revision = lower(hex(randomblob(16))) WHERE id = 1;
+END;
+
+CREATE TRIGGER forum_authority_delete AFTER DELETE ON forums
+BEGIN
+  UPDATE forum_authority_revision SET revision = lower(hex(randomblob(16))) WHERE id = 1;
+END;
+
+CREATE TRIGGER forum_authority_update
+AFTER UPDATE OF id, parent_id, status, visibility, type ON forums
+WHEN OLD.id IS NOT NEW.id OR OLD.parent_id IS NOT NEW.parent_id
+  OR OLD.status IS NOT NEW.status OR OLD.visibility IS NOT NEW.visibility
+  OR OLD.type IS NOT NEW.type
+BEGIN
+  UPDATE forum_authority_revision SET revision = lower(hex(randomblob(16))) WHERE id = 1;
+END;
 `;
 
-export const INIT_SQL_HASH = "e3e990c442c7507eed2a322fab98af237b8d18cbd1592f1a0b2a0559b9c48fa1";
+export const INIT_SQL_HASH = "d52840426e956290675cf79569651f30237e5ab00081b39325631f6cd1e0b3c2";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1762,5 +1789,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0052_kv_cache_metrics_hour.sql",
 	"0053_read_query_indexes.sql",
 	"0054_same_ip_indexes.sql",
-	"0055_memory_statistics_indexes.sql"
+	"0055_memory_statistics_indexes.sql",
+	"0056_forum_authority_revision.sql"
 ] as const;

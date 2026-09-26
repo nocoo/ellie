@@ -17,19 +17,13 @@ import { computeVisibilityBucket } from "./cache/bucket";
 import type { ForumAggregateV2 } from "./cache/forum";
 import { loadForumSnapshot, toForumSummaries } from "./cache/forum-read";
 import type { Env } from "./env";
+import { type ForumGateRow, loadHomeForumRows } from "./home-authority-cache";
 import { parseModeratorIds } from "./mappers";
 import { buildVisibilityContext } from "./visibility";
 
 const SQL_BATCH = 100;
 const SUBJECT_MAX = 200;
 const AUTHOR_NAME_MAX = 64;
-
-interface ForumGateRow {
-	id: number;
-	parent_id: number;
-	status: number;
-	visibility: ForumVisibility;
-}
 
 interface ForumTextRow extends ForumGateRow {
 	name: string;
@@ -74,6 +68,7 @@ export interface HomeAuthority {
 	bucket: ReadingBucket;
 	user: HomeUser | null;
 	allowedForumIds: number[];
+	summaryForumIds: number[];
 	allowed: Set<number>;
 }
 
@@ -83,7 +78,7 @@ export function deriveHomeBucket(user: HomeUser | null): ReadingBucket {
 	);
 }
 
-/** Direct D1 rows. Hidden ancestors exclude the whole descendant, not only its topic line. */
+/** Hidden ancestors exclude the whole descendant, not only its topic line. */
 export function selectAllowedForumIds(
 	rows: readonly ForumGateRow[],
 	bucket: ReadingBucket,
@@ -144,19 +139,19 @@ export async function loadHomeUser(env: Env, userId: number): Promise<HomeUser |
 
 export async function loadHomeAuthority(env: Env, user: HomeUser | null): Promise<HomeAuthority> {
 	const bucket = deriveHomeBucket(user);
-	const result = await env.DB.prepare(
-		"SELECT id, parent_id, status, visibility FROM forums",
-	).all<ForumGateRow>();
-	if (!result.success) throw new Error("Home forums could not be loaded");
-	const allowedForumIds = selectAllowedForumIds(result.results, bucket);
-	return { bucket, user, allowedForumIds, allowed: new Set(allowedForumIds) };
+	const rows = await loadHomeForumRows(env);
+	const allowedForumIds = selectAllowedForumIds(rows, bucket);
+	const allowed = new Set(allowedForumIds);
+	const roots = new Set(rows.filter((row) => row.parent_id === 0).map((row) => row.id));
+	const summaryForumIds = rows
+		.filter((row) => allowed.has(row.id) && roots.has(row.parent_id))
+		.map((row) => row.id);
+	return { bucket, user, allowedForumIds, summaryForumIds, allowed };
 }
 
 export async function loadHomeDisplay(
 	env: Env,
 	authority: HomeAuthority,
-	summaryTopicIds: readonly number[],
-	digestTopicIds: readonly number[],
 	recentCandidates: readonly HomeRecentTopic[] = [],
 ): Promise<{
 	forums: HomeForum[];
@@ -168,21 +163,19 @@ export async function loadHomeDisplay(
 }> {
 	const forums = await loadForumText(env, authority.allowedForumIds);
 	const [snapshot, digestIds, names] = await Promise.all([
-		loadForumSnapshot(env),
+		loadForumSnapshot(env, authority.summaryForumIds),
 		selectDigestIds(env, authority.allowedForumIds),
 		loadModeratorNames(env, forums),
 	]);
 	const summaries = toForumSummaries(aggregatesFor(snapshot, authority.allowed));
 	const topicIds = uniqueIds([
-		...summaryTopicIds,
-		...digestTopicIds,
 		...summaries.map((row) => row.topicId),
 		...digestIds,
 		...recentCandidates.map((row) => row.id),
 	]);
 	const topics = await loadTopicRows(env, topicIds, true);
-	const summaryWanted = new Set([...summaryTopicIds, ...summaries.map((row) => row.topicId)]);
-	const digestWanted = new Set([...digestTopicIds, ...digestIds]);
+	const summaryWanted = new Set(summaries.map((row) => row.topicId));
+	const digestWanted = new Set(digestIds);
 	const summaryGates = topics.flatMap((row) => {
 		const gate = toSummaryGate(row, authority);
 		return gate && summaryWanted.has(row.id) ? [gate] : [];

@@ -124,6 +124,11 @@ describe("recent activity", () => {
 		f.calls.length = 0;
 		const body = await (await homeContext(request(), restarted)).json();
 		expect(body.data.recent.map((row: { id: number }) => row.id)).toEqual([4, 5, 6, 7, 8]);
+		expect(f.calls).toHaveLength(4);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
+		f.calls.length = 0;
+		vi.mocked(f.env.KV.get).mockClear();
+		await homeContext(request(), restarted);
 		expect(f.calls).toHaveLength(2);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		f.sqlite.exec("DELETE FROM threads WHERE id=32");
@@ -150,6 +155,11 @@ describe("recent activity", () => {
 		const body = await load();
 		expect(body.recent).toEqual([{ ...topic, subject: "Thread 1" }]);
 		expect(JSON.stringify(body.recent)).not.toContain("alice");
+		expect(f.calls).toHaveLength(4);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
+		f.calls.length = 0;
+		vi.mocked(f.env.KV.get).mockClear();
+		await load();
 		expect(f.calls).toHaveLength(2);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		for (const sql of [
@@ -164,6 +174,6 @@ describe("recent activity", () => {
 		}
 		f.sqlite.exec("UPDATE forums SET status=1 WHERE id=1; DELETE FROM threads WHERE id=1");
 		expect((await load()).recent).toEqual([]);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.get).toHaveBeenCalledTimes(2);
 	});
 });

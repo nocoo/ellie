@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	forumCacheKey,
+	getForumMetaV2,
 	getForumSummaryV2,
 	getForums,
 	getForumTreeV2,
@@ -62,6 +63,20 @@ describe("forum origin budgets and pure rebuild", () => {
 		expect(f.calls).toHaveLength(1);
 		expect(f.calls[0].sql).toContain("ORDER BY t.created_at DESC, t.id DESC LIMIT 1");
 	});
+	it("limits latest-topic lookups to the requested forum and skips an empty scope", async () => {
+		f.thread(10);
+		f.thread(20, { forum_id: 2 });
+		const result = await getForumMetaV2(f.env, f.ctx, 1, "anon");
+		expect(result.kind).toBe("ok");
+		if (result.kind === "ok") expect(result.forum.lastThreadId).toBe(10);
+		const latest = f.calls.filter((call) => call.sql.startsWith("SELECT f.id, f.status"));
+		expect(latest).toHaveLength(1);
+		expect(latest[0].params).toEqual(["[1]"]);
+		f.calls.length = 0;
+		expect(await loadForumSnapshot(f.env, [])).toEqual([]);
+		expect(f.calls).toHaveLength(0);
+	});
+
 	it("250 moderator IDs load only misses in bounded user batches", async () => {
 		const ids = Array.from({ length: 250 }, (_, i) => i + 100);
 		for (const id of ids) f.insert("users", { id, username: `u${id}` });

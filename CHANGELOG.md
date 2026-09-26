@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.14] - 2026-09-26
+
+### Fixed
+
+- Restrict homepage latest-topic selection and subsequent topic gates to visible forum cards. Preserve deeper forum links, digest topics and recent discussions; omit replaced display candidates from full rebuilds.
+- Scope latest-topic SQL before thread and author lookups, including single-forum metadata reads.
+- Replace repeated homepage hierarchy scans with a one-row D1 revision check and a revision-keyed KV/memory snapshot. Database triggers rotate the revision atomically with permission and structural changes; stale KV or failed invalidation cannot reuse an old permission snapshot.
+
+### Deployment
+
+Apply migration `0056_forum_authority_revision.sql` through `bun run worker:deploy` before the matching Worker code. Snapshot fills are automatic; no full recount or manual KV initialization is required. Monitoring remains unchanged.
+
 ## [1.14.13] - 2026-09-25
 
 ### Fixed

@@ -98,11 +98,17 @@ function lastThreadFields(row: Record<string, unknown>) {
 		lastPosterAvatarPath: String(row.last_poster_avatar_path ?? ""),
 	};
 }
-export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
+export async function loadForumSnapshot(
+	env: Env,
+	forumIds?: readonly number[],
+): Promise<ForumSnapshotRow[]> {
+	if (forumIds?.length === 0) return [];
 	const [forums, statistics] = await Promise.all([
 		env.DB.prepare(
-			`SELECT f.id, f.status, f.visibility, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS}`,
-		).all<Record<string, unknown>>(),
+			`SELECT f.id, f.status, f.visibility, ${LAST_THREAD_COLUMNS} FROM forums f ${LAST_THREAD_JOINS}${forumIds ? " WHERE f.id IN (SELECT value FROM json_each(?))" : ""}`,
+		)
+			.bind(...(forumIds ? [JSON.stringify(forumIds)] : []))
+			.all<Record<string, unknown>>(),
 		readDailyStatistics(env),
 	]);
 	if (!forums.success) throw new Error("Forum summary could not be loaded");
@@ -315,11 +321,17 @@ export async function getForumSummaryV2(
 	env: Env,
 	_ctx: ExecutionContext | undefined,
 	bucket: VisibilityBucket,
-	loadSnapshot = () => loadForumSnapshot(env),
+	loadSnapshot?: () => Promise<ForumSnapshotRow[]>,
 	checked?: Map<number, CurrentForum>,
 ): Promise<Record<number, ForumAggregateV2>> {
 	const current = checked ?? (await currentForums(env));
-	const payload = buildForumSummaryPayload(await loadSnapshot(), bucket);
+	const idsForSummary = [...current.values()]
+		.filter((row) => visible(row, bucket))
+		.map((row) => row.id);
+	const payload = buildForumSummaryPayload(
+		await (loadSnapshot ? loadSnapshot() : loadForumSnapshot(env, idsForSummary)),
+		bucket,
+	);
 	const aggregates = Object.fromEntries(
 		Object.entries(payload.aggregates).filter(([id]) => visible(current.get(Number(id)), bucket)),
 	) as Record<number, ForumAggregateV2>;
@@ -404,7 +416,7 @@ export async function getForumMetaV2(
 	if (!visible(row, bucket)) return { kind: "forbidden" };
 	const [tree, summary] = await Promise.all([
 		getForumTreeV2(env, ctx, bucket, undefined, current),
-		getForumSummaryV2(env, ctx, bucket, undefined, current),
+		getForumSummaryV2(env, ctx, bucket, () => loadForumSnapshot(env, [forumId]), current),
 	]);
 	const forum = mergeTreeAndSummary(
 		tree.filter((node) => node.id === forumId),

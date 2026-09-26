@@ -184,3 +184,7 @@ journey. Scope the navigation action to forum groups and assert five populated
 discussions in the maintained homepage test. Preserve the published v1.14.11 tag
 and release the verified correction as v1.14.12. Run the affected journey before
 tagging changes that add repeated links to shared pages.
+
+## 2026-09-26 — Release mirror URLs reached the staged lockfile
+
+The patch release script ran Bun with a temporary approved registry and rewrote 560 resolved URLs in `bun.lock`. I started the commit before treating the URL scan as a blocking assertion. The commit was terminated before publication, and the lockfile was restored to the exact previous dependency resolution with only workspace versions changed. Future release synchronization must compare the lockfile against the expected version-only diff and fail on mirror URLs before staging or starting hooks.

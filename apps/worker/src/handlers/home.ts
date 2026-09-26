@@ -57,13 +57,7 @@ export async function homeContext(request: Request, env: Env): Promise<Response>
 	const sections: Promise<
 		Awaited<ReturnType<typeof loadHomeDisplay>> | Awaited<ReturnType<typeof loadHomeGates>>
 	> = includeDisplay
-		? loadHomeDisplay(
-				env,
-				authority,
-				parsed.value.summaryTopicIds,
-				parsed.value.digestTopicIds,
-				recent,
-			)
+		? loadHomeDisplay(env, authority, recent)
 		: loadHomeGates(
 				env,
 				authority,
