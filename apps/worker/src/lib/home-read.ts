@@ -142,7 +142,9 @@ export async function loadHomeAuthority(env: Env, user: HomeUser | null): Promis
 	const rows = await loadHomeForumRows(env);
 	const allowedForumIds = selectAllowedForumIds(rows, bucket);
 	const allowed = new Set(allowedForumIds);
-	const roots = new Set(rows.filter((row) => row.parent_id === 0).map((row) => row.id));
+	const roots = new Set(
+		rows.filter((row) => row.parent_id === 0 && row.id !== 0).map((row) => row.id),
+	);
 	const summaryForumIds = rows
 		.filter((row) => allowed.has(row.id) && roots.has(row.parent_id))
 		.map((row) => row.id);

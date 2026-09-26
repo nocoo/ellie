@@ -32,6 +32,18 @@ describe("revision-keyed home authority", () => {
 		expect(f.env.KV.put).not.toHaveBeenCalled();
 	});
 
+	it("accepts the historical zero forum without treating root groups as topic cards", async () => {
+		open();
+		f.insert("forums", { id: 0, parent_id: 0, name: "Legacy global" });
+		f.insert("forums", { id: 4, parent_id: 1, name: "Card" });
+		const cold = await loadHomeAuthority(f.env, null);
+		expect(cold.allowedForumIds).toEqual([0, 1, 4]);
+		expect(cold.summaryForumIds).toEqual([4]);
+		const restored = await loadHomeAuthority({ ...f.env, DB: { ...f.env.DB } }, null);
+		expect(restored.summaryForumIds).toEqual([4]);
+		expect(restored.allowedForumIds).toEqual(cold.allowedForumIds);
+	});
+
 	it("invalidates on gate and structural writes but not counters, names or no-op updates", () => {
 		open();
 		const original = revision();

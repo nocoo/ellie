@@ -30,7 +30,7 @@ function valid(value: unknown, revision: string): value is Snapshot {
 			(row) =>
 				row &&
 				Number.isSafeInteger(row.id) &&
-				row.id > 0 &&
+				row.id >= 0 &&
 				Number.isSafeInteger(row.parent_id) &&
 				row.parent_id >= 0 &&
 				Number.isSafeInteger(row.status) &&
