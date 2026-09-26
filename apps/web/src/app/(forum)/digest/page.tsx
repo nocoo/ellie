@@ -1,17 +1,16 @@
 // Ref: 04f §10 — Digest page: hero + tabs filter + card list + pagination
 
 import { getThreadBadges } from "@ellie/types";
-import { Award } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DigestCard } from "@/components/forum/digest-card";
 import { DigestFiltersClient } from "@/components/forum/digest-filters";
 import { DigestHero } from "@/components/forum/digest-hero";
+import { DigestIcon } from "@/components/forum/digest-icon";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { digestLabel } from "@/viewmodels/forum/digest";
 import { type DigestData, loadDigestList } from "@/viewmodels/forum/digest.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 
@@ -33,7 +32,7 @@ function FilterTab({
 			href={href}
 			aria-current={active ? "page" : undefined}
 			className={cn(
-				"relative shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+				"relative inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
 				"hover:text-foreground",
 				active ? "bg-primary/10 text-primary" : "text-muted-foreground",
 			)}
@@ -146,7 +145,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 			{/* Tabs filter + thread list */}
 			<Card size="sm">
 				<CardHeader className="flex flex-row items-center gap-2 border-b">
-					<Award className="h-5 w-5 text-success" />
+					<DigestIcon level={1} />
 					<CardTitle className="text-base flex-1">精华帖列表</CardTitle>
 				</CardHeader>
 
@@ -157,13 +156,13 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 							全部 ({data.stats.total})
 						</FilterTab>
 						<FilterTab href={buildLevelUrl(1)} active={validLevel === 1}>
-							{digestLabel(1)} ({data.stats.level1})
+							<DigestIcon level={1} /> ({data.stats.level1})
 						</FilterTab>
 						<FilterTab href={buildLevelUrl(2)} active={validLevel === 2}>
-							{digestLabel(2)} ({data.stats.level2})
+							<DigestIcon level={2} /> ({data.stats.level2})
 						</FilterTab>
 						<FilterTab href={buildLevelUrl(3)} active={validLevel === 3}>
-							{digestLabel(3)} ({data.stats.level3})
+							<DigestIcon level={3} /> ({data.stats.level3})
 						</FilterTab>
 					</div>
 

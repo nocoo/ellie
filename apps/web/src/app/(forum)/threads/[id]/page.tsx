@@ -185,7 +185,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				icon={<MessageSquare />}
 				title={
 					<span className="flex flex-wrap items-center gap-2">
-						<ThreadBadgeList badges={badges} />
+						<ThreadBadgeList badges={badges} digestLevel={thread.digest} />
 						<span>{thread.subject}</span>
 						{data.canEditSubject && (
 							<ThreadTitleEditButton threadId={thread.id} currentSubject={thread.subject} />

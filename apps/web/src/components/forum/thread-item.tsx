@@ -4,8 +4,8 @@
 // Desktop: 4-column table layout (Icon | Subject | Author | Stats | Last Post)
 // Mobile: 2-row compact layout (Icon + badges + subject on row 1, stats inline on row 2)
 
-import { Award } from "lucide-react";
 import Link from "next/link";
+import { DigestIcon } from "@/components/forum/digest-icon";
 import { highlightStyle, type ThreadDisplayItem } from "@/viewmodels/forum/thread-list";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { ThreadBadgeList } from "./thread-badge";
@@ -75,7 +75,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				<div className="min-w-0 flex-1 py-3 px-3 flex flex-wrap items-center gap-1.5">
 					{badges.length > 0 && (
 						<span className="inline-flex items-center gap-1 shrink-0">
-							<ThreadBadgeList badges={badges} />
+							<ThreadBadgeList badges={badges} digestLevel={thread.digest} />
 						</span>
 					)}
 					<Link
@@ -86,13 +86,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					>
 						{thread.subject}
 					</Link>
-					{digestSrc && (
-						<Award
-							role="img"
-							aria-label={`精华 ${thread.digest}`}
-							className="size-4 shrink-0 text-success"
-						/>
-					)}
+					{digestSrc && <DigestIcon level={thread.digest} />}
 					<span className="shrink-0">
 						<ThreadInlinePages
 							threadId={thread.id}
@@ -155,7 +149,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					<div className="min-w-0 flex-1">
 						{badges.length > 0 && (
 							<div className="flex items-center gap-1.5">
-								<ThreadBadgeList badges={badges} />
+								<ThreadBadgeList badges={badges} digestLevel={thread.digest} />
 							</div>
 						)}
 						<div className="flex items-center gap-1.5">
@@ -168,13 +162,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							>
 								{thread.subject}
 							</Link>
-							{digestSrc && (
-								<Award
-									role="img"
-									aria-label={`精华 ${thread.digest}`}
-									className="size-4 shrink-0 text-success"
-								/>
-							)}
+							{digestSrc && <DigestIcon level={thread.digest} />}
 							<span className="shrink-0">
 								<ThreadInlinePages
 									threadId={thread.id}

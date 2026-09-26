@@ -41,7 +41,8 @@ describe("ThreadBadgeList — 12px floor", () => {
 	it("badge uses text-xs (was text-2xs); padding/leading preserved", () => {
 		render(
 			createElement(ThreadBadgeList, {
-				badges: [{ type: "digest", label: "精华", variant: "success" }] as any,
+				badges: [{ type: "typeName", label: "讨论", variant: "secondary" }] as any,
+				digestLevel: 0,
 			}),
 		);
 		const badge = screen.getByTestId("thread-badge");

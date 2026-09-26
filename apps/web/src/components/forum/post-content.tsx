@@ -11,7 +11,6 @@ import type { User } from "@ellie/types";
 import { Download, Paperclip } from "lucide-react";
 import type { ReactNode } from "react";
 import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon";
-import { Badge } from "@/components/ui/badge";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
 	type EnrichedPost,
@@ -19,6 +18,7 @@ import {
 	formatDateTime,
 	formatFileSize,
 } from "@/viewmodels/forum/thread-detail";
+import { DigestIcon } from "./digest-icon";
 
 interface PostContentProps {
 	post: EnrichedPost;
@@ -72,18 +72,8 @@ export function PostContent({
 					/>
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
 
-					{/* Digest badge — only first post when digest > 0.
-					 * `text-xs` keeps the badge in the meta-tier 12px alongside the
-					 * timestamp/floor row instead of jumping back to 14px. Only the
-					 * font-size is overridden; padding/variant stay shadcn default. */}
 					{isFirst && threadDigest !== undefined && threadDigest > 0 && (
-						<Badge
-							variant="destructive"
-							className="text-xs px-2 py-0.5"
-							data-testid="post-content-digest-badge"
-						>
-							精华
-						</Badge>
+						<DigestIcon level={threadDigest} />
 					)}
 
 					{/* Floor — right-aligned with superscript # */}

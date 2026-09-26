@@ -4,6 +4,7 @@
 import type { ThreadBadge } from "@ellie/types";
 import type { VariantProps } from "class-variance-authority";
 import { Badge } from "@/components/ui/badge";
+import { DigestIcon } from "./digest-icon";
 
 type BadgeVariant = NonNullable<VariantProps<typeof Badge>["variant"]>;
 
@@ -34,23 +35,28 @@ function toBadgeVariant(variant: ThreadBadge["variant"]): BadgeVariant {
 
 interface ThreadBadgeListProps {
 	badges: ThreadBadge[];
+	digestLevel: number;
 }
 
-export function ThreadBadgeList({ badges }: ThreadBadgeListProps) {
+export function ThreadBadgeList({ badges, digestLevel }: ThreadBadgeListProps) {
 	if (badges.length === 0) return null;
 
 	return (
 		<span className="inline-flex items-center gap-1">
-			{badges.map((badge) => (
-				<Badge
-					key={`${badge.type}-${badge.label}`}
-					variant={toBadgeVariant(badge.variant)}
-					className="text-xs px-1 py-0 leading-tight"
-					data-testid="thread-badge"
-				>
-					{badge.label}
-				</Badge>
-			))}
+			{badges.map((badge) =>
+				badge.type === "digest" ? (
+					<DigestIcon key="digest" level={digestLevel} />
+				) : (
+					<Badge
+						key={`${badge.type}-${badge.label}`}
+						variant={toBadgeVariant(badge.variant)}
+						className="text-xs px-1 py-0 leading-tight"
+						data-testid="thread-badge"
+					>
+						{badge.label}
+					</Badge>
+				),
+			)}
 		</span>
 	);
 }

@@ -84,7 +84,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 					)}
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">
-							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+							{badges.length > 0 && <ThreadBadgeList badges={badges} digestLevel={thread.digest} />}
 							<Link
 								href={`/threads/${thread.id}`}
 								prefetch={false}
@@ -155,7 +155,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 					)}
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-1.5">
-							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+							{badges.length > 0 && <ThreadBadgeList badges={badges} digestLevel={thread.digest} />}
 						</div>
 						<Link
 							href={`/threads/${thread.id}`}

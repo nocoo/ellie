@@ -1,6 +1,6 @@
 {
 	"name": "admin",
-	"version": "1.14.15",
+	"version": "1.14.16",
 	"private": true,
 	"scripts": {
 		"dev": "next dev --turbopack -p 7032",

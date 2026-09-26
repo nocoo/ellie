@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.16] - 2026-09-26
+
+### Fixed
+
+- Restore classic sticky, forum, folder, poll, reward, debate and activity artwork as sharp SVG icons.
+- Mark forums with a topic created within the past 24 hours using the existing cached topic timestamp.
+- Distinguish ordinary, recently active, locked and hot threads; show a flame when replies exceed three configured pages, ahead of recent activity.
+- Replace digest badges and awards with three consistent speech-bubble icons across the homepage, digest page, thread lists and details.
+
 ## [1.14.15] - 2026-09-26
 
 ### Fixed

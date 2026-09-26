@@ -1,5 +1,13 @@
-import { type ForumTreeNode, ForumType, StickyLevel, type Thread } from "@ellie/types";
+import {
+	type ForumTreeNode,
+	ForumType,
+	getThreadBadges,
+	StickyLevel,
+	type Thread,
+} from "@ellie/types";
 import { notFound } from "next/navigation";
+import { DigestCard } from "@/components/forum/digest-card";
+import { DigestShowcase } from "@/components/forum/digest-showcase";
 import { ForumCard } from "@/components/forum/forum-card";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { enrichThreads } from "@/viewmodels/forum/thread-list";
@@ -52,6 +60,13 @@ export default function PinPreviewPage() {
 		isRecommended: false,
 		...item,
 	}));
+	const digestThreads = [1, 2, 3].map((digest) => ({
+		...threads[3],
+		id: 100 + digest,
+		anonymousAuthor: 1 as const,
+		digest,
+		subject: `${digest} 级精华 · 社区精选内容`,
+	}));
 	const forums: ForumTreeNode[] = [true, false].map((active, index) => ({
 		id: index + 1,
 		parentId: 0,
@@ -93,6 +108,14 @@ export default function PinPreviewPage() {
 			<div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
 				{forums.map((forum) => (
 					<ForumCard key={forum.id} forum={forum} />
+				))}
+			</div>
+			<h2 className="mb-3 mt-8 text-xl font-semibold">首页精华推荐</h2>
+			<DigestShowcase threads={digestThreads} />
+			<h2 className="mb-3 mt-8 text-xl font-semibold">精华页列表</h2>
+			<div className="overflow-hidden rounded-lg border border-border bg-card">
+				{digestThreads.map((thread) => (
+					<DigestCard key={thread.id} thread={thread} badges={getThreadBadges(thread)} />
 				))}
 			</div>
 		</main>

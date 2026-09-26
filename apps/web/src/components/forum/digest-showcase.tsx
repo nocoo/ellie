@@ -1,11 +1,12 @@
 import type { HomeDigestTopic } from "@ellie/types";
 import { getThreadBadges, HOME_DIGEST_LIMIT } from "@ellie/types";
-import { Award, Eye, MessageSquare } from "lucide-react";
+import { Eye, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { DigestIcon } from "./digest-icon";
 
 interface DigestShowcaseProps {
 	threads: HomeDigestTopic[];
@@ -17,7 +18,7 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 			<Card size="sm" className="min-w-0">
 				<CardHeader className="flex flex-row items-center justify-between">
 					<div className="flex items-center gap-2">
-						<Award className="h-5 w-5 text-muted-foreground" />
+						<DigestIcon level={1} />
 						<CardTitle className="text-base">精华推荐</CardTitle>
 					</div>
 				</CardHeader>
@@ -34,7 +35,7 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 		<Card size="sm" className="min-w-0">
 			<CardHeader className="flex flex-row items-center justify-between">
 				<div className="flex items-center gap-2">
-					<Award className="h-5 w-5 text-success" />
+					<DigestIcon level={1} />
 					<CardTitle className="text-base">精华推荐</CardTitle>
 				</div>
 				<Button
@@ -44,7 +45,7 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 					nativeButton={false}
 					render={<Link href="/digest" prefetch={false} />}
 				>
-					<Award className="h-4 w-4" />
+					<DigestIcon level={1} />
 					精华帖
 				</Button>
 			</CardHeader>
@@ -62,7 +63,9 @@ export function DigestShowcase({ threads }: DigestShowcaseProps) {
 						return (
 							<div key={thread.id} className="space-y-1 py-2.5">
 								<div className="flex items-center gap-2">
-									{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+									{badges.length > 0 && (
+										<ThreadBadgeList badges={badges} digestLevel={thread.digest} />
+									)}
 									<Link
 										href={`/threads/${thread.id}`}
 										prefetch={false}

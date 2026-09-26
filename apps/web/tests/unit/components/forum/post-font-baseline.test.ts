@@ -202,7 +202,7 @@ describe("PostCard mobile header — 14/12 baseline", () => {
 import { PostContent } from "@/components/forum/post-content";
 
 describe("PostContent meta bar — 14/12 baseline", () => {
-	it("digest badge uses text-xs (was text-sm — badge is meta-tier)", () => {
+	it("digest metadata uses the level-specific SVG", () => {
 		render(
 			createElement(PostContent, {
 				post: makePost({ isFirst: true }) as any,
@@ -212,12 +212,9 @@ describe("PostContent meta bar — 14/12 baseline", () => {
 				author: makePost().author as any,
 			}),
 		);
-		const badge = screen.getByTestId("post-content-digest-badge");
-		expect(badge.className).toContain("text-xs");
-		expect(badge.className).not.toContain("text-sm");
-		// Padding kept (variant unchanged per reviewer's "只改字体" instruction).
-		expect(badge.className).toContain("px-2");
-		expect(badge.className).toContain("py-0.5");
+		expect(screen.getByRole("img", { name: "一级精华" }).getAttribute("src")).toBe(
+			"/icons/digest_1.svg",
+		);
 	});
 
 	it("floor sup uses text-xs (was text-2xs)", () => {

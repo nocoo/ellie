@@ -1,5 +1,5 @@
-import { Award } from "lucide-react";
 import { formatNumber } from "@/viewmodels/shared/formatting";
+import { DigestIcon } from "./digest-icon";
 import { ForumPageHeader } from "./forum-page-header";
 
 export function DigestHero({
@@ -17,7 +17,7 @@ export function DigestHero({
 	] as const;
 	return (
 		<ForumPageHeader
-			icon={<Award />}
+			icon={<DigestIcon level={1} />}
 			title="论坛精华"
 			description="值得收藏的社区内容，按等级、年份和版块浏览。"
 		>
