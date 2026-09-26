@@ -210,3 +210,8 @@ The sticky icon mock page used a new route without accounting for the proxy defa
 ## 2026-09-26 — Misread classic sticky icon geometry
 
 The initial SVG redraw interpreted the small GIF glyphs as arrows and omitted the continuous rounded border. All three originals use two chevrons. Inspect enlarged source geometry before redrawing tiny raster icons; preserve glyph count, negative space, border, and corner shape.
+
+
+## 2026-09-26 — SVG accessibility gate missed during icon preview
+
+The new icon images had accessible labels in React, but their standalone SVG files lacked title elements required by full-repository lint. The staged hook did not check SVG files. Add intrinsic SVG titles and run the existing complete lint before release, rather than assuming staged-file checks cover every new asset.

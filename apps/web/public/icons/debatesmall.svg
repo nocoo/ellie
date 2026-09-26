@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+ <title>Debate</title>
  <defs>
  <linearGradient id="blue" x2=".6" y2="1"><stop stop-color="#80d8eb"/><stop offset="1" stop-color="#008dbc"/></linearGradient>
  <linearGradient id="orange" x2=".6" y2="1"><stop stop-color="#ffd88b"/><stop offset="1" stop-color="#f39312"/></linearGradient>

@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+ <title>Reward</title>
  <defs><linearGradient id="gold" x2=".7" y2="1"><stop stop-color="#ffe882"/><stop offset=".5" stop-color="#ffc820"/><stop offset="1" stop-color="#ed960a"/></linearGradient></defs>
  <ellipse cx="12" cy="20.5" rx="8" ry="1.2" fill="#99632b" opacity=".16"/>
  <path d="m3 8 4-2 2-3h6l2 3 4 2-1.5 9-5 3h-5l-5-3Z" fill="url(#gold)" stroke="#e49b23" stroke-width=".7" stroke-linejoin="round"/>

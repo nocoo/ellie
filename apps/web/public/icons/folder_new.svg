@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+ <title>Recently active thread</title>
   <defs><linearGradient id="face" x2=".3" y2="1"><stop stop-color="#b2edff"/><stop offset="1" stop-color="#50c1e7"/></linearGradient></defs>
   <path d="M1 7h18v14H1Z" fill="#26333c" opacity=".13"/>
   <path d="M2 6h18v14H2Z" fill="#26333c" opacity=".09"/>

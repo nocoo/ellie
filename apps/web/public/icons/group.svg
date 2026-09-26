@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+ <title>Activity</title>
  <defs>
  <linearGradient id="shirt" x2=".4" y2="1"><stop stop-color="#21bde6"/><stop offset="1" stop-color="#0085b7"/></linearGradient>
  <linearGradient id="skin" x2=".6" y2="1"><stop stop-color="#ffe6b0"/><stop offset="1" stop-color="#ffc77f"/></linearGradient>

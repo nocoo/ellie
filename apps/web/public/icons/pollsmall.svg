@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+ <title>Poll</title>
  <defs>
   <linearGradient id="pink" x2=".8" y2="1"><stop stop-color="#ffabc0"/><stop offset="1" stop-color="#e96b98"/></linearGradient>
   <linearGradient id="blue" x2=".8" y2="1"><stop stop-color="#99daf1"/><stop offset="1" stop-color="#399bd1"/></linearGradient>
