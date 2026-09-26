@@ -30,15 +30,6 @@ export interface ThreadDisplayItem {
 	iconSrc: string;
 	/** Digest icon shown to the right of the title (null if not a digest thread). */
 	digestSrc: string | null;
-	/** Newbie stamp shown to the right of the title (null if not the author's first thread). */
-	/**
-	 * True when this thread is a site-wide announcement (sticky=2).
-	 * The list row swaps its left-column folder gif for a red lucide
-	 * Megaphone icon so global announcements stand out on every
-	 * forum's list. Forum-pinned (1) and category-pinned (3) sticky
-	 * rows keep their classic pin_N.gif — see review thread for the
-	 * UI invariants this field exists to satisfy.
-	 */
 	isGlobalAnnouncement: boolean;
 }
 

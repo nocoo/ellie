@@ -158,67 +158,25 @@ describe("ThreadItem — returnTo propagation", () => {
 	});
 });
 
-// ─── Global announcement (sticky=2) icon ──────────────────────────────────────
-// Phase 2 of 全站公告: when isGlobalAnnouncement is true, the left-column
-// row icon must be a red lucide Megaphone with aria-label="全站公告" instead
-// of the classic Discuz folder/pin gif. Forum-pinned (sticky=1) and
-// category-pinned (sticky=3) rows must keep their pin gif via iconSrc and
-// MUST NOT render the megaphone — see reviewer constraint
-// #ellie-数据同步MBP:5fc0db50 ("红色 icon 只替代/增强 sticky=2").
-describe("ThreadItem — global announcement icon", () => {
-	it("renders red Megaphone with aria-label=全站公告 when isGlobalAnnouncement=true", () => {
-		const item = makeDisplayItem({ isGlobalAnnouncement: true });
+describe("ThreadItem — sticky icons", () => {
+	it.each([
+		["pin_1.gif", false, "板块置顶", "pin_1.svg"],
+		["pin_3.gif", false, "分区置顶", "pin_2.svg"],
+		["pin_2.gif", true, "全局置顶", "pin_3.svg"],
+		["folder_lock.gif", true, "全局置顶", "pin_3.svg"],
+	] as const)("renders %s with its matching SVG", (filename, global, label, asset) => {
+		const item = makeDisplayItem({ iconSrc: `/static/${filename}`, isGlobalAnnouncement: global });
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
-
-		// Desktop + mobile layouts both render the row → expect 2 megaphones.
-		const icons = screen.getAllByLabelText("全站公告");
-		expect(icons.length).toBe(2);
+		const icons = screen.getAllByRole("img", { name: label });
+		expect(icons).toHaveLength(2);
 		for (const icon of icons) {
-			// lucide-react renders as <svg>; the text-destructive class is what
-			// paints it red. The class lookup is brittle on purpose: if the
-			// class name changes we want this test to flag it.
-			expect(icon.tagName.toLowerCase()).toBe("svg");
-			expect(icon.getAttribute("class") ?? "").toContain("text-destructive");
+			expect(icon.getAttribute("src")).toBe(`/icons/${asset}`);
+			expect(icon.getAttribute("title")).toBe(label);
 		}
 	});
-
-	it("labels ordinary threads without announcing them as global notices", () => {
-		const item = makeDisplayItem({ isGlobalAnnouncement: false });
-		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
-
-		expect(screen.queryByLabelText("全站公告")).toBeNull();
+	it("keeps the ordinary thread icon", () => {
+		render(createElement(ThreadItem, { item: makeDisplayItem(), postsPerPage: 15 }));
 		expect(screen.getAllByRole("img", { name: "主题" })).toHaveLength(2);
-	});
-
-	it("labels category pins separately from global announcements", () => {
-		const item = makeDisplayItem({
-			isGlobalAnnouncement: false,
-			iconSrc: "/static/pin_3.gif",
-		});
-		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
-
-		expect(screen.queryByLabelText("全站公告")).toBeNull();
-		expect(screen.getAllByRole("img", { name: "分区置顶" })).toHaveLength(2);
-	});
-
-	it("preserves desktop 36px icon column wrapper for global announcements", () => {
-		// Reviewer constraint: column width must not jump when the megaphone
-		// replaces the gif. Assert the wrapper class still includes w-[36px].
-		const item = makeDisplayItem({ isGlobalAnnouncement: true });
-		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
-
-		const icon = screen.getAllByLabelText("全站公告")[0];
-		// Walk up to the wrapper div with the fixed width.
-		let el: HTMLElement | null = icon;
-		let found = false;
-		while (el && el.tagName.toLowerCase() !== "body") {
-			if ((el.getAttribute("class") ?? "").includes("w-[36px]")) {
-				found = true;
-				break;
-			}
-			el = el.parentElement;
-		}
-		expect(found).toBe(true);
 	});
 });
 

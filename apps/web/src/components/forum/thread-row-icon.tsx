@@ -3,12 +3,13 @@ import {
 	CircleDollarSign,
 	Gift,
 	LockKeyhole,
-	Megaphone,
 	MessageSquare,
 	MessagesSquare,
 	Pin,
 	Vote,
 } from "lucide-react";
+
+import Image from "next/image";
 
 const THREAD_ICONS = {
 	"folder_lock.gif": [LockKeyhole, "已关闭"],
@@ -17,9 +18,6 @@ const THREAD_ICONS = {
 	"rewardsmall.gif": [Gift, "悬赏"],
 	"activitysmall.gif": [CalendarDays, "活动"],
 	"debatesmall.gif": [MessagesSquare, "辩论"],
-	"pin_1.gif": [Pin, "版块置顶"],
-	"pin_2.gif": [Pin, "全站置顶"],
-	"pin_3.gif": [Pin, "分区置顶"],
 	"pin_4.gif": [Pin, "置顶"],
 	"folder_new.gif": [MessageSquare, "最近有回复"],
 	"folder_common.gif": [MessageSquare, "主题"],
@@ -34,15 +32,35 @@ export function ThreadRowIcon({
 	isGlobalAnnouncement: boolean;
 	extraClass?: string;
 }) {
-	const filename = iconSrc.split("/").pop() as keyof typeof THREAD_ICONS;
-	const [Icon, label] = isGlobalAnnouncement
-		? ([Megaphone, "全站公告"] as const)
-		: (THREAD_ICONS[filename] ?? THREAD_ICONS["folder_common.gif"]);
+	const filename = iconSrc.split("/").pop() as string;
+	const pin =
+		isGlobalAnnouncement || filename === "pin_2.gif"
+			? { asset: 3, label: "全局置顶" }
+			: filename === "pin_3.gif"
+				? { asset: 2, label: "分区置顶" }
+				: filename === "pin_1.gif"
+					? { asset: 1, label: "板块置顶" }
+					: null;
+	if (pin) {
+		return (
+			<Image
+				src={`/icons/pin_${pin.asset}.svg`}
+				alt={pin.label}
+				title={pin.label}
+				width={16}
+				height={16}
+				unoptimized
+				className={`size-4 shrink-0 ${extraClass}`}
+			/>
+		);
+	}
+	const [Icon, label] =
+		THREAD_ICONS[filename as keyof typeof THREAD_ICONS] ?? THREAD_ICONS["folder_common.gif"];
 	return (
 		<Icon
 			role="img"
 			aria-label={label}
-			className={`size-4 shrink-0 ${isGlobalAnnouncement ? "text-destructive" : "text-primary/70"} ${extraClass}`}
+			className={`size-4 shrink-0 text-primary/70 ${extraClass}`}
 		/>
 	);
 }
