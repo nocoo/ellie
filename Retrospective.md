@@ -16,6 +16,15 @@
   is clean before editing the next dependency unit. Do not start the next
   package.json change while `git commit` is still running.
 
+### 2026-10-01: Quote URLs and avoid shell special variable names
+
+- Two zsh coordination commands failed before they could read anything. A
+  variable named `path` shadowed `PATH`, and an unquoted `gh` URL containing
+  `?` was expanded as a glob. Both were invocation mistakes, not repository
+  or dependency failures.
+- Use a descriptive name that is not a shell special variable, and quote URL
+  arguments that contain `?`.
+
 ### 2026-09-24: Carry statistics semantics into browser contracts
 
 - The v1.14.2 browser gate still asserted the retired 15-minute activity label
