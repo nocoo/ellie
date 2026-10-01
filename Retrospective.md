@@ -1,5 +1,21 @@
 # Retrospective
 
+### 2026-10-01: Wait for the commit hook before editing the next unit
+
+- While `git commit` for the lint-staged 17.6.0 upgrade was still inside the
+  pre-commit hook, the next unit edited root `package.json` to pin
+  `@cap.js/widget` at 0.1.58. lint-staged restages files it touches, so the
+  in-progress commit `a617397d` absorbed the cap pin while `bun.lock` still
+  resolved `@cap.js/widget@0.1.57`. The mixed commit was local only and never
+  pushed. It was replaced, without amending published history, by
+  `a200e879` (lint-staged only) and `68ca9ef6` (cap only).
+- Cause: the hook's "Staging changes from tasks" step runs after the editor
+  has already changed the working tree, so a later unit's manifest edit is
+  indistinguishable from a lint-staged rewrite.
+- Follow-up: finish one commit, including the hook, and confirm `git status`
+  is clean before editing the next dependency unit. Do not start the next
+  package.json change while `git commit` is still running.
+
 ### 2026-09-24: Carry statistics semantics into browser contracts
 
 - The v1.14.2 browser gate still asserted the retired 15-minute activity label

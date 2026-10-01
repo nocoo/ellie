@@ -89,3 +89,4 @@ Move accident narratives to [Retrospective.md](Retrospective.md); keep at most a
 - Test SQL generation and authorization at both proxy and Worker boundaries.
 - Use `Intl.DateTimeFormat.formatToParts()` with explicit UTC arithmetic for Shanghai date boundaries; never locale-string round trips.
 - Never deploy known review blockers or omit schema migrations.
+- Finish a commit, including its hook, and confirm a clean status before editing the next unit. lint-staged restages the working tree.
