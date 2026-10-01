@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.18] - 2026-10-01
+
+### Changed
+
+- Upgrade entities to 8.1.0, Next.js to 16.3.8, Tiptap to 3.31.4, Cap widget to 0.1.58, and Lucide React to 1.49.0.
+- Align Vitest and coverage-v8 at 5.0.3, Biome at 2.5.15, lint-staged at 17.6.0, Node types at 26.6.3, and Workers types at 5.20261001.1.
+- Synchronize forum, admin, Worker, shared packages and Rust CLI release versions.
+
+### Fixed
+
+- Pin the transitive undici dependency to the patched 7.29.1 release.
+
+### Removed
+
+- Remove unused direct Hono and DOMPurify dependencies and their obsolete overrides.
+
 ## [1.14.17] - 2026-09-26
 
 ### Fixed
