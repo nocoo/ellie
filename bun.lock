@@ -21,7 +21,7 @@
         "@radix-ui/react-tabs": "^1.1.21",
         "@radix-ui/react-tooltip": "1.2.16",
         "fast-uri": "4.2.1",
-        "lucide-react": "1.47.0",
+        "lucide-react": "1.49.0",
         "tailwind-merge": "3.7.0",
       },
       "devDependencies": {
@@ -59,7 +59,7 @@
         "@ellie/types": "workspace:*",
         "@nocoo/basalt": "2.1.8",
         "@tailwindcss/postcss": "^4.3.3",
-        "lucide-react": "1.47.0",
+        "lucide-react": "1.49.0",
         "next": "16.3.6",
         "next-auth": "^5.0.0-beta.32",
         "react": "19.3.0",
@@ -97,7 +97,7 @@
         "@tailwindcss/postcss": "^4.3.3",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "lucide-react": "1.47.0",
+        "lucide-react": "1.49.0",
         "next": "16.3.6",
         "next-auth": "^5.0.0-beta.32",
         "react": "19.3.0",
@@ -201,7 +201,7 @@
         "@radix-ui/react-tooltip": "1.2.16",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "lucide-react": "1.47.0",
+        "lucide-react": "1.49.0",
         "tailwind-merge": "3.7.0",
       },
       "devDependencies": {
@@ -1081,7 +1081,7 @@
 
     "loose-envify": ["loose-envify@1.4.0", "", { "dependencies": { "js-tokens": "^3.0.0 || ^4.0.0" }, "bin": { "loose-envify": "cli.js" } }, "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q=="],
 
-    "lucide-react": ["lucide-react@1.47.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-o8C23aXpNQypRY73W7fW02EyvWJinEMXgKeGjFoKym0zj3Q73hD97A1IQps1g8C14HTGsOpZL0Am+xjfgFZAbg=="],
+    "lucide-react": ["lucide-react@1.49.0", "", { "peerDependencies": { "@types/react": "*", "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-ApfaNM4/7jBrVopqLJ84Jz8TMQ1Q1JeZ1PmKh25aeS3E1FTVcMkSh1bEQB7dfzdIrwXRP8p3z4AJjTIHHb5IIA=="],
 
     "lz-string": ["lz-string@1.5.0", "", { "bin": { "lz-string": "bin/bin.js" } }, "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ=="],
 
