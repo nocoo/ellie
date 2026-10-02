@@ -12,11 +12,6 @@
 //     (always well-formed) and preserves whitespace so indentation stays
 //     intact. Key vs value-string distinction is by lookahead: a string
 //     followed by optional whitespace then `:` is a key.
-//   - The container uses `whitespace-pre` + `overflow-auto` so JSON layers
-//     are never broken by mid-line wrapping; horizontal scroll handles
-//     long lines. The dialog itself is responsible for capping width via
-//     `overflow-hidden` + `max-w-*`.
-//
 
 import { CodeBlock } from "@nocoo/basalt/components/code";
 import type React from "react";
@@ -25,8 +20,6 @@ import { twMerge as cn } from "tailwind-merge";
 export interface JsonCodeBlockProps {
 	/** Anything JSON-serialisable; strings are rendered as plain text. */
 	value: unknown;
-	/** Optional max-height utility (e.g. "max-h-80"). Defaults to "max-h-[60vh]". */
-	maxHeightClassName?: string;
 	className?: string;
 }
 
@@ -86,20 +79,11 @@ const KIND_CLASS: Record<TokenKind, string> = {
 	plain: "",
 };
 
-export function JsonCodeBlock({
-	value,
-	maxHeightClassName,
-	className,
-}: JsonCodeBlockProps): React.JSX.Element {
+export function JsonCodeBlock({ value, className }: JsonCodeBlockProps): React.JSX.Element {
 	const isString = typeof value === "string";
 
-	// Container: cap width to parent, cap height to viewport, scroll both axes.
-	// `whitespace-pre` keeps JSON indentation intact — wrapping would break
-	// nested levels visually.
 	const baseClass = cn(
-		"mt-1 max-w-full overflow-auto p-3 text-xs leading-5",
-		"whitespace-pre",
-		maxHeightClassName ?? "max-h-[60vh]",
+		"mt-1 max-w-full overflow-x-auto whitespace-pre p-3 text-xs leading-5",
 		className,
 	);
 

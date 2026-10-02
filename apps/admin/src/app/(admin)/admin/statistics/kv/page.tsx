@@ -700,7 +700,7 @@ function KeyDetailDialog({
 									{sensitiveValueLabel("mask-value")}
 								</span>
 							) : (
-								<JsonCodeBlock value={displayValue} maxHeightClassName="max-h-[60vh]" />
+								<JsonCodeBlock value={displayValue} />
 							)}
 						</div>
 					</div>

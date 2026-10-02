@@ -240,3 +240,7 @@ The initial SVG redraw interpreted the small GIF glyphs as arrows and omitted th
 ## 2026-09-26 — SVG accessibility gate missed during icon preview
 
 The new icon images had accessible labels in React, but their standalone SVG files lacked title elements required by full-repository lint. The staged hook did not check SVG files. Add intrinsic SVG titles and run the existing complete lint before release, rather than assuming staged-file checks cover every new asset.
+
+## 2026-10-03 — Scroll validation setup assumptions
+
+A root-relative patch was attempted from the admin directory and failed without changing files. The initial scroll regression also assumed both pagers used Chinese accessible names, while the installed Basalt pager uses English labels. Apply repository patches from the root and inspect component accessibility contracts before selecting controls. The corrected checks exercise real wheel scrolling through the final row and pagination, rather than only asserting overflow classes.

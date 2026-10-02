@@ -104,7 +104,7 @@ export function IpLookupInline({ ip }: IpLookupInlineProps) {
 								</Button>
 							</CollapsibleTrigger>
 							<CollapsibleContent unstyled>
-								<JsonCodeBlock value={result.raw} maxHeightClassName="max-h-80" />
+								<JsonCodeBlock value={result.raw} />
 							</CollapsibleContent>
 						</Collapsible>
 					)}

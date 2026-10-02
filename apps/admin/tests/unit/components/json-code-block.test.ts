@@ -1,5 +1,16 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { tokenizeJson } from "../../../src/components/admin/json-code-block";
+import { JsonCodeBlock, tokenizeJson } from "../../../src/components/admin/json-code-block";
+
+it.each(["long text", { items: Array.from({ length: 100 }, (_, index) => index) }])(
+	"leaves vertical scrolling to the parent for %j",
+	(value) => {
+		const html = renderToStaticMarkup(createElement(JsonCodeBlock, { value }));
+		expect(html).toContain("overflow-x-auto");
+		expect(html).not.toMatch(/max-h-|overflow-auto/);
+	},
+);
 
 describe("tokenizeJson", () => {
 	it("distinguishes object keys from string values via the trailing colon", () => {

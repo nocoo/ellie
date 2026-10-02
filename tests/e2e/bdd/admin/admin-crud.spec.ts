@@ -851,13 +851,20 @@ test.describe("Feature: Admin Operation Logs", () => {
 			expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport.height);
 			expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
 			const details = dialog.getByTestId("admin-log-details");
-			expect(await details.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
-				true,
-			);
-			await details.evaluate((element) => {
-				element.scrollTop = element.scrollHeight;
-			});
-			expect(await details.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+			expect(
+				await details.evaluate((element) => element.scrollHeight - element.clientHeight),
+			).toBeLessThanOrEqual(1);
+			const body = dialog.locator(".overflow-y-auto");
+			await details.hover({ position: { x: 10, y: 10 } });
+			await page.mouse.wheel(0, 100_000);
+			await expect
+				.poll(() =>
+					body.evaluate(
+						(element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+					),
+				)
+				.toBeLessThanOrEqual(2);
+			expect(await body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 			await expect(close).toBeInViewport();
 			await close.click();
 			await expect(dialog).toBeHidden();

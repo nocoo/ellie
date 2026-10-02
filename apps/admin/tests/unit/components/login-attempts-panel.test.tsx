@@ -96,6 +96,9 @@ describe("LoginAttemptsPanel — list rendering", () => {
 		await waitFor(() => {
 			expect(screen.queryByText("alice")).not.toBeNull();
 		});
+		const region = screen.getByRole("table", { name: "登录明细" }).parentElement;
+		expect(region?.className).toContain("overflow-x-auto");
+		expect(region?.className).not.toMatch(/max-h-|overflow-auto/);
 
 		// alice (userId=7) → anchor `/admin/users/7`.
 		const aliceLink = screen.getByText("alice").closest("a");

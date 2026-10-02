@@ -55,6 +55,9 @@ it("keeps row selection and the mixed all-selection state in sync", () => {
 		);
 	}
 	render(<Table />);
+	const region = screen.getByRole("region", { name: "数据列表滚动区域" });
+	expect(region.className).toContain("overflow-x-auto");
+	expect(region.className).not.toMatch(/max-h-|overflow-auto|overscroll-contain/);
 	const all = screen.getByRole("checkbox", { name: "全选" });
 	fireEvent.click(screen.getByRole("checkbox", { name: "选择行 1" }));
 	expect(all.getAttribute("aria-checked")).toBe("mixed");

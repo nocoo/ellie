@@ -208,9 +208,9 @@ export function LoginAttemptsPanel() {
 						<p className="text-sm text-basalt-muted-foreground">该筛选条件下暂无记录。</p>
 					)}
 					{list && list.rows.length > 0 && (
-						<div className="max-h-[68vh] overflow-auto">
+						<div className="overflow-x-auto">
 							<Table aria-label="登录明细" className="min-w-full whitespace-nowrap text-sm">
-								<TableHeader className="sticky top-0 z-10 bg-basalt-bright">
+								<TableHeader className="bg-basalt-bright">
 									<TableRow className="border-b border-basalt-border text-left text-xs text-basalt-muted-foreground">
 										<TableHead className="py-2 pr-3">时间</TableHead>
 										<TableHead className="py-2 pr-3">用户</TableHead>

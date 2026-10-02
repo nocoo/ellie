@@ -109,13 +109,13 @@ export function AdminDataTable<T>({
 
 	return (
 		<section
-			className="max-h-[72vh] min-w-0 overflow-auto overscroll-contain rounded-[inherit] focus-visible:outline-2 focus-visible:outline-basalt-ring"
+			className="min-w-0 overflow-x-auto rounded-[inherit] focus-visible:outline-2 focus-visible:outline-basalt-ring"
 			aria-label={`${label}滚动区域`}
 			// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
 			tabIndex={0}
 		>
 			<Table aria-label={label} className="whitespace-nowrap">
-				<TableHeader className="sticky top-0 z-10 bg-basalt-secondary">
+				<TableHeader className="bg-basalt-secondary">
 					<TableRow className="hover:bg-transparent">
 						{selectable && (
 							<TableHead className="w-10 px-3 py-2">
