@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/ui",
-	"version": "1.14.18",
+	"version": "1.14.19",
 	"private": true,
 	"type": "module",
 	"main": "./src/index.ts",

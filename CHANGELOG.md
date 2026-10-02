@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.19] - 2026-10-03
+
+### Fixed
+
+- Apply saved or system appearance synchronously before the forum's first paint, preserving the full-width preference without an external initialization request.
+- Remove nested vertical scrolling from admin data tables, login analytics, operation-log details and KV/IP JSON previews while preserving horizontal access to wide content.
+- Include DOM types when checking shared browser test mocks.
+
+### Changed
+
+- Upgrade the admin application to the verified public Basalt 2.2.0 release while retaining its existing workspace layout.
+- Add refresh-first-frame and desktop, short-viewport and mobile scrolling regression coverage.
+- Synchronize forum, admin, Worker, shared packages and Rust CLI release versions.
+
 ## [1.14.18] - 2026-10-01
 
 ### Changed
