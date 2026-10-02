@@ -61,6 +61,48 @@ async function assertFooterFitsDialog(dialog: import("@playwright/test").Locator
 }
 
 test.describe("Feature: System & Layout", () => {
+	for (const { theme, system, expected } of [
+		{ theme: "dark", system: "light", expected: "dark" },
+		{ theme: "system", system: "dark", expected: "dark" },
+		{ theme: "light", system: "dark", expected: "light" },
+	] as const) {
+		test(`Given ${theme} theme and ${system} system, When I refresh before external scripts load, Then the first frame is ${expected}`, async ({
+			page,
+		}) => {
+			await page.emulateMedia({ colorScheme: system });
+			await page.goto("/login");
+			await page.evaluate((theme) => {
+				if (theme === "system") localStorage.removeItem("theme");
+				else localStorage.setItem("theme", theme);
+				localStorage.setItem("width-mode", "full");
+			}, theme);
+			await page.route("**/*", (route) =>
+				route.request().resourceType() === "script" ? route.abort() : route.continue(),
+			);
+			await page.reload({ waitUntil: "domcontentloaded" });
+			const frame = await page.evaluate(
+				() =>
+					new Promise((resolve) => {
+						requestAnimationFrame(() => {
+							const root = document.documentElement;
+							resolve({
+								dark: root.classList.contains("dark"),
+								colorScheme: getComputedStyle(root).colorScheme,
+								background: getComputedStyle(root).backgroundColor,
+								widthMode: root.dataset.widthMode,
+							});
+						});
+					}),
+			);
+			expect(frame).toEqual({
+				dark: expected === "dark",
+				colorScheme: expected,
+				background: expected === "dark" ? "rgb(18, 22, 28)" : "rgb(245, 247, 250)",
+				widthMode: "full",
+			});
+		});
+	}
+
 	test("Given I am on the home page, When I click the theme toggle three times, Then the icon cycles through three distinct states and returns to the initial state", async ({
 		page,
 	}) => {

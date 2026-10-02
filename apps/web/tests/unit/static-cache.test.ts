@@ -6,11 +6,11 @@ import nextConfig from "../../next.config";
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
 describe("static cache boundary", () => {
-	it("bypasses authentication only for the actual theme script", () => {
-		for (const url of ["/fouc.js", "/fouc.js?v=1", "/_next/static/chunks/app.js", "/favicon.ico"]) {
+	it("bypasses authentication only for static assets", () => {
+		for (const url of ["/_next/static/chunks/app.js", "/favicon.ico"]) {
 			expect(unstable_doesMiddlewareMatch({ config, nextConfig, url })).toBe(false);
 		}
-		for (const url of ["/fouc.js/private", "/threads/42", "/me"]) {
+		for (const url of ["/fouc.js", "/fouc.js/private", "/threads/42", "/me"]) {
 			expect(unstable_doesMiddlewareMatch({ config, nextConfig, url })).toBe(true);
 		}
 	});

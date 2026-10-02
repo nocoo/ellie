@@ -88,24 +88,3 @@ export function useTheme() {
 
 	return { theme, resolved, setTheme, cycleTheme } as const;
 }
-
-// ─── FOUC prevention script (inline in <head>) ────────────────
-
-/**
- * Inline script to prevent FOUC. Kept in sync with layout.tsx's inline script.
- * Sets .dark class and color-scheme property immediately.
- */
-export const themeInitScript = `
-(function(){
-  try {
-    var t = localStorage.getItem('${STORAGE_KEY}');
-    var d = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme:dark)').matches);
-    if (d) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.style.colorScheme = 'dark';
-    } else {
-      document.documentElement.style.colorScheme = 'light';
-    }
-  } catch(e) {}
-})();
-`.trim();

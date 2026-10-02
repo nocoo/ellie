@@ -40,7 +40,7 @@ vi.mock("react", () => ({
 	},
 }));
 
-import { themeInitScript, useTheme } from "@/hooks/use-theme";
+import { useTheme } from "@/hooks/use-theme";
 
 // ---------------------------------------------------------------------------
 // Mock browser globals BEFORE each test
@@ -137,54 +137,12 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests — themeInitScript
-// ---------------------------------------------------------------------------
-
-describe("themeInitScript", () => {
-	it("is a non-empty string", () => {
-		expect(typeof themeInitScript).toBe("string");
-		expect(themeInitScript.length).toBeGreaterThan(0);
-	});
-
-	it("references localStorage for persistence", () => {
-		expect(themeInitScript).toContain("localStorage");
-	});
-
-	it("references prefers-color-scheme media query", () => {
-		expect(themeInitScript).toContain("prefers-color-scheme");
-	});
-
-	it("adds .dark class conditionally", () => {
-		expect(themeInitScript).toContain("classList.add");
-		expect(themeInitScript).toContain("dark");
-	});
-
-	it("is a self-executing function (IIFE)", () => {
-		expect(themeInitScript).toMatch(/^\(function/);
-		expect(themeInitScript).toMatch(/\}\)\(\);$/);
-	});
-
-	it("handles errors gracefully with try-catch", () => {
-		expect(themeInitScript).toContain("try");
-		expect(themeInitScript).toContain("catch");
-	});
-
-	it("checks for 'light' explicitly (three-state)", () => {
-		expect(themeInitScript).toContain("light");
-	});
-});
-
-// ---------------------------------------------------------------------------
 // Tests — useTheme module exports
 // ---------------------------------------------------------------------------
 
 describe("useTheme module exports", () => {
 	it("exports useTheme function", () => {
 		expect(typeof useTheme).toBe("function");
-	});
-
-	it("exports themeInitScript string", () => {
-		expect(typeof themeInitScript).toBe("string");
 	});
 
 	it("exports Theme type (light/dark/system)", () => {

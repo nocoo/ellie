@@ -4,6 +4,7 @@ import "./tailwind.css";
 import { DM_Sans, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { LEGACY_DISCUZ_STUBS_SCRIPT } from "@/lib/legacy-discuz-stubs";
+import { themeInitScript } from "@/lib/theme-init";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -18,7 +19,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
 			<head>
-				<script async src="/fouc.js" fetchPriority="high" />
 				{/*
 				 * Legacy Discuz inline-handler compatibility shim.
 				 * Historical post HTML embeds `<img onload="thumbImg(this)">` /
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 				 */}
 				<script
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: hard-coded IIFE constant, no user input
-					dangerouslySetInnerHTML={{ __html: LEGACY_DISCUZ_STUBS_SCRIPT }}
+					dangerouslySetInnerHTML={{ __html: `${themeInitScript}\n${LEGACY_DISCUZ_STUBS_SCRIPT}` }}
 				/>
 			</head>
 			<body>
