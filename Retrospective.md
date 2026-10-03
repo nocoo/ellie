@@ -274,3 +274,13 @@ The first Admin browser run then exposed mocked users in purge and scrolling
 scenarios that omitted the newly required avatarPath. Update browser fixtures with
 the same required DTO fields as real responses; removing a legacy fixture field
 without its replacement can invalidate UI acceptance despite passing unit tests.
+
+## 2026-10-03 — Empty-index release commit after a failed lock guard
+
+The version script's approved-registry install again expanded resolved package URLs.
+The version-only assertion correctly rejected the lockfile before staging, but a
+following shell command still invoked an empty-index commit because the shell did
+not stop on the failed Python guard. Hooks ran and Git rejected the empty commit;
+no bad lockfile was committed. Chain staging/commit with successful validation (or
+set shell errexit), restore only the generated registry URL expansion, and assert
+an exact version-only lockfile diff before proceeding.

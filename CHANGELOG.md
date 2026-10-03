@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.20] - 2026-10-03
+
+### Fixed
+
+- Use explicit avatar paths throughout forum, admin, posts, comments, messages and session payloads; empty paths render the bundled default without probing R2.
+- Preserve immediate upload refresh and anonymous identity masking; prevent purge from deleting shared avatar objects.
+- Keep the local default image public when forum login is required.
+
+### Changed
+
+- Normalize historical avatar ownership from a complete offline R2 inventory before the coordinated database cutover.
+- Derive posting eligibility and admin avatar filters from `avatar_path` alone; six smaller-only legacy cases remain avatar-less by owner decision.
+- Version avatar-bearing caches and signed snapshots without clearing sessions, and add a deployment write fence for schema cutovers.
+
+### Removed
+
+- Remove legacy avatar fields, UID-derived URL guessing, the avatar image proxy and its dedicated Worker endpoint, free-text avatar-key editing, and obsolete importer backfill logic.
+- Migration 0057 drops `users.avatar` and `users.has_avatar`; this explicitly requested patch release requires coordinated API, database and frontend deployment.
+
 ## [1.14.19] - 2026-10-03
 
 ### Fixed
