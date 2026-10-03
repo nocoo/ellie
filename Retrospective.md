@@ -244,3 +244,16 @@ The new icon images had accessible labels in React, but their standalone SVG fil
 ## 2026-10-03 — Scroll validation setup assumptions
 
 A root-relative patch was attempted from the admin directory and failed without changing files. The initial scroll regression also assumed both pagers used Chinese accessible names, while the installed Basalt pager uses English labels. Apply repository patches from the root and inspect component accessibility contracts before selecting controls. The corrected checks exercise real wheel scrolling through the final row and pagination, rather than only asserting overflow classes.
+
+## 2026-10-03 — Inventory pagination and smaller avatar variants
+
+The R2 exporter initially required pagination metadata on every response. The final
+short page omits that metadata, so the guard stopped the export and required one
+final-page refetch. The CLI also strips pagination envelopes from normal output;
+capturing exact bucket-list responses preserved cursors without modifying the CLI
+or exposing credentials. Future inventory readers must test full, final-short,
+empty and repeated-cursor responses before treating a dataset as complete. The
+first local avatar assessment also treated absence of the big variant as absence
+of every avatar; a variant audit found six users with smaller images. They were
+reclassified as unresolved before any production write. Inventory all actual
+variants and distinguish unresolved policy choices from proven absence.

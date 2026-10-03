@@ -95,3 +95,5 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 [Forum list release observation](34-forum-list-release-observation.md): pre-release Cloudflare baseline and rollout validation.
 
 [37. Avatar path normalization](37-avatar-path-normalization.md): proposed one-time object inventory, path-only identity, legacy-field removal, and coordinated cutover.
+
+[38. Avatar inventory assessment](38-avatar-inventory-assessment.md): complete local R2 metadata inventory, user mapping counts, and posting-permission impact.

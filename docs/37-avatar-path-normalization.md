@@ -1,7 +1,10 @@
 # 37. Avatar Path Normalization
 
-Status: proposed; awaiting owner review. No production migration, schema change,
-deployment, or cache-rule change is authorized by this document.
+Status: execution started with the owner's 2026-10-03 authorization. The first
+stage is read-only inventory and population assessment; see
+[the inventory assessment](38-avatar-inventory-assessment.md). No production data
+has been migrated. The maintenance window and affected posting-permission
+population still require confirmation before destructive cutover.
 
 ## Objective
 

@@ -147,3 +147,5 @@ cargo test --locked --manifest-path packages/cli-rs/Cargo.toml --workspace
 [Forum list release observation](docs/34-forum-list-release-observation.md): pre-release Cloudflare baseline and rollout validation.
 
 [Avatar path normalization plan](docs/37-avatar-path-normalization.md): one-time verified mapping and removal of runtime avatar guessing.
+
+[Avatar inventory assessment](docs/38-avatar-inventory-assessment.md): exported resource counts and one-time migration impact.
