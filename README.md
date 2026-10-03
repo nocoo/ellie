@@ -145,3 +145,5 @@ cargo test --locked --manifest-path packages/cli-rs/Cargo.toml --workspace
 [Forum list memory read plan](docs/33-forum-list-memory-read-plan.md): bounded Next.js display caching, fresh page authorization, and write invalidation.
 
 [Forum list release observation](docs/34-forum-list-release-observation.md): pre-release Cloudflare baseline and rollout validation.
+
+[Avatar path normalization plan](docs/37-avatar-path-normalization.md): one-time verified mapping and removal of runtime avatar guessing.
