@@ -292,3 +292,5 @@ The Rust upgrade checkout initially selected an Xcode linker with a newer Comman
 A global `cargo update -p base64 --precise` resolution attempted an unrelated termwiz downgrade. It was rejected before commit. Restoring only the owned uncommitted lock and resolving the actual `ellie-core` workspace added the requested base64 version while preserving unrelated versions. Inspect every Cargo graph delta and retain required feature flags.
 
 Issues naming `.next/standalone` refer to generated output. Verify the maintained workspace manifest and regenerate the output through the normal build before reporting a target already satisfied; never edit that ignored directory as source. Existing coverage and isolation gaps remain gaps rather than a full 6DQ certification.
+
+Final review found an unused Rust advisory ignore for GHSA-cq8v-f236-94qc. Scanning an exact copy of the current Cargo lock outside all repository scanner configuration returned no findings. The obsolete ignore file was removed, and the normal gates and final scans were rerun without that waiver.
