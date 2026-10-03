@@ -496,6 +496,7 @@ test.describe("Feature: Admin Users CRUD", () => {
 		const liveUser = {
 			id: 3,
 			username: "testuser",
+			avatarPath: "",
 			email: "test@example.com",
 			credits: 0,
 			status: 0,

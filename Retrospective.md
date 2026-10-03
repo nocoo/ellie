@@ -269,3 +269,8 @@ instead of an image. Explicitly allow that exact public asset and cover anonymou
 access with login-required mode plus a real HTTP image-response assertion. The
 migration test initially traversed one parent directory too far; resolve fixture
 paths relative to the test module and run the focused test before the full suite.
+
+The first Admin browser run then exposed mocked users in purge and scrolling
+scenarios that omitted the newly required avatarPath. Update browser fixtures with
+the same required DTO fields as real responses; removing a legacy fixture field
+without its replacement can invalidate UI acceptance despite passing unit tests.
