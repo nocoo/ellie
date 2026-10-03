@@ -93,7 +93,7 @@ describe("forum structural/counter composition", () => {
 			vi
 				.mocked(f.env.KV.get)
 				.mock.calls.flatMap(([key]) => key)
-				.some((key) => /^(thread:|user:mini:20)/.test(key)),
+				.some((key) => /^(thread:|user:mini:v3:20)/.test(key)),
 		).toBe(false);
 	});
 	it("expires structure after one hour while topic summaries stay fresh", async () => {
@@ -166,7 +166,6 @@ describe("forum structural/counter composition", () => {
 			lastThreadId: 0,
 			lastThreadSubject: "",
 			lastPosterId: 0,
-			lastPosterAvatar: "",
 		});
 	});
 	it("skips a newly anonymous topic and shows the next visible topic author", async () => {

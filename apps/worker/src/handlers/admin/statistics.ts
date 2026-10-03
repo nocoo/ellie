@@ -688,7 +688,7 @@ async function invalidateUsersChunked(env: Env, userIds: number[]): Promise<void
 		await Promise.all(
 			userIds.slice(i, i + KV_CHUNK).map(async (id) => {
 				await cacheDelete(env, `user:stats:${id}`, "user:stats");
-				await cacheDelete(env, `user:self:${id}`, "user:self");
+				await cacheDelete(env, `user:self:v2:${id}`, "user:self");
 			}),
 		);
 	}

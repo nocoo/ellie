@@ -28,7 +28,7 @@ function messageReadDb(rows: MessageRow[] = [], unreadCount = 0) {
 					sender_deleted,
 					receiver_deleted,
 				})),
-			"SELECT id, sender_id, sender_name, receiver_id": rows,
+			"SELECT messages.id, messages.sender_id, messages.sender_name, messages.receiver_id": rows,
 		},
 	});
 }
@@ -38,8 +38,10 @@ function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
 		id: 1,
 		sender_id: 20,
 		sender_name: "bob",
+		sender_avatar_path: "avatars/bob.jpg",
 		receiver_id: 10,
 		receiver_name: "alice",
+		receiver_avatar_path: "",
 		subject: "test",
 		content: "hello",
 		is_read: 0,
@@ -261,10 +263,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},
@@ -291,10 +292,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},
@@ -321,10 +321,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},
@@ -351,10 +350,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},
@@ -386,10 +384,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},
@@ -425,10 +422,9 @@ describe("message handlers", () => {
 				const { db, calls } = createMockDb({
 					firstResults: {
 						"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-						"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+						"SELECT status, avatar_path, reg_date, role FROM users": {
 							status: 0,
 							avatar_path: "",
-							has_avatar: 0,
 							reg_date: 1000000,
 							role: 0,
 						},
@@ -468,10 +464,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},
@@ -511,10 +506,9 @@ describe("message handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1000000,
 						role: 0,
 					},

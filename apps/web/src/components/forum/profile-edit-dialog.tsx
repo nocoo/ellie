@@ -42,7 +42,7 @@ export interface ProfileEditDialogProps {
 	onOpenChange: (open: boolean) => void;
 	user: {
 		id: number;
-		avatarPath?: string | null;
+		avatarPath: string;
 		gender: number;
 		birthYear: number;
 		birthMonth: number;

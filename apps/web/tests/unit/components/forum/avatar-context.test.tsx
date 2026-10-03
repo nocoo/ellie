@@ -5,7 +5,7 @@ import { AvatarProvider, useAvatarContext, useAvatarUrl } from "@/contexts/avata
 
 afterEach(cleanup);
 
-function AvatarReader({ uid, path }: { uid: number; path?: string | null }) {
+function AvatarReader({ uid, path }: { uid: number; path: string }) {
 	return <img src={useAvatarUrl(uid, path)} alt={`avatar-${uid}`} />;
 }
 
@@ -19,22 +19,20 @@ function UploadResult() {
 }
 
 describe("saved avatar propagation", () => {
-	it("updates UID and stale-path readers immediately without changing other users", () => {
+	it("updates empty and stale-path readers immediately without changing other users", () => {
 		render(
 			<AvatarProvider>
 				<UploadResult />
-				<AvatarReader uid={42} />
 				<AvatarReader uid={42} path="" />
-				<AvatarReader uid={42} path={null} />
 				<AvatarReader uid={42} path="avatars/old.jpg" />
-				<AvatarReader uid={7} />
+				<AvatarReader uid={7} path="" />
 			</AvatarProvider>,
 		);
 		fireEvent.click(screen.getByText("Save"));
 		for (const image of screen.getAllByAltText("avatar-42")) {
 			expect(image.getAttribute("src")).toBe("https://t.no.mt/avatars/saved.jpg");
 		}
-		expect(screen.getByAltText("avatar-7").getAttribute("src")).toBe("/api/avatar/7?v=current");
+		expect(screen.getByAltText("avatar-7").getAttribute("src")).toBe("/default-avatar.gif");
 	});
 
 	it("uses an existing GUID path without a provider", () => {
@@ -44,10 +42,8 @@ describe("saved avatar propagation", () => {
 		);
 	});
 
-	it.each(["", null])("preserves known legacy metadata without a provider (%s)", (path) => {
-		render(<AvatarReader uid={42} path={path} />);
-		expect(screen.getByAltText("avatar-42").getAttribute("src")).toBe(
-			"https://t.no.mt/avatar/000/00/00/42_avatar_big.jpg",
-		);
+	it("renders the local default for an empty path without a provider", () => {
+		render(<AvatarReader uid={42} path="" />);
+		expect(screen.getByAltText("avatar-42").getAttribute("src")).toBe("/default-avatar.gif");
 	});
 });

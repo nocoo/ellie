@@ -23,7 +23,7 @@ interface ProfileHeroProps {
 	user: {
 		id: number;
 		username: string;
-		avatarPath?: string | null;
+		avatarPath: string;
 		role: number;
 		regDate: number;
 		gender: number;

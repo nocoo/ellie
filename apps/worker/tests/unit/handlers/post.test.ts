@@ -193,10 +193,9 @@ describe("post handlers", () => {
 						status: 1,
 						visibility: "public",
 					}),
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},
@@ -225,10 +224,9 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},
@@ -258,10 +256,9 @@ describe("post handlers", () => {
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"JOIN forums f": null,
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},
@@ -291,10 +288,9 @@ describe("post handlers", () => {
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"JOIN forums f": { id: 1, forum_id: 10, closed: 1, status: 1, visibility: "public" },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},
@@ -343,10 +339,9 @@ describe("post handlers", () => {
 						},
 						"SELECT MAX(position)": { maxPos: 5 },
 						"SELECT * FROM posts WHERE id": createdPost,
-						"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+						"SELECT status, avatar_path, reg_date, role FROM users": {
 							status: 0,
 							avatar_path: "avatars/test.jpg",
-							has_avatar: 0,
 							reg_date: 0,
 							role: 0,
 						},
@@ -390,10 +385,9 @@ describe("post handlers", () => {
 					"JOIN forums f": { id: 1, forum_id: 10, closed: 0, status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 1 },
 					"SELECT * FROM posts WHERE id": createdPost,
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},
@@ -424,10 +418,9 @@ describe("post handlers", () => {
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"JOIN forums f": { id: 1, forum_id: 10, closed: 0, status: 1, visibility: "public" },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},
@@ -456,10 +449,9 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
-						has_avatar: 0,
 						reg_date: 0,
 						role: 0,
 					},

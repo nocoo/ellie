@@ -193,23 +193,22 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/thread.count` | `/api/v1/threads/count` | 明确例外 | — | Fresh authorized count; bounded Next.js thread-count cache (doc/29) |
 | `handlers/forum.getAncestors` | `/api/v1/forums/:id/ancestors` | 部分复用 | `forum:tree:v2` | T1；当前祖先路径可见性 |
 | `handlers/forum.getThreadTypes` | `/api/v1/forums/:id/thread-types` | 部分复用 | `thread-types` | T3；当前版块权限 |
-| `handlers/recommended.listRecommendedThreads` | `/api/v1/forums/:id/recommended-threads` | 部分复用 | `recommended:threads`、`thread:entity`、`user:mini:v1` | T3；当前主题与版块权限，展示字段按实体组合 |
+| `handlers/recommended.listRecommendedThreads` | `/api/v1/forums/:id/recommended-threads` | 部分复用 | `recommended:threads`、`thread:entity`、`user:mini:v3` | T3；当前主题与版块权限，展示字段按实体组合 |
 | `handlers/forum.getById` | `/api/v1/forums/:id` | 部分复用 | `forum:tree:v2` | Cached structure with current visibility; topic summaries come directly from D1 (doc/29) |
-| `handlers/thread.list` | `/api/v1/threads` | 部分复用 | `thread:list`、`thread:entity`、`user:mini:v1` | T2；全部合法分页、分类、游标，当前候选权限 |
-| `handlers/thread.getById` | `/api/v1/threads/:id` | 部分复用 | `thread:entity`、`user:mini:v1` | T2；当前访问许可，页面阅读单独计数 |
-| `handlers/post.list` | `/api/v1/posts` | 部分复用 | `post:page`、`post:entity`、`user:mini:v1` | T2；全部分页、末页，当前帖子及主题权限 |
-| `handlers/post-rating.listByPost` | `/api/v1/posts/:id/ratings` | 部分复用 | `post:ratings`、`post:rating-rows`、`user:mini:v1` | T2；当前访问许可，评分汇总与明细分开 |
-| `handlers/post.getById` | `/api/v1/posts/:id` | 部分复用 | `post:entity`、`user:mini:v1` | T2；当前帖子归属、删除及可见性 |
+| `handlers/thread.list` | `/api/v1/threads` | 部分复用 | `thread:list`、`thread:entity`、`user:mini:v3` | T2；全部合法分页、分类、游标，当前候选权限 |
+| `handlers/thread.getById` | `/api/v1/threads/:id` | 部分复用 | `thread:entity`、`user:mini:v3` | T2；当前访问许可，页面阅读单独计数 |
+| `handlers/post.list` | `/api/v1/posts` | 部分复用 | `post:page`、`post:entity`、`user:mini:v3` | T2；全部分页、末页，当前帖子及主题权限 |
+| `handlers/post-rating.listByPost` | `/api/v1/posts/:id/ratings` | 部分复用 | `post:ratings`、`post:rating-rows`、`user:mini:v3` | T2；当前访问许可，评分汇总与明细分开 |
+| `handlers/post.getById` | `/api/v1/posts/:id` | 部分复用 | `post:entity`、`user:mini:v3` | T2；当前帖子归属、删除及可见性 |
 | `handlers/attachment.listByPost` | `/api/v1/posts/:id/attachments` | 部分复用 | `post:attachments` | T2；当前帖子及主题权限 |
-| `handlers/user.getById` | `/api/v1/users/:id` | 部分复用 | `user:public:v2`、`user:stats` | T4；当前有效用户与公开字段投影 |
-| `handlers/user.getAvatarPath` | `/api/v1/users/:id/avatar-path` | 整份复用 | `user:avatar-path` | T4；公开头像路径映射，不使用资料可见性作为文件访问许可 |
-| `handlers/user.listThreads` | `/api/v1/users/:id/threads` | 部分复用 | `user:threads`、`thread:entity`、`user:mini:v1` | T4；当前主题权限与匿名作者投影 |
-| `handlers/user.listPosts` | `/api/v1/users/:id/posts` | 部分复用 | `user:posts`、`post:entity`、`user:mini:v1` | T4；当前帖子权限与匿名作者投影 |
-| `handlers/user.listDigest` | `/api/v1/users/:id/digest` | 部分复用 | `user:digest`、`thread:entity`、`user:mini:v1` | T4；当前主题权限与匿名作者投影 |
-| `handlers/user.search` | `/api/v1/users/search` | 部分复用 | `user:search`、`user:mini:v1` | T4；规范化查询与当前有效用户 |
-| `handlers/user.batchGet` | `/api/v1/users/batch` | 部分复用 | `user:public:v2`、`user:stats` | T4；当前有效用户与公开字段投影 |
-| `handlers/search.searchThreads` | `/api/v1/search/threads` | 部分复用 | `search:threads`、`thread:entity`、`user:mini:v1` | T3；全部合法游标与当前候选权限 |
-| `handlers/digest.list` | `/api/v1/digest` | 部分复用 | `digest:list`、`thread:entity`、`user:mini:v1` | T3；年份、级别、版块与全部游标 |
+| `handlers/user.getById` | `/api/v1/users/:id` | 部分复用 | `user:public:v3`、`user:stats` | T4；当前有效用户与公开字段投影 |
+| `handlers/user.listThreads` | `/api/v1/users/:id/threads` | 部分复用 | `user:threads`、`thread:entity`、`user:mini:v3` | T4；当前主题权限与匿名作者投影 |
+| `handlers/user.listPosts` | `/api/v1/users/:id/posts` | 部分复用 | `user:posts`、`post:entity`、`user:mini:v3` | T4；当前帖子权限与匿名作者投影 |
+| `handlers/user.listDigest` | `/api/v1/users/:id/digest` | 部分复用 | `user:digest`、`thread:entity`、`user:mini:v3` | T4；当前主题权限与匿名作者投影 |
+| `handlers/user.search` | `/api/v1/users/search` | 部分复用 | `user:search`、`user:mini:v3` | T4；规范化查询与当前有效用户 |
+| `handlers/user.batchGet` | `/api/v1/users/batch` | 部分复用 | `user:public:v3`、`user:stats` | T4；当前有效用户与公开字段投影 |
+| `handlers/search.searchThreads` | `/api/v1/search/threads` | 部分复用 | `search:threads`、`thread:entity`、`user:mini:v3` | T3；全部合法游标与当前候选权限 |
+| `handlers/digest.list` | `/api/v1/digest` | 部分复用 | `digest:list`、`thread:entity`、`user:mini:v3` | T3；年份、级别、版块与全部游标 |
 | `handlers/digest.stats` | `/api/v1/digest/stats` | 部分复用 | `digest:stats` | T3；当前可见版块投影 |
 | `handlers/digest.filters` | `/api/v1/digest/filters` | 部分复用 | `digest:filters` | T3；当前可见版块投影 |
 | `handlers/internal/statisticsSnapshot.statisticsSnapshotHandler` | `/api/internal/statistics/snapshot` | 明确例外 | — | Dedicated server credential; KV-only GET, explicit POST rebuild (doc/36) |
@@ -220,7 +219,7 @@ Next.js 到 Worker 的业务读取默认 `no-store`，请求内允许 React `cac
 | `handlers/message.list` | `/api/v1/messages` | 部分复用 | `pm:list`、`pm:entity` | T4；箱体、分页与每条消息当前归属 |
 | `handlers/message.unreadCount` | `/api/v1/messages/unread-count` | 部分复用 | `pm:unread` | T4；具体用户与当前身份 |
 | `handlers/message.getById` | `/api/v1/messages/:id` | 部分复用 | `pm:entity` | T4；当前归属、删除状态与一次已读转换 |
-| `handlers/post-comment.list` | `/api/v1/post-comments` | 部分复用 | `post:comments`、`user:mini:v1` | T2；当前帖子权限，批量只装载缺失项 |
+| `handlers/post-comment.list` | `/api/v1/post-comments` | 部分复用 | `post:comments`、`user:mini:v3` | T2；当前帖子权限，批量只装载缺失项 |
 | `handlers/report.checkPermission` | `/api/v1/posting-permission` | 部分复用 | `user:posting-preview` | T4；仅预览，真实提交重新校验额度和权限 |
 | `handlers/checkin.status` | `/api/v1/checkin/status` | 部分复用 | `user:checkin` | T4；具体用户与当前身份 |
 | `lib/postImage.handleGetPostImage` | `/api/v1/post-images/:path` | 明确例外 | — | T10；带内容版本的不可变文件使用 HTTP 资源策略 |

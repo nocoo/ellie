@@ -15,8 +15,10 @@ export interface MessageRow {
 	id: number;
 	sender_id: number;
 	sender_name: string;
+	sender_avatar_path: string;
 	receiver_id: number;
 	receiver_name: string;
+	receiver_avatar_path: string;
 	subject: string;
 	content: string;
 	is_read: number;
@@ -40,7 +42,7 @@ export interface PostingPreview {
 const MESSAGE_COLUMNS =
 	"id, sender_id, sender_name, receiver_id, receiver_name, subject, content, is_read, sender_deleted, receiver_deleted, created_at";
 export const SELF_USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, has_avatar, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at";
+	"id, username, email, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at";
 const FAMILIES = [
 	"user:self",
 	"user:checkin",
@@ -64,7 +66,7 @@ export function isPrivateCacheData(d: CacheDescriptor, value: unknown): boolean 
 			typeof value.username === "string" &&
 			Number.isFinite(value.role) &&
 			Number.isFinite(value.status) &&
-			typeof value.hasAvatar === "boolean" &&
+			typeof value.avatarPath === "string" &&
 			only(selfFields)
 		);
 	if (d.family === "user:checkin")
@@ -116,15 +118,20 @@ export function isPrivateCacheData(d: CacheDescriptor, value: unknown): boolean 
 		value.id === d.params.id &&
 		positive(value.sender_id) &&
 		positive(value.receiver_id) &&
-		["sender_name", "receiver_name", "subject", "content"].every(
-			(key) => typeof value[key] === "string",
-		) &&
+		[
+			"sender_name",
+			"receiver_name",
+			"sender_avatar_path",
+			"receiver_avatar_path",
+			"subject",
+			"content",
+		].every((key) => typeof value[key] === "string") &&
 		["is_read", "sender_deleted", "receiver_deleted"].every(
 			(key) => value[key] === 0 || value[key] === 1,
 		) &&
 		Number.isSafeInteger(value.created_at) &&
 		Number(value.created_at) >= 0 &&
-		only(MESSAGE_COLUMNS.split(", ")) &&
+		only([...MESSAGE_COLUMNS.split(", "), "sender_avatar_path", "receiver_avatar_path"]) &&
 		mayReadMessage(value as unknown as MessageAccess, Number(d.params.userId))
 	);
 }
@@ -162,8 +169,8 @@ export function validatePrivateCacheDescriptor(d: CacheDescriptor): void {
 }
 export async function privateCacheKey(env: Env, d: CacheDescriptor): Promise<string> {
 	validatePrivateCacheDescriptor(d);
-	if (d.family === "user:self" || d.family === "user:checkin")
-		return `${d.family}:${d.params.userId}`;
+	if (d.family === "user:self") return `user:self:v2:${d.params.userId}`;
+	if (d.family === "user:checkin") return `${d.family}:${d.params.userId}`;
 	return dataCacheKey(
 		d.family,
 		d.params,
@@ -207,7 +214,11 @@ async function loadMessageRows(
 	for (let start = 0; start < ids.length; start += 98) {
 		const part = ids.slice(start, start + 98);
 		const result = await env.DB.prepare(
-			`SELECT ${MESSAGE_COLUMNS} FROM messages NOT INDEXED WHERE id IN (${part.map(() => "?").join(",")}) AND (sender_id = ? OR receiver_id = ?)`,
+			`SELECT ${MESSAGE_COLUMNS.split(", ")
+				.map((column) => `messages.${column}`)
+				.join(
+					", ",
+				)}, COALESCE(sender.avatar_path, '') AS sender_avatar_path, COALESCE(receiver.avatar_path, '') AS receiver_avatar_path FROM messages NOT INDEXED LEFT JOIN users sender ON sender.id = messages.sender_id LEFT JOIN users receiver ON receiver.id = messages.receiver_id WHERE messages.id IN (${part.map(() => "?").join(",")}) AND (messages.sender_id = ? OR messages.receiver_id = ?)`,
 		)
 			.bind(...part, userId, userId)
 			.all<MessageRow>();

@@ -73,8 +73,7 @@ export async function loadThreadDetail(params: {
 			role: sessionUser.role as UserRole,
 			// Fill in required User fields with defaults (not used for permission checks)
 			email: sessionUser.email,
-			avatar: "",
-			avatarPath: "",
+			avatarPath: sessionUser.avatarPath,
 			status: sessionUser.status,
 			regDate: 0,
 			lastLogin: 0,

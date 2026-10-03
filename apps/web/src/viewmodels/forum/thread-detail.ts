@@ -18,8 +18,6 @@ import {
 	type Post,
 	type PostComment,
 	type Thread,
-	UserRole,
-	UserStatus,
 } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
@@ -99,65 +97,6 @@ export function groupCommentsByPostId(comments: PostComment[]): Map<number, Post
 		const list = map.get(comment.postId) ?? [];
 		list.push(comment);
 		map.set(comment.postId, list);
-	}
-	return map;
-}
-
-/**
- * Build a minimal author Map from post rows when the `/users/batch` SSR
- * batch fails. We only populate fields already present on the `Post` row
- * (id, username) — every other field is filled with safe, non-sensitive
- * defaults. Posts whose row lacks an `authorName` are intentionally omitted
- * so `enrichPosts` falls back to `author: null` (renders "未知用户" stub)
- * rather than fabricating identity. This keeps the `<Link href="/users/N">`
- * author link rendering, which is the contract E2E-PO-01 asserts.
- */
-export function buildFallbackAuthorMap(posts: Post[]): Map<number, User> {
-	const map = new Map<number, User>();
-	for (const post of posts) {
-		if (map.has(post.authorId)) continue;
-		if (!post.authorName) continue;
-		map.set(post.authorId, {
-			id: post.authorId,
-			username: post.authorName,
-			email: "",
-			avatar: "",
-			avatarPath: "",
-			status: UserStatus.Active,
-			role: UserRole.User,
-			regDate: 0,
-			lastLogin: 0,
-			threads: 0,
-			posts: 0,
-			credits: 0,
-			coins: 0,
-			signature: "",
-			groupTitle: "",
-			groupStars: 0,
-			groupColor: "",
-			customTitle: "",
-			digestPosts: 0,
-			olTime: 0,
-			gender: 0,
-			birthYear: 0,
-			birthMonth: 0,
-			birthDay: 0,
-			resideProvince: "",
-			resideCity: "",
-			graduateSchool: "",
-			bio: "",
-			interest: "",
-			qq: "",
-			site: "",
-			campus: "",
-			checkin: null,
-			lastActivity: 0,
-			emailVerifiedAt: 0,
-			emailNormalized: "",
-			emailChangedAt: 0,
-			purgedAt: 0,
-			purgedBy: 0,
-		});
 	}
 	return map;
 }

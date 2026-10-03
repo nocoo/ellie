@@ -48,7 +48,7 @@ vi.mock("../../../../src/lib/cache/invalidate", async () => {
 		bumpPostListGen: vi.fn(async () => "newgen-pl"),
 		bumpDigestGen: vi.fn(async () => "newgen-digest"),
 		// `deleteUserMini` (v2) is intentionally NOT mocked here: the live
-		// `user:mini:v1` admin path goes through `lib/user-cache.ts ::
+		// `user:mini:v3` admin path goes through `lib/user-cache.ts ::
 		// invalidateUserCache`, which we explicitly do NOT mock so the
 		// integration-style test below exercises the real key deletion.
 	};
@@ -225,21 +225,21 @@ describe("admin/kv — refresh dispatcher", () => {
 		);
 	});
 
-	it("delete-user-mini removes the live `user:mini:<id>` key (no helper mock)", async () => {
+	it("delete-user-mini removes the live `user:mini:v3:<id>` key (no helper mock)", async () => {
 		// Reviewer-required regression: B.1 was deleting `user:mini:v2:<id>`
 		// because the handler called the v2 helper. The live family is v1
-		// with literal key `user:mini:<id>`. Seed that key and assert the
+		// with literal key `user:mini:v3:<id>`. Seed that key and assert the
 		// admin refresh path actually evicts it via the real
 		// `invalidateUserCache` (no mock).
 		const env = makeEnv({
 			KV: createMockKV({
-				"user:mini:42": '{"id":42,"username":"alice"}',
-				"user:mini:43": '{"id":43,"username":"bob"}',
+				"user:mini:v3:42": '{"id":42,"username":"alice"}',
+				"user:mini:v3:43": '{"id":43,"username":"bob"}',
 			}),
 		});
 		const res = await kv.refresh(
 			refreshRequest({
-				family: "user:mini:v1",
+				family: "user:mini:v3",
 				action: { kind: "delete-user-mini", userId: 42 },
 			}),
 			env,
@@ -247,11 +247,11 @@ describe("admin/kv — refresh dispatcher", () => {
 		expect(res.status).toBe(200);
 		// The literal v1 key must be the one passed to KV.delete.
 		const deleteCalls = (env.KV.delete as ReturnType<typeof vi.fn>).mock.calls;
-		expect(deleteCalls.some((c) => c[0] === "user:mini:42")).toBe(true);
+		expect(deleteCalls.some((c) => c[0] === "user:mini:v3:42")).toBe(true);
 		// And it must be gone after the call.
-		expect(await env.KV.get("user:mini:42")).toBeNull();
+		expect(await env.KV.get("user:mini:v3:42")).toBeNull();
 		// Sibling user must remain.
-		expect(await env.KV.get("user:mini:43")).not.toBeNull();
+		expect(await env.KV.get("user:mini:v3:43")).not.toBeNull();
 	});
 
 	it("rejects unknown family", async () => {
@@ -355,15 +355,15 @@ describe("admin/kv — listFamily", () => {
 
 	it("returns raw key for public-name family", async () => {
 		const env = makeEnv({
-			KV: createMockKV({ "user:mini:42": '{"id":42}' }),
+			KV: createMockKV({ "user:mini:v3:42": '{"id":42}' }),
 		});
-		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1");
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v3");
 		const res = await kv.listFamily(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			data: { keys: { key: string; rawKey: string | null }[] };
 		};
-		expect(body.data.keys[0].rawKey).toBe("user:mini:42");
+		expect(body.data.keys[0].rawKey).toBe("user:mini:v3:42");
 	});
 
 	it("returns 400 for missing family", async () => {
@@ -458,13 +458,13 @@ describe("admin/kv — listFamily", () => {
 	});
 
 	it("locates a hashed family by params and scope without a value GET", async () => {
-		const kvStore = createMockKV({ "user:mini:42": '{"id":42}' });
+		const kvStore = createMockKV({ "user:mini:v3:42": '{"id":42}' });
 		const env = makeEnv({ KV: kvStore });
 		const params = encodeURIComponent(JSON.stringify({ id: 42 }));
 		const res = await kv.listFamily(
 			createAdminRequest(
 				"GET",
-				`/api/admin/kv/list?family=user:mini:v1&params=${params}&scope=public`,
+				`/api/admin/kv/list?family=user:mini:v3&params=${params}&scope=public`,
 			),
 			env,
 		);
@@ -479,7 +479,7 @@ describe("admin/kv — listFamily", () => {
 		expect(body.data.countKind).toBe("observed");
 		expect(body.data.keys).toEqual([
 			expect.objectContaining({
-				rawKey: "user:mini:42",
+				rawKey: "user:mini:v3:42",
 				params: { id: 42 },
 				scope: "public",
 			}),
@@ -491,13 +491,13 @@ describe("admin/kv — listFamily", () => {
 		const mixed = await kv.listFamily(
 			createAdminRequest(
 				"GET",
-				"/api/admin/kv/list?family=user:mini:v1&key=user:mini:1&params=%7B%22id%22%3A1%7D",
+				"/api/admin/kv/list?family=user:mini:v3&key=user:mini:v3:1&params=%7B%22id%22%3A1%7D",
 			),
 			env,
 		);
 		expect(mixed.status).toBe(400);
 		const bad = await kv.listFamily(
-			createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1&params=not-json"),
+			createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v3&params=not-json"),
 			env,
 		);
 		expect(bad.status).toBe(400);
@@ -627,7 +627,7 @@ describe("admin/kv — refresh: per-thread bumpers", () => {
 		const env = makeEnv();
 		const res = await kv.refresh(
 			refreshRequest({
-				family: "user:mini:v1",
+				family: "user:mini:v3",
 				action: { kind: "delete-user-mini", userId: -1 },
 			}),
 			env,
@@ -665,18 +665,18 @@ describe("admin/kv — refresh: per-thread bumpers", () => {
 
 describe("admin/kv — getKey misc", () => {
 	it("inspects by params and scope when the hashed key is not supplied", async () => {
-		const env = makeEnv({ KV: createMockKV({ "user:mini:42": '{"id":42,"username":"n"}' }) });
+		const env = makeEnv({ KV: createMockKV({ "user:mini:v3:42": '{"id":42,"username":"n"}' }) });
 		const params = encodeURIComponent(JSON.stringify({ id: 42 }));
 		const res = await kv.getKey(
 			createAdminRequest(
 				"GET",
-				`/api/admin/kv/get?family=user:mini:v1&params=${params}&scope=public`,
+				`/api/admin/kv/get?family=user:mini:v3&params=${params}&scope=public`,
 			),
 			env,
 		);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { data: { rawKey: string | null; found: boolean } };
-		expect(body.data.rawKey).toBe("user:mini:42");
+		expect(body.data.rawKey).toBe("user:mini:v3:42");
 		expect(body.data.found).toBe(true);
 	});
 
@@ -708,9 +708,9 @@ describe("admin/kv — listFamily misc", () => {
 
 	it("paginated list honors per-page limit", async () => {
 		const initial: Record<string, string> = {};
-		for (let i = 0; i < 5; i++) initial[`user:mini:${i}`] = `{"id":${i}}`;
+		for (let i = 0; i < 5; i++) initial[`user:mini:v3:${i}`] = `{"id":${i}}`;
 		const env = makeEnv({ KV: createMockKV(initial) });
-		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1&limit=2");
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v3&limit=2");
 		const res = await kv.listFamily(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
@@ -722,8 +722,8 @@ describe("admin/kv — listFamily misc", () => {
 	});
 
 	it("loops across pages when overlapping-prefix siblings dominate the first page", async () => {
-		// `user:mini:v1` family lives under prefix `user:mini:` but
-		// `user:mini:v2:*` keys sort lexicographically AFTER `user:mini:zzz`?
+		// `user:mini:v3` family lives under prefix `user:mini:v3:` but
+		// `user:mini:v2:*` keys sort lexicographically AFTER `user:mini:v3:zzz`?
 		// Actually `v2:` (0x76) > `zzz` is false: 'v' < 'z'. So put a v1
 		// key whose suffix sorts AFTER v2 siblings and ask for limit=1.
 		// Mock KV sorts by name → first page (limit=1) returns the v2
@@ -731,17 +731,17 @@ describe("admin/kv — listFamily misc", () => {
 		// and surface the v1 key.
 		const initial: Record<string, string> = {
 			"user:mini:v2:0001": '{"id":1}', // sibling, owned by user:mini:v2
-			"user:mini:zzz": '{"id":99}', // owned by user:mini:v1 (sorts after v2:*)
+			"user:mini:v3:zzz": '{"id":99}', // owned by user:mini:v3 (sorts after v2:*)
 		};
 		const env = makeEnv({ KV: createMockKV(initial) });
-		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1&limit=1");
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v3&limit=1");
 		const res = await kv.listFamily(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			data: { keys: { rawKey: string | null }[]; listComplete: boolean };
 		};
 		expect(body.data.keys).toHaveLength(1);
-		expect(body.data.keys[0].rawKey).toBe("user:mini:zzz");
+		expect(body.data.keys[0].rawKey).toBe("user:mini:v3:zzz");
 	});
 });
 

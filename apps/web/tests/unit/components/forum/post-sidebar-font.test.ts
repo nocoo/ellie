@@ -16,11 +16,13 @@ vi.mock("@/lib/cdn", () => ({
 }));
 
 vi.mock("@/lib/avatar", () => ({
-	getAvatarUrl: () => "/avatar.gif",
+	getAvatarUrl: (path: string) => (path ? `https://t.no.mt/${path}` : "/default-avatar.gif"),
+	FALLBACK_URL: "/default-avatar.gif",
 }));
 
 vi.mock("@/components/forum/user-avatar", () => ({
-	UserAvatar: () => createElement("div", { "data-testid": "avatar" }),
+	UserAvatar: ({ src }: { src: string }) =>
+		createElement("img", { "data-testid": "avatar", src, alt: "avatar" }),
 }));
 
 vi.mock("@/components/forum/user-popover", () => ({
@@ -75,9 +77,17 @@ function makeAuthor(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PostSidebar — 14/12 baseline", () => {
+	it("uses the explicit post path even when the full author profile is unavailable", () => {
+		render(createElement(PostSidebar, { author: null, avatarPath: "avatars/post-author.jpg" }));
+		expect(screen.getByTestId("avatar").getAttribute("src")).toBe(
+			"https://t.no.mt/avatars/post-author.jpg",
+		);
+	});
+
 	it("desktop author username uses text-xs (was text-sm — usernames are 12px)", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: makeAuthor(),
 			}),
 		);
@@ -89,6 +99,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 	it("desktop '未知用户' fallback also uses text-xs", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: null,
 			}),
 		);
@@ -101,6 +112,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 	it("isAnonymous=true renders '匿名' instead of '未知用户'", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: null,
 				isAnonymous: true,
 			}),
@@ -116,6 +128,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 		// real author, the flag wins on the render side.
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: makeAuthor(),
 				isAnonymous: true,
 			}),
@@ -127,6 +140,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 	it("checkin days uses text-xs (was text-2xs — 12px floor)", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: makeAuthor(),
 			}),
 		);
@@ -138,6 +152,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 	it("stat labels (主题/回复/积分) use text-xs (was text-[10px])", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: makeAuthor(),
 			}),
 		);
@@ -151,6 +166,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 	it("detail row labels (UID/同钱/注册/精华/在线) use text-xs (was text-[10px])", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: makeAuthor(),
 			}),
 		);
@@ -164,6 +180,7 @@ describe("PostSidebar — 14/12 baseline", () => {
 	it("campus and group title render centered in the identity card, no labels", () => {
 		render(
 			createElement(PostSidebar, {
+				avatarPath: "",
 				author: makeAuthor({ campus: "四平路校区", groupTitle: "同济人 Lv.2" }),
 			}),
 		);

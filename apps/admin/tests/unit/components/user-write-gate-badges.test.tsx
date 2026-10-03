@@ -28,9 +28,7 @@ function makeUser(overrides: Partial<User> = {}): User {
 		id: 1,
 		username: "u",
 		email: "u@example.com",
-		avatar: "",
 		avatarPath: "",
-		hasAvatar: false,
 		role: 0,
 		status: 0,
 		threads: 0,
@@ -63,7 +61,6 @@ describe("UserWriteGateBadges", () => {
 		const user = makeUser({
 			emailVerifiedAt: 0,
 			avatarPath: "",
-			hasAvatar: false,
 			regDate: NOW - 8 * DAY,
 		});
 		render(<UserWriteGateBadges user={user} settings={STRICT} nowSeconds={NOW} />);

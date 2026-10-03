@@ -12,7 +12,6 @@ export const USERS_UPSERT_COLUMNS: string[] = [
 	"username",
 	"password_hash",
 	"password_salt",
-	"avatar",
 	"status",
 	"role",
 	"reg_date",
@@ -43,7 +42,6 @@ export const USERS_UPSERT_COLUMNS: string[] = [
 	"reg_ip",
 	"last_ip",
 	"campus",
-	"has_avatar",
 ];
 
 /** Checkins columns to update on conflict (all except user_id PK). */
@@ -120,7 +118,7 @@ export const TABLE_DDL: string[] = [
   email         TEXT    NOT NULL DEFAULT '',
   password_hash TEXT    NOT NULL DEFAULT '',
   password_salt TEXT    NOT NULL DEFAULT '',
-  avatar        TEXT    NOT NULL DEFAULT '',
+  avatar_path   TEXT    NOT NULL DEFAULT '',
   status        INTEGER NOT NULL DEFAULT 0,
   role          INTEGER NOT NULL DEFAULT 0,
   reg_date      INTEGER NOT NULL DEFAULT 0,
@@ -151,7 +149,6 @@ export const TABLE_DDL: string[] = [
   reg_ip        TEXT    NOT NULL DEFAULT '',
   last_ip       TEXT    NOT NULL DEFAULT '',
   campus        TEXT    NOT NULL DEFAULT '',
-  has_avatar    INTEGER NOT NULL DEFAULT 0,
   email_verified_at INTEGER NOT NULL DEFAULT 0,
   email_normalized  TEXT    NOT NULL DEFAULT '',
   email_changed_at  INTEGER NOT NULL DEFAULT 0
@@ -371,7 +368,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"email",
 		"password_hash",
 		"password_salt",
-		"avatar",
+		"avatar_path",
 		"status",
 		"role",
 		"reg_date",
@@ -402,7 +399,6 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"reg_ip",
 		"last_ip",
 		"campus",
-		"has_avatar",
 		// email_verified_at, email_normalized, email_changed_at are intentionally
 		// omitted: source DZ data has no values; SQLite uses column DEFAULTs.
 	],

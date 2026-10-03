@@ -32,8 +32,12 @@ vi.mock("@/components/forum/user-popover", () => ({
 
 // Stub TrackedUserAvatar — render a marker element for DOM order assertion
 vi.mock("@/components/forum/user-avatar", () => ({
-	TrackedUserAvatar: ({ uid, username }: any) =>
-		createElement("div", { "data-testid": "avatar", "data-uid": uid }, username),
+	TrackedUserAvatar: ({ uid, username, avatarPath }: any) =>
+		createElement(
+			"div",
+			{ "data-testid": "avatar", "data-uid": uid, "data-path": avatarPath },
+			username,
+		),
 }));
 
 vi.mock("@/components/forum/forum-logo", () => ({
@@ -63,6 +67,7 @@ function makeVm(userOverrides: Record<string, unknown> = {}): HeaderViewModel {
 	return {
 		user: {
 			username: "testuser",
+			avatarPath: "avatars/header.jpg",
 			uid: 42,
 			groupTitle: "会员",
 			credits: 500,
@@ -115,6 +120,7 @@ describe("ForumHeader — TopBar profile card", () => {
 			(el) => el.textContent === "testuser",
 		);
 		expect(avatarEl).toBeDefined();
+		expect(avatarEl?.getAttribute("data-path")).toBe("avatars/header.jpg");
 		expect(usernameEl).toBeDefined();
 		if (!avatarEl || !usernameEl) return;
 

@@ -231,9 +231,9 @@ emit_json() {
       esac
     elif [[ "$sql" == *"users"* ]]; then
       case "$qid" in
-        1) echo '[{"results":[{"username":"user-1","coins":100,"has_avatar":0,"campus":"test-campus"}]}]' ;;
-        2) echo '[{"results":[{"username":"user-2","coins":200,"has_avatar":1,"campus":"campus-2"}]}]' ;;
-        3) echo '[{"results":[{"username":"user-3","coins":300,"has_avatar":0,"campus":"campus-3"}]}]' ;;
+        1) echo '[{"results":[{"username":"user-1","coins":100,"campus":"test-campus"}]}]' ;;
+        2) echo '[{"results":[{"username":"user-2","coins":200,"campus":"campus-2"}]}]' ;;
+        3) echo '[{"results":[{"username":"user-3","coins":300,"campus":"campus-3"}]}]' ;;
         *) echo '[{"results":[{}]}]' ;;
       esac
     else
@@ -318,7 +318,7 @@ case "$MODE" in
       elif [[ "$sql" == *"forums"* ]]; then
         echo '[{"results":[{"name":"WRONG-NAME","description":"wrong","display_order":999}]}]'
       elif [[ "$sql" == *"users"* ]]; then
-        echo '[{"results":[{"username":"WRONG-USER","coins":0,"has_avatar":1,"campus":"wrong"}]}]'
+        echo '[{"results":[{"username":"WRONG-USER","coins":0,"campus":"wrong"}]}]'
       else
         echo '[{"results":[{}]}]'
       fi
@@ -410,10 +410,10 @@ db.exec(\`
   CREATE TABLE forums (id INTEGER PRIMARY KEY, name TEXT, description TEXT, display_order INTEGER);
   INSERT INTO forums VALUES (1, 'test-forum', 'test-desc', 1);
   INSERT INTO forums VALUES (2, 'test-forum-2', 'test-desc-2', 2);
-  CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, coins INTEGER, has_avatar INTEGER, campus TEXT);
-  INSERT INTO users VALUES (1, 'user-1', 100, 0, 'test-campus');
-  INSERT INTO users VALUES (2, 'user-2', 200, 1, 'campus-2');
-  INSERT INTO users VALUES (3, 'user-3', 300, 0, 'campus-3');
+  CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, coins INTEGER, campus TEXT);
+  INSERT INTO users VALUES (1, 'user-1', 100, 'test-campus');
+  INSERT INTO users VALUES (2, 'user-2', 200, 'campus-2');
+  INSERT INTO users VALUES (3, 'user-3', 300, 'campus-3');
 \`);
 db.close();
 `,

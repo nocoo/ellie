@@ -7,7 +7,7 @@ import { isUserMiniProfile, loadUserMiniProfilesFromDb, userMiniCacheKey } from 
 function validatedKey(descriptor: CacheDescriptor): string {
 	const { family, params, scope } = descriptor;
 	if (scope !== "public") throw new TypeError("Invalid peripheral cache scope");
-	if (family === "user:mini:v1") {
+	if (family === "user:mini:v3") {
 		if (
 			Object.keys(params).join(",") !== "id" ||
 			!Number.isSafeInteger(params.id) ||

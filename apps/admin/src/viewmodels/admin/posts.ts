@@ -11,6 +11,7 @@ export interface Post {
 	content: string;
 	authorId: number;
 	authorName: string;
+	authorAvatarPath: string;
 	isFirst: boolean;
 	position: number;
 	createdAt: number;

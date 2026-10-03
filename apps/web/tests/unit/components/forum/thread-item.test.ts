@@ -55,14 +55,12 @@ function makeDisplayItem(overrides: Record<string, unknown> = {}) {
 			forumId: 5,
 			authorId: 1,
 			authorName: "alice",
-			authorAvatar: "",
 			authorAvatarPath: "",
 			subject: "Test Thread",
 			createdAt: 1700000000,
 			lastPostAt: 1700000000,
 			lastPoster: "bob",
 			lastPosterId: 2,
-			lastPosterAvatar: "",
 			lastPosterAvatarPath: "",
 			replies: 30,
 			views: 100,
@@ -242,6 +240,7 @@ describe("ThreadItem — anonymous vs orphan author (P3)", () => {
 		const item = makeDisplayItem({
 			authorId: 0,
 			authorName: "匿名",
+			authorAvatarPath: "",
 			anonymousAuthor: 1,
 		});
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
@@ -257,6 +256,7 @@ describe("ThreadItem — anonymous vs orphan author (P3)", () => {
 		const item = makeDisplayItem({
 			authorId: 0,
 			authorName: "[已删除]",
+			authorAvatarPath: "",
 			anonymousAuthor: 0,
 		});
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
@@ -270,6 +270,7 @@ describe("ThreadItem — anonymous vs orphan author (P3)", () => {
 		const item = makeDisplayItem({
 			authorId: 340271,
 			authorName: "小牧童",
+			authorAvatarPath: "",
 			anonymousAuthor: 1, // staff sees the real author despite the badge flag
 		});
 		render(createElement(ThreadItem, { item, postsPerPage: 15 }));

@@ -107,7 +107,7 @@ function createCreateMockDb(): D1Database {
 		"SELECT role, status FROM users": { role: UserRole.User, status: 0 },
 		email_verified_at: { role: UserRole.User, status: 0, email_verified_at: 1000 },
 		"MAX(position)": { maxPos: 5 },
-		"SELECT username FROM users": { username: "alice" },
+		"SELECT username, avatar_path FROM users": { username: "alice" },
 	};
 	return {
 		prepare: vi.fn((sql: string) => {
@@ -116,14 +116,13 @@ function createCreateMockDb(): D1Database {
 					return { bind: vi.fn(() => ({ first: vi.fn(() => Promise.resolve(val)) })) };
 				}
 			}
-			if (sql.includes("avatar_path") && sql.includes("has_avatar")) {
+			if (sql.includes("SELECT status, avatar_path")) {
 				return {
 					bind: vi.fn(() => ({
 						first: vi.fn(() =>
 							Promise.resolve({
 								status: 0,
 								avatar_path: "a.jpg",
-								has_avatar: 1,
 								reg_date: 1000000,
 								role: 0,
 							}),

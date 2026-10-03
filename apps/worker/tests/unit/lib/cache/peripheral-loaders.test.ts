@@ -46,10 +46,10 @@ describe("lib/cache/peripheral-loaders", () => {
 			).rejects.toThrow("Invalid peripheral cache descriptor");
 		});
 
-		it("validates user:mini:v1 params strictly", async () => {
+		it("validates user:mini:v3 params strictly", async () => {
 			await expect(
 				peripheralCacheKey(f.env, {
-					family: "user:mini:v1",
+					family: "user:mini:v3",
 					params: {},
 					scope: "public",
 				}),
@@ -57,7 +57,7 @@ describe("lib/cache/peripheral-loaders", () => {
 
 			await expect(
 				peripheralCacheKey(f.env, {
-					family: "user:mini:v1",
+					family: "user:mini:v3",
 					params: { id: -1 },
 					scope: "public",
 				}),
@@ -65,18 +65,18 @@ describe("lib/cache/peripheral-loaders", () => {
 
 			await expect(
 				peripheralCacheKey(f.env, {
-					family: "user:mini:v1",
+					family: "user:mini:v3",
 					params: { id: 0 },
 					scope: "public",
 				}),
 			).rejects.toThrow("Invalid mini profile descriptor");
 
 			const key = await peripheralCacheKey(f.env, {
-				family: "user:mini:v1",
+				family: "user:mini:v3",
 				params: { id: 42 },
 				scope: "public",
 			});
-			expect(key).toBe("user:mini:42");
+			expect(key).toBe("user:mini:v3:42");
 		});
 
 		it("does not query D1 during key generation", async () => {
@@ -87,13 +87,13 @@ describe("lib/cache/peripheral-loaders", () => {
 				scope: "public",
 			});
 			const key3 = await peripheralCacheKey(f.env, {
-				family: "user:mini:v1",
+				family: "user:mini:v3",
 				params: { id: 10 },
 				scope: "public",
 			});
 
 			expect(key1).toBe("settings:all");
-			expect(key3).toBe("user:mini:10");
+			expect(key3).toBe("user:mini:v3:10");
 			expect(f.calls.length).toBe(callsBefore);
 		});
 	});
@@ -126,10 +126,10 @@ describe("lib/cache/peripheral-loaders", () => {
 			expect(f.calls).toEqual([]);
 		});
 
-		it("rebuilds user:mini:v1 for existing and missing users", async () => {
+		it("rebuilds user:mini:v3 for existing and missing users", async () => {
 			// user 10 (alice) exists in fixture
 			const alice = (await rebuildPeripheralCache(f.env, f.ctx, {
-				family: "user:mini:v1",
+				family: "user:mini:v3",
 				params: { id: 10 },
 				scope: "public",
 			})) as { id: number; username: string };
@@ -140,7 +140,7 @@ describe("lib/cache/peripheral-loaders", () => {
 
 			// missing user returns null
 			const missing = await rebuildPeripheralCache(f.env, f.ctx, {
-				family: "user:mini:v1",
+				family: "user:mini:v3",
 				params: { id: 99999 },
 				scope: "public",
 			});

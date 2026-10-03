@@ -1,10 +1,9 @@
 # 37. Avatar Path Normalization
 
-Status: execution started with the owner's 2026-10-03 authorization. The first
-stage is read-only inventory and population assessment; see
-[the inventory assessment](38-avatar-inventory-assessment.md). No production data
-has been migrated. The maintenance window and affected posting-permission
-population still require confirmation before destructive cutover.
+Status: implementation authorized on 2026-10-03, including one-time backfill,
+legacy-field removal, and explicit Z+1 release (1.14.20). The owner selected no
+avatar for all six smaller-only cases. Production cutover remains gated on passing
+validation and a proven write fence; execution receipts follow completion.
 
 ## Objective
 
@@ -66,10 +65,10 @@ layouts; do not choose one by assumption.
    Users whose stale flag previously granted permission may need to upload an image.
    Report the affected count before approval; never grandfather the obsolete flag.
 
-These choices are proposals, not permission to interrupt service or alter data.
-Implementation approval must explicitly cover the maintenance window and the
-posting-permission consequence. Do not silently substitute a zero-downtime,
-dual-model rollout if the window is declined.
+The owner authorized implementation, database cutover and release after the
+assessment. Six smaller-only users are intentionally avatar-less; the nonnegative
+status avatar-gate loss is therefore 69 users, not 66. Do not substitute a dual-model
+rollout. Keep the write fence closed until the coordinated deployment is verified.
 
 ## One-time inventory and mapping
 
@@ -107,7 +106,8 @@ Keep provenance of each historical ownership mapping in the run artifact.
 | Multiple candidate identities, unsupported layouts, invalid keys, or conflicting ownership | Unresolved; block application until explicitly resolved. |
 
 Multiple size variants are not multiple identities: choose the documented full-size
-variant only when the actual key layout proves the same ownership. Do not choose
+variant only when the actual key layout proves the same ownership. Per the owner,
+the six known smaller-only cases resolve to empty, without runtime size fallback. Do not choose
 arbitrarily between unrelated candidate files. Existing nonempty paths always take
 precedence; do not resurrect an older avatar when the current image is missing.
 

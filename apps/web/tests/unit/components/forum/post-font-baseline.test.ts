@@ -29,7 +29,8 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 vi.mock("@/components/forum/user-avatar", () => ({
-	ForumAvatar: () => createElement("div", { "data-testid": "avatar" }),
+	ForumAvatar: ({ avatarPath }: { avatarPath: string }) =>
+		createElement("div", { "data-testid": "avatar", "data-path": avatarPath }),
 }));
 
 vi.mock("@/components/forum/post-author-status-icon", () => ({
@@ -106,6 +107,7 @@ afterEach(() => {
 function makePost(overrides: Record<string, unknown> = {}) {
 	return {
 		id: 42,
+		authorAvatarPath: "avatars/post-author.jpg",
 		threadId: 1,
 		authorId: 7,
 		position: 3,
@@ -161,6 +163,7 @@ describe("PostCard mobile header — 14/12 baseline", () => {
 		const author = screen.getByTestId("post-card-mobile-author");
 		expect(author.className).toContain("text-xs");
 		expect(author.textContent).toBe("未知用户");
+		expect(screen.getByTestId("avatar").getAttribute("data-path")).toBe("avatars/post-author.jpg");
 	});
 
 	it("mobile timestamp uses text-xs (was text-2xs — 12px floor)", () => {

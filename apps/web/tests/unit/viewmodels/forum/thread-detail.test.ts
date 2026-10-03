@@ -2,7 +2,6 @@ import type { Attachment, Post, PostComment, Thread, User } from "@ellie/types";
 import { UserRole, UserStatus } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 import {
-	buildFallbackAuthorMap,
 	checkCanDeleteThread,
 	checkCanEditSubject,
 	checkCanManageThread,
@@ -27,7 +26,7 @@ function makeUser(overrides: Partial<User> & { id: number }): User {
 	return {
 		username: "testuser",
 		email: "",
-		avatar: "",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.User,
 		regDate: 1710000000,
@@ -67,6 +66,7 @@ function makePost(overrides: Partial<Post> & { id: number }): Post {
 		forumId: 10,
 		authorId: 1,
 		authorName: "testuser",
+		authorAvatarPath: "",
 		content: "<p>Test content</p>",
 		createdAt: 1711600000,
 		isFirst: false,
@@ -97,13 +97,12 @@ function makeThread(overrides: Partial<Thread> & { id: number }): Thread {
 		forumId: 10,
 		authorId: 1,
 		authorName: "testuser",
-		authorAvatar: "",
+		authorAvatarPath: "",
 		subject: "Test thread",
 		createdAt: 1711600000,
 		lastPostAt: 1711610000,
 		lastPoster: "testuser",
 		lastPosterId: 1,
-		lastPosterAvatar: "",
 		replies: 0,
 		views: 100,
 		closed: 0,
@@ -182,6 +181,7 @@ function makeComment(overrides: Partial<PostComment> & { id: number }): PostComm
 		postId: 1,
 		authorId: 1,
 		authorName: "commenter",
+		authorAvatarPath: "",
 		content: "Test comment",
 		score: 0,
 		replyPostId: 0,
@@ -370,67 +370,6 @@ describe("enrichPosts", () => {
 		// Empty array, NOT undefined — client must not refetch in this case.
 		expect(enriched[0]?.comments).toEqual([]);
 		expect(enriched[0]?.comments).not.toBeUndefined();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// buildFallbackAuthorMap (L3 e2e regression guard)
-// ---------------------------------------------------------------------------
-// Contract: when the /users/batch SSR call fails, we must still render the
-// `<Link href="/users/N">` author link — E2E-PO-01 asserts on this. The
-// fallback constructs minimal User shapes from `Post.authorId` + `authorName`,
-// never inventing sensitive fields (role/email/etc).
-
-describe("buildFallbackAuthorMap", () => {
-	it("returns empty map for no posts", () => {
-		expect(buildFallbackAuthorMap([]).size).toBe(0);
-	});
-
-	it("builds a User stub from each unique authorId/authorName", () => {
-		const posts = [
-			makePost({ id: 1, authorId: 10, authorName: "alice" }),
-			makePost({ id: 2, authorId: 20, authorName: "bob" }),
-		];
-		const map = buildFallbackAuthorMap(posts);
-		expect(map.size).toBe(2);
-		expect(map.get(10)?.username).toBe("alice");
-		expect(map.get(10)?.id).toBe(10);
-		expect(map.get(20)?.username).toBe("bob");
-	});
-
-	it("dedupes by authorId — first authorName wins", () => {
-		const posts = [
-			makePost({ id: 1, authorId: 10, authorName: "alice" }),
-			makePost({ id: 2, authorId: 10, authorName: "alice-renamed" }),
-		];
-		const map = buildFallbackAuthorMap(posts);
-		expect(map.size).toBe(1);
-		expect(map.get(10)?.username).toBe("alice");
-	});
-
-	it("skips posts whose row lacks an authorName (no fabrication)", () => {
-		const posts = [makePost({ id: 1, authorId: 10, authorName: "" })];
-		const map = buildFallbackAuthorMap(posts);
-		expect(map.has(10)).toBe(false);
-	});
-
-	it("never invents privileged role — defaults to User role", () => {
-		const posts = [makePost({ id: 1, authorId: 10, authorName: "alice" })];
-		const map = buildFallbackAuthorMap(posts);
-		expect(map.get(10)?.role).toBe(UserRole.User);
-		expect(map.get(10)?.email).toBe("");
-		expect(map.get(10)?.emailNormalized).toBe("");
-	});
-
-	it("integrates with enrichPosts — fallback author flows into EnrichedPost.author", () => {
-		const posts = [makePost({ id: 100, authorId: 10, authorName: "alice" })];
-		const fallbackMap = buildFallbackAuthorMap(posts);
-		const enriched = enrichPosts(posts, fallbackMap, new Map(), new Map(), null, {
-			moderators: "",
-		});
-		expect(enriched[0]?.author).not.toBeNull();
-		expect(enriched[0]?.author?.username).toBe("alice");
-		expect(enriched[0]?.author?.id).toBe(10);
 	});
 });
 

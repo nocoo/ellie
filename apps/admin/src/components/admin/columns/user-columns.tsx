@@ -75,7 +75,7 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 		cell: (row) => {
 			const inner = (
 				<>
-					<UserAvatar uid={row.id} username={row.username} avatarPath={row.avatarPath} size={24} />
+					<UserAvatar username={row.username} avatarPath={row.avatarPath} size={24} />
 					<span className="min-w-0">
 						<span className="block max-w-36 truncate font-medium" title={row.username}>
 							{row.username}

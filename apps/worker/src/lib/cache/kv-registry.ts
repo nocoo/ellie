@@ -230,9 +230,11 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 				"private",
 				"Private display data scoped to the original user; fresh authentication/ownership checks before response. Preview is restricted; management never performs read/visit effects.",
 			),
-			...(["user:self", "user:checkin"].includes(family)
-				? { listPrefix: `${family}:`, pattern: `${family}:<userId>` }
-				: {}),
+			...(family === "user:self"
+				? { listPrefix: "user:self:v2:", pattern: "user:self:v2:<userId>" }
+				: family === "user:checkin"
+					? { listPrefix: `${family}:`, pattern: `${family}:<userId>` }
+					: {}),
 			valueSensitivity: "mask-value",
 		}),
 	),
@@ -317,17 +319,6 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		"catalog",
 		"All valid forum/year/level/cursor combinations with shared entities.",
 	),
-	{
-		...businessFamily(
-			"user:avatar-path",
-			"头像路径映射",
-			"LONG",
-			"user",
-			"Per-user avatar mapping; invalidated after replacement.",
-		),
-		listPrefix: "user:avatar-path:",
-		pattern: "user:avatar-path:<id>",
-	},
 	businessFamily(
 		"user:threads",
 		"用户主题历史",
@@ -512,12 +503,12 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 	},
 	// ─── Per-user mini cache (live v1) ─────────────────────────────
 	{
-		family: "user:mini:v1",
-		displayName: "User mini profile (v1, live)",
+		family: "user:mini:v3",
+		displayName: "User mini profile (v3, path-only)",
 		category: "cache",
 		status: "shipped",
-		listPrefix: "user:mini:",
-		pattern: "user:mini:<userId>",
+		listPrefix: "user:mini:v3:",
+		pattern: "user:mini:v3:<userId>",
 		ttl: 86400,
 		tier: "LONG",
 		loader: "peripheral",
@@ -525,7 +516,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		valueSensitivity: "public",
 		refresh: { kind: "delete-user-mini", requires: ["userId"] },
 		description:
-			"Live v1 user mini cache (lib/user-cache.ts). NOT the planned v2 family. Listed under prefix 'user:mini:' which also includes the planned v2 entries — UI filters them out.",
+			"Path-only user mini cache with explicit avatarPath and batched profile hydration.",
 	},
 	// ─── IP lookup cache (Phase G.6) ───────────────────────────────
 	{
@@ -960,12 +951,12 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description: "Planned v2 user-mini key (Phase 6). Builder exists; no live populator.",
 	},
 	{
-		family: "user:public:v2",
+		family: "user:public:v3",
 		displayName: "用户公开资料",
 		category: "cache",
 		status: "shipped",
-		listPrefix: "user:public:v2:",
-		pattern: "user:public:v2:<userId>:<viewerBucket>",
+		listPrefix: "user:public:v3:",
+		pattern: "user:public:v3:<userId>:<viewerBucket>",
 		ttl: 1800,
 		tier: "MEDIUM",
 		loader: "user",
@@ -1060,7 +1051,7 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 
 	"forum:tree:v2:",
 	"thread:list:v2:",
-	"user:mini:",
+	"user:mini:v3:",
 	"ip-lookup:",
 	"digest:stats:",
 	"digest:filters:",

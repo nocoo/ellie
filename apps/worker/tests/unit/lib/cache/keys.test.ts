@@ -56,8 +56,8 @@ describe("cache/keys — v2 schema", () => {
 	});
 
 	it("userPublicKey enumerates viewer bucket", () => {
-		expect(userPublicKey(7, "public")).toBe("user:public:v2:7:public");
-		expect(userPublicKey(7, "staff")).toBe("user:public:v2:7:staff");
+		expect(userPublicKey(7, "public")).toBe("user:public:v3:7:public");
+		expect(userPublicKey(7, "staff")).toBe("user:public:v3:7:staff");
 	});
 
 	it("pmInboxKey embeds userId + box", () => {

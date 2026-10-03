@@ -6,8 +6,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAvatarUrl } from "@/contexts/avatar-context";
-import { FALLBACK_URL } from "@/lib/avatar-proxy";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { FALLBACK_URL } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +27,9 @@ export function UserAvatar({ src, alt, className }: UserAvatarProps) {
 			className={className}
 			loading="lazy"
 			onError={(event) => {
-				if (event.currentTarget.src !== FALLBACK_URL) event.currentTarget.src = FALLBACK_URL;
+				if (event.currentTarget.getAttribute("src") !== FALLBACK_URL) {
+					event.currentTarget.src = FALLBACK_URL;
+				}
 			}}
 		/>
 	);
@@ -42,7 +43,7 @@ export function UserAvatar({ src, alt, className }: UserAvatarProps) {
 interface TrackedUserAvatarProps {
 	uid: number;
 	username?: string;
-	avatarPath?: string | null;
+	avatarPath: string;
 	size?: "sm" | "md" | "lg";
 	className?: string;
 }
@@ -72,7 +73,7 @@ export function TrackedUserAvatar({
 		>
 			<AvatarImage src={avatarUrl} alt={username ?? `User ${uid}`} className="rounded-sm" />
 			<AvatarFallback className="text-sm rounded-sm bg-muted p-0 overflow-hidden">
-				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
+				<img src={FALLBACK_URL} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>
 	);
@@ -87,7 +88,7 @@ export function TrackedUserAvatar({
 interface ForumAvatarProps {
 	userId: number;
 	userName: string;
-	avatarPath?: string | null;
+	avatarPath: string;
 	/** Avatar size. "xs" (20px) for comments; "sm" (24px) for thread rows; "md" (32px) for post cards; "lg" (48px) for messages. */
 	size?: "xs" | "sm" | "md" | "lg";
 	/** Show subtle drop shadow (used in desktop thread rows). */
@@ -119,7 +120,7 @@ export function ForumAvatar({
 		>
 			<AvatarImage src={avatarUrl} alt={userName} className="rounded-sm" />
 			<AvatarFallback className={cn("rounded-sm bg-muted p-0 overflow-hidden", "text-xs")}>
-				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
+				<img src={FALLBACK_URL} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>
 	);

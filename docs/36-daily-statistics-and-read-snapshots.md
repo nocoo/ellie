@@ -34,7 +34,7 @@ counts. A missing initial baseline is bootstrapped only by the explicit/nightly
 refresh. Dirty event keys are acknowledged only after successful publication, and
 new keys arriving during a refresh remain for the next run.
 
-Known avatar paths resolve directly to the CDN, and all forum Link prefetch is
+Explicit nonempty avatar paths resolve directly to the CDN; empty paths use the local default without UID probing. Avatar-bearing snapshots are versioned by the [path-only cutover](37-avatar-path-normalization.md), and all forum Link prefetch is
 disabled. The private-message badge checks at most hourly, with a 256-account Web
 memory cache shared across route instances. Successful actual mailbox operations
 invalidate estimates and refresh the current browser badge. Mailbox permissions

@@ -37,7 +37,6 @@ const MOCK_USER: User = {
 	posts: 5,
 	regDate: 1700000000,
 	lastLogin: 1700001000,
-	avatar: "",
 	avatarPath: "",
 };
 

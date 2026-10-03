@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mapThreadRows } from "../../../src/handlers/thread";
+import { enrichThreadsWithUserCache } from "../../../src/lib/mappers";
 
 // Anchor row used by every test; properties not under test are fixed defaults.
 function makeRow(overrides: Record<string, unknown> = {}) {
@@ -30,9 +31,24 @@ function makeRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
+	it("preserves joined paths through mini-cache misses and masks anonymous identities", () => {
+		const row = makeRow({
+			author_avatar_path: "avatars/author.jpg",
+			last_poster_avatar_path: "avatar/last.jpg",
+		});
+		const threads = enrichThreadsWithUserCache(mapThreadRows([row], null), new Map());
+		expect(threads[0].authorAvatarPath).toBe("avatars/author.jpg");
+		expect(threads[0].lastPosterAvatarPath).toBe("avatar/last.jpg");
+		const masked = enrichThreadsWithUserCache(
+			mapThreadRows([{ ...row, anonymous_author: 1, anonymous_last_poster: 1 }], null),
+			new Map(),
+		);
+		expect(masked[0].authorAvatarPath).toBe("");
+		expect(masked[0].lastPosterAvatarPath).toBe("");
+	});
 	describe("KV-cache fast path (avatars come from user-cache enrichment)", () => {
 		it("masks anonymous author for an anonymous viewer", () => {
-			const out = mapThreadRows([makeRow({ anonymous_author: 1 })], true, null);
+			const out = mapThreadRows([makeRow({ anonymous_author: 1 })], null);
 			expect(out[0].authorId).toBe(0);
 			expect(out[0].authorName).toBe("匿名");
 			expect(out[0].anonymousAuthor).toBe(1);
@@ -41,7 +57,7 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 		});
 
 		it("unmasks for the original author (self)", () => {
-			const out = mapThreadRows([makeRow({ anonymous_author: 1 })], true, {
+			const out = mapThreadRows([makeRow({ anonymous_author: 1 })], {
 				userId: 340271,
 				role: 0,
 			});
@@ -50,7 +66,7 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 		});
 
 		it("unmasks for staff (Mod)", () => {
-			const out = mapThreadRows([makeRow({ anonymous_author: 1 })], true, {
+			const out = mapThreadRows([makeRow({ anonymous_author: 1 })], {
 				userId: 999,
 				role: 3,
 			});
@@ -58,7 +74,7 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 		});
 
 		it("masks anonymous last poster for non-staff non-self", () => {
-			const out = mapThreadRows([makeRow({ anonymous_last_poster: 1 })], true, {
+			const out = mapThreadRows([makeRow({ anonymous_last_poster: 1 })], {
 				userId: 999,
 				role: 0,
 			});
@@ -68,7 +84,7 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 		});
 
 		it("unmasks last poster for the original last poster (self)", () => {
-			const out = mapThreadRows([makeRow({ anonymous_last_poster: 1 })], true, {
+			const out = mapThreadRows([makeRow({ anonymous_last_poster: 1 })], {
 				userId: 445134,
 				role: 0,
 			});
@@ -77,7 +93,7 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 		});
 
 		it("does not mask non-anonymous threads", () => {
-			const out = mapThreadRows([makeRow()], true, null);
+			const out = mapThreadRows([makeRow()], null);
 			expect(out[0].authorId).toBe(340271);
 			expect(out[0].lastPosterId).toBe(445134);
 			expect(out[0].anonymousAuthor).toBe(0);
@@ -91,19 +107,14 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 				[
 					makeRow({
 						anonymous_author: 1,
-						author_avatar: "real.jpg",
 						author_avatar_path: "/real.jpg",
-						last_poster_avatar: "lp.jpg",
 						last_poster_avatar_path: "/lp.jpg",
 					}),
 				],
-				false,
 				null,
 			);
-			expect(out[0].authorAvatar).toBe("");
 			expect(out[0].authorAvatarPath).toBe("");
 			// last poster wasn't anonymous → keep its avatar
-			expect(out[0].lastPosterAvatar).toBe("lp.jpg");
 		});
 
 		it("strips last_poster avatar when last_poster is masked", () => {
@@ -111,17 +122,12 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 				[
 					makeRow({
 						anonymous_last_poster: 1,
-						author_avatar: "a.jpg",
 						author_avatar_path: "/a.jpg",
-						last_poster_avatar: "real-lp.jpg",
 						last_poster_avatar_path: "/real-lp.jpg",
 					}),
 				],
-				false,
 				null,
 			);
-			expect(out[0].authorAvatar).toBe("a.jpg");
-			expect(out[0].lastPosterAvatar).toBe("");
 			expect(out[0].lastPosterAvatarPath).toBe("");
 		});
 
@@ -129,17 +135,14 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 			const out = mapThreadRows(
 				[
 					makeRow({
-						author_avatar: "a.jpg",
 						author_avatar_path: "/a.jpg",
-						last_poster_avatar: "lp.jpg",
 						last_poster_avatar_path: "/lp.jpg",
 					}),
 				],
-				false,
 				null,
 			);
-			expect(out[0].authorAvatar).toBe("a.jpg");
-			expect(out[0].lastPosterAvatar).toBe("lp.jpg");
+			expect(out[0].authorAvatarPath).toBe("/a.jpg");
+			expect(out[0].lastPosterAvatarPath).toBe("/lp.jpg");
 		});
 
 		it("staff sees real avatars on an anonymous thread", () => {
@@ -147,23 +150,20 @@ describe("thread.mapThreadRows — anonymous masking (mig 0048)", () => {
 				[
 					makeRow({
 						anonymous_author: 1,
-						author_avatar: "real.jpg",
 						author_avatar_path: "/real.jpg",
 					}),
 				],
-				false,
 				{ userId: 1, role: 1 },
 			);
 			expect(out[0].authorId).toBe(340271);
-			expect(out[0].authorAvatar).toBe("real.jpg");
 		});
 	});
 
 	it("treats role 0 (User) as non-staff — only self can unmask", () => {
 		const row = makeRow({ anonymous_author: 1 });
-		const otherMember = mapThreadRows([row], true, { userId: 999, role: 0 });
+		const otherMember = mapThreadRows([row], { userId: 999, role: 0 });
 		expect(otherMember[0].authorId).toBe(0);
-		const self = mapThreadRows([row], true, { userId: 340271, role: 0 });
+		const self = mapThreadRows([row], { userId: 340271, role: 0 });
 		expect(self[0].authorId).toBe(340271);
 	});
 });

@@ -8,9 +8,9 @@ import { CACHE_TTL_SECONDS } from "@ellie/types";
 import { cacheDelete, cacheGetOrSet, cacheReadMany } from "./cache/wrap";
 import type { Env } from "./env";
 
-export const USER_CACHE_PREFIX = "user:mini:";
+export const USER_CACHE_PREFIX = "user:mini:v3:";
 export const USER_CACHE_TTL = CACHE_TTL_SECONDS.LONG; // 24h
-export const USER_CACHE_FAMILY = "user:mini:v1";
+export const USER_CACHE_FAMILY = "user:mini:v3";
 export const USER_CACHE_TIER = "LONG" as const;
 export const USER_CACHE_SCOPE = "public";
 
@@ -23,7 +23,6 @@ const BATCH_SIZE = 80; // Kept under D1 parameter budget of 100
 export interface UserMiniProfile {
 	id: number;
 	username: string;
-	avatar: string;
 	avatarPath: string;
 	role: number;
 	groupTitle: string;
@@ -40,11 +39,10 @@ export function isUserMiniProfile(value: unknown): value is UserMiniProfile {
 	const p = value as Partial<UserMiniProfile>;
 	return (
 		Object.keys(value).sort().join(",") ===
-			"avatar,avatarPath,groupColor,groupStars,groupTitle,id,role,username" &&
+			"avatarPath,groupColor,groupStars,groupTitle,id,role,username" &&
 		Number.isSafeInteger(p.id) &&
 		Number(p.id) > 0 &&
 		typeof p.username === "string" &&
-		typeof p.avatar === "string" &&
 		typeof p.avatarPath === "string" &&
 		Number.isSafeInteger(p.role) &&
 		typeof p.groupTitle === "string" &&
@@ -69,7 +67,7 @@ export async function loadUserMiniProfilesFromDb(
 		const batch = uniqueIds.slice(i, i + BATCH_SIZE);
 		const placeholders = batch.map(() => "?").join(",");
 		const dbResult = await env.DB.prepare(
-			`SELECT id, username, avatar, avatar_path, role, group_title, group_color, group_stars
+			`SELECT id, username, avatar_path, role, group_title, group_color, group_stars
 			 FROM users WHERE id IN (${placeholders})`,
 		)
 			.bind(...batch)
@@ -80,7 +78,6 @@ export async function loadUserMiniProfilesFromDb(
 			const profile: UserMiniProfile = {
 				id: row.id as number,
 				username: row.username as string,
-				avatar: (row.avatar as string) ?? "",
 				avatarPath: (row.avatar_path as string) ?? "",
 				role: row.role as number,
 				groupTitle: (row.group_title as string) ?? "",

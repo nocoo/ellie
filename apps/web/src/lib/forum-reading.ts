@@ -56,7 +56,8 @@ function cutString(value: string, max: number): string {
 
 /** URLs/paths are never truncated (corrupting them); oversized becomes "". */
 function boundUrl(value: string): string {
-	return typeof value === "string" && value.length <= AVATAR_MAX ? value : "";
+	if (typeof value !== "string") throw new TypeError("Avatar path is required");
+	return value.length <= AVATAR_MAX ? value : "";
 }
 
 function safeCount(value: number): number {
@@ -85,7 +86,6 @@ export function boundForumSummaryTopic(summary: ForumSummaryTopic): ForumSummary
 			typeof summary.authorName === "string" ? summary.authorName : "",
 			READING_AUTHOR_NAME_MAX,
 		),
-		authorAvatar: boundUrl(summary.authorAvatar),
 		authorAvatarPath: boundUrl(summary.authorAvatarPath),
 	};
 }
@@ -148,7 +148,6 @@ const EMPTY_TOPIC_LINE: Pick<
 	| "lastPostAt"
 	| "lastPoster"
 	| "lastPosterId"
-	| "lastPosterAvatar"
 	| "lastPosterAvatarPath"
 	| "lastThreadSubject"
 > = {
@@ -156,7 +155,6 @@ const EMPTY_TOPIC_LINE: Pick<
 	lastPostAt: 0,
 	lastPoster: "",
 	lastPosterId: 0,
-	lastPosterAvatar: "",
 	lastPosterAvatarPath: "",
 	lastThreadSubject: "",
 };
@@ -220,7 +218,6 @@ export function composeForumDisplay(args: {
 			lastPostAt: summary.topicCreatedAt,
 			lastPoster: summary.authorName,
 			lastPosterId: summary.authorId,
-			lastPosterAvatar: summary.authorAvatar,
 			lastPosterAvatarPath: summary.authorAvatarPath,
 		},
 		topicHidden: false,
@@ -428,7 +425,6 @@ function EMPTY_FORUM_SUMMARY(forumId: number): ForumSummaryTopic {
 		topicCreatedAt: 0,
 		authorId: 0,
 		authorName: "",
-		authorAvatar: "",
 		authorAvatarPath: "",
 	};
 }

@@ -46,7 +46,7 @@ import type { EmailVerificationUserView } from "@/viewmodels/forum/email-verific
 export interface SelfForumUser {
 	id: number;
 	username: string;
-	avatarPath?: string;
+	avatarPath: string;
 	email: string;
 	emailVerifiedAt: number;
 	/**

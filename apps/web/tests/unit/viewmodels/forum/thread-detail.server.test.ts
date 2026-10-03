@@ -67,6 +67,7 @@ function context(extra = {}): ThreadDetailContextData & { display: ThreadDetailD
 const member = {
 	id: 100,
 	username: "Alice",
+	avatarPath: "avatars/alice.jpg",
 	role: 0,
 	status: 0,
 	credits: 5,

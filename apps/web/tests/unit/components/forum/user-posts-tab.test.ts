@@ -42,7 +42,12 @@ function makeItem(
 	threadOverrides: Record<string, unknown> = {},
 ) {
 	return {
-		post: { id: 10, createdAt: 1_700_000_000, ...postOverrides },
+		post: {
+			id: 10,
+			authorAvatarPath: "avatars/history-author.jpg",
+			createdAt: 1_700_000_000,
+			...postOverrides,
+		},
 		thread: {
 			id: 1,
 			forumId: 1,
@@ -128,7 +133,10 @@ describe("UserPostsTab", () => {
 						null,
 						{} as any, // missing post AND thread
 						{ post: null, thread: { id: 2, subject: "no-post" } },
-						{ post: { id: 11, createdAt: 2 }, thread: null },
+						{
+							post: { id: 11, authorAvatarPath: "avatars/history-author.jpg", createdAt: 2 },
+							thread: null,
+						},
 					],
 					nextCursor: null,
 					prevCursor: null,

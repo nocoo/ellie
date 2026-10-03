@@ -21,7 +21,7 @@ const user: User = {
 	id: 42,
 	username: "alice",
 	email: "alice@test.local",
-	avatar: "",
+	avatarPath: "",
 	role: 0,
 	status: 0,
 	threads: 2,
@@ -40,7 +40,6 @@ const thread: Thread = {
 	forumId: 1,
 	authorId: 42,
 	authorName: "alice",
-	authorAvatar: "",
 	authorAvatarPath: "",
 	replies: 0,
 	views: 1,
@@ -51,7 +50,6 @@ const thread: Thread = {
 	lastPostAt: 0,
 	lastPoster: "",
 	lastPosterId: 0,
-	lastPosterAvatar: "",
 	lastPosterAvatarPath: "",
 	createdAt: 1_700_000_000,
 	typeName: "",
@@ -66,6 +64,7 @@ const post: Post = {
 	content: "Original content",
 	authorId: 42,
 	authorName: "alice",
+	authorAvatarPath: "",
 	isFirst: true,
 	position: 1,
 	createdAt: 1_700_000_000,
@@ -105,6 +104,17 @@ it.each(["user", "thread", "post"] as const)(
 		);
 	},
 );
+
+it("does not expose or submit avatar mutations in the user editor", () => {
+	const onSave = vi.fn();
+	render(<UserEditDialog open onOpenChange={vi.fn()} user={user} onSave={onSave} />);
+	expect(screen.queryByLabelText("头像链接")).toBeNull();
+	expect(screen.queryByLabelText("头像存储路径")).toBeNull();
+	fireEvent.click(screen.getByRole("button", { name: "保存更改", exact: true }));
+	expect(onSave).toHaveBeenCalledOnce();
+	expect(onSave.mock.calls[0]?.[1]).not.toHaveProperty("avatarPath");
+	expect(onSave.mock.calls[0]?.[1]).not.toHaveProperty("avatar");
+});
 
 it("shows the real default replacement and submits an explicitly empty replacement", () => {
 	const onSave = vi.fn();

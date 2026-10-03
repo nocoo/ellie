@@ -213,10 +213,20 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 				<div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-4 sm:px-5">
 					{message.senderId > 0 ? (
 						<Link prefetch={false} href={`/users/${message.senderId}`} className="shrink-0">
-							<ForumAvatar userId={message.senderId} userName={message.senderName} size="md" />
+							<ForumAvatar
+								userId={message.senderId}
+								userName={message.senderName}
+								avatarPath={message.senderAvatarPath}
+								size="md"
+							/>
 						</Link>
 					) : (
-						<ForumAvatar userId={0} userName={message.senderName || "未知用户"} size="md" />
+						<ForumAvatar
+							userId={0}
+							userName={message.senderName || "未知用户"}
+							avatarPath=""
+							size="md"
+						/>
 					)}
 					<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
 						{message.senderId > 0 ? (

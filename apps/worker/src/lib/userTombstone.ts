@@ -58,7 +58,6 @@ export function buildTombstoneFields(
 		email: "",
 		password_hash: "",
 		password_salt: "",
-		avatar: "",
 		avatar_path: "",
 
 		// Status / role / tombstone columns
@@ -95,9 +94,8 @@ export function buildTombstoneFields(
 		site: "",
 		last_activity: 0,
 
-		// Auxiliary profile (campus + has_avatar were added in 0024/0026)
+		// Auxiliary profile
 		campus: "",
-		has_avatar: 0,
 
 		// Email verification snapshot
 		email_verified_at: 0,

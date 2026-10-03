@@ -26,6 +26,7 @@ function makeItem(overrides: Partial<ForumListRecommended> = {}): ForumListRecom
 		subject: "Test recommended thread",
 		authorId: 7,
 		authorName: "alice",
+		authorAvatarPath: "",
 		replies: 3,
 		lastPostAt: 1700000000,
 		recommendedAt: 1700000000,

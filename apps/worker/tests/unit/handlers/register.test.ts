@@ -674,7 +674,6 @@ describe("register", () => {
 				email: "strip@example.com",
 				profile: {
 					email: "override@example.com",
-					avatar: "hacked.jpg",
 					gender: 2,
 					...REQUIRED_PROFILE,
 				},

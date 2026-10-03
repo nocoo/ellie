@@ -167,7 +167,7 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 					(call) => call.sql.includes("FROM users WHERE id IN") && call.params.includes(1030),
 				),
 			).toBe(true);
-			expect(vi.mocked(f.env.KV.put).mock.calls.some(([key]) => key === "user:mini:1030")).toBe(
+			expect(vi.mocked(f.env.KV.put).mock.calls.some(([key]) => key === "user:mini:v3:1030")).toBe(
 				false,
 			);
 			f.sqlite.prepare("UPDATE users SET username = ? WHERE id = ?").run("after30", 1030);
@@ -177,7 +177,7 @@ describe("getThreadRows shares thread meta generations inside one call", () => {
 		}
 		expect((await request).status).toBe(200);
 		await Promise.all(f.ctx._waitUntilPromises);
-		expect(f.values.has("user:mini:1030")).toBe(false);
+		expect(f.values.has("user:mini:v3:1030")).toBe(false);
 		expect((await getUserProfiles(f.env, undefined, [1030])).get(1030)?.username).toBe("after30");
 	});
 

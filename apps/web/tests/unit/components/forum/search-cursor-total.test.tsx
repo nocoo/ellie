@@ -31,6 +31,7 @@ it("does not claim zero matches on a populated cursor page", async () => {
 		forumId: 5,
 		authorId: 0,
 		authorName: "",
+		authorAvatarPath: "",
 		anonymousAuthor: 1,
 		subject: "校园生活搜索结果",
 		createdAt: 1_700_000_000,

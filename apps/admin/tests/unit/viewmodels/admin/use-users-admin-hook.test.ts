@@ -30,7 +30,7 @@ const MOCK_USER: User = {
 	posts: 20,
 	regDate: 1700000000,
 	lastLogin: 1700001000,
-	avatar: "",
+	avatarPath: "",
 };
 
 function mockFetchSuccess(data: User[] = [MOCK_USER], meta = {}) {

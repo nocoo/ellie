@@ -180,6 +180,9 @@ describe("L2: Worker Public API", () => {
 			const data = await res.json();
 			expect(data.data.id).toBe(3);
 			expect(data.data.username).toBe("testuser");
+			expect(data.data.avatarPath).toBe("");
+			expect(data.data).not.toHaveProperty("avatar");
+			expect(data.data).not.toHaveProperty("hasAvatar");
 		});
 	});
 
@@ -232,31 +235,6 @@ describe("L2: Worker Public API", () => {
 		test("requires q parameter", async () => {
 			const res = await workerFetch("/api/v1/users/search");
 			expect(res.status).toBe(400);
-		});
-	});
-
-	describe("GET /api/v1/users/:id/avatar-path", () => {
-		test("returns 400 for invalid user id", async () => {
-			const res = await workerFetch("/api/v1/users/0/avatar-path");
-			// path regex \d+ rejects 0 via id <= 0 guard → 400 INVALID_REQUEST
-			expect(res.status).toBe(400);
-			const data = await res.json();
-			expect(data.error.code).toBe("INVALID_REQUEST");
-		});
-
-		test("returns 404 for non-existent user", async () => {
-			const res = await workerFetch("/api/v1/users/999999/avatar-path");
-			expect(res.status).toBe(404);
-			const data = await res.json();
-			expect(data.error.code).toBe("USER_NOT_FOUND");
-		});
-
-		test("returns avatarPath for existing user", async () => {
-			const res = await workerFetch("/api/v1/users/3/avatar-path");
-			expect(res.status).toBe(200);
-			const data = await res.json();
-			expect(data.data).toHaveProperty("avatarPath");
-			expect(typeof data.data.avatarPath).toBe("string");
 		});
 	});
 

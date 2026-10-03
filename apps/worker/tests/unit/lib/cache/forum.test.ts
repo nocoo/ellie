@@ -44,7 +44,6 @@ function makeForum(overrides: Partial<ForumRow> = {}): ForumRow {
 		lastPostAt: 1700000000,
 		lastPoster: "alice",
 		lastPosterId: 7,
-		lastPosterAvatar: "a.png",
 		lastPosterAvatarPath: "/avatars/a.png",
 		lastThreadSubject: "hello",
 		...overrides,
@@ -229,7 +228,6 @@ describe("cache/forum — buildForumSummaryPayload", () => {
 				lastPostAt: 1234,
 				lastPoster: "bob",
 				lastPosterId: 9,
-				lastPosterAvatar: "b.png",
 				lastPosterAvatarPath: "/avatars/b.png",
 			}),
 			makeForum({ id: 2, visibility: "admin" }),
@@ -246,7 +244,6 @@ describe("cache/forum — buildForumSummaryPayload", () => {
 			lastPostAt: 1234,
 			lastPoster: "bob",
 			lastPosterId: 9,
-			lastPosterAvatar: "b.png",
 			lastPosterAvatarPath: "/avatars/b.png",
 			anonAware: 1,
 		});
@@ -360,9 +357,12 @@ describe("cache/forum — validators", () => {
 		// Empty aggregates: pass-through (no entries to validate).
 		expect(isForumSummaryPayload({ bucket: "member", aggregates: {} })).toBe(true);
 		// Populated aggregates require `anonAware: 1` on the first entry.
-		expect(isForumSummaryPayload({ bucket: "admin", aggregates: { 1: { anonAware: 1 } } })).toBe(
-			true,
-		);
+		expect(
+			isForumSummaryPayload({
+				bucket: "admin",
+				aggregates: { 1: { anonAware: 1, lastPosterAvatarPath: "" } },
+			}),
+		).toBe(true);
 	});
 	it("isForumSummaryPayload: rejects bad shapes", () => {
 		expect(isForumSummaryPayload(null)).toBe(false);
@@ -381,7 +381,7 @@ describe("cache/forum — validators", () => {
 		expect(
 			isForumMetaPayload({
 				bucket: "anon",
-				forum: { id: 1, threadTypes: tt, announcement: "" },
+				forum: { id: 1, threadTypes: tt, announcement: "", lastPosterAvatarPath: "" },
 				anonAware: 1,
 			}),
 		).toBe(true);

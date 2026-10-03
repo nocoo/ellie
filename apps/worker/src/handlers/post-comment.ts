@@ -31,6 +31,7 @@ function toPostComment(row: Record<string, unknown>) {
 		postId: row.post_id as number,
 		authorId: row.author_id as number,
 		authorName: row.author_name as string,
+		authorAvatarPath: "",
 		content: row.content as string,
 		score: row.score as number,
 		replyPostId: row.reply_post_id as number,
@@ -102,8 +103,11 @@ export async function list(request: Request, env: Env, ctx?: ExecutionContext): 
 		ctx,
 		comments.map((comment) => comment.authorId),
 	);
-	for (const comment of comments)
-		comment.authorName = profiles.get(comment.authorId)?.username ?? comment.authorName;
+	for (const comment of comments) {
+		const author = profiles.get(comment.authorId);
+		comment.authorName = author?.username ?? comment.authorName;
+		comment.authorAvatarPath = author?.avatarPath ?? "";
+	}
 
 	return jsonResponse(comments, origin);
 }
@@ -213,8 +217,11 @@ export async function batchByPostIds(
 		ctx,
 		comments.map((comment) => comment.authorId),
 	);
-	for (const comment of comments)
-		comment.authorName = profiles.get(comment.authorId)?.username ?? comment.authorName;
+	for (const comment of comments) {
+		const author = profiles.get(comment.authorId);
+		comment.authorName = author?.username ?? comment.authorName;
+		comment.authorAvatarPath = author?.avatarPath ?? "";
+	}
 
 	return jsonResponse(comments, origin);
 }
@@ -282,9 +289,9 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 				status: number;
 				visibility: string;
 			}>(),
-		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+		env.DB.prepare("SELECT username, avatar_path FROM users WHERE id = ?")
 			.bind(user.userId)
-			.first<{ username: string }>(),
+			.first<{ username: string; avatar_path: string }>(),
 	]);
 
 	if (!row || row.sticky < 0) {
@@ -340,7 +347,10 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.first();
 
 	return jsonResponse(
-		toPostComment(createdComment as Record<string, unknown>),
+		{
+			...toPostComment(createdComment as Record<string, unknown>),
+			authorAvatarPath: authorRow?.avatar_path ?? "",
+		},
 		origin,
 		undefined,
 		201,

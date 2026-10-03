@@ -4,7 +4,6 @@ const users = Array.from({ length: 20 }, (_, index) => ({
 	id: index + 1,
 	username: `scroll-user-${index + 1}`,
 	email: `scroll-user-${index + 1}@example.test`,
-	avatar: "",
 	role: 0,
 	status: 1,
 	threads: 10,

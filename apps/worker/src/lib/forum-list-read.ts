@@ -97,6 +97,12 @@ interface ForumDisplayRow {
 	thread_types_prefix: number;
 	threads: number;
 	posts: number;
+	last_thread_id: number | null;
+	last_thread_subject: string | null;
+	last_post_at: number | null;
+	last_poster_id: number | null;
+	last_poster_name: string | null;
+	last_poster_avatar_path: string | null;
 }
 
 type ForumRow = ForumAuthorityRow & ForumDisplayRow;
@@ -122,7 +128,7 @@ export async function readForumListContext(
 ): Promise<ForumListContextData> {
 	const bucket = deriveHomeBucket(user);
 	const cached = await decodeForumReadSnapshot(env, request.cachedRead, request.forumId, bucket);
-	const configKey = `reading:v1:config:${request.forumId}:${bucket}`;
+	const configKey = `reading:v2:config:${request.forumId}:${bucket}`;
 	let config = await restoreReadingSnapshot(
 		env,
 		configKey,
@@ -574,10 +580,17 @@ async function loadForumDisplayRows(
 	ids: number[],
 ): Promise<Map<number, ForumDisplayRow>> {
 	const result = await env.DB.prepare(
-		`SELECT id, name, description, announcement, icon, moderators,
-		        thread_types_enabled, thread_types_required, thread_types_listable, thread_types_prefix,
-		        threads, posts
-		 FROM forums WHERE id IN (SELECT value FROM json_each(?))`,
+		`SELECT f.id, f.name, f.description, f.announcement, f.icon, f.moderators,
+		        f.thread_types_enabled, f.thread_types_required, f.thread_types_listable, f.thread_types_prefix,
+		        f.threads, f.posts, t.id AS last_thread_id, t.subject AS last_thread_subject,
+		        t.created_at AS last_post_at, t.author_id AS last_poster_id,
+		        u.username AS last_poster_name, u.avatar_path AS last_poster_avatar_path
+		 FROM forums f LEFT JOIN threads t ON t.id = (
+		   SELECT latest.id FROM threads latest INDEXED BY idx_threads_forum_visible_created
+		   WHERE latest.forum_id = f.id AND latest.sticky >= 0 AND latest.anonymous_author = 0
+		   ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
+		 ) LEFT JOIN users u ON u.id = t.author_id
+		 WHERE f.id IN (SELECT value FROM json_each(?))`,
 	)
 		.bind(JSON.stringify(ids))
 		.all<ForumDisplayRow>();
@@ -605,13 +618,12 @@ function projectForum(row: ForumRow, todayThreads: number, names: Map<number, st
 		threads: nonnegative(row.threads),
 		posts: nonnegative(row.posts),
 		todayThreads,
-		lastThreadId: 0,
-		lastPostAt: 0,
-		lastPoster: "",
-		lastPosterId: 0,
-		lastPosterAvatar: "",
-		lastPosterAvatarPath: "",
-		lastThreadSubject: "",
+		lastThreadId: row.last_thread_id ?? 0,
+		lastPostAt: row.last_post_at ?? 0,
+		lastPoster: row.last_poster_name ?? "",
+		lastPosterId: row.last_poster_id ?? 0,
+		lastPosterAvatarPath: row.last_poster_avatar_path ?? "",
+		lastThreadSubject: row.last_thread_subject ?? "",
 		threadTypes: {
 			enabled: row.thread_types_enabled === 1,
 			required: row.thread_types_required === 1,

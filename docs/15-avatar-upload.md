@@ -1,132 +1,64 @@
 # 15. Avatar Upload
 
-## Overview
+## Identity and storage
 
-Allow users to upload custom avatars via drag-and-drop. Avatars are stored in Cloudflare R2 with GUID-based paths to avoid cache issues.
+`users.avatar_path` is the sole avatar identity. A nonempty value is an explicit
+R2 key; an empty string means no avatar. The obsolete `avatar` and `has_avatar`
+columns are removed by migration 0057. No request derives a key from a UID,
+consults a presence flag, or probes object existence.
 
-## Architecture
+New uploads use `avatars/{uuid}.{ext}` with immutable cache metadata. Existing
+images retain their actual keys, including verified `avatar/...` keys. Their
+ownership was resolved by the [one-time inventory](38-avatar-inventory-assessment.md)
+and [normalization](37-avatar-path-normalization.md), not a runtime legacy branch.
 
-### Storage Strategy
+## Rendering
 
-**GUID-based paths** (new system):
-- Each upload generates a unique path: `avatars/{uuid}.{ext}`
-- Stored in R2 bucket `tongjinet` at `t.no.mt/avatars/...`
-- Path changes bypass all cache layers naturally
+Worker responses carry required explicit paths for users, posts, comments,
+thread authors/last posters, forum last posters, message senders/receivers, and
+session/bootstrap users. Existing joins and batched profile hydration supply them.
+Anonymous and deleted identities remain masked.
 
-**Legacy UID-based paths** (fallback):
-- Path computed from UID: `avatar/000/01/23/45_avatar_big.jpg`
-- Used for users who haven't uploaded in the new system
-- Still served from `t.no.mt/avatar/...`
+Web and Admin use the explicit CDN path or their local `/default-avatar.gif`.
+The `/api/avatar/{uid}` image proxy and Worker avatar-path endpoint are removed.
+Unexpected image transport failure can display the local default without a retry
+chain; it does not change persisted identity. A missing DTO path is a contract
+error, not permission to invent a URL.
 
-### Schema
+## Upload and mutation
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `avatar` | TEXT | Legacy field, always empty string |
-| `avatar_path` | TEXT | GUID-based R2 path (e.g., `avatars/abc123.jpg`). Empty = use legacy UID path |
-| `has_avatar` | INTEGER | Backward compat flag, set to 1 when avatar_path is set |
+The forum accepts JPEG/PNG originals up to 5 MB. Its upload proxy normalizes the
+image to JPEG before Worker submission. Worker validates the bytes against its
+200 KB limit, writes a unique object first, then saves `avatar_path`. It returns
+success only after the mapping write succeeds and invalidates user display caches.
+AvatarContext displays the returned unique URL immediately.
 
-```sql
--- Migration 0027_add_avatar_path.sql
-ALTER TABLE users ADD COLUMN avatar_path TEXT NOT NULL DEFAULT '';
-```
+Admin no longer exposes a free-text avatar key editor. Generic user/profile edits
+cannot assign arbitrary object paths. User purge clears the mapping and does not
+delete an object still referenced by another user; the reference lookup uses the
+partial `idx_users_avatar_path` index.
 
-### Avatar Resolution
+## Permissions and imports
 
-```
-Browser → Cloudflare edge cache (60 seconds for successful images)
-           │ miss
-           ▼
-       /api/avatar/{uid}
-           │
-           ▼
-       Next.js proxy
-           │
-           ├── GET /api/v1/users/{uid}/avatar-path → get avatar_path
-           │   (internal endpoint, ignores user status)
-           │
-           ├── if avatar_path set → https://t.no.mt/{avatar_path}
-           └── else → https://t.no.mt/avatar/{computed-from-uid}
-           │
-           ▼
-       CDN/R2 → image
-```
+When posting restrictions require an avatar, eligibility is `avatar_path != ''`.
+Admin presence filtering derives from exactly the same state, without a persisted
+boolean or a legacy OR condition. Other account and forum checks still apply.
 
-**Cache behavior:**
-- Mutable UID responses: browser revalidation, Cloudflare edge TTL 60 seconds.
-- Fallbacks and failures: `no-store` in both browser and edge.
-- New GUID objects: immutable one-year cache metadata; uploads display the returned CDN URL immediately.
-- Cache Rules and operational evidence: [edge cache plan](28-edge-cache-optimization.md).
+New imported users have no avatar unless an explicit verified mapping is supplied
+by the one-time migration process. Re-imports preserve application-owned paths.
+Historical avatar flags and computed keys are not an alternative source of truth.
 
-### Posting Permission
+## Cutover safety
 
-```typescript
-// apps/worker/src/lib/postingPermission.ts
-// User has avatar if: avatar_path is set (new GUID system) OR has_avatar = 1 (legacy system)
-const hasAvatar = !!userRow.avatar_path || userRow.has_avatar === 1;
-if (settings.requireAvatar && !hasAvatar) {
-  // Block posting if avatar required but not uploaded
-}
-```
+Migration 0057 follows the verified path backfill and drops both obsolete columns.
+Avatar-bearing cache payloads and signed reading snapshots change version without
+clearing sessions. Web/Admin processes restart on deployment.
 
-**Important**: Legacy users with `has_avatar = 1` can still post even if they haven't uploaded in the new system. This ensures backward compatibility.
+`DEPLOYMENT_FREEZE=true` blocks Worker requests before authorization/maintenance
+exceptions and suppresses scheduled work. Only GET `/api/live` and the existing
+authenticated statistics snapshot read remain available for deployment checks.
+It is a deployment safety control, not an avatar fallback. The controlled migration
+uses this fence and a D1 recovery bookmark before any destructive schema change.
 
-## Upload Flow
-
-```
-Browser → POST /api/v1/upload (multipart)
-           │
-           ▼
-       Next.js proxy (adds JWT + API key)
-           │
-           ▼
-       Worker handler
-           │
-           ├── Validate: size ≤ 200KB, type = JPG/PNG
-           ├── Generate GUID path: avatars/{uuid}.{ext}
-           ├── PUT to R2
-           └── UPDATE users SET avatar_path = ?, has_avatar = 1
-           │
-           ▼
-       Response: { url: "https://t.no.mt/avatars/{uuid}.jpg", path: "avatars/..." }
-```
-
-## File Locations
-
-| Component | Path |
-|-----------|------|
-| Migration | `apps/worker/migrations/0027_add_avatar_path.sql` |
-| Upload handler | `apps/worker/src/lib/upload.ts` |
-| Upload config | `apps/worker/src/lib/upload-config.ts` |
-| Avatar proxy | `apps/web/src/app/api/avatar/[uid]/route.ts` |
-| Avatar path endpoint | `apps/worker/src/handlers/user.ts` (`getAvatarPath`) |
-| Avatar helpers | `apps/web/src/lib/avatar-proxy.ts` |
-| Upload UI | `apps/web/src/components/forum/avatar-upload.tsx` |
-| Posting permission | `apps/worker/src/lib/postingPermission.ts` |
-
-## Constraints
-
-| Constraint | Value |
-|------------|-------|
-| Max file size | 200 KB |
-| Allowed formats | JPG, PNG |
-| Storage | R2 bucket `tongjinet` |
-| New avatar folder | `avatars/` |
-| Legacy avatar folder | `avatar/` |
-
-## Error Codes
-
-| Code | Status | Description |
-|------|--------|-------------|
-| `NO_FILE` | 400 | No file in request |
-| `INVALID_PURPOSE` | 400 | Unknown purpose value |
-| `FILE_TOO_LARGE` | 413 | Exceeds 200 KB limit |
-| `INVALID_FORMAT` | 415 | Not JPG or PNG |
-| `UPLOAD_FAILED` | 500 | R2 write failed |
-
-## Migration Notes
-
-1. **Deploy migration**: `npx wrangler d1 migrations apply tongjinet-db --remote -c apps/worker/wrangler.toml`
-2. **Deploy Worker**: `bun run worker:deploy`
-3. **No backfill needed**: Old users continue using legacy UID-based paths until they upload
-4. **Old avatars preserved**: Files in `avatar/` folder remain accessible
+Use the maintained migration-first `bun run worker:deploy` workflow. Never apply
+0057 to live traffic while old readers/writers still reference the removed columns.

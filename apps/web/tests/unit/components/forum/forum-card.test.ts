@@ -62,7 +62,6 @@ function makeForum(overrides: Record<string, unknown> = {}) {
 		lastPostAt: 0,
 		lastPoster: "",
 		lastPosterId: 0,
-		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		children: [],
 		depth: 1,

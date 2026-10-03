@@ -34,12 +34,12 @@ function inMemoryKV(initial: Record<string, string> = {}) {
 }
 
 describe("cache/invalidate — single-key delete helpers", () => {
-	it("deleteUserMini deletes user:mini:<id>", async () => {
-		const { kv, store } = inMemoryKV({ "user:mini:42": "x" });
+	it("deleteUserMini deletes user:mini:v3:<id>", async () => {
+		const { kv, store } = inMemoryKV({ "user:mini:v3:42": "x" });
 		const env = makeEnv({ KV: kv });
 		await deleteUserMini(env, 42);
-		expect(store.has("user:mini:42")).toBe(false);
-		expect(kv.delete).toHaveBeenCalledWith("user:mini:42");
+		expect(store.has("user:mini:v3:42")).toBe(false);
+		expect(kv.delete).toHaveBeenCalledWith("user:mini:v3:42");
 	});
 
 	it("deleteUserMini swallows KV failures", async () => {
@@ -57,16 +57,16 @@ describe("cache/invalidate — single-key delete helpers", () => {
 
 	it("deleteUserPublicVariants deletes BOTH viewer-bucket variants", async () => {
 		const { kv, store } = inMemoryKV({
-			"user:public:v2:7:public": "a",
-			"user:public:v2:7:staff": "b",
+			"user:public:v3:7:public": "a",
+			"user:public:v3:7:staff": "b",
 		});
 		const env = makeEnv({ KV: kv });
 
 		await deleteUserPublicVariants(env, 7);
-		expect(store.has("user:public:v2:7:public")).toBe(false);
-		expect(store.has("user:public:v2:7:staff")).toBe(false);
-		expect(kv.delete).toHaveBeenCalledWith("user:public:v2:7:public");
-		expect(kv.delete).toHaveBeenCalledWith("user:public:v2:7:staff");
+		expect(store.has("user:public:v3:7:public")).toBe(false);
+		expect(store.has("user:public:v3:7:staff")).toBe(false);
+		expect(kv.delete).toHaveBeenCalledWith("user:public:v3:7:public");
+		expect(kv.delete).toHaveBeenCalledWith("user:public:v3:7:staff");
 	});
 
 	it("deleteUserPublicVariants is safe when neither variant exists", async () => {
@@ -77,16 +77,16 @@ describe("cache/invalidate — single-key delete helpers", () => {
 
 	it("invalidateUserCaches calls mini + both public variants", async () => {
 		const { kv } = inMemoryKV({
-			"user:mini:5": "x",
-			"user:public:v2:5:public": "y",
-			"user:public:v2:5:staff": "z",
+			"user:mini:v3:5": "x",
+			"user:public:v3:5:public": "y",
+			"user:public:v3:5:staff": "z",
 		});
 		const env = makeEnv({ KV: kv });
 
 		await invalidateUserCaches(env, 5);
-		expect(kv.delete).toHaveBeenCalledWith("user:mini:5");
-		expect(kv.delete).toHaveBeenCalledWith("user:public:v2:5:public");
-		expect(kv.delete).toHaveBeenCalledWith("user:public:v2:5:staff");
+		expect(kv.delete).toHaveBeenCalledWith("user:mini:v3:5");
+		expect(kv.delete).toHaveBeenCalledWith("user:public:v3:5:public");
+		expect(kv.delete).toHaveBeenCalledWith("user:public:v3:5:staff");
 	});
 });
 

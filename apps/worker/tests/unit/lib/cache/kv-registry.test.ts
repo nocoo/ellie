@@ -166,7 +166,7 @@ describe("kv-registry — declarative invariants", () => {
 		const expected: Record<string, number | "sticky" | "variable"> = {
 			"forum:tree:v2": 3_600, // FORUM_TREE_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
-			"user:mini:v1": 86_400, // USER_CACHE_TTL
+			"user:mini:v3": 86_400, // USER_CACHE_TTL
 			"digest:stats": 86400, // DIGEST_CACHE_TTL
 			"digest:filters": 86400, // DIGEST_CACHE_TTL
 			"settings:all": 86_400, // settings.ts LONG tier

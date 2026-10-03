@@ -866,7 +866,6 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/posts/1", "post", "getById"],
 				["GET", "/api/v1/posts/1/attachments", "attachment", "listByPost"],
 				["GET", "/api/v1/users/1", "user", "getById"],
-				["GET", "/api/v1/users/1/avatar-path", "user", "getAvatarPath"],
 				["GET", "/api/v1/users/1/threads", "user", "listThreads"],
 				["GET", "/api/v1/users/1/posts", "user", "listPosts"],
 				["GET", "/api/v1/users/1/digest", "user", "listDigest"],

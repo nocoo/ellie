@@ -64,7 +64,6 @@ function toViewer(user: { userId: number; role: number } | null): {
  * production callers stay within this module. */
 export function mapThreadRows(
 	results: unknown[],
-	useKvCache: boolean,
 	viewer: { userId: number; role: number } | null,
 ): Thread[] {
 	// Inline toThread + avatar fan-out into one allocation per row — avoids
@@ -76,7 +75,7 @@ export function mapThreadRows(
 	const n = results.length;
 	const out = new Array<Thread>(n);
 	for (let i = 0; i < n; i++) {
-		out[i] = mapOneThreadRow(results[i] as D1ThreadRowLike, useKvCache, isStaff, viewerId);
+		out[i] = mapOneThreadRow(results[i] as D1ThreadRowLike, isStaff, viewerId);
 	}
 	return out;
 }
@@ -84,12 +83,7 @@ export function mapThreadRows(
 /** Per-row mapper extracted so {@link mapThreadRows} stays under the
  * cognitive-complexity ceiling. Inlined call site keeps the V8 hidden-class
  * shape stable. */
-function mapOneThreadRow(
-	r: D1ThreadRowLike,
-	useKvCache: boolean,
-	isStaff: boolean,
-	viewerId: number,
-): Thread {
+function mapOneThreadRow(r: D1ThreadRowLike, isStaff: boolean, viewerId: number): Thread {
 	const anonAuthor = r.anonymous_author === 1 ? 1 : 0;
 	const anonLast = r.anonymous_last_poster === 1 ? 1 : 0;
 	const showAuthor = anonAuthor === 0 || isStaff || viewerId === r.author_id;
@@ -98,28 +92,22 @@ function mapOneThreadRow(
 
 	// Avatar resolution diverges between fast paths but the masked-author
 	// branch always blanks them out. Resolve both pairs once.
-	const authorAvatar =
-		useKvCache || !showAuthor ? "" : ((r.author_avatar as string | undefined) ?? "");
-	const authorAvatarPath =
-		useKvCache || !showAuthor ? "" : ((r.author_avatar_path as string | undefined) ?? "");
-	const lastPosterAvatar =
-		useKvCache || !showLast ? "" : ((r.last_poster_avatar as string | undefined) ?? "");
-	const lastPosterAvatarPath =
-		useKvCache || !showLast ? "" : ((r.last_poster_avatar_path as string | undefined) ?? "");
+	const authorAvatarPath = !showAuthor ? "" : ((r.author_avatar_path as string | undefined) ?? "");
+	const lastPosterAvatarPath = !showLast
+		? ""
+		: ((r.last_poster_avatar_path as string | undefined) ?? "");
 
 	return {
 		id: r.id,
 		forumId: r.forum_id,
 		authorId: showAuthor ? r.author_id : 0,
 		authorName: showAuthor ? r.author_name : ANONYMOUS_AUTHOR_NAME,
-		authorAvatar,
 		authorAvatarPath,
 		subject: r.subject,
 		createdAt: r.created_at,
 		lastPostAt: r.last_post_at,
 		lastPoster: showLast ? r.last_poster : ANONYMOUS_AUTHOR_NAME,
 		lastPosterId: showLast ? lastPosterId : 0,
-		lastPosterAvatar,
 		lastPosterAvatarPath,
 		replies: r.replies,
 		views: r.views,
@@ -164,9 +152,7 @@ interface D1ThreadRowLike {
 	type_name: string;
 	anonymous_author?: number;
 	anonymous_last_poster?: number;
-	author_avatar?: string;
 	author_avatar_path?: string;
-	last_poster_avatar?: string;
 	last_poster_avatar_path?: string;
 	is_author_first_thread?: number;
 }
@@ -283,11 +269,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return row && current ? [projectCurrentThread(row, current)] : [];
 	});
 	// Generic list projection masks anonymous authors and last posters for every viewer.
-	const items = await enrichThreadsWithUserCacheFromList(
-		mapThreadRows(projected, true, null),
-		env,
-		ctx,
-	);
+	const items = await enrichThreadsWithUserCacheFromList(mapThreadRows(projected, null), env, ctx);
 	if (includeTotal) {
 		if (pageData.total === null) throw new Error("Missing page total");
 		return paginatedResponse(items, pageData.total, page, limit, origin);

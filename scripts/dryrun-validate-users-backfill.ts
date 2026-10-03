@@ -24,7 +24,7 @@ CREATE TABLE users (
   email         TEXT    NOT NULL DEFAULT '',
   password_hash TEXT    NOT NULL DEFAULT '',
   password_salt TEXT    NOT NULL DEFAULT '',
-  avatar        TEXT    NOT NULL DEFAULT '',
+  avatar_path   TEXT    NOT NULL DEFAULT '',
   status        INTEGER NOT NULL DEFAULT 0,
   role          INTEGER NOT NULL DEFAULT 0,
   reg_date      INTEGER NOT NULL DEFAULT 0,

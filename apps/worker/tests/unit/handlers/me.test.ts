@@ -111,28 +111,21 @@ describe("user self-service handlers", () => {
 			expect(body.data.signature).toBe("Hello world");
 		});
 
-		it("should update avatar", async () => {
+		it.each(["avatar", "avatarPath"])("rejects generic %s edits", async (field) => {
 			const token = await createJwtForRole(0, 42);
-			const updatedUser = makeD1UserRow({ id: 42, avatar: "new-avatar.png" });
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, username, email": updatedUser,
-				},
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT role, status": { role: 0, status: 0, email_verified_at: 1 } },
 			});
-
 			const response = await updateProfile(
-				new Request("https://example.com/api/v1/users/me", {
+				new Request("https://api.example.com/api/v1/users/me", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ avatar: "new-avatar.png" }),
+					headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+					body: JSON.stringify({ [field]: "avatars/new.jpg" }),
 				}),
 				{ ...mockEnv, DB: db },
 			);
-
-			expect(response.status).toBe(200);
-			const body = await response.json();
-			expect(body.data.avatar).toBe("new-avatar.png");
+			expect(response.status).toBe(400);
+			expect(calls.some((call) => call.sql.startsWith("UPDATE users"))).toBe(false);
 		});
 
 		it("should require at least one field", async () => {

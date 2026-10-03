@@ -101,14 +101,13 @@ const ratingAggregate = shape({ total: isCount, credits: ratingDimension, coins:
 const userFields = {
 	id: isId,
 	...fields(
-		"username email avatar avatarPath signature groupTitle groupColor customTitle resideProvince resideCity graduateSchool bio interest qq site campus emailNormalized regIp lastIp",
+		"username email avatarPath signature groupTitle groupColor customTitle resideProvince resideCity graduateSchool bio interest qq site campus emailNormalized regIp lastIp",
 		isString,
 	),
 	...fields(
 		"status role regDate lastLogin threads posts credits coins groupStars digestPosts olTime gender birthYear birthMonth birthDay lastActivity emailVerifiedAt emailChangedAt purgedAt purgedBy",
 		isNumber,
 	),
-	hasAvatar: isBoolean,
 	checkin: (value: unknown) => value === null || checkinSummary(value),
 };
 const userListRow = shape(userFields);
@@ -119,7 +118,7 @@ const entityValidators: Record<keyof typeof imports, FieldValidator> = {
 		id: (value) => value === 0 || isId(value),
 		...fields("parentId displayOrder threads posts status todayThreads lastPosterId", isNumber),
 		...fields(
-			"name description announcement icon type visibility moderators lastPosterAvatar lastPosterAvatarPath",
+			"name description announcement icon type visibility moderators lastPosterAvatarPath",
 			isString,
 		),
 		...fields("lastThreadId lastPostAt", nullableNumber),
@@ -133,10 +132,7 @@ const entityValidators: Record<keyof typeof imports, FieldValidator> = {
 			"forumId authorId createdAt lastPosterId replies views closed sticky digest special highlight recommends anonymousAuthor anonymousLastPoster",
 			isNumber,
 		),
-		...fields(
-			"authorName authorAvatar authorAvatarPath subject lastPosterAvatar lastPosterAvatarPath typeName",
-			isString,
-		),
+		...fields("authorName authorAvatarPath subject lastPosterAvatarPath typeName", isString),
 		lastPostAt: nullableNumber,
 		lastPoster: nullableString,
 		...fields("isAuthorFirstThread isRecommended", isBoolean),
@@ -144,7 +140,7 @@ const entityValidators: Record<keyof typeof imports, FieldValidator> = {
 	posts: shape({
 		id: isId,
 		...fields("threadId forumId authorId createdAt position anonymous", isNumber),
-		...fields("authorName content", isString),
+		...fields("authorName authorAvatarPath content", isString),
 		isFirst: isBoolean,
 		ratingAggregate,
 	}),

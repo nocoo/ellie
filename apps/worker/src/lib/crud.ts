@@ -14,6 +14,7 @@ import { normalizeEmail } from "./email-verify";
 import type { Env } from "./env";
 import { parseIdFromPath } from "./parseId";
 import { jsonNoStoreResponse, paginatedNoStoreResponse } from "./response";
+import { loadUserMiniProfilesFromDb } from "./user-cache";
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ export interface FilterDef {
 	 *   non-finite values are ignored. `0` is a valid bound.
 	 * - `expr` — boolean-style filter with two hand-written WHERE fragments
 	 *   (`trueExpr` / `falseExpr`). Used when a single column can't express
-	 *   the intent — e.g. "has avatar" = `avatar_path != '' OR has_avatar = 1`
+	 *   the intent — e.g. combined predicates
 	 *   which spans two columns. Column is ignored for this type; put the
 	 *   full parenthesised fragment in trueExpr/falseExpr.
 	 */
@@ -466,7 +467,7 @@ export async function loadEntityList(
 		? await config.enrichListRows(result.results, env)
 		: result.results;
 	return {
-		items: rows.map((row) => config.mapper(row)),
+		items: await mapEntityRows(config, env, rows),
 		total: paginated
 			? Math.max(count ?? 0, rows.length ? (page - 1) * limit + rows.length : 0)
 			: rows.length,
@@ -476,13 +477,33 @@ export async function loadEntityList(
 	};
 }
 
+async function mapEntityRows(
+	config: EntityConfig,
+	env: Env,
+	rows: Record<string, unknown>[],
+): Promise<unknown[]> {
+	if (!["forums", "threads", "posts"].includes(config.table))
+		return rows.map((row) => config.mapper(row));
+	const profiles = await loadUserMiniProfilesFromDb(
+		env,
+		rows.flatMap((row) => [Number(row.author_id), Number(row.last_poster_id)]),
+	);
+	return rows.map((row) =>
+		config.mapper({
+			...row,
+			author_avatar_path: profiles.get(Number(row.author_id))?.avatarPath ?? "",
+			last_poster_avatar_path: profiles.get(Number(row.last_poster_id))?.avatarPath ?? "",
+		}),
+	);
+}
+
 export async function loadEntityDetail(
 	config: EntityConfig,
 	env: Env,
 	id: number,
 ): Promise<unknown> {
 	const row = await fetchRow(env, config.table, config.columns, id);
-	return row ? config.mapper(row as Record<string, unknown>) : null;
+	return row ? (await mapEntityRows(config, env, [row as Record<string, unknown>]))[0] : null;
 }
 
 export function createListHandler(config: EntityConfig) {
@@ -571,7 +592,7 @@ export function createCreateHandler(config: EntityConfig) {
 
 		const row = await fetchRow(env, config.table, config.columns, newId);
 		return jsonNoStoreResponse(
-			config.mapper(row as Record<string, unknown>),
+			(await mapEntityRows(config, env, [row as Record<string, unknown>]))[0],
 			origin,
 			undefined,
 			201,
@@ -641,7 +662,10 @@ export function createUpdateHandler(config: EntityConfig) {
 		}
 
 		const row = await fetchRow(env, config.table, config.columns, id);
-		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(
+			(await mapEntityRows(config, env, [row as Record<string, unknown>]))[0],
+			origin,
+		);
 	};
 }
 

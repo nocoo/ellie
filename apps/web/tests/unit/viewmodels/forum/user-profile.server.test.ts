@@ -50,7 +50,12 @@ function makeHistoryItem(
 	threadOverrides: Record<string, unknown> = {},
 ) {
 	return {
-		post: { id: 10, createdAt: 123, ...postOverrides },
+		post: {
+			id: 10,
+			authorAvatarPath: "avatars/history-author.jpg",
+			createdAt: 123,
+			...postOverrides,
+		},
 		thread: {
 			id: 1,
 			forumId: 1,
@@ -202,7 +207,7 @@ describe("loadUserProfile", () => {
 			mockForumApi.getCursor.mockResolvedValue({
 				data: [
 					{
-						post: { id: 50, createdAt: 200 },
+						post: { id: 50, authorAvatarPath: "avatars/history-author.jpg", createdAt: 200 },
 						thread: { id: 1, forumId: 1, subject: "Hello" /* replies/views/... missing */ },
 					},
 				],

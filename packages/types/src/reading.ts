@@ -52,7 +52,6 @@ export interface ForumSummaryTopic {
 	topicCreatedAt: number;
 	authorId: number;
 	authorName: string;
-	authorAvatar: string;
 	authorAvatarPath: string;
 }
 

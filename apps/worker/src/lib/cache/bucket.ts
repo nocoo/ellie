@@ -24,7 +24,7 @@ export function computeVisibilityBucket(visCtx: VisibilityContext): VisibilityBu
 }
 
 /**
- * Compute the two-tier viewer bucket used by `user:public:v2` cache keys.
+ * Compute the two-tier viewer bucket used by `user:public:v3` cache keys.
  * `staff` covers Mod / SuperMod / Admin (those who see `regIp` / `lastIp`);
  * `public` covers anon and ordinary members.
  */

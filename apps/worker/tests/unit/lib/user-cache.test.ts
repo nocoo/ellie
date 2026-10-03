@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	getUserProfiles,
 	invalidateUserCache,
+	isUserMiniProfile,
 	USER_CACHE_FAMILY,
 	USER_CACHE_PREFIX,
 	USER_CACHE_TIER,
@@ -94,6 +95,20 @@ function createMockD1(results: Record<string, unknown>[] = []) {
 }
 
 describe("user-cache", () => {
+	it("requires an explicit path and rejects obsolete cached avatar fields", () => {
+		const profile = {
+			id: 10,
+			username: "alice",
+			avatarPath: "",
+			role: 0,
+			groupTitle: "",
+			groupColor: "",
+			groupStars: 0,
+		};
+		expect(isUserMiniProfile(profile)).toBe(true);
+		expect(isUserMiniProfile({ ...profile, avatarPath: undefined })).toBe(false);
+		expect(isUserMiniProfile({ ...profile, avatar: "old.jpg" })).toBe(false);
+	});
 	describe("getUserProfiles", () => {
 		it("should return empty map for empty userIds array", async () => {
 			const kv = createJsonKV();
@@ -119,7 +134,6 @@ describe("user-cache", () => {
 			const alice: UserMiniProfile = {
 				id: 1,
 				username: "alice",
-				avatar: "avatar.png",
 				avatarPath: "",
 				role: 1,
 				groupTitle: "Admin",
@@ -129,7 +143,6 @@ describe("user-cache", () => {
 			const bob: UserMiniProfile = {
 				id: 2,
 				username: "bob",
-				avatar: "bob.png",
 				avatarPath: "",
 				role: 0,
 				groupTitle: "User",
@@ -158,7 +171,6 @@ describe("user-cache", () => {
 			const alice: UserMiniProfile = {
 				id: 1,
 				username: "alice",
-				avatar: "avatar.png",
 				avatarPath: "",
 				role: 1,
 				groupTitle: "Admin",
@@ -174,7 +186,6 @@ describe("user-cache", () => {
 				{
 					id: 2,
 					username: "bob",
-					avatar: "bob.png",
 					avatar_path: "/avatars/bob.png",
 					role: 0,
 					group_title: "User",
@@ -198,7 +209,6 @@ describe("user-cache", () => {
 			const dbUsers = Array.from({ length: 150 }, (_, i) => ({
 				id: i + 1,
 				username: `user_${i + 1}`,
-				avatar: "",
 				avatar_path: null,
 				role: 10,
 				group_title: "Member",
@@ -225,7 +235,6 @@ describe("user-cache", () => {
 				{
 					id: 5,
 					username: "dave",
-					avatar: "dave.png",
 					avatar_path: null,
 					role: 0,
 					group_title: "Member",
@@ -248,7 +257,6 @@ describe("user-cache", () => {
 				{
 					id: 1,
 					username: "alice",
-					avatar: "",
 					avatar_path: null,
 					role: 0,
 					group_title: "",
@@ -277,7 +285,6 @@ describe("user-cache", () => {
 				data: {
 					id: 10,
 					username: "stale_alice",
-					avatar: "",
 					avatarPath: "",
 					role: 0,
 					groupTitle: "",
@@ -294,7 +301,6 @@ describe("user-cache", () => {
 				{
 					id: 10,
 					username: "fresh_alice",
-					avatar: "",
 					avatar_path: null,
 					role: 0,
 					group_title: "",
@@ -332,7 +338,7 @@ describe("user-cache", () => {
 			const env = makeEnv({ KV: kv });
 
 			await expect(invalidateUserCache(env, 42, { strict: true })).rejects.toThrow(
-				"Failed to invalidate cache key user:mini:42",
+				"Failed to invalidate cache key user:mini:v3:42",
 			);
 		});
 	});

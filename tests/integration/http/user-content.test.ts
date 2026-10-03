@@ -83,7 +83,7 @@ describe("L2: Worker User Content API", () => {
 	describe("PATCH /api/v1/users/me", () => {
 		test("returns 401 without JWT", async () => {
 			const res = await workerPatch("/api/v1/users/me", {
-				avatar: "new-avatar.png",
+				bio: "Updated biography",
 			});
 			expect(res.status).toBe(401);
 		});

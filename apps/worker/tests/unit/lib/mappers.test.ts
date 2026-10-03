@@ -25,7 +25,6 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				email: "alice@example.com",
-				avatar: "avatar.png",
 				avatar_path: "avatars/abc123.jpg",
 				status: 0,
 				role: 1,
@@ -65,9 +64,7 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				email: "alice@example.com",
-				avatar: "avatar.png",
 				avatarPath: "avatars/abc123.jpg",
-				hasAvatar: false,
 				status: 0,
 				role: 1,
 				regDate: 1711540800,
@@ -111,7 +108,6 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				email: "alice@example.com",
-				avatar: "avatar.png",
 				status: 0,
 				role: 1,
 				reg_date: 1711540800,
@@ -156,7 +152,6 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				email: "a@b.com",
-				avatar: "",
 				avatar_path: "",
 				status: 0,
 				role: 0,
@@ -193,7 +188,7 @@ describe("D1 row mappers", () => {
 
 			const user = toUser(row);
 			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields) + campus + hasAvatar + checkin.
-			expect(Object.keys(user)).toHaveLength(42);
+			expect(Object.keys(user)).toHaveLength(40);
 		});
 
 		it("should default campus to empty string when column missing", () => {
@@ -201,7 +196,6 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				email: "a@b.com",
-				avatar: "",
 				avatar_path: "",
 				status: 0,
 				role: 0,
@@ -232,53 +226,6 @@ describe("D1 row mappers", () => {
 			};
 			expect(toUser(row).campus).toBe("");
 			expect(toPublicUser(row).campus).toBe("");
-		});
-
-		it("should project has_avatar into hasAvatar boolean (legacy Discuz flag)", () => {
-			// Base row shared by all three assertions below. hasAvatar mirrors
-			// the has_avatar column, which packs the legacy avatar flag as
-			// INTEGER 0/1 in D1 — 1 iff the user uploaded via the pre-GUID
-			// scheme. postingPermission.ts treats `has_avatar === 1` as
-			// sufficient even when avatar_path is empty, so the boolean the
-			// mapper produces MUST match that column's presence.
-			const base = {
-				id: 1,
-				username: "alice",
-				email: "a@b.com",
-				avatar: "",
-				avatar_path: "",
-				status: 0,
-				role: 0,
-				reg_date: 0,
-				last_login: 0,
-				threads: 0,
-				posts: 0,
-				credits: 0,
-				signature: "",
-				group_title: "",
-				group_stars: 0,
-				group_color: "",
-				custom_title: "",
-				digest_posts: 0,
-				ol_time: 0,
-				gender: 0,
-				birth_year: 0,
-				birth_month: 0,
-				birth_day: 0,
-				reside_province: "",
-				reside_city: "",
-				graduate_school: "",
-				bio: "",
-				interest: "",
-				qq: "",
-				site: "",
-				last_activity: 0,
-			};
-
-			expect(toUser({ ...base, has_avatar: 1 }).hasAvatar).toBe(true);
-			expect(toUser({ ...base, has_avatar: 0 }).hasAvatar).toBe(false);
-			// Legacy rows / non-admin queries omit the column entirely.
-			expect(toUser(base).hasAvatar).toBe(false);
 		});
 	});
 
@@ -337,7 +284,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(23);
+			expect(Object.keys(forum)).toHaveLength(22);
 		});
 
 		it("announcement defaults to empty string when column missing (pre-mig-0044 row)", () => {
@@ -541,7 +488,7 @@ describe("D1 row mappers", () => {
 
 			const thread = toThread(row);
 			// 24 base fields + 2 anonymous flags (migration 0048).
-			expect(Object.keys(thread)).toHaveLength(26);
+			expect(Object.keys(thread)).toHaveLength(24);
 			expect(thread.anonymousAuthor).toBe(0);
 			expect(thread.anonymousLastPoster).toBe(0);
 		});
@@ -781,7 +728,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const post = toPost(row);
-			expect(Object.keys(post)).toHaveLength(11);
+			expect(Object.keys(post)).toHaveLength(12);
 			expect(post.ratingAggregate).toEqual({
 				total: 0,
 				credits: { count: 0, sum: 0 },
@@ -936,7 +883,6 @@ describe("D1 row mappers", () => {
 			const row = {
 				id: 1,
 				username: "alice",
-				avatar: "avatar.png",
 				avatar_path: "avatars/abc123.jpg",
 				role: 1,
 				reg_date: 1711540800,
@@ -970,7 +916,6 @@ describe("D1 row mappers", () => {
 			expect(user).toEqual({
 				id: 1,
 				username: "alice",
-				avatar: "avatar.png",
 				avatarPath: "avatars/abc123.jpg",
 				role: 1,
 				regDate: 1711540800,
@@ -1005,7 +950,6 @@ describe("D1 row mappers", () => {
 			const row = {
 				id: 1,
 				username: "alice",
-				avatar: "avatar.png",
 				role: 1,
 				reg_date: 1711540800,
 				threads: 10,
@@ -1040,7 +984,6 @@ describe("D1 row mappers", () => {
 			const row = {
 				id: 1,
 				username: "alice",
-				avatar: "",
 				avatar_path: "",
 				role: 0,
 				reg_date: 0,
@@ -1069,14 +1012,13 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(31);
+			expect(Object.keys(user)).toHaveLength(30);
 		});
 
 		it("should include regIp and lastIp when includeIp is true", () => {
 			const row = {
 				id: 1,
 				username: "alice",
-				avatar: "",
 				avatar_path: "",
 				role: 0,
 				reg_date: 0,
@@ -1109,14 +1051,13 @@ describe("D1 row mappers", () => {
 			const user = toPublicUser(row, true);
 			expect(user.regIp).toBe("192.168.1.1");
 			expect(user.lastIp).toBe("10.0.0.1");
-			expect(Object.keys(user)).toHaveLength(33);
+			expect(Object.keys(user)).toHaveLength(32);
 		});
 
 		it("should build a checkin summary when LEFT JOIN columns are present", () => {
 			const row = {
 				id: 1,
 				username: "alice",
-				avatar: "",
 				avatar_path: "",
 				role: 0,
 				reg_date: 0,
@@ -1163,7 +1104,6 @@ describe("D1 row mappers", () => {
 			const baseRow = {
 				id: 1,
 				username: "alice",
-				avatar: "",
 				avatar_path: "",
 				role: 0,
 				reg_date: 0,
@@ -1539,7 +1479,6 @@ describe("D1 row mappers", () => {
 					{
 						id: 10,
 						username: "new_name",
-						avatar: "avatar.png",
 						role: 0,
 						groupTitle: "",
 						groupColor: "",
@@ -1551,7 +1490,6 @@ describe("D1 row mappers", () => {
 			const enriched = enrichForumsWithUserCache(forums, userCache);
 
 			expect(enriched[0].lastPoster).toBe("new_name");
-			expect(enriched[0].lastPosterAvatar).toBe("avatar.png");
 		});
 
 		it("should return unchanged forum when user not in cache", () => {
@@ -1563,7 +1501,6 @@ describe("D1 row mappers", () => {
 			const enriched = enrichForumsWithUserCache(forums, userCache);
 
 			expect(enriched[0].lastPoster).toBe("unknown");
-			expect(enriched[0].lastPosterAvatar).toBe("");
 		});
 
 		it("should handle empty forums array", () => {
@@ -1590,7 +1527,6 @@ describe("D1 row mappers", () => {
 					{
 						id: 10,
 						username: "new_author",
-						avatar: "a.png",
 						role: 0,
 						groupTitle: "",
 						groupColor: "",
@@ -1602,7 +1538,6 @@ describe("D1 row mappers", () => {
 					{
 						id: 20,
 						username: "new_poster",
-						avatar: "p.png",
 						role: 0,
 						groupTitle: "",
 						groupColor: "",
@@ -1614,9 +1549,7 @@ describe("D1 row mappers", () => {
 			const enriched = enrichThreadsWithUserCache(threads, userCache);
 
 			expect(enriched[0].authorName).toBe("new_author");
-			expect(enriched[0].authorAvatar).toBe("a.png");
 			expect(enriched[0].lastPoster).toBe("new_poster");
-			expect(enriched[0].lastPosterAvatar).toBe("p.png");
 		});
 
 		it("should fall back to original name when user not in cache", () => {
@@ -1634,9 +1567,7 @@ describe("D1 row mappers", () => {
 			const enriched = enrichThreadsWithUserCache(threads, userCache);
 
 			expect(enriched[0].authorName).toBe("original");
-			expect(enriched[0].authorAvatar).toBe("");
 			expect(enriched[0].lastPoster).toBe("original_poster");
-			expect(enriched[0].lastPosterAvatar).toBe("");
 		});
 
 		it("should handle partial cache hits", () => {
@@ -1655,7 +1586,6 @@ describe("D1 row mappers", () => {
 					{
 						id: 10,
 						username: "cached_author",
-						avatar: "a.png",
 						role: 0,
 						groupTitle: "",
 						groupColor: "",

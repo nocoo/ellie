@@ -221,7 +221,7 @@ export async function migrateThreads(
 				email: "",
 				password_hash: "",
 				password_salt: "",
-				avatar: "",
+				avatar_path: "",
 				status: -3, // Placeholder status
 				role: 0,
 				reg_date: 0,

@@ -167,10 +167,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: -1, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: -1,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -191,10 +190,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -219,10 +217,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -247,10 +244,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -275,10 +271,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -307,10 +302,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -340,10 +334,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -381,10 +374,9 @@ describe("POST /api/v1/reports", () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -429,10 +421,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -457,10 +448,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -490,10 +480,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -526,10 +515,9 @@ describe("POST /api/v1/reports", () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -561,10 +549,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -587,10 +574,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -615,10 +601,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -643,10 +628,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -684,10 +668,9 @@ describe("GET /api/v1/posting-permission", () => {
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT email_verified_at": { email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -709,10 +692,9 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: -1, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: -1, // Banned
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -730,10 +712,9 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: -2, email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: -2, // Muted
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -753,10 +734,9 @@ describe("GET /api/v1/posting-permission", () => {
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT email_verified_at": { email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: now, // Just registered
 					role: 0,
 				},
@@ -836,10 +816,9 @@ describe("GET /api/v1/posting-permission — action parameter", () => {
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT email_verified_at": { email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 0,
 				},
@@ -951,10 +930,9 @@ describe("GET /api/v1/posting-permission — action parameter", () => {
 			firstResults: {
 				"SELECT role, status": { role: 1, status: 0, email_verified_at: 1700000000 },
 				"SELECT email_verified_at": { email_verified_at: 1700000000 },
-				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+				"SELECT status, avatar_path, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "",
-					has_avatar: 0,
 					reg_date: 0,
 					role: 1,
 				},

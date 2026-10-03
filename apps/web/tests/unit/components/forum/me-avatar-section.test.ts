@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockUpdateAvatar = vi.fn();
-const mockAvatarUrl = vi.fn((uid: number, _path?: string | null) => `/api/avatar/${uid}`);
+const mockAvatarUrl = vi.fn((_uid: number, _path: string) => "/default-avatar.gif");
 vi.mock("@/contexts/avatar-context", () => ({
 	useAvatarUrl: (uid: number, path?: string | null) => mockAvatarUrl(uid, path),
 	useAvatarContext: () => ({ updateAvatar: mockUpdateAvatar }),
@@ -55,15 +55,15 @@ describe("MeAvatarSection", () => {
 	});
 
 	it("renders heading and passes the user's avatar URL to AvatarUpload", () => {
-		render(createElement(MeAvatarSection, { userId: 42 }));
+		render(createElement(MeAvatarSection, { userId: 42, avatarPath: "" }));
 
 		expect(screen.getByText("头像")).toBeTruthy();
 		expect(screen.getByTestId("avatar-upload-stub")).toBeTruthy();
-		expect(lastAvatarUploadProps.currentUrl).toBe("/api/avatar/42");
+		expect(lastAvatarUploadProps.currentUrl).toBe("/default-avatar.gif");
 	});
 
 	it("propagates each uploaded immutable URL before refreshing server data", () => {
-		render(createElement(MeAvatarSection, { userId: 42 }));
+		render(createElement(MeAvatarSection, { userId: 42, avatarPath: "" }));
 		for (const url of ["https://t.no.mt/avatars/first.jpg", "https://t.no.mt/avatars/second.jpg"]) {
 			lastAvatarUploadProps.onUploadComplete?.(url);
 			expect(mockUpdateAvatar).toHaveBeenLastCalledWith(42, url);

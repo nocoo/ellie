@@ -74,7 +74,15 @@ describe("CommentDialog toast integration", () => {
 
 	it("shows success toast on successful submit", async () => {
 		vi.mocked(apiClient.post).mockResolvedValueOnce({
-			data: { id: 99, postId: 1, authorId: 1, authorName: "t", content: "hi", createdAt: 1 },
+			data: {
+				id: 99,
+				postId: 1,
+				authorId: 1,
+				authorName: "t",
+				authorAvatarPath: "",
+				content: "hi",
+				createdAt: 1,
+			},
 		} as any);
 
 		renderPostComments();

@@ -36,7 +36,6 @@ function structureForum(forum: HomeDisplay["forums"][number]): Forum {
 		lastPostAt: 0,
 		lastPoster: "",
 		lastPosterId: 0,
-		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 		...forum,

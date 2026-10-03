@@ -109,6 +109,24 @@ async function snapshot(d: CacheDescriptor) {
 }
 
 describe("private reading snapshots with real SQL", () => {
+	it("returns explicit peer paths on list/detail and rejects incomplete cached identities", async () => {
+		const list = await (await message.list(request(10, "messages"), f.env)).json();
+		expect(list.data[0]).toMatchObject({
+			senderAvatarPath: "bob.jpg",
+			receiverAvatarPath: "alice.jpg",
+		});
+		const detail = await (await message.getById(request(10, "messages/1"), f.env)).json();
+		expect(detail.data).toMatchObject({
+			senderAvatarPath: "bob.jpg",
+			receiverAvatarPath: "alice.jpg",
+		});
+		const selfDescriptor = descriptor("user:self");
+		const self = await getPrivateData<User>(f.env, undefined, selfDescriptor);
+		expect(isPrivateCacheData(selfDescriptor, { ...self, avatarPath: undefined })).toBe(false);
+		const pmDescriptor = descriptor("pm:entity", 10, { id: 1 });
+		const row = (await getMessages(f.env, undefined, 10, [1])).get(1);
+		expect(isPrivateCacheData(pmDescriptor, { ...row, sender_avatar_path: undefined })).toBe(false);
+	});
 	it("a mailbox hot read spends only current account and ownership SELECTs", async () => {
 		insertMessage(2);
 		const cold = await message.list(request(10, "messages"), f.env);
@@ -159,7 +177,7 @@ describe("private reading snapshots with real SQL", () => {
 		const entered = deferred();
 		const release = deferred();
 		f.state.afterRead = async (sql) => {
-			if (sql.startsWith("SELECT id, sender_id, sender_name")) {
+			if (sql.startsWith("SELECT messages.id, messages.sender_id, messages.sender_name")) {
 				entered.resolve();
 				await release.promise;
 			}
@@ -599,9 +617,9 @@ describe("private reading mutations and current gates", () => {
 		expect(pmEpochWrites()).toEqual([]);
 	});
 
-	it("self caches preserve legacy hasAvatar and email, with current role/status rechecked", async () => {
+	it("self caches preserve explicit paths and email, with current role/status rechecked", async () => {
 		f.sqlite.exec(
-			"UPDATE users SET has_avatar = 1, avatar_path = '', email = 'alice@example.com', email_normalized = 'alice@example.com', password_hash = 'private-hash', password_salt = 'private-salt', reg_ip = 'private-ip' WHERE id = 10",
+			"UPDATE users SET avatar_path = '', email = 'alice@example.com', email_normalized = 'alice@example.com', password_hash = 'private-hash', password_salt = 'private-salt', reg_ip = 'private-ip' WHERE id = 10",
 		);
 		const first = await readSelf(request(10, "auth/me"), f.env);
 		expect(first.status).toBe(200);
@@ -611,7 +629,6 @@ describe("private reading mutations and current gates", () => {
 			email: "alice@example.com",
 			emailNormalized: "alice@example.com",
 			emailVerifiedAt: 1,
-			hasAvatar: true,
 			avatarPath: "",
 		});
 		expect(JSON.stringify(data)).not.toMatch(/private-hash|private-salt|private-ip/);
@@ -654,7 +671,7 @@ describe("private reading mutations and current gates", () => {
 				f.sqlite.exec(
 					kind === "email"
 						? "UPDATE users SET email = 'new@example.com', email_verified_at = 2 WHERE id = 10"
-						: "UPDATE users SET has_avatar = 1, avatar_path = 'new.jpg' WHERE id = 10",
+						: "UPDATE users SET avatar_path = 'new.jpg' WHERE id = 10",
 				);
 				await invalidateUserCaches(f.env, 10);
 			}
@@ -672,7 +689,7 @@ describe("private reading mutations and current gates", () => {
 					? { bio: "Updated bio" }
 					: kind === "email"
 						? { email: "new@example.com", emailVerifiedAt: 2 }
-						: { hasAvatar: true, avatarPath: "new.jpg" },
+						: { avatarPath: "new.jpg" },
 			);
 		},
 	);
@@ -697,7 +714,7 @@ describe("private reading mutations and current gates", () => {
 		const body = await response.json();
 		const deleted = vi.mocked(f.env.KV.delete).mock.calls.map(([key]) => key);
 		expect(deleted).toEqual(
-			expect.arrayContaining(["user:self:10", "user:checkin:10", "user:stats:10"]),
+			expect.arrayContaining(["user:self:v2:10", "user:checkin:10", "user:stats:10"]),
 		);
 		expect(f.values.has("user:checkin:20")).toBe(true);
 		expect(
@@ -718,7 +735,7 @@ describe("private reading mutations and current gates", () => {
 	it("a false-success checkin batch cannot report a reward or invalidate unchanged private data", async () => {
 		await getPrivateData(f.env, undefined, descriptor("user:self"));
 		await getPrivateData(f.env, undefined, descriptor("user:checkin"));
-		const before = [f.values.get("user:self:10"), f.values.get("user:checkin:10")];
+		const before = [f.values.get("user:self:v2:10"), f.values.get("user:checkin:10")];
 		vi.spyOn(f.env.DB, "batch").mockResolvedValue([
 			{ success: false, error: "D1 write failed", results: [], meta: { changes: 0 } },
 			{ success: false, error: "D1 batch rolled back", results: [], meta: { changes: 0 } },
@@ -728,7 +745,7 @@ describe("private reading mutations and current gates", () => {
 		await expect(
 			checkin.perform(request(10, "checkin", "POST", { mood: "kx" }), f.env),
 		).rejects.toThrow();
-		expect([f.values.get("user:self:10"), f.values.get("user:checkin:10")]).toEqual(before);
+		expect([f.values.get("user:self:v2:10"), f.values.get("user:checkin:10")]).toEqual(before);
 		expect(f.env.KV.delete).not.toHaveBeenCalled();
 		expect(f.sqlite.prepare("SELECT coins FROM users WHERE id = 10").get()?.coins).toBe(0);
 	});
@@ -763,7 +780,7 @@ describe("private reading mutations and current gates", () => {
 			f.insert("settings", { key: setting, value: action === "message" ? "true" : "false" });
 			if (action === "message") {
 				f.insert("settings", { key: "features.posting.enabled", value: "true" });
-				f.sqlite.exec("UPDATE users SET avatar_path = '', has_avatar = 0 WHERE id = 10");
+				f.sqlite.exec("UPDATE users SET avatar_path = '' WHERE id = 10");
 			}
 			f.calls.length = 0;
 			expect(await getPrivateData<PostingPreview>(f.env, undefined, d)).toEqual({ allowed: true });
@@ -773,9 +790,7 @@ describe("private reading mutations and current gates", () => {
 			expect((await response.json()).error.code).toBe(
 				action === "message" ? "POSTING_RESTRICTION" : "CONTENT_DISABLED",
 			);
-			expect(
-				f.calls.some((call) => call.sql.includes("SELECT status, avatar_path, has_avatar")),
-			).toBe(true);
+			expect(f.calls.some((call) => call.sql.includes("SELECT status, avatar_path"))).toBe(true);
 			expect(f.calls.some((call) => call.mode === "run")).toBe(false);
 		},
 	);

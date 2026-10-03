@@ -6,7 +6,6 @@
  */
 
 import type { RowRecord } from "../load/batch-insert";
-import { getAvatarValue } from "../transform/avatar";
 import { bbcodeToHtml } from "../transform/bbcode";
 import { validateEncoding } from "../transform/encoding";
 import { mapPassword } from "../transform/password";
@@ -135,7 +134,6 @@ const UC_MEMBER_COLS = {
 const MEMBER_COLS = {
 	uid: 0,
 	status: 4,
-	avatarstatus: 6,
 	adminid: 8,
 	groupid: 9,
 	regdate: 12,
@@ -223,7 +221,6 @@ const THREADCLASS_COLS = {
 /** Data from pre_common_member or pre_common_member_archive for one user. */
 export interface MemberData {
 	status: number;
-	avatarstatus: number;
 	adminid: number;
 	groupid: number;
 	regdate: number;
@@ -283,7 +280,6 @@ export function parseMemberRow(row: ParsedRow): { uid: number; data: MemberData 
 		uid: Number(row[MEMBER_COLS.uid]),
 		data: {
 			status: Number(row[MEMBER_COLS.status]) || 0,
-			avatarstatus: Number(row[MEMBER_COLS.avatarstatus]) || 0,
 			adminid: Number(row[MEMBER_COLS.adminid]) || 0,
 			groupid: Number(row[MEMBER_COLS.groupid]) || 0,
 			regdate: Number(row[MEMBER_COLS.regdate]) || 0,
@@ -462,8 +458,7 @@ export function extractUser(
 		email: "",
 		password_hash: pw.passwordHash,
 		password_salt: pw.passwordSalt,
-		avatar: member ? getAvatarValue(uid, member.avatarstatus) : "",
-		has_avatar: member && member.avatarstatus > 0 ? 1 : 0,
+		avatar_path: "",
 		status: computeUserStatus(member, isArchived),
 		role: member?.adminid ?? 0,
 		reg_date: member?.regdate ?? 0,

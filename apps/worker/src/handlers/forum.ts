@@ -86,7 +86,6 @@ function structureForum(node: ForumTreeNodeV2): Forum {
 		lastPostAt: 0,
 		lastPoster: "",
 		lastPosterId: 0,
-		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 		threadTypes: node.threadTypes ?? EMPTY_THREAD_TYPES,

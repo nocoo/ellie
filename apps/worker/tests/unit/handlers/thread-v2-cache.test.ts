@@ -211,15 +211,18 @@ describe("current gates and audience projection over shared snapshots", () => {
 			const showAuthor = userId === 10 || userId === 30 || userId === 2 || userId === 1;
 			const showLast = userId === 20 || userId === 30 || userId === 2 || userId === 1;
 			expect(data.authorId).toBe(showAuthor ? 10 : 0);
-			expect(data.authorAvatar).toBe(showAuthor ? "alice.png" : "");
+			expect(data.authorAvatarPath).toBe(showAuthor ? "alice.jpg" : "");
 			expect(data.lastPosterId).toBe(showLast ? 20 : 0);
-			expect(data.lastPosterAvatar).toBe(showLast ? "bob.png" : "");
+			expect(data.lastPosterAvatarPath).toBe(showLast ? "bob.jpg" : "");
 			const body = await (await posts(userId)).json();
 			expect(body.data[0].authorId).toBe(showAuthor ? 10 : 0);
+			expect(body.data[0].authorAvatarPath).toBe(showAuthor ? "alice.jpg" : "");
 			const list = await (await listThreads("forumId=1", userId)).json();
 			expect(list.data[0].authorId).toBe(0);
 			expect(list.data[0].lastPosterId).toBe(0);
 			expect(list.data[0].authorName).toBe("匿名");
+			expect(list.data[0].authorAvatarPath).toBe("");
+			expect(list.data[0].lastPosterAvatarPath).toBe("");
 		}
 		expect(f.snapshots("thread:entity")).toHaveLength(1);
 		expect(f.snapshots("post:entity")).toHaveLength(3);

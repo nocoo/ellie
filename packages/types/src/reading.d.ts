@@ -41,7 +41,6 @@ export interface ForumSummaryTopic {
     topicCreatedAt: number;
     authorId: number;
     authorName: string;
-    authorAvatar: string;
     authorAvatarPath: string;
 }
 /** Authorization row. Omitted ids are hidden or absent; the two are not distinguished. */

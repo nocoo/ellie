@@ -9,7 +9,7 @@ const { mockPurge, user } = vi.hoisted(() => ({
 		id: 42,
 		username: "purge-review-user",
 		email: "review@example.invalid",
-		avatar: "",
+		avatarPath: "",
 		role: 0,
 		status: 0,
 		threads: 1,

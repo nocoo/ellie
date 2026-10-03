@@ -40,7 +40,6 @@ const summary = {
 	topicCreatedAt: 1,
 	authorId: 9,
 	authorName: "Author",
-	authorAvatar: "",
 	authorAvatarPath: "",
 };
 const topic = {
@@ -54,6 +53,7 @@ const topic = {
 	anonymousAuthor: 0,
 	authorId: 9,
 	authorName: "Author",
+	authorAvatarPath: "",
 };
 const display = { forums: [forum], summaries: [summary], digest: [topic] };
 const stats = {

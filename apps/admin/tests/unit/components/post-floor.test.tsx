@@ -8,6 +8,12 @@ import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
 
 afterEach(cleanup);
 
+vi.mock("@/components/admin/user-avatar", () => ({
+	UserAvatar: ({ avatarPath }: { avatarPath: string }) => (
+		<span data-testid="avatar" data-path={avatarPath} />
+	),
+}));
+
 describe("PostFloor", () => {
 	it("uses forum rendering for rich content and keeps the original content for editing", async () => {
 		const content =
@@ -19,11 +25,13 @@ describe("PostFloor", () => {
 			createdAt: 1_700_000_000,
 			authorId: 1,
 			authorName: "alice",
+			authorAvatarPath: "avatars/post-author.jpg",
 			author: null,
 			content,
 		} as EnrichedPost;
 		const onEdit = vi.fn();
 		const { container } = render(<PostFloor post={post} onEdit={onEdit} onDelete={vi.fn()} />);
+		expect(screen.getByTestId("avatar").getAttribute("data-path")).toBe("avatars/post-author.jpg");
 		const body = container.querySelector(".forum-content");
 		expect(body?.querySelector("strong")?.textContent).toBe("正文");
 		expect(body?.querySelector(".quote blockquote")?.textContent).toBe("引用");

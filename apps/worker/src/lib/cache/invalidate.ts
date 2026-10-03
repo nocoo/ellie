@@ -65,18 +65,18 @@ export async function bumpRecommendedGen(env: Env, forumId: number): Promise<str
  */
 export async function deleteUserMini(env: Env, userId: number): Promise<void> {
 	const key = userMiniCacheKey(userId);
-	await cacheDelete(env, key, "user:mini:v1");
+	await cacheDelete(env, key, "user:mini:v3");
 }
 
 /**
- * Delete BOTH viewer-bucket variants of `user:public:v2:<id>` in parallel.
+ * Delete BOTH viewer-bucket variants of `user:public:v3:<id>` in parallel.
  * KV has no wildcard delete, so we enumerate the two known buckets every
  * time.
  */
 export async function deleteUserPublicVariants(env: Env, userId: number): Promise<void> {
 	await Promise.all(
 		["public", "staff"].map((bucket) =>
-			cacheDelete(env, userPublicKey(userId, bucket as "public" | "staff"), "user:public:v2"),
+			cacheDelete(env, userPublicKey(userId, bucket as "public" | "staff"), "user:public:v3"),
 		),
 	);
 }
@@ -92,9 +92,8 @@ export async function invalidateUserCaches(env: Env, userId: number): Promise<vo
 	await Promise.all([
 		deleteUserMini(env, userId),
 		deleteUserPublicVariants(env, userId),
-		cacheDelete(env, `user:avatar-path:${userId}`, "user:avatar-path"),
 		cacheDelete(env, `user:stats:${userId}`, "user:stats"),
-		cacheDelete(env, `user:self:${userId}`, "user:self"),
+		cacheDelete(env, `user:self:v2:${userId}`, "user:self"),
 		cacheDelete(env, `user:checkin:${userId}`, "user:checkin"),
 		...["thread", "reply", "message"].map(async (action) =>
 			cacheDelete(

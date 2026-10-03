@@ -11,7 +11,6 @@ function makeUserRow(overrides?: Record<string, unknown>) {
 	return {
 		status: 0,
 		avatar_path: "",
-		has_avatar: 0,
 		reg_date: Math.floor(Date.now() / 1000) - 86400 * 30, // 30 days ago
 		role: 0,
 		...overrides,
@@ -31,7 +30,7 @@ function makeSettingsRows(overrides?: Record<string, string>) {
 function buildEnv(userRow: unknown, settingsRows: unknown[]) {
 	const { db } = createMockDb({
 		firstResults: {
-			"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": userRow,
+			"SELECT status, avatar_path, reg_date, role FROM users": userRow,
 		},
 		allResults: {
 			"SELECT key, value FROM settings": settingsRows,
@@ -135,7 +134,7 @@ describe("checkPostingPermission", () => {
 
 	it("rejects user without avatar when required", async () => {
 		const env = buildEnv(
-			makeUserRow({ avatar_path: "", has_avatar: 0 }),
+			makeUserRow({ avatar_path: "" }),
 			makeSettingsRows({
 				"features.posting.enabled": "true",
 				"features.posting.require_avatar": "true",
@@ -157,7 +156,7 @@ describe("checkPostingPermission", () => {
 		expect(result.allowed).toBe(true);
 	});
 
-	it("allows user with legacy has_avatar=1 when avatar required", async () => {
+	it("rejects obsolete legacy flags without an explicit path", async () => {
 		const env = buildEnv(
 			makeUserRow({ avatar_path: "", has_avatar: 1 }),
 			makeSettingsRows({
@@ -166,7 +165,7 @@ describe("checkPostingPermission", () => {
 			}),
 		);
 		const result = await checkPostingPermission(env, makeUser());
-		expect(result.allowed).toBe(true);
+		expect(result.allowed).toBe(false);
 	});
 
 	it("staff bypasses posting restrictions", async () => {
@@ -175,7 +174,6 @@ describe("checkPostingPermission", () => {
 				role: 1,
 				reg_date: Math.floor(Date.now() / 1000),
 				avatar_path: "",
-				has_avatar: 0,
 			}),
 			makeSettingsRows({
 				"features.posting.enabled": "true",

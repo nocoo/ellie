@@ -229,7 +229,7 @@ function wranglerQuery(sql: string, dbName: string, cwd: string): string {
 
 /** Source-owned fields to sample-check per table for warning verification. */
 const SAMPLE_FIELDS: Record<string, string[]> = {
-	users: ["username", "coins", "has_avatar", "campus"],
+	users: ["username", "coins", "campus"],
 	forums: ["name", "description", "display_order"],
 	threads: ["subject", "author_name", "forum_id"],
 	posts: ["content", "author_name", "thread_id"],

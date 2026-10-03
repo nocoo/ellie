@@ -169,7 +169,7 @@ interface D1User {
 	email: string;
 	password_hash: string;
 	password_salt: string;
-	avatar: string;
+	avatar_path: string;
 	status: number;
 	role: number;
 	reg_date: number;
@@ -213,7 +213,7 @@ function threadRefresh(t: MySQLThread, lastPosterId: number): string {
 }
 
 function userInsert(u: D1User): string {
-	return `INSERT INTO users (id, username, email, password_hash, password_salt, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip) VALUES (${u.id}, ${escapeString(u.username)}, ${escapeString(u.email)}, ${escapeString(u.password_hash)}, ${escapeString(u.password_salt)}, ${escapeString(u.avatar)}, ${u.status}, ${u.role}, ${u.reg_date}, ${u.last_login}, ${u.threads}, ${u.posts}, ${u.credits}, ${escapeString(u.signature)}, ${escapeString(u.group_title)}, ${u.group_stars}, ${escapeString(u.group_color)}, ${escapeString(u.custom_title)}, ${u.digest_posts}, ${u.ol_time}, ${u.gender}, ${u.birth_year}, ${u.birth_month}, ${u.birth_day}, ${escapeString(u.reside_province)}, ${escapeString(u.reside_city)}, ${escapeString(u.graduate_school)}, ${escapeString(u.bio)}, ${escapeString(u.interest)}, ${escapeString(u.qq)}, ${escapeString(u.site)}, ${u.last_activity}, ${escapeString(u.reg_ip)}, ${escapeString(u.last_ip)});`;
+	return `INSERT INTO users (id, username, email, password_hash, password_salt, avatar_path, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip) VALUES (${u.id}, ${escapeString(u.username)}, ${escapeString(u.email)}, ${escapeString(u.password_hash)}, ${escapeString(u.password_salt)}, ${escapeString(u.avatar_path)}, ${u.status}, ${u.role}, ${u.reg_date}, ${u.last_login}, ${u.threads}, ${u.posts}, ${u.credits}, ${escapeString(u.signature)}, ${escapeString(u.group_title)}, ${u.group_stars}, ${escapeString(u.group_color)}, ${escapeString(u.custom_title)}, ${u.digest_posts}, ${u.ol_time}, ${u.gender}, ${u.birth_year}, ${u.birth_month}, ${u.birth_day}, ${escapeString(u.reside_province)}, ${escapeString(u.reside_city)}, ${escapeString(u.graduate_school)}, ${escapeString(u.bio)}, ${escapeString(u.interest)}, ${escapeString(u.qq)}, ${escapeString(u.site)}, ${u.last_activity}, ${escapeString(u.reg_ip)}, ${escapeString(u.last_ip)});`;
 }
 
 function countBy<T>(arr: T[], f: (t: T) => number | string): Record<string, number> {
@@ -263,7 +263,7 @@ function buildD1User(
 		email: u.email || m?.email || "",
 		password_hash: u.password,
 		password_salt: u.salt,
-		avatar: "",
+		avatar_path: "",
 		status: userStatus,
 		role: m?.adminid ?? 0,
 		reg_date: m?.regdate || u.regdate || 0,

@@ -55,9 +55,9 @@ describe("bounded reading snapshots", () => {
 	it("invalidates configuration after a confirmed admin write without touching statistics", async () => {
 		await cold();
 		await f.env.KV.put("statistics:daily:v1", "retained");
-		expect(await f.env.KV.get("reading:v1:config:1:anon")).not.toBeNull();
+		expect(await f.env.KV.get("reading:v2:config:1:anon")).not.toBeNull();
 		await bumpForumTreeGen(f.env);
-		expect(await f.env.KV.get("reading:v1:config:1:anon")).toBeNull();
+		expect(await f.env.KV.get("reading:v2:config:1:anon")).toBeNull();
 		expect(await f.env.KV.get("statistics:daily:v1")).toBe("retained");
 		await f.env.KV.put("reading:v1:recommended:1", "old");
 		await f.env.KV.put("reading:v1:recommended:2", "other");
@@ -71,7 +71,7 @@ describe("bounded reading snapshots", () => {
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		vi.mocked(f.env.KV.list)
 			.mockResolvedValueOnce({
-				keys: Array.from({ length: 51 }, (_, id) => ({ name: `reading:v1:config:${id}:anon` })),
+				keys: Array.from({ length: 51 }, (_, id) => ({ name: `reading:v2:config:${id}:anon` })),
 				list_complete: false,
 				cursor: "next",
 				cacheStatus: null,
@@ -143,7 +143,7 @@ describe("bounded reading snapshots", () => {
 	it("never returns newly restricted child text inside an opaque snapshot", async () => {
 		await cold();
 		f.insert("forums", { id: 4, parent_id: 1, name: "Previously public child" });
-		f.values.delete("reading:v1:config:1:anon");
+		f.values.delete("reading:v2:config:1:anon");
 		const first = (await (await forumListContext(request(), f.env)).json()).data;
 		f.sqlite.exec("UPDATE forums SET visibility = 'staff' WHERE id = 4");
 		const hidden = (
@@ -197,6 +197,30 @@ describe("bounded reading snapshots", () => {
 			).json()
 		).data;
 		expect(second.display.threads).toEqual([]);
+	});
+
+	it("rejects pre-cutover signatures while preserving unrelated sessions", async () => {
+		const data = await cold();
+		const text = data.readSnapshot.slice(65);
+		const key = await crypto.subtle.importKey(
+			"raw",
+			new TextEncoder().encode(f.env.JWT_SECRET),
+			{ name: "HMAC", hash: "SHA-256" },
+			false,
+			["sign"],
+		);
+		const bytes = await crypto.subtle.sign(
+			"HMAC",
+			key,
+			new TextEncoder().encode(`forum-read:v1:${text}`),
+		);
+		const signature = [...new Uint8Array(bytes)]
+			.map((byte) => byte.toString(16).padStart(2, "0"))
+			.join("");
+		await f.env.KV.put("session:retained", "unchanged");
+		expect(await decodeForumReadSnapshot(f.env, `${signature}:${text}`, 1, "anon")).toBeNull();
+		expect(await decodeForumReadSnapshot(f.env, data.readSnapshot, 1, "anon")).not.toBeNull();
+		expect(await f.env.KV.get("session:retained")).toBe("unchanged");
 	});
 
 	it("rejects forged, wrong-bucket, wrong-forum and oversized tokens", async () => {
@@ -287,7 +311,7 @@ describe("bounded reading snapshots", () => {
 		f.thread(11, { sticky: 2, forum_id: 2 });
 		await refreshDailyStatistics(f.env);
 		f.thread(12, { type_id: 7 });
-		f.values.delete("reading:v1:config:1:anon");
+		f.values.delete("reading:v2:config:1:anon");
 		f.values.delete("reading:v1:page:1:anon:all:20:1");
 		f.calls.length = 0;
 		vi.mocked(f.env.KV.get).mockClear();

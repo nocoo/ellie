@@ -57,7 +57,6 @@ interface AdminUser {
 	id: number;
 	username: string;
 	email: string;
-	avatar: string;
 	credits: number;
 	status: number;
 	role: number;
@@ -83,7 +82,6 @@ test.describe("Feature: Admin Users CRUD", () => {
 				data: {
 					username: snap.username,
 					email: snap.email,
-					avatar: snap.avatar,
 					credits: snap.credits,
 					status: snap.status,
 					role: snap.role,
@@ -499,7 +497,6 @@ test.describe("Feature: Admin Users CRUD", () => {
 			id: 3,
 			username: "testuser",
 			email: "test@example.com",
-			avatar: "",
 			credits: 0,
 			status: 0,
 			role: 0,
@@ -637,7 +634,6 @@ test.describe("Feature: Admin Users CRUD", () => {
 				data: {
 					username: snap.username,
 					email: snap.email,
-					avatar: snap.avatar,
 					credits: snap.credits,
 					status: snap.status,
 					role: snap.role,

@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: d52840426e956290675cf79569651f30237e5ab00081b39325631f6cd1e0b3c2):
+ * Source migrations (sha256: 34b69f9b03bbdb2e43362a9f0a690e6f3b1fb4fd2d07f23fac4df1f27b7f07b8):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -40,6 +40,7 @@
  *   - 0054_same_ip_indexes.sql
  *   - 0055_memory_statistics_indexes.sql
  *   - 0056_forum_authority_revision.sql
+ *   - 0057_avatar_path_only.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1750,9 +1751,15 @@ WHEN OLD.id IS NOT NEW.id OR OLD.parent_id IS NOT NEW.parent_id
 BEGIN
   UPDATE forum_authority_revision SET revision = lower(hex(randomblob(16))) WHERE id = 1;
 END;
+
+-- ── 0057_avatar_path_only.sql ────────────────────────────────────────────
+ALTER TABLE users DROP COLUMN has_avatar;
+ALTER TABLE users DROP COLUMN avatar;
+
+CREATE INDEX idx_users_avatar_path ON users(avatar_path) WHERE avatar_path != '';
 `;
 
-export const INIT_SQL_HASH = "d52840426e956290675cf79569651f30237e5ab00081b39325631f6cd1e0b3c2";
+export const INIT_SQL_HASH = "34b69f9b03bbdb2e43362a9f0a690e6f3b1fb4fd2d07f23fac4df1f27b7f07b8";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1790,5 +1797,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0053_read_query_indexes.sql",
 	"0054_same_ip_indexes.sql",
 	"0055_memory_statistics_indexes.sql",
-	"0056_forum_authority_revision.sql"
+	"0056_forum_authority_revision.sql",
+	"0057_avatar_path_only.sql"
 ] as const;

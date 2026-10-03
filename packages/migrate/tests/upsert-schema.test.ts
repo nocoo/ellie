@@ -12,11 +12,8 @@ import { buildFilteredUpsertSql, buildInsertSql, buildUpsertSql } from "../src/l
 // TABLE_COLUMNS, without requiring bun:sqlite.
 
 describe("USERS_UPSERT_COLUMNS", () => {
-	test("has 35 Discuz-owned columns (37 total minus id and email)", () => {
-		// TABLE_COLUMNS.users = 37 columns
-		// minus id (PK, conflict column) = 36
-		// minus email (app-owned, preserved on update) = 35
-		expect(USERS_UPSERT_COLUMNS).toHaveLength(35);
+	test("has 33 source-owned columns", () => {
+		expect(USERS_UPSERT_COLUMNS).toHaveLength(33);
 	});
 
 	test("all columns exist in TABLE_COLUMNS.users", () => {
@@ -27,6 +24,7 @@ describe("USERS_UPSERT_COLUMNS", () => {
 
 	test("excludes app-owned email columns", () => {
 		expect(USERS_UPSERT_COLUMNS).not.toContain("email");
+		expect(USERS_UPSERT_COLUMNS).not.toContain("avatar_path");
 		expect(USERS_UPSERT_COLUMNS).not.toContain("email_verified_at");
 		expect(USERS_UPSERT_COLUMNS).not.toContain("email_normalized");
 		expect(USERS_UPSERT_COLUMNS).not.toContain("email_changed_at");
@@ -34,10 +32,6 @@ describe("USERS_UPSERT_COLUMNS", () => {
 
 	test("excludes primary key (id)", () => {
 		expect(USERS_UPSERT_COLUMNS).not.toContain("id");
-	});
-
-	test("includes has_avatar (source-derived)", () => {
-		expect(USERS_UPSERT_COLUMNS).toContain("has_avatar");
 	});
 
 	test("includes campus (Discuz-owned from profile.field1)", () => {
@@ -125,14 +119,12 @@ describe("FORUMS_UPSERT_COLUMNS", () => {
 });
 
 describe("TABLE_COLUMNS.users completeness", () => {
-	test("has 37 columns (36 Discuz + email/email_* omitted from upsert)", () => {
-		// TABLE_COLUMNS.users has: all Discuz columns + campus + has_avatar
-		// email_verified_at/normalized/changed_at are intentionally omitted from TABLE_COLUMNS
-		expect(TABLE_COLUMNS.users).toHaveLength(37);
+	test("has 36 columns including avatar_path", () => {
+		expect(TABLE_COLUMNS.users).toHaveLength(36);
 	});
 
-	test("includes has_avatar", () => {
-		expect(TABLE_COLUMNS.users).toContain("has_avatar");
+	test("includes avatar_path", () => {
+		expect(TABLE_COLUMNS.users).toContain("avatar_path");
 	});
 
 	test("includes campus", () => {
@@ -158,7 +150,7 @@ describe("buildUpsertSql", () => {
 			conflictColumn: "id",
 			updateColumns: USERS_UPSERT_COLUMNS,
 		});
-		expect(sql).toContain("has_avatar = excluded.has_avatar");
+		expect(sql).not.toContain("avatar_path = excluded.avatar_path");
 		expect(sql).toContain("campus = excluded.campus");
 		expect(sql).toContain("coins = excluded.coins");
 		expect(sql).toContain("username = excluded.username");
@@ -173,6 +165,7 @@ describe("buildUpsertSql", () => {
 		// PK must not be in SET
 		expect(sql).not.toContain("id = excluded.id");
 		// App-owned email columns must not be in SET
+		expect(sql).not.toContain("avatar_path = excluded.avatar_path");
 		expect(sql).not.toContain("email = excluded.email");
 		expect(sql).not.toContain("email_verified_at = excluded.email_verified_at");
 		expect(sql).not.toContain("email_normalized = excluded.email_normalized");

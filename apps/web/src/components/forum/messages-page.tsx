@@ -157,6 +157,7 @@ function MessageRow({
 	const isInbox = box === "inbox";
 	const peerId = isInbox ? message.senderId : message.receiverId;
 	const peerName = isInbox ? message.senderName : message.receiverName;
+	const peerAvatarPath = isInbox ? message.senderAvatarPath : message.receiverAvatarPath;
 
 	return (
 		<div
@@ -167,10 +168,10 @@ function MessageRow({
 		>
 			{peerId > 0 ? (
 				<Link href={`/users/${peerId}`} prefetch={false} className="shrink-0">
-					<ForumAvatar userId={peerId} userName={peerName} size="md" />
+					<ForumAvatar userId={peerId} userName={peerName} avatarPath={peerAvatarPath} size="md" />
 				</Link>
 			) : (
-				<ForumAvatar userId={0} userName={peerName || "未知用户"} size="md" />
+				<ForumAvatar userId={0} userName={peerName || "未知用户"} avatarPath="" size="md" />
 			)}
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

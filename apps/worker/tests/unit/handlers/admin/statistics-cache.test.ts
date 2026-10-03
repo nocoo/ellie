@@ -389,14 +389,14 @@ describe("derived values and precise invalidation scopes", () => {
 		f.sqlite.exec("UPDATE users SET status = -1 WHERE id NOT IN (10, 20)");
 		for (const id of [10, 20, 30]) {
 			f.values.set(`user:stats:${id}`, "old counters");
-			f.values.set(`user:self:${id}`, "old self");
+			f.values.set(`user:self:v2:${id}`, "old self");
 		}
 		await start(usersTicker, 1);
 		expect(await tickJob(f.env, usersTicker, {})).toMatchObject({
 			code: "ok",
 			payload: { status: "running", cursor: 10, updated: 1 },
 		});
-		expectEffects([], ["user:stats:10", "user:self:10"]);
+		expectEffects([], ["user:stats:10", "user:self:v2:10"]);
 		expect(
 			f.sqlite.prepare("SELECT threads, posts, digest_posts FROM users WHERE id = 10").get(),
 		).toEqual({ threads: 2, posts: 2, digest_posts: 1 });
@@ -406,7 +406,7 @@ describe("derived values and precise invalidation scopes", () => {
 			code: "ok",
 			payload: { status: "running", cursor: 20, updated: 2 },
 		});
-		expectEffects([], ["user:stats:20", "user:self:20"]);
+		expectEffects([], ["user:stats:20", "user:self:v2:20"]);
 		expect(
 			f.sqlite.prepare("SELECT threads, posts, digest_posts FROM users WHERE id = 20").get(),
 		).toEqual({ threads: 0, posts: 1, digest_posts: 0 });
@@ -419,7 +419,7 @@ describe("derived values and precise invalidation scopes", () => {
 			payload: { status: "done", updated: 2, lastBatchUpdated: 0 },
 		});
 		expectEffects([statsReportsGenKey(), adminEntityGenKey("users")]);
-		expect(f.values.get("user:self:30")).toBe("old self");
+		expect(f.values.get("user:self:v2:30")).toBe("old self");
 	});
 
 	it("forum recalc updates real counters and last-thread ties, then publishes summary, reports and admin forums", async () => {
@@ -537,7 +537,7 @@ it.each(tickers)(
 			case "users":
 				expectEffects(
 					[statsReportsGenKey(), adminEntityGenKey("users")],
-					ids.flatMap((id) => [`user:stats:${id}`, `user:self:${id}`]),
+					ids.flatMap((id) => [`user:stats:${id}`, `user:self:v2:${id}`]),
 				);
 				break;
 			case "forums":

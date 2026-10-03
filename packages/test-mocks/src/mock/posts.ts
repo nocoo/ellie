@@ -12,6 +12,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 10,
 		authorId: 1,
 		authorName: "admin",
+		authorAvatarPath: "",
 		content:
 			'<p>2024年同济大学招生简章已正式发布，欢迎各位考生关注。</p><p>详细信息请访问 <a href="https://bkzs.tongji.edu.cn">招生网</a>。</p>',
 		createdAt: 1711526400,
@@ -25,6 +26,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 10,
 		authorId: 10,
 		authorName: "zhangsan",
+		authorAvatarPath: "",
 		content: "<p>感谢分享！请问今年计算机专业招多少人？</p>",
 		createdAt: 1711530000,
 		isFirst: false,
@@ -37,6 +39,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 10,
 		authorId: 1,
 		authorName: "admin",
+		authorAvatarPath: "",
 		content: "<p>具体名额以最终公布为准，去年是120人左右。</p>",
 		createdAt: 1711533600,
 		isFirst: false,
@@ -51,6 +54,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 11,
 		authorId: 11,
 		authorName: "lisi",
+		authorAvatarPath: "",
 		content:
 			'<p>整理了高等数学的期末复习资料，包含往年真题和解析。</p><p>附件在下方，请自行下载。</p><attachment data-aid="1001"></attachment>',
 		createdAt: 1711353600,
@@ -64,6 +68,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 11,
 		authorId: 10,
 		authorName: "zhangsan",
+		authorAvatarPath: "",
 		content: "<p>太感谢了！正好需要这个资料。</p>",
 		createdAt: 1711357200,
 		isFirst: false,
@@ -78,6 +83,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 20,
 		authorId: 3,
 		authorName: "mod_tech",
+		authorAvatarPath: "",
 		content:
 			"<p>TypeScript 5.9 带来了很多令人兴奋的新特性：</p><ul><li>改进的类型推断</li><li>更好的性能</li><li>新的装饰器语法</li></ul>",
 		createdAt: 1711526400,
@@ -91,6 +97,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 20,
 		authorId: 10,
 		authorName: "zhangsan",
+		authorAvatarPath: "",
 		content: "<p>新的类型推断确实很强大，项目中已经在用了。</p>",
 		createdAt: 1711530000,
 		isFirst: false,
@@ -105,6 +112,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 20,
 		authorId: 10,
 		authorName: "zhangsan",
+		authorAvatarPath: "",
 		content:
 			"<p>请问 React 19 的 useTransition 和 startTransition 有什么区别？在什么场景下使用比较好？</p>",
 		createdAt: 1711180800,
@@ -118,6 +126,7 @@ export const MOCK_POSTS: Post[] = [
 		forumId: 20,
 		authorId: 3,
 		authorName: "mod_tech",
+		authorAvatarPath: "",
 		content:
 			"<p>useTransition 返回 isPending 状态，适合需要 loading 指示的场景。startTransition 是轻量版，不需要 isPending 时使用。</p>",
 		createdAt: 1711184400,

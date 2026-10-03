@@ -27,6 +27,11 @@ import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { PostComments } from "@/components/forum/post-comments";
 import { apiClient } from "@/lib/api-client";
 
+vi.mock("@/components/forum/user-avatar", () => ({
+	ForumAvatar: ({ avatarPath }: { avatarPath: string }) =>
+		createElement("span", { "data-testid": "comment-avatar", "data-path": avatarPath }),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -38,6 +43,7 @@ const sampleComments: PostComment[] = [
 		postId: 42,
 		authorId: 10,
 		authorName: "alice",
+		authorAvatarPath: "avatars/alice.jpg",
 		content: "Nice post!",
 		score: 0,
 		replyPostId: 0,
@@ -49,6 +55,7 @@ const sampleComments: PostComment[] = [
 		postId: 42,
 		authorId: 20,
 		authorName: "bob",
+		authorAvatarPath: "",
 		content: "I agree",
 		score: 0,
 		replyPostId: 0,
@@ -88,6 +95,9 @@ describe("PostComments initialComments", () => {
 	it("does NOT call apiClient.get when initialComments is provided", async () => {
 		renderWithInitialComments(sampleComments);
 		await act(async () => {});
+		expect(
+			screen.getAllByTestId("comment-avatar").map((avatar) => avatar.getAttribute("data-path")),
+		).toEqual(["avatars/alice.jpg", ""]);
 
 		// Wait a tick to ensure useEffect would have fired if it was going to
 		await waitFor(() => {

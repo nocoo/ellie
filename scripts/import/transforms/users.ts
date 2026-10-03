@@ -86,7 +86,7 @@ interface D1User {
 	email: string;
 	password_hash: string;
 	password_salt: string;
-	avatar: string;
+	avatar_path: string;
 	status: number;
 	role: number;
 	reg_date: number;
@@ -215,7 +215,7 @@ export async function transformUsers(
 			email: uc.email || member?.email || "",
 			password_hash: uc.password,
 			password_salt: uc.salt,
-			avatar: "", // Computed from uid: avatars/{uid}.jpg
+			avatar_path: "",
 			status: userStatus,
 			role: role,
 			reg_date: member?.regdate || uc.regdate || 0,
@@ -269,7 +269,7 @@ export function generateUsersSQL(users: D1User[]): string[] {
 	const statements: string[] = [];
 
 	for (const user of users) {
-		const sql = `INSERT INTO users (id, username, email, password_hash, password_salt, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip) VALUES (${user.id}, ${escapeString(user.username)}, ${escapeString(user.email)}, ${escapeString(user.password_hash)}, ${escapeString(user.password_salt)}, ${escapeString(user.avatar)}, ${user.status}, ${user.role}, ${user.reg_date}, ${user.last_login}, ${user.threads}, ${user.posts}, ${user.credits}, ${escapeString(user.signature)}, ${escapeString(user.group_title)}, ${user.group_stars}, ${escapeString(user.group_color)}, ${escapeString(user.custom_title)}, ${user.digest_posts}, ${user.ol_time}, ${user.gender}, ${user.birth_year}, ${user.birth_month}, ${user.birth_day}, ${escapeString(user.reside_province)}, ${escapeString(user.reside_city)}, ${escapeString(user.graduate_school)}, ${escapeString(user.bio)}, ${escapeString(user.interest)}, ${escapeString(user.qq)}, ${escapeString(user.site)}, ${user.last_activity}, ${escapeString(user.reg_ip)}, ${escapeString(user.last_ip)})`;
+		const sql = `INSERT INTO users (id, username, email, password_hash, password_salt, avatar_path, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip) VALUES (${user.id}, ${escapeString(user.username)}, ${escapeString(user.email)}, ${escapeString(user.password_hash)}, ${escapeString(user.password_salt)}, ${escapeString(user.avatar_path)}, ${user.status}, ${user.role}, ${user.reg_date}, ${user.last_login}, ${user.threads}, ${user.posts}, ${user.credits}, ${escapeString(user.signature)}, ${escapeString(user.group_title)}, ${user.group_stars}, ${escapeString(user.group_color)}, ${escapeString(user.custom_title)}, ${user.digest_posts}, ${user.ol_time}, ${user.gender}, ${user.birth_year}, ${user.birth_month}, ${user.birth_day}, ${escapeString(user.reside_province)}, ${escapeString(user.reside_city)}, ${escapeString(user.graduate_school)}, ${escapeString(user.bio)}, ${escapeString(user.interest)}, ${escapeString(user.qq)}, ${escapeString(user.site)}, ${user.last_activity}, ${escapeString(user.reg_ip)}, ${escapeString(user.last_ip)})`;
 		statements.push(sql);
 	}
 

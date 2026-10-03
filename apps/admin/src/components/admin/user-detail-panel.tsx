@@ -358,12 +358,7 @@ export function UserDetailPanel({
 			<PageHeader
 				title={
 					<span className="flex min-w-0 items-center gap-3">
-						<UserAvatar
-							uid={user.id}
-							username={user.username}
-							avatarPath={user.avatarPath}
-							size={48}
-						/>
+						<UserAvatar username={user.username} avatarPath={user.avatarPath} size={48} />
 						<span className="min-w-0 break-all">{user.username}</span>
 					</span>
 				}

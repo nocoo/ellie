@@ -1,9 +1,6 @@
 "use client";
 
 import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
 	Button,
 	Dialog,
 	DialogDescription,
@@ -92,8 +89,6 @@ interface FormState {
 	// Identity
 	username: string;
 	email: string;
-	avatar: string;
-	avatarPath: string;
 	emailNormalized: string;
 	emailVerifiedAt: number;
 	emailChangedAt: number;
@@ -141,8 +136,6 @@ function blankForm(): FormState {
 	return {
 		username: "",
 		email: "",
-		avatar: "",
-		avatarPath: "",
 		emailNormalized: "",
 		emailVerifiedAt: 0,
 		emailChangedAt: 0,
@@ -186,8 +179,6 @@ function identityFields(u: User) {
 	return {
 		username: u.username,
 		email: u.email,
-		avatar: u.avatar,
-		avatarPath: u.avatarPath ?? "",
 		emailNormalized: u.emailNormalized ?? "",
 		emailVerifiedAt: u.emailVerifiedAt ?? 0,
 		emailChangedAt: u.emailChangedAt ?? 0,
@@ -367,8 +358,6 @@ export function UserEditDialog({
 		const payload: UserUpdate = {
 			username: form.username,
 			email: form.email,
-			avatar: form.avatar,
-			avatarPath: form.avatarPath,
 			emailNormalized: form.emailNormalized,
 			emailVerifiedAt: form.emailVerifiedAt,
 			emailChangedAt: form.emailChangedAt,
@@ -530,35 +519,6 @@ export function UserEditDialog({
 								onChange={set("emailChangedAt")}
 								disabled={loading}
 								hint="Unix 秒"
-							/>
-							<div className="grid gap-2 min-w-0">
-								<Label htmlFor="edit-avatar">头像链接</Label>
-								<div className="flex items-center gap-3 min-w-0">
-									{form.avatar && (
-										<Avatar className="h-10 w-10 shrink-0">
-											<AvatarImage src={form.avatar} alt="头像预览" />
-											<AvatarFallback>
-												<UserIcon aria-hidden="true" />
-											</AvatarFallback>
-										</Avatar>
-									)}
-									<Input
-										id="edit-avatar"
-										value={form.avatar}
-										onChange={(e) => set("avatar")(e.target.value)}
-										placeholder="https://..."
-										disabled={loading}
-										className="flex-1 min-w-0"
-									/>
-								</div>
-							</div>
-							<StringField
-								id="edit-avatarPath"
-								label="头像存储路径"
-								value={form.avatarPath}
-								onChange={set("avatarPath")}
-								disabled={loading}
-								placeholder="avatars/<uuid>.jpg"
 							/>
 						</div>
 					</SectionRule>

@@ -1096,12 +1096,12 @@ describe("admin statistics handlers", () => {
 			(kv.delete as ReturnType<typeof vi.fn>).mockImplementation(async (key: string) => {
 				if (
 					typeof key === "string" &&
-					key.startsWith("user:mini:") &&
+					key.startsWith("user:mini:v3:") &&
 					!key.startsWith("user:mini:v2:")
 				) {
 					throw new Error("KV DELETE 503 (v1)");
 				}
-				// other keys (v2 user:mini:v2 / user:public:v2) succeed.
+				// other keys (v2 user:mini:v2 / user:public:v3) succeed.
 			});
 			const res = await statistics.recalcUsers(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-users"),
@@ -1128,18 +1128,18 @@ describe("admin statistics handlers", () => {
 				batchSize: 10,
 			});
 			// Fail ONLY the v2 keys (`user:mini:v2:<id>` /
-			// `user:public:v2:<id>:*`). Per cache/invalidate.ts these
+			// `user:public:v3:<id>:*`). Per cache/invalidate.ts these
 			// helpers swallow KV errors and log via console.warn. The
 			// tick must still succeed and the cursor must advance.
 			const kv = env.KV as KVNamespace & { delete: ReturnType<typeof vi.fn> };
 			(kv.delete as ReturnType<typeof vi.fn>).mockImplementation(async (key: string) => {
 				if (
 					typeof key === "string" &&
-					(key.startsWith("user:mini:v2:") || key.startsWith("user:public:v2:"))
+					(key.startsWith("user:mini:v2:") || key.startsWith("user:public:v3:"))
 				) {
 					throw new Error("KV DELETE 503 (v2)");
 				}
-				// v1 user:mini:<id> succeeds.
+				// v1 user:mini:v3:<id> succeeds.
 			});
 			const res = await statistics.recalcUsers(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-users"),

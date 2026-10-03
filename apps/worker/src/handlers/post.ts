@@ -108,6 +108,7 @@ export async function list(request: Request, env: Env, ctx?: ExecutionContext): 
 	posts = posts.map((post) => ({
 		...post,
 		authorName: profiles.get(post.authorId)?.username ?? post.authorName,
+		authorAvatarPath: profiles.get(post.authorId)?.avatarPath ?? "",
 	}));
 	const nextCursor = last
 		? null
@@ -152,6 +153,7 @@ export async function getById(
 	);
 	const profiles = await getUserProfiles(env, ctx, post.authorId > 0 ? [post.authorId] : []);
 	post.authorName = profiles.get(post.authorId)?.username ?? post.authorName;
+	post.authorAvatarPath = profiles.get(post.authorId)?.avatarPath ?? "";
 	return jsonResponse(post, origin);
 }
 
@@ -214,9 +216,9 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		env.DB.prepare("SELECT MAX(position) as maxPos FROM posts WHERE thread_id = ?")
 			.bind(threadId)
 			.first<{ maxPos: number | null }>(),
-		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+		env.DB.prepare("SELECT username, avatar_path FROM users WHERE id = ?")
 			.bind(user.userId)
-			.first<{ username: string }>(),
+			.first<{ username: string; avatar_path: string }>(),
 	]);
 
 	if (!thread) {
@@ -296,10 +298,17 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	});
 
 	return jsonResponse(
-		toPost(createdPost as Record<string, unknown>, EMPTY_RATING_AGGREGATE, {
-			userId: user.userId,
-			role: user.role,
-		}),
+		toPost(
+			{
+				...(createdPost as Record<string, unknown>),
+				author_avatar_path: authorRow?.avatar_path ?? "",
+			},
+			EMPTY_RATING_AGGREGATE,
+			{
+				userId: user.userId,
+				role: user.role,
+			},
+		),
 		origin,
 		{ threadSticky: thread.sticky },
 		201,

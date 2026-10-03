@@ -49,8 +49,8 @@ describe("createDeletedUserPlaceholder", () => {
 		expect(placeholder.coins).toBe(0);
 	});
 
-	test("has_avatar is 0", () => {
+	test("avatar_path is empty", () => {
 		const placeholder = createDeletedUserPlaceholder(1);
-		expect(placeholder.has_avatar).toBe(0);
+		expect(placeholder.avatar_path).toBe("");
 	});
 });

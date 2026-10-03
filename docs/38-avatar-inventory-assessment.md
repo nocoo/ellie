@@ -1,6 +1,6 @@
 # 38. Avatar Inventory Assessment
 
-Date: 2026-10-03. Phase: read-only preflight for
+Date: 2026-10-03. Historical read-only preflight for
 [avatar normalization](37-avatar-path-normalization.md).
 
 ## Scope and evidence
@@ -63,6 +63,15 @@ conflicts, and no ambiguous multi-layout mappings in that subset. Selected objec
 have nonzero size and JPEG/PNG HTTP metadata. Image bytes have not been decoded or
 independently verified; metadata evidence must not be described as image-content
 validation.
+
+## Owner decision after assessment
+
+The owner subsequently authorized implementation, database migration, and Z+1
+release. All six smaller-only cases must be treated as no avatar, not mapped to a
+smaller image. Final planned backfills remain 151,360; preserved paths remain 43;
+empty non-tombstoned users become 991,544. Avatar-gate losses become 1,555 total,
+including 69 nonnegative-status users after staff/registration checks. The initial
+recommendation and counts below document the assessment, not the accepted policy.
 
 ## Six smaller-only cases
 

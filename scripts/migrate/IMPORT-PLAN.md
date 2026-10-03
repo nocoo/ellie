@@ -1,5 +1,9 @@
 # Ellie Data Import Plan — 2026-05-09
 
+Historical plan: its avatar and `has_avatar` instructions are superseded by
+`docs/37-avatar-path-normalization.md`. Both importers now create avatar-less
+users unless given verified paths, and do not overwrite existing `avatar_path`.
+
 ## Overview
 
 Full re-import of Discuz data into D1, using **upsert** strategy for

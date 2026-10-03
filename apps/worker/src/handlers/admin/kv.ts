@@ -343,7 +343,7 @@ const LIST_MAX_PAGES = 10;
  * Paginate `KV.list` for a `prefix`-kind family until either `limit`
  * owned keys are collected or KV reports `list_complete`. Filters out
  * sibling families that share the same listPrefix (e.g. `user:mini:v2:*`
- * keys are skipped when listing the `user:mini:v1` family). Bounded
+ * keys are skipped when listing the `user:mini:v3` family). Bounded
  * by `LIST_MAX_PAGES` so a pathological family of mostly-sibling keys
  * cannot starve the request loop.
  */
@@ -1173,7 +1173,7 @@ async function refreshDeleteUserMini(
 	if (!Number.isInteger(userId) || userId <= 0) {
 		return errorResponse("MISSING_USER_ID", 400, undefined, origin);
 	}
-	// `spec.family === "user:mini:v1"` (live). Route to the live v1
+	// `spec.family === "user:mini:v3"` (live). Route to the live v1
 	// invalidator (`lib/user-cache.ts`) which writes the literal
 	// `user:mini:<id>` key — NOT the planned-v2 `user:mini:v2:<id>`
 	// helper in `lib/cache/invalidate.ts:deleteUserMini` (that one is

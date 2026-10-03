@@ -4,6 +4,7 @@ export interface Env {
 	ADMIN_API_KEY: string;
 	DB: D1Database;
 	ENVIRONMENT: string;
+	DEPLOYMENT_FREEZE?: string;
 	JWT_SECRET: string;
 	KV: KVNamespace;
 	/** R2 bucket for avatar and attachment uploads */

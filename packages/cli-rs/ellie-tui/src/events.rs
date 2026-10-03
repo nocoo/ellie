@@ -830,7 +830,7 @@ mod tests {
 			posts: 0,
 			threads: 0,
 			credits: 0,
-			avatar: String::new(),
+			avatar_path: String::new(),
 			reg_date: 0,
 		});
 

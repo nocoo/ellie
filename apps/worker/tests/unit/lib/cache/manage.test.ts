@@ -305,7 +305,7 @@ describe("cache management uses the original descriptor and authoritative loader
 	it("rebuild dispatch preserves user audiences and strict mini fields", async () => {
 		await getPublicUsers(f.env, undefined, [10], "public");
 		const publicKey = await userCacheKey(f.env, {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			params: { id: 10, viewerBucket: "public" },
 			scope: "public",
 		});
@@ -314,15 +314,15 @@ describe("cache management uses the original descriptor and authoritative loader
 		expect(rebuilt.data).toMatchObject({ id: 10, username: "Renamed" });
 		expect(rebuilt.data).not.toHaveProperty("regIp");
 		await getUserProfiles(f.env, undefined, [10]);
-		expect((await rebuildCacheEntry(f.env, undefined, "user:mini:10")).tier).toBe("LONG");
+		expect((await rebuildCacheEntry(f.env, undefined, "user:mini:v3:10")).tier).toBe("LONG");
 		const d = {
-			family: "user:mini:v1",
+			family: "user:mini:v3",
 			params: { id: 10 },
 			scope: "public",
 			tier: "LONG" as const,
 		};
-		await putCacheEnvelope(f.env, "user:mini:10", createCacheEnvelope({ id: 30 }, d));
-		expect(await inspectCacheEntry(f.env, "user:mini:10")).toMatchObject({ valid: false });
+		await putCacheEnvelope(f.env, "user:mini:v3:10", createCacheEnvelope({ id: 30 }, d));
+		expect(await inspectCacheEntry(f.env, "user:mini:v3:10")).toMatchObject({ valid: false });
 	});
 	it("settings rebuild reloads authoritative values without permission or business effects", async () => {
 		f.insert("settings", { key: "site.name", value: "Before", type: "string", updated_at: 0 });

@@ -39,7 +39,7 @@ import { invalidateRecommendedCache } from "../recommended";
 
 // Listing users reads maintained counters; expensive recounts are explicit maintenance.
 const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, has_avatar, status, role, reg_date, last_login," +
+	"id, username, email, avatar_path, status, role, reg_date, last_login," +
 	" threads, posts," +
 	" credits, coins, signature, group_title, group_stars, group_color, custom_title," +
 	" digest_posts," +
@@ -92,15 +92,12 @@ const userConfig: EntityConfig = {
 		// emailVerified: users.email_verified_at is a unix timestamp — 0 iff
 		// unverified. `positive` fits exactly.
 		{ param: "emailVerified", column: "email_verified_at", type: "positive" },
-		// hasAvatar: matches postingPermission's rule of
-		// `!!avatar_path || has_avatar === 1` so operators can filter on the
-		// *effective* avatar state the write gate reads, not just one column.
 		{
 			param: "hasAvatar",
 			column: "",
 			type: "expr",
-			trueExpr: "(avatar_path != '' OR has_avatar = 1)",
-			falseExpr: "(avatar_path = '' AND (has_avatar IS NULL OR has_avatar = 0))",
+			trueExpr: "(avatar_path != '')",
+			falseExpr: "(avatar_path = '')",
 		},
 	],
 	listSort: "id DESC",
@@ -138,16 +135,6 @@ const userConfig: EntityConfig = {
 			name: "email",
 			column: "email",
 			validate: (v) => (typeof v === "string" ? null : "email must be a string"),
-		},
-		{
-			name: "avatar",
-			column: "avatar",
-			validate: (v) => (typeof v === "string" ? null : "avatar must be a string"),
-		},
-		{
-			name: "avatarPath",
-			column: "avatar_path",
-			validate: (v) => (typeof v === "string" ? null : "avatarPath must be a string"),
 		},
 		{
 			name: "status",
@@ -328,8 +315,6 @@ const userConfig: EntityConfig = {
 		const cacheFields = [
 			// Identity / display
 			"username",
-			"avatar",
-			"avatar_path",
 			"email",
 			"email_verified_at",
 			"email_normalized",
@@ -996,6 +981,24 @@ async function purgeR2Cleanup(
 	return { deletedCount, failed };
 }
 
+async function purgeObjectKeys(
+	env: Env,
+	target: PurgeTarget,
+	attachmentKeys: string[],
+): Promise<string[]> {
+	const keys = new Set(attachmentKeys);
+	if (target.avatar_path) {
+		const reference = await env.DB.prepare(
+			"SELECT id FROM users WHERE avatar_path = ? AND avatar_path != '' AND id != ? LIMIT 1",
+		)
+			.bind(target.avatar_path, target.id)
+			.first<{ id: number }>();
+		if (reference) keys.delete(target.avatar_path);
+		else keys.add(target.avatar_path);
+	}
+	return [...keys];
+}
+
 export const purge = withEntityAuth(
 	userConfig,
 	async (request: Request, env: Env): Promise<Response> => {
@@ -1075,10 +1078,7 @@ export const purge = withEntityAuth(
 			);
 		}
 
-		const r2Keys = Array.from(
-			new Set([...pre.attachmentKeys, ...(target.avatar_path ? [target.avatar_path] : [])]),
-		);
-		const r2 = await purgeR2Cleanup(env, r2Keys);
+		const r2 = await purgeR2Cleanup(env, await purgeObjectKeys(env, target, pre.attachmentKeys));
 
 		return jsonNoStoreResponse(
 			{

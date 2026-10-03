@@ -50,7 +50,7 @@ CREATE TABLE users (
   email         TEXT    NOT NULL DEFAULT '',
   password_hash TEXT    NOT NULL DEFAULT '',
   password_salt TEXT    NOT NULL DEFAULT '',
-  avatar        TEXT    NOT NULL DEFAULT '',
+  avatar_path   TEXT    NOT NULL DEFAULT '',
   status        INTEGER NOT NULL DEFAULT 0,   -- 0=normal, -1=banned, -2=archived, -3=placeholder
   role          INTEGER NOT NULL DEFAULT 0,   -- 0=user, 1=admin, 2=super-mod, 3=mod (actual data also has -1, 7)
   reg_date      INTEGER NOT NULL DEFAULT 0,
@@ -92,7 +92,7 @@ CREATE TABLE users (
 | `email` | — | — | char(32) | 迁移时丢弃旧系统未验证邮箱，置空；新系统要求用户重新验证后写入 |
 | `password_hash` | `uc_members` | `password` | char(32) | `md5(md5(password) + salt)` — 详见下方 |
 | `password_salt` | `uc_members` | `salt` | char(6) | 6 位随机字符串 |
-| `avatar` | — | 由 `uid` 计算 | — | R2 key: `avatars/{uid}.jpg`（源路径 `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg`） |
+| `avatar_path` | Explicit verified R2 key | Object inventory | Empty | Sole avatar identity; no UID-derived fallback. See [normalization](37-avatar-path-normalization.md). |
 | `status` | `pre_common_member` | `status` | tinyint(1) | `0`=正常，`-1`=封禁，`-2`=归档，`-3`=占位（迁移中 FK 断裂时自动创建）。见下方迁移策略 |
 | `role` | `pre_common_member` | `adminid` | tinyint(1) | `0`=用户，`1`=管理员，`2`=超级版主，`3`=版主。实际数据还包含 `-1` 和 `7`（DZ 扩展角色） |
 | `reg_date` | `pre_common_member` | `regdate` | int unsigned | Unix 时间戳 |
@@ -138,7 +138,7 @@ WHERE a.uid NOT IN (SELECT uid FROM db_tongji_main.pre_common_member);
 
 | Field | Table | Notes |
 |-------|-------|-------|
-| `avatarstatus` | `pre_common_member` | `0`=无头像，`1`=有头像 — 无头像的用户跳过头像迁移 |
+| `avatarstatus` | `pre_common_member` | Historical source only; not persisted or used to infer object existence. |
 | `freeze` | `pre_common_member` | `0`=正常，`1`=冻结 — 可过滤或标记 |
 | `groupid` | `pre_common_member` | 用户组 ID — 在 DZ 中决定权限等级 |
 

@@ -257,3 +257,15 @@ first local avatar assessment also treated absence of the big variant as absence
 of every avatar; a variant audit found six users with smaller images. They were
 reclassified as unresolved before any production write. Inventory all actual
 variants and distinguish unresolved policy choices from proven absence.
+
+## 2026-10-03 — Migration archive and local default avatar boundaries
+
+A previous-release archive placed under ignored `reference/` was still discovered
+by Bun's integration-test path matching, doubling the suite with obsolete routes.
+Move executable source archives outside the repository before running tests;
+Git ignore rules are not test-runner exclusions. The new local GIF default was
+also initially caught by the forum authentication proxy and returned a redirect
+instead of an image. Explicitly allow that exact public asset and cover anonymous
+access with login-required mode plus a real HTTP image-response assertion. The
+migration test initially traversed one parent directory too far; resolve fixture
+paths relative to the test module and run the focused test before the full suite.

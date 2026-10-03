@@ -15,6 +15,7 @@ import { getArr, getStr } from "./settings.server";
 /** Current user info displayed in the top bar */
 export interface HeaderUserInfo {
 	username: string;
+	avatarPath: string;
 	uid: number;
 	/** User group display name, e.g. "管理员" */
 	groupTitle: string;

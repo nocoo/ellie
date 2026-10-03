@@ -48,7 +48,7 @@ describe("user profiles and avatar paths", () => {
 		for (const field of ["email", "password_hash", "password_salt", "regIp", "lastIp"])
 			expect(result.data).not.toHaveProperty(field);
 		const stable = JSON.parse(
-			f.values.get("user:public:v2:10:public") ?? expect.fail("Missing public user snapshot"),
+			f.values.get("user:public:v3:10:public") ?? expect.fail("Missing public user snapshot"),
 		);
 		const stats = JSON.parse(
 			f.values.get("user:stats:10") ?? expect.fail("Missing user stats snapshot"),
@@ -80,27 +80,6 @@ describe("user profiles and avatar paths", () => {
 			expect((await user.getById(request("users/10"), f.env)).status).toBe(404);
 		},
 	);
-	it("returns a LONG avatar mapping without applying the public-profile status filter", async () => {
-		f.sqlite.exec("UPDATE users SET status=-1 WHERE id=10");
-		expect((await body(user.getAvatarPath(request("users/10/avatar-path"), f.env))).data).toEqual({
-			avatarPath: "alice.jpg",
-		});
-		expect(
-			JSON.parse(f.values.get("user:avatar-path:10") ?? expect.fail("Missing avatar snapshot"))
-				.tier,
-		).toBe("LONG");
-		f.calls.length = 0;
-		await user.getAvatarPath(request("users/10/avatar-path"), f.env);
-		expect(f.calls).toHaveLength(0);
-	});
-	it("handles an empty path, missing user, and invalid avatar ID", async () => {
-		f.sqlite.exec("UPDATE users SET avatar_path='' WHERE id=10");
-		expect((await body(user.getAvatarPath(request("users/10/avatar-path"), f.env))).data).toEqual({
-			avatarPath: "",
-		});
-		expect((await user.getAvatarPath(request("users/999/avatar-path"), f.env)).status).toBe(404);
-		expect((await user.getAvatarPath(request("users/abc/avatar-path"), f.env)).status).toBe(400);
-	});
 });
 
 describe("user history with current gates", () => {

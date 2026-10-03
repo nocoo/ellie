@@ -35,6 +35,12 @@ describe("schema", () => {
 		expect(TABLE_COLUMNS.forums).toContain("last_poster");
 	});
 
+	test("users persist only avatar_path", () => {
+		expect(TABLE_COLUMNS.users).toContain("avatar_path");
+		expect(TABLE_COLUMNS.users).not.toContain("avatar");
+		expect(TABLE_COLUMNS.users).not.toContain("has_avatar");
+	});
+
 	test("posts columns include content and position", () => {
 		expect(TABLE_COLUMNS.posts).toContain("content");
 		expect(TABLE_COLUMNS.posts).toContain("position");
@@ -151,7 +157,7 @@ describe("BatchLoader", () => {
 			email: `user${i + 1}@test.com`,
 			password_hash: "hash",
 			password_salt: "salt",
-			avatar: "",
+			avatar_path: "",
 			status: 0,
 			role: 0,
 			reg_date: 1000000000,
@@ -187,7 +193,7 @@ describe("BatchLoader", () => {
 			email: "",
 			password_hash: "",
 			password_salt: "",
-			avatar: "",
+			avatar_path: "",
 			status: 0,
 			role: 0,
 			reg_date: 0,
@@ -277,7 +283,7 @@ describe("StreamInserter", () => {
 				email: "",
 				password_hash: "",
 				password_salt: "",
-				avatar: "",
+				avatar_path: "",
 				status: 0,
 				role: 0,
 				reg_date: 0,
@@ -326,7 +332,7 @@ describe("StreamInserter", () => {
 				email: "",
 				password_hash: "",
 				password_salt: "",
-				avatar: "",
+				avatar_path: "",
 				status: 0,
 				role: 0,
 				reg_date: 0,

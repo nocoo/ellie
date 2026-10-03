@@ -11,6 +11,16 @@ import { ForumPage } from "../pages/forum.page";
 import { ThreadPage } from "../pages/thread.page";
 import { expect, test } from "./fixtures";
 
+test("Given an anonymous visitor, Then the local default avatar is an image without authentication", async ({
+	request,
+}) => {
+	const response = await request.get("/default-avatar.gif", { maxRedirects: 0 });
+	expect(response.status()).toBe(200);
+	expect(response.headers()["content-type"]).toContain("image/gif");
+	const bytes = await response.body();
+	expect(bytes.subarray(0, 6).toString()).toMatch(/^GIF8[79]a$/);
+});
+
 const POPULATED_FORUM_ID = 114;
 const FORUM_WITH_NEW_THREAD = 1;
 const THREAD_WITH_REPLY = 1;

@@ -114,7 +114,6 @@ export function readingFixture() {
 			username: name,
 			role,
 			email_verified_at: 1,
-			avatar: `${name}.png`,
 			avatar_path: `${name}.jpg`,
 		});
 	}

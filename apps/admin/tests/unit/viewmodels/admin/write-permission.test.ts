@@ -16,9 +16,7 @@ function makeUser(overrides: Partial<User> = {}): User {
 		id: 42,
 		username: "test",
 		email: "test@example.com",
-		avatar: "",
 		avatarPath: "",
-		hasAvatar: false,
 		role: 0,
 		status: 0,
 		threads: 0,
@@ -61,16 +59,15 @@ describe("write-permission", () => {
 
 	describe("userHasAvatar", () => {
 		it("is true when avatarPath is set", () => {
-			expect(userHasAvatar({ avatarPath: "avatars/a.jpg", hasAvatar: false })).toBe(true);
+			expect(userHasAvatar({ avatarPath: "avatars/a.jpg" })).toBe(true);
 		});
 
-		it("is true when has_avatar flag is set (legacy)", () => {
-			expect(userHasAvatar({ avatarPath: "", hasAvatar: true })).toBe(true);
+		it("is true for an explicit verified legacy object key", () => {
+			expect(userHasAvatar({ avatarPath: "avatar/000/00/00/42_avatar_big.jpg" })).toBe(true);
 		});
 
-		it("is false when neither is set", () => {
-			expect(userHasAvatar({ avatarPath: "", hasAvatar: false })).toBe(false);
-			expect(userHasAvatar({})).toBe(false);
+		it("is false for an explicitly empty path", () => {
+			expect(userHasAvatar({ avatarPath: "" })).toBe(false);
 		});
 	});
 
@@ -89,7 +86,6 @@ describe("write-permission", () => {
 			const user = makeUser({
 				emailVerifiedAt: 0,
 				avatarPath: "",
-				hasAvatar: false,
 				regDate: NOW - 8 * DAY,
 			});
 			const result = evaluateWritePermission(user, STRICT_SETTINGS, NOW);
@@ -208,16 +204,16 @@ describe("write-permission", () => {
 			expect(l6?.status).toBe("pass");
 		});
 
-		it("legacy avatar (has_avatar=true, empty avatarPath) passes L6", () => {
-			const user = makeUser({ hasAvatar: true, avatarPath: "" });
+		it("a normalized no-avatar legacy account fails L6", () => {
+			const user = makeUser({ avatarPath: "" });
 			const result = evaluateWritePermission(user, STRICT_SETTINGS, NOW);
 			const l6 = result.items.find((i) => i.id === "L6");
-			expect(l6?.code).toBe("AVATAR_PRESENT");
-			expect(l6?.status).toBe("pass");
+			expect(l6?.code).toBe("AVATAR_MISSING");
+			expect(l6?.status).toBe("fail");
 		});
 
 		it("blockedBy preserves the natural top-down order (L3 before L6)", () => {
-			const user = makeUser({ emailVerifiedAt: 0, avatarPath: "", hasAvatar: false });
+			const user = makeUser({ emailVerifiedAt: 0, avatarPath: "" });
 			const result = evaluateWritePermission(user, STRICT_SETTINGS, NOW);
 			expect(result.blockedBy).toEqual(["邮箱验证", "用户头像"]);
 		});

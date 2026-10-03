@@ -112,7 +112,6 @@ export interface ForumAggregateV2 {
 	lastPostAt: number;
 	lastPoster: string;
 	lastPosterId: number;
-	lastPosterAvatar: string;
 	lastPosterAvatarPath: string;
 	/**
 	 * Anonymous-aware build stamp (migration 0048). Builders set this to 1;
@@ -233,7 +232,6 @@ export function buildForumSummaryPayload(
 			lastPostAt: f.lastPostAt,
 			lastPoster: f.lastPoster,
 			lastPosterId: f.lastPosterId,
-			lastPosterAvatar: f.lastPosterAvatar,
 			lastPosterAvatarPath: f.lastPosterAvatarPath,
 			// Build stamp — see isForumSummaryPayload(). Snapshot row is
 			// already masked for anonymous last-posters, so this just
@@ -310,8 +308,7 @@ export function isForumSummaryPayload(value: unknown): value is ForumSummaryPayl
 	// lacks `anonAware`, the whole payload is stale.
 	const aggs = v.aggregates as Record<string, Partial<ForumAggregateV2>>;
 	for (const k in aggs) {
-		if (aggs[k]?.anonAware !== 1) return false;
-		break;
+		if (aggs[k]?.anonAware !== 1 || typeof aggs[k]?.lastPosterAvatarPath !== "string") return false;
 	}
 	return true;
 }
@@ -328,6 +325,7 @@ export function isForumMetaPayload(value: unknown): value is ForumMetaPayloadV2 
 	// field and would echo `undefined` to clients; force a miss so the
 	// payload is rewritten with the column populated.
 	if (typeof forum.announcement !== "string") return false;
+	if (typeof forum.lastPosterAvatarPath !== "string") return false;
 	// Reject pre-anonymous-mask payloads (mig 0048).
 	if (v.anonAware !== 1) return false;
 	return true;

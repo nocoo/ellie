@@ -185,10 +185,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: -1,
 						avatar_path: "",
-						has_avatar: 0,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -212,10 +211,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -239,10 +237,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -266,10 +263,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -293,10 +289,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -320,10 +315,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -351,10 +345,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -389,10 +382,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -404,7 +396,7 @@ describe("post-comment handlers", () => {
 						status: 1,
 						visibility: "public",
 					},
-					"SELECT username FROM users": { username: "alice" },
+					"SELECT username, avatar_path FROM users": { username: "alice" },
 					"SELECT * FROM post_comments WHERE id": {
 						id: 42,
 						thread_id: 1,
@@ -447,10 +439,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 0,
 					},
@@ -481,10 +472,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 1, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						reg_date: 1700000000,
 						role: 1,
 					},
@@ -496,7 +486,7 @@ describe("post-comment handlers", () => {
 						status: 1,
 						visibility: "public",
 					},
-					"SELECT username FROM users": { username: "mod" },
+					"SELECT username, avatar_path FROM users": { username: "mod" },
 					"SELECT * FROM post_comments WHERE id": {
 						id: 50,
 						thread_id: 1,
@@ -538,10 +528,9 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+					"SELECT status, avatar_path, reg_date, role FROM users WHERE id": {
 						status: 0,
 						avatar_path: "/avatar.png",
-						has_avatar: 1,
 						// Registered 1 day ago
 						reg_date: nowSeconds - 86400,
 						role: 0,

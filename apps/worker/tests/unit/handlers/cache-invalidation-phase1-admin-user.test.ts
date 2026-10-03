@@ -186,7 +186,6 @@ describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () =
 		["bio", { bio: "long bio" }],
 		["groupTitle", { groupTitle: "管理组" }],
 		["customTitle", { customTitle: "VIP" }],
-		["avatarPath", { avatarPath: "avatars/x.jpg" }],
 		["digestPosts", { digestPosts: 9 }],
 		["lastActivity", { lastActivity: 1700000000 }],
 		["gender", { gender: 1 }],

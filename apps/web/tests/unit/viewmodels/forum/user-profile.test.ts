@@ -25,7 +25,7 @@ function makeUser(overrides: Partial<User> & { id: number }): User {
 	return {
 		username: "testuser",
 		email: "test@example.com",
-		avatar: "",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.User,
 		regDate: 1710000000,

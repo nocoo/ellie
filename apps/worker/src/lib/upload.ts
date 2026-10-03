@@ -164,14 +164,13 @@ async function handleAvatarUpload(
 		);
 	}
 
-	// Update user record — set avatar_path and has_avatar = 1
-	const saved = await env.DB.prepare(
-		"UPDATE users SET avatar_path = ?, has_avatar = 1 WHERE id = ?",
-	)
+	// Update user record — set avatar_path
+	const saved = await env.DB.prepare("UPDATE users SET avatar_path = ? WHERE id = ?")
 		.bind(key, userId)
 		.run();
 
-	if (!saved.success) throw new Error("Avatar mapping could not be saved");
+	if (!saved.success || saved.meta.changes !== 1)
+		throw new Error("Avatar mapping could not be saved");
 
 	// Invalidate user display snapshots after the confirmed mapping write
 	ctx.waitUntil(invalidateUserCaches(env, userId));

@@ -667,7 +667,6 @@ describe("publicUserToUser", () => {
 		const publicUser = {
 			id: 42,
 			username: "testuser",
-			avatar: "/avatar.png",
 			role: 0,
 			regDate: 1700000000,
 			threads: 10,
@@ -708,7 +707,7 @@ describe("publicUserToUser", () => {
 		// Spread fields preserved
 		expect(user.id).toBe(42);
 		expect(user.username).toBe("testuser");
-		expect(user.avatar).toBe("/avatar.png");
+		expect(user.avatarPath).toBe("");
 		expect(user.role).toBe(0);
 		expect(user.regDate).toBe(1700000000);
 		expect(user.campus).toBe("四平路校区");
@@ -725,7 +724,6 @@ describe("publicUserToUser", () => {
 		const publicUser = {
 			id: 1,
 			username: "admin",
-			avatar: "/admin.png",
 			role: 1,
 			regDate: 0,
 			threads: 0,

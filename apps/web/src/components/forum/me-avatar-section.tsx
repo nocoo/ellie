@@ -24,7 +24,7 @@ import { useAvatarContext, useAvatarUrl } from "@/contexts/avatar-context";
 
 export interface MeAvatarSectionProps {
 	userId: number;
-	avatarPath?: string | null;
+	avatarPath: string;
 }
 
 export function MeAvatarSection({ userId, avatarPath }: MeAvatarSectionProps) {

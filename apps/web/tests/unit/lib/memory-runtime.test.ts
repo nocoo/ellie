@@ -164,6 +164,7 @@ describe("bounded process cache", () => {
 			topicId: 1,
 			topicSubject: "secret",
 			authorName: "private-user",
+			authorAvatarPath: "",
 			forumId: 2,
 		}));
 		const entry = runtime

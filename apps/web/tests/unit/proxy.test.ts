@@ -48,6 +48,12 @@ function forumSession(name = "testuser") {
 // ---------------------------------------------------------------------------
 
 describe("isPublicRoute", () => {
+	it("keeps the local default avatar public", () => {
+		expect(isPublicRoute("/default-avatar.gif")).toBe(true);
+		expect(resolveProxyAction(new URL("https://example.com/default-avatar.gif"), null, true)).toBe(
+			"next",
+		);
+	});
 	it("marks /login as public (forum login)", () => {
 		expect(isPublicRoute("/login")).toBe(true);
 	});

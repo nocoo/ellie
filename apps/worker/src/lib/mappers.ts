@@ -62,14 +62,7 @@ interface D1UserRow {
 	id: number;
 	username: string;
 	email: string;
-	avatar: string;
 	avatar_path: string;
-	/**
-	 * Legacy Discuz-era avatar flag. 1 iff the user uploaded an avatar under
-	 * the old numeric-uid path scheme (pre-GUID). New uploads populate
-	 * `avatar_path` instead. Read only — never mutated by app code.
-	 */
-	has_avatar?: number;
 	status: number;
 	role: number;
 	reg_date: number;
@@ -236,9 +229,7 @@ export function toUser(row: Record<string, unknown>): User {
 		id: r.id,
 		username: r.username,
 		email: r.email,
-		avatar: r.avatar,
 		avatarPath: r.avatar_path ?? "",
-		hasAvatar: r.has_avatar === 1,
 		status: r.status,
 		role: r.role,
 		regDate: r.reg_date,
@@ -306,8 +297,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,
 		lastPosterId: r.last_poster_id ?? 0,
-		lastPosterAvatar: "", // Will be populated from KV cache
-		lastPosterAvatarPath: "", // Will be populated from KV cache
+		lastPosterAvatarPath: String(row.last_poster_avatar_path ?? ""),
 		lastThreadSubject: r.last_thread_subject,
 		threadTypes: {
 			enabled: (r.thread_types_enabled ?? 0) === 1,
@@ -360,15 +350,13 @@ export function toThread(row: Record<string, unknown>, viewer?: ViewerContext | 
 		forumId: r.forum_id,
 		authorId: unmaskAuthor ? r.author_id : 0,
 		authorName: unmaskAuthor ? r.author_name : ANONYMOUS_AUTHOR_NAME,
-		authorAvatar: "", // Will be populated from KV cache
-		authorAvatarPath: "", // Will be populated from KV cache
+		authorAvatarPath: unmaskAuthor ? String(row.author_avatar_path ?? "") : "",
 		subject: r.subject,
 		createdAt: r.created_at,
 		lastPostAt: r.last_post_at,
 		lastPoster: unmaskLastPoster ? r.last_poster : ANONYMOUS_AUTHOR_NAME,
 		lastPosterId: unmaskLastPoster ? (r.last_poster_id ?? 0) : 0,
-		lastPosterAvatar: "", // Will be populated from KV cache
-		lastPosterAvatarPath: "", // Will be populated from KV cache
+		lastPosterAvatarPath: unmaskLastPoster ? String(row.last_poster_avatar_path ?? "") : "",
 		replies: r.replies,
 		views: r.views,
 		closed: r.closed,
@@ -412,6 +400,7 @@ export function toPost(
 		forumId: r.forum_id,
 		authorId: unmask ? r.author_id : 0,
 		authorName: unmask ? r.author_name : ANONYMOUS_AUTHOR_NAME,
+		authorAvatarPath: unmask ? String(row.author_avatar_path ?? "") : "",
 		content: r.content,
 		createdAt: r.created_at,
 		isFirst: r.is_first === 1,
@@ -616,7 +605,6 @@ export function toPublicUser(row: Record<string, unknown>, includeIp = false): P
 	const result: PublicUser = {
 		id: r.id,
 		username: r.username,
-		avatar: r.avatar,
 		avatarPath: r.avatar_path ?? "",
 		role: r.role,
 		regDate: r.reg_date,
@@ -674,7 +662,6 @@ export function enrichForumsWithUserCache(
 			return {
 				...forum,
 				lastPoster: user.username, // Use cached username (may be updated)
-				lastPosterAvatar: user.avatar,
 				lastPosterAvatarPath: user.avatarPath,
 			};
 		}
@@ -696,11 +683,10 @@ export function enrichThreadsWithUserCache(
 		return {
 			...thread,
 			authorName: author?.username ?? thread.authorName,
-			authorAvatar: author?.avatar ?? "",
-			authorAvatarPath: author?.avatarPath ?? "",
+			authorAvatarPath: thread.authorId > 0 ? (author?.avatarPath ?? thread.authorAvatarPath) : "",
 			lastPoster: lastPoster?.username ?? thread.lastPoster,
-			lastPosterAvatar: lastPoster?.avatar ?? "",
-			lastPosterAvatarPath: lastPoster?.avatarPath ?? "",
+			lastPosterAvatarPath:
+				thread.lastPosterId > 0 ? (lastPoster?.avatarPath ?? thread.lastPosterAvatarPath) : "",
 		};
 	});
 }

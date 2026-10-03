@@ -253,7 +253,7 @@ export const perform = withAuthVerified(async (request, env, user) => {
 	await Promise.all([
 		cacheDelete(env, `user:checkin:${user.userId}`, "user:checkin"),
 		cacheDelete(env, `user:stats:${user.userId}`, "user:stats"),
-		cacheDelete(env, `user:self:${user.userId}`, "user:self"),
+		cacheDelete(env, `user:self:v2:${user.userId}`, "user:self"),
 	]);
 
 	// ── Build response ───────────────────────────────────────

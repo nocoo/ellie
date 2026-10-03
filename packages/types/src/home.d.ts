@@ -32,6 +32,7 @@ export interface HomeContextRequest {
 export interface HomeUser {
     id: number;
     username: string;
+    avatarPath: string;
     role: number;
     status: number;
     credits: number;

@@ -54,6 +54,7 @@ interface TopicRow {
 interface UserRow {
 	id: number;
 	username: string;
+	avatar_path: string;
 	role: number;
 	status: number;
 	credits: number;
@@ -115,7 +116,7 @@ export function selectAllowedForumIds(
 
 export async function loadHomeUser(env: Env, userId: number): Promise<HomeUser | null> {
 	const row = await env.DB.prepare(
-		`SELECT id, username, role, status, credits, coins, group_title, email,
+		`SELECT id, username, avatar_path, role, status, credits, coins, group_title, email,
 		        email_verified_at, email_changed_at
 		 FROM users WHERE id = ?`,
 	)
@@ -126,6 +127,7 @@ export async function loadHomeUser(env: Env, userId: number): Promise<HomeUser |
 	return {
 		id: row.id,
 		username: row.username,
+		avatarPath: row.avatar_path,
 		role: row.role,
 		status: row.status,
 		credits: row.credits,
@@ -255,7 +257,6 @@ function aggregatesFor(
 			lastPostAt: row.lastPostAt,
 			lastPoster: row.lastPoster,
 			lastPosterId: row.lastPosterId,
-			lastPosterAvatar: row.lastPosterAvatar,
 			lastPosterAvatarPath: row.lastPosterAvatarPath,
 			anonAware: 1,
 		};
@@ -288,7 +289,6 @@ function clearTopic(summary: ForumSummaryTopic): ForumSummaryTopic {
 		topicCreatedAt: 0,
 		authorId: 0,
 		authorName: "",
-		authorAvatar: "",
 		authorAvatarPath: "",
 	};
 }

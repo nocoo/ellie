@@ -226,8 +226,8 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 				.then(async (saved) => {
 					if (!saved.success) throw new Error("Login state could not be saved");
 					await Promise.all([
-						cacheDelete(env, `user:self:${user.id}`, "user:self"),
-						cacheDelete(env, `user:public:v2:${user.id}:staff`, "user:public:v2"),
+						cacheDelete(env, `user:self:v2:${user.id}`, "user:self"),
+						cacheDelete(env, `user:public:v3:${user.id}:staff`, "user:public:v3"),
 					]);
 				}),
 		];
@@ -509,8 +509,8 @@ export async function register(
 		// ── Validate profile fields (education fields required at registration) ──
 		let profileFields: Record<string, unknown> = {};
 		if (body.profile && typeof body.profile === "object") {
-			// Strip email and avatar from profile to avoid double-handling
-			const { email: _e, avatar: _a, ...profileBody } = body.profile;
+			// Strip email from profile to avoid double-handling
+			const { email: _e, ...profileBody } = body.profile;
 			const validation = validateProfileFields(
 				profileBody,
 				origin,

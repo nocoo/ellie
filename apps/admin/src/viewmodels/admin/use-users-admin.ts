@@ -77,9 +77,6 @@ export interface UserFilters {
 	postsMax: string;
 	creditsMin: string;
 	creditsMax: string;
-	// Write-gate visibility filters (P2b). Values are "true" / "false" /
-	// "" (unset). Wired to worker `positive` / `expr` filters on
-	// email_verified_at and the compound has_avatar predicate.
 	emailVerified: string;
 	hasAvatar: string;
 	[key: string]: string; // Index signature for compatibility with AdminFilters
@@ -272,9 +269,6 @@ export function buildUserSearchParams(
 	if (filters.role) params.set("role", filters.role);
 	if (filters.regIp) params.set("regIp", filters.regIp);
 	if (filters.lastIp) params.set("lastIp", filters.lastIp);
-	// Write-gate visibility filters. Worker expects `true` / `false` on
-	// param names `emailVerified` (positive on email_verified_at) and
-	// `hasAvatar` (expr fragment covering avatar_path OR has_avatar).
 	if (filters.emailVerified) params.set("emailVerified", filters.emailVerified);
 	if (filters.hasAvatar) params.set("hasAvatar", filters.hasAvatar);
 

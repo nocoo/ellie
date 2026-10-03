@@ -55,7 +55,7 @@ function LastPosterAvatarLink({
 }: {
 	userId: number;
 	userName: string;
-	avatarPath?: string | null;
+	avatarPath: string;
 }) {
 	if (userId <= 0) return null;
 	return (

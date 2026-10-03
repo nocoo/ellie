@@ -75,14 +75,13 @@ describe("Admin forum DTOs preserve historical import records", () => {
 			lastPostAt: 1,
 			lastPoster: "bob",
 			lastPosterId: 20,
-			lastPosterAvatar: "",
-			lastPosterAvatarPath: "",
+			lastPosterAvatarPath: "bob.jpg",
 			lastThreadSubject: "Thread 1",
 			threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 		};
 		expect(authoritative.items.find((row) => row.id === forumId)).toEqual(expected);
 		expect(authoritative).toMatchObject({ total: 4, page: 1, limit: 20, paginated: false });
-		expect(f.calls).toHaveLength(1);
+		expect(f.calls).toHaveLength(2);
 		expect(f.calls.every((call) => /^\s*SELECT\b/i.test(call.sql))).toBe(true);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		expect(f.env.KV.put).not.toHaveBeenCalled();
@@ -121,7 +120,7 @@ describe("Admin forum DTOs preserve historical import records", () => {
 		const fresh = (await rebuildAdminEntityCache(f.env, f.ctx, descriptor)) as ForumList;
 		expect(fresh.items.find((row) => row.id === forumId)).toEqual({ ...expected, name: "Renamed" });
 		expect(isAdminEntityCacheData(descriptor, fresh)).toBe(true);
-		expect(f.calls).toHaveLength(1);
+		expect(f.calls).toHaveLength(2);
 		expect(f.values.get(key)).toBe(cached);
 		expect(f.env.KV.get).not.toHaveBeenCalled();
 		expect(f.env.KV.put).not.toHaveBeenCalled();
@@ -165,7 +164,7 @@ describe("Admin forum DTOs preserve historical import records", () => {
 		);
 		f.calls.length = 0;
 		expect(await readAdminEntity(f.env, undefined, descriptor)).toEqual(good);
-		expect(f.calls).toHaveLength(1);
+		expect(f.calls).toHaveLength(2);
 		expect(JSON.parse(f.values.get(key) ?? "null").data).toEqual(good);
 		f.calls.length = 0;
 		expect(await readAdminEntity(f.env, undefined, descriptor)).toEqual(good);

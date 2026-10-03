@@ -109,7 +109,7 @@ export function createDeletedUserPlaceholder(uid: number): Record<string, string
 		email: "",
 		password_hash: "",
 		password_salt: "",
-		avatar: "",
+		avatar_path: "",
 		status: -3, // Placeholder status
 		role: 0,
 		reg_date: 0,
@@ -140,6 +140,5 @@ export function createDeletedUserPlaceholder(uid: number): Record<string, string
 		reg_ip: "",
 		last_ip: "",
 		campus: "",
-		has_avatar: 0,
 	};
 }

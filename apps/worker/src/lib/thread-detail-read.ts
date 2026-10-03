@@ -385,6 +385,7 @@ async function loadDisplay(
 	posts = posts.map((post) => ({
 		...post,
 		authorName: profiles.get(post.authorId)?.username ?? post.authorName,
+		authorAvatarPath: profiles.get(post.authorId)?.avatarPath ?? "",
 	}));
 	const attachments = [...attachmentRows.values()]
 		.flat()

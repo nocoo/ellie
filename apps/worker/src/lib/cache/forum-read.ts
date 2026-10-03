@@ -63,7 +63,6 @@ function snapshot(row: Record<string, unknown>): ForumSnapshotRow {
 		lastThreadSubject: "",
 		lastPoster: "",
 		lastPosterId: 0,
-		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastPostAt: 0,
 	};
@@ -81,7 +80,7 @@ const LAST_ID =
 	"(SELECT t.id FROM threads t INDEXED BY idx_threads_forum_visible_created WHERE t.forum_id = f.id AND t.sticky >= 0 AND t.anonymous_author = 0 ORDER BY t.created_at DESC, t.id DESC LIMIT 1)";
 const LAST_THREAD_COLUMNS = `t.id AS last_thread_id, t.subject AS last_thread_subject,
  t.created_at AS last_post_at, t.author_id AS last_poster_id, t.anonymous_author,
- u.username AS last_poster_name, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path`;
+ u.username AS last_poster_name, u.avatar_path AS last_poster_avatar_path`;
 const LAST_THREAD_JOINS = `LEFT JOIN threads t ON t.id = ${LAST_ID}
  LEFT JOIN users u ON u.id = t.author_id AND t.anonymous_author = 0`;
 
@@ -94,7 +93,6 @@ function lastThreadFields(row: Record<string, unknown>) {
 		lastPostAt: Number(row.last_post_at ?? 0),
 		lastPoster: String(row.last_poster_name ?? "").slice(0, 64),
 		lastPosterId: Number(row.last_poster_id ?? 0),
-		lastPosterAvatar: String(row.last_poster_avatar ?? ""),
 		lastPosterAvatarPath: String(row.last_poster_avatar_path ?? ""),
 	};
 }
@@ -392,7 +390,6 @@ export function mergeTreeAndSummary(
 			lastPostAt: agg?.lastPostAt ?? 0,
 			lastPoster: agg?.lastPoster ?? "",
 			lastPosterId: agg?.lastPosterId ?? 0,
-			lastPosterAvatar: agg?.lastPosterAvatar ?? "",
 			lastPosterAvatarPath: agg?.lastPosterAvatarPath ?? "",
 			threadTypes: node.threadTypes,
 		};
@@ -439,7 +436,6 @@ export function toForumSummaries(
 			topicCreatedAt: row.lastPostAt,
 			authorId: row.lastPosterId,
 			authorName: row.lastPoster,
-			authorAvatar: row.lastPosterAvatar,
 			authorAvatarPath: row.lastPosterAvatarPath,
 		}))
 		.sort((a, b) => a.forumId - b.forumId);

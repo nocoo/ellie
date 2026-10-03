@@ -70,6 +70,8 @@ export function isReadingConfig(value: unknown): value is ReadingConfig {
 				typeof forum.name === "string" &&
 				typeof forum.description === "string" &&
 				typeof forum.announcement === "string" &&
+				typeof forum.lastPosterAvatarPath === "string" &&
+				!("lastPosterAvatar" in forum) &&
 				Array.isArray(forum.moderatorList),
 		)
 	);
@@ -179,7 +181,7 @@ export async function encodeForumReadSnapshot(
 	snapshot: ForumReadSnapshot,
 ): Promise<string | null> {
 	const text = JSON.stringify(snapshot);
-	const bytes = new TextEncoder().encode(`forum-read:v1:${text}`);
+	const bytes = new TextEncoder().encode(`forum-read:v2:${text}`);
 	if (new TextEncoder().encode(JSON.stringify(text)).byteLength + 65 > READING_SNAPSHOT_MAX_BYTES)
 		return null;
 	const signature = await crypto.subtle.sign("HMAC", await signingKey(env), bytes);
@@ -211,7 +213,7 @@ export async function decodeForumReadSnapshot(
 				"HMAC",
 				await signingKey(env),
 				signature,
-				new TextEncoder().encode(`forum-read:v1:${text}`),
+				new TextEncoder().encode(`forum-read:v2:${text}`),
 			))
 		)
 			return null;
@@ -227,7 +229,7 @@ export async function invalidateReadingConfig(env: Env): Promise<void> {
 		let cursor: string | undefined;
 		const keys: string[] = [];
 		for (let page = 0; page < 16; page++) {
-			const result = await env.KV.list({ prefix: "reading:v1:config:", limit: 1000, cursor });
+			const result = await env.KV.list({ prefix: "reading:v2:config:", limit: 1000, cursor });
 			keys.push(...result.keys.map((key) => key.name));
 			if (result.list_complete) break;
 			cursor = result.cursor;

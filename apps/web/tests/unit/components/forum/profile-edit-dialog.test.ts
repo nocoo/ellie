@@ -74,6 +74,7 @@ afterEach(() => cleanup());
 
 const USER = {
 	id: 1,
+	avatarPath: "",
 	gender: 0,
 	birthYear: 0,
 	birthMonth: 0,

@@ -15,7 +15,9 @@ beforeEach(() => {
 	vi.stubEnv("FORUM_API_KEY", "test-key");
 	vi.stubGlobal("fetch", fetchMock);
 	fetchMock.mockReset();
-	fetchMock.mockResolvedValue(Response.json({ data: { url: "/api/avatar/42", size: 1024 } }));
+	fetchMock.mockResolvedValue(
+		Response.json({ data: { url: "https://t.no.mt/avatars/saved.jpg", size: 1024 } }),
+	);
 });
 
 afterEach(() => {

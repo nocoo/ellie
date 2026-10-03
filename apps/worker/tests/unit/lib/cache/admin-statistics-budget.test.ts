@@ -36,7 +36,7 @@ describe("admin list statistics budgets", () => {
 		{
 			entity: "threads",
 			query: "limit=20&page=1",
-			sqls: 2,
+			sqls: 3,
 			id: 1,
 			expected: { replies: 8, lastPostAt: 100, lastPoster: "stored" },
 		},
@@ -62,6 +62,10 @@ describe("admin list statistics budgets", () => {
 			expect(row).not.toHaveProperty("attachmentsCount");
 			expect(f.calls).toHaveLength(sqls);
 			for (const call of f.calls) {
+				if (call.sql.includes("FROM users WHERE id IN")) {
+					expect(call.params).toEqual([10, 20]);
+					continue;
+				}
 				const tables = [...call.sql.matchAll(/\b(?:FROM|JOIN)\s+(\w+)/gi)].map((match) => match[1]);
 				expect(new Set(tables)).toEqual(new Set([entity]));
 				const plan = f.sqlite.prepare(`EXPLAIN QUERY PLAN ${call.sql}`).all(...call.params);
@@ -110,6 +114,10 @@ describe("narrow date list plans", () => {
 					.all(...call.params)
 					.map((row) => String(row.detail))
 					.join("\n");
+				if (call.sql.includes("FROM users WHERE id IN")) {
+					expect(plan).toContain("SEARCH users USING INTEGER PRIMARY KEY");
+					continue;
+				}
 				expect(plan).toContain(index);
 				expect(plan).toContain(`${date}>?`);
 			}

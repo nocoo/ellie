@@ -109,7 +109,8 @@ describe("buildUpsertStatement", () => {
 		expect(sql).not.toContain("id = excluded.id");
 		// Discuz-owned columns MUST be updated
 		expect(sql).toContain("username = excluded.username");
-		expect(sql).toContain("has_avatar = excluded.has_avatar");
+		expect(sql).toContain("avatar_path");
+		expect(sql).not.toContain("avatar_path = excluded.avatar_path");
 		expect(sql).toContain("coins = excluded.coins");
 		expect(sql).toContain("campus = excluded.campus");
 	});

@@ -249,6 +249,27 @@ describe("handleUpload", () => {
 			expect(updateCall?.params).toContain(12345);
 		});
 
+		it.each([false, true])(
+			"does not acknowledge an uncommitted mapping (success=%s)",
+			async (success) => {
+				const r2 = createMockR2();
+				const { db } = createMockDb({
+					runResults: { "UPDATE users SET avatar_path": { success, meta: { changes: 0 } } },
+				});
+				const ctx = createMockCtx();
+				await expect(
+					handleUpload(
+						createMultipartRequest({ file: createJpegFile(100), purpose: "avatar" }),
+						createEnv({ R2: r2, DB: db }),
+						ctx,
+						10,
+					),
+				).rejects.toThrow("Avatar mapping could not be saved");
+				expect(r2._putCalls).toHaveLength(1);
+				expect(ctx.waitUntil).not.toHaveBeenCalled();
+			},
+		);
+
 		it("should upload PNG to R2 with correct MIME type and extension", async () => {
 			const r2 = createMockR2();
 			const { db } = createMockDb();

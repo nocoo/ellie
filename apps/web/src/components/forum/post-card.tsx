@@ -31,7 +31,7 @@ import { ReportDialog } from "@/components/forum/report-dialog";
 import { ForumAvatar } from "@/components/forum/user-avatar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { FALLBACK_URL } from "@/lib/avatar";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
@@ -70,11 +70,7 @@ function MobileHeaderAvatar({ post }: { post: EnrichedPost }) {
 		return (
 			<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
 				<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-					<img
-						src={getStaticImageUrl("tavatar.gif")}
-						alt="匿名"
-						className="h-full w-full object-cover"
-					/>
+					<img src={FALLBACK_URL} alt="匿名" className="h-full w-full object-cover" />
 				</AvatarFallback>
 			</Avatar>
 		);
@@ -85,7 +81,7 @@ function MobileHeaderAvatar({ post }: { post: EnrichedPost }) {
 				<ForumAvatar
 					userId={post.authorId}
 					userName={post.author.username}
-					avatarPath={post.author.avatarPath}
+					avatarPath={post.authorAvatarPath}
 					size="md"
 					className="shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]"
 				/>
@@ -93,11 +89,13 @@ function MobileHeaderAvatar({ post }: { post: EnrichedPost }) {
 		);
 	}
 	return (
-		<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
-			<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
-			</AvatarFallback>
-		</Avatar>
+		<ForumAvatar
+			userId={post.authorId}
+			userName={post.authorName || "未知用户"}
+			avatarPath={post.authorAvatarPath}
+			size="md"
+			className="shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]"
+		/>
 	);
 }
 
@@ -288,6 +286,7 @@ export function PostCard({
 					 */}
 					<PostSidebar
 						author={post.author}
+						avatarPath={post.authorAvatarPath}
 						isAnonymous={post.authorId === 0 && post.anonymous === 1}
 					/>
 				</div>

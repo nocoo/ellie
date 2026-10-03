@@ -29,6 +29,7 @@ const mockThreads = [
 		subject: "Digest Thread",
 		authorId: 1,
 		authorName: "user1",
+		authorAvatarPath: "",
 		views: 10,
 		replies: 2,
 		lastPostAt: 1000,

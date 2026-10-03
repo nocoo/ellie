@@ -21,7 +21,15 @@ export async function dataCacheKey(
 ): Promise<string> {
 	const ordered = (value: Record<string, unknown>) =>
 		Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
-	const input = JSON.stringify([family, ordered(params), scope, ordered(gens)]);
+	const avatarPayload =
+		family === "pm:entity" ||
+		family === "user:posting-preview" ||
+		family === "admin:users:staff" ||
+		(["admin:entity:list", "admin:entity:detail"].includes(family) &&
+			["users", "forums", "threads", "posts"].includes(String(params.entity)));
+	const dimensions = [family, ordered(params), scope, ordered(gens)];
+	if (avatarPayload) dimensions.push("avatar-path:v1");
+	const input = JSON.stringify(dimensions);
 	const existing = hashing.get(input);
 	if (existing) return existing;
 	const task = crypto.subtle
@@ -123,7 +131,7 @@ export function userMiniKey(id: number): string {
 }
 
 export function userPublicKey(id: number, viewerBucket: ViewerBucket): string {
-	return `user:public:${SCHEMA}:${id}:${viewerBucket}`;
+	return `user:public:v3:${id}:${viewerBucket}`;
 }
 
 // ─── PM domain ─────────────────────────────────────────────────────

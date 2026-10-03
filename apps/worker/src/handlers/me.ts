@@ -9,12 +9,11 @@ import { errorResponse } from "../middleware/error";
 
 /** Explicit column list — never SELECT * to avoid leaking sensitive fields */
 const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at";
+	"id, username, email, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at";
 
 /** Max lengths for text fields */
 export const MAX_LENGTHS: Record<string, number> = {
 	email: 255,
-	avatar: 500,
 	campus: 100,
 	resideProvince: 50,
 	resideCity: 50,
@@ -48,7 +47,6 @@ const LENGTH_ERRORS: Record<string, string> = {
  * the API layer, not just in the UI.
  */
 export const DB_COLUMNS: Record<string, string> = {
-	avatar: "avatar",
 	gender: "gender",
 	birthYear: "birth_year",
 	birthMonth: "birth_month",
@@ -166,7 +164,6 @@ export function validateProfileFields(
 ): ValidationResult {
 	// Extract fields
 	const email = extractString(body, "email");
-	const avatar = extractString(body, "avatar");
 	const gender = extractNumber(body, "gender");
 	const birthYear = extractNumber(body, "birthYear");
 	const birthMonth = extractNumber(body, "birthMonth");
@@ -183,7 +180,6 @@ export function validateProfileFields(
 
 	const fields: Record<string, unknown> = {
 		email,
-		avatar,
 		gender,
 		birthYear,
 		birthMonth,

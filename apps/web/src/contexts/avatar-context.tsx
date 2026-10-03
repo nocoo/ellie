@@ -25,7 +25,7 @@ export function useAvatarContext() {
 	return context;
 }
 
-export function useAvatarUrl(uid: number, avatarPath?: string | null): string {
+export function useAvatarUrl(uid: number, avatarPath: string): string {
 	const context = useContext(AvatarContext);
-	return context?.avatars[uid] ?? getAvatarUrl(uid, avatarPath);
+	return context?.avatars[uid] ?? getAvatarUrl(avatarPath);
 }

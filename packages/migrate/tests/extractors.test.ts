@@ -182,13 +182,12 @@ describe("extractForum", () => {
 // ─── parseMemberRow ───────────────────────────────────────────────────────────
 
 describe("parseMemberRow", () => {
-	// MEMBER_COLS: uid=0, status=4, avatarstatus=6, adminid=8, regdate=12, credits=13, freeze=22
+	// MEMBER_COLS: uid=0, status=4, adminid=8, regdate=12, credits=13, freeze=22
 
 	test("parses member row with all fields", () => {
 		const r = row({
 			0: "100", // uid
 			4: "0", // status
-			6: "1", // avatarstatus
 			8: "1", // adminid
 			9: "9", // groupid
 			12: "1500000000", // regdate
@@ -199,7 +198,6 @@ describe("parseMemberRow", () => {
 		expect(result.uid).toBe(100);
 		expect(result.data).toEqual({
 			status: 0,
-			avatarstatus: 1,
 			adminid: 1,
 			groupid: 9,
 			regdate: 1500000000,
@@ -213,7 +211,6 @@ describe("parseMemberRow", () => {
 		const result = parseMemberRow(r);
 		expect(result.uid).toBe(50);
 		expect(result.data.status).toBe(0);
-		expect(result.data.avatarstatus).toBe(0);
 		expect(result.data.adminid).toBe(0);
 		expect(result.data.credits).toBe(0);
 	});
@@ -268,7 +265,6 @@ describe("extractUser", () => {
 
 	const defaultMember: MemberData = {
 		status: 0,
-		avatarstatus: 1,
 		adminid: 0,
 		groupid: 0,
 		regdate: 1500000000,
@@ -318,18 +314,12 @@ describe("extractUser", () => {
 		expect(result.email).toBe("");
 	});
 
-	test("avatar is set when avatarstatus=1", () => {
-		const result = extractUser(ucRow(), defaultMember, defaultCounts, false);
-		// getAvatarValue(100, 1) should return R2 key
-		expect(result.avatar).toBe("avatars/100.jpg");
-		expect(result.has_avatar).toBe(1);
-	});
-
-	test("avatar is empty when avatarstatus=0", () => {
-		const noAvatar = { ...defaultMember, avatarstatus: 0 };
-		const result = extractUser(ucRow(), noAvatar, defaultCounts, false);
-		expect(result.avatar).toBe("");
-		expect(result.has_avatar).toBe(0);
+	test("legacy avatarstatus cannot create an unverified path", () => {
+		for (const legacyStatus of ["0", "1"]) {
+			const { data } = parseMemberRow(row({ 0: "100", 6: legacyStatus }));
+			const result = extractUser(ucRow(), data, defaultCounts, false);
+			expect(result.avatar_path).toBe("");
+		}
 	});
 
 	test("archived user gets status=-2", () => {
@@ -343,12 +333,11 @@ describe("extractUser", () => {
 		expect(result.status).toBe(-1);
 	});
 
-	test("no member data: status=0, role=0, empty avatar, has_avatar=0", () => {
+	test("no member data: status=0, role=0, empty avatar_path", () => {
 		const result = extractUser(ucRow(), null, null, false);
 		expect(result.status).toBe(0);
 		expect(result.role).toBe(0);
-		expect(result.avatar).toBe("");
-		expect(result.has_avatar).toBe(0);
+		expect(result.avatar_path).toBe("");
 		expect(result.reg_date).toBe(0);
 		expect(result.threads).toBe(0);
 		expect(result.posts).toBe(0);
@@ -1125,7 +1114,6 @@ describe("extractUser with extras", () => {
 
 	const member: MemberData = {
 		status: 0,
-		avatarstatus: 1,
 		adminid: 0,
 		groupid: 5,
 		regdate: 1500000000,

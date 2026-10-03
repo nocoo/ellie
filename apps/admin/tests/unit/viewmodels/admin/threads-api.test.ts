@@ -57,7 +57,6 @@ describe("threads API functions", () => {
 				forumId: 7,
 				authorId: 1,
 				authorName: "alice",
-				authorAvatar: "https://cdn.example.com/a.png",
 				authorAvatarPath: "avatars/1.png",
 				replies: 3,
 				views: 10,
@@ -68,7 +67,6 @@ describe("threads API functions", () => {
 				lastPostAt: 1_700_000_500,
 				lastPoster: "bob",
 				lastPosterId: 2,
-				lastPosterAvatar: "",
 				lastPosterAvatarPath: "",
 				createdAt: 1_700_000_000,
 				typeName: "公告",
@@ -85,7 +83,6 @@ describe("threads API functions", () => {
 		expect(t.special).toBe(1);
 		expect(t.recommends).toBe(5);
 		expect(t.isAuthorFirstThread).toBe(true);
-		expect(t.authorAvatar).toBe("https://cdn.example.com/a.png");
 		expect(t.authorAvatarPath).toBe("avatars/1.png");
 	});
 

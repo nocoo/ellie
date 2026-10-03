@@ -80,7 +80,7 @@ mod tests {
 			posts: 42,
 			threads: 7,
 			credits: 100,
-			avatar: String::new(),
+			avatar_path: String::new(),
 			reg_date: 0,
 		};
 		terminal
@@ -108,7 +108,7 @@ mod tests {
 			posts: 42,
 			threads: 7,
 			credits: 100,
-			avatar: String::new(),
+			avatar_path: String::new(),
 			reg_date: 0,
 		};
 		terminal

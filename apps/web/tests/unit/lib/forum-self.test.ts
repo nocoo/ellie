@@ -46,7 +46,6 @@ function makeUser(overrides: Partial<User> = {}): User {
 		id: 42,
 		username: "alice",
 		email: "alice@example.com",
-		avatar: "",
 		avatarPath: "",
 		status: 0,
 		role: 0,

@@ -46,7 +46,12 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						align="end"
 						triggerClassName="inline-flex min-w-0 items-center gap-2.5 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-[320px] sm:px-3 sm:py-2"
 					>
-						<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
+						<TrackedUserAvatar
+							uid={user.uid}
+							username={user.username}
+							avatarPath={user.avatarPath}
+							size="md"
+						/>
 						<span
 							className="hidden min-w-0 space-y-0.5 text-left sm:block"
 							data-testid="forum-top-bar-user-meta"

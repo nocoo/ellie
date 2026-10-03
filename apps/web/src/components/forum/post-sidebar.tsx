@@ -3,8 +3,7 @@
 
 import type { User } from "@ellie/types";
 import Link from "next/link";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { FALLBACK_URL, getAvatarUrl } from "@/lib/avatar";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import { formatCheckinDays, formatCheckinLevel } from "@/viewmodels/forum/user-profile";
 import { formatNumber } from "@/viewmodels/shared/formatting";
@@ -14,6 +13,7 @@ import { UserPopover } from "./user-popover";
 
 interface PostSidebarProps {
 	author: User | null;
+	avatarPath: string;
 	/** Current viewer's role for popover permission checks */
 	viewerRole?: number;
 	/** Current viewer's user ID */
@@ -28,6 +28,7 @@ interface PostSidebarProps {
 
 export function PostSidebar({
 	author,
+	avatarPath,
 	viewerRole = 0,
 	viewerUserId = null,
 	isAnonymous = false,
@@ -42,11 +43,7 @@ export function PostSidebar({
 					匿名
 				</span>
 				<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1">
-					<img
-						src={getStaticImageUrl("tavatar.gif")}
-						alt="匿名"
-						className="block size-20 rounded-lg object-cover"
-					/>
+					<img src={FALLBACK_URL} alt="匿名" className="block size-20 rounded-lg object-cover" />
 				</div>
 			</div>
 		);
@@ -89,7 +86,7 @@ export function PostSidebar({
 				>
 					<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1 cursor-pointer">
 						<UserAvatar
-							src={getAvatarUrl(author.id, author.avatarPath)}
+							src={getAvatarUrl(avatarPath)}
 							alt={author.username}
 							className="block size-20 rounded-lg object-cover"
 						/>
@@ -97,8 +94,8 @@ export function PostSidebar({
 				</UserPopover>
 			) : (
 				<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1">
-					<img
-						src={getStaticImageUrl("tavatar.gif")}
+					<UserAvatar
+						src={getAvatarUrl(avatarPath)}
 						alt="默认头像"
 						className="block size-20 rounded-lg object-cover"
 					/>

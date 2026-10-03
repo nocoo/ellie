@@ -1,13 +1,11 @@
 import { type CacheDescriptor, getCheckinLevel } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	getAvatarPathCached,
 	getPublicUsers,
 	getUserHistory,
 	getUserSearchCached,
 	isHistoryCursor,
 	isUserCacheData,
-	loadAvatarPathFromDb,
 	loadUserHistory,
 	loadUserPublicFromDb,
 	loadUserSearchFromDb,
@@ -34,27 +32,27 @@ afterEach(() => {
 });
 
 describe("lib/cache/user-read — descriptor validation & key generation", () => {
-	it("validates user:public:v2 descriptor and scope", async () => {
+	it("validates user:public:v3 descriptor and scope", async () => {
 		const validPublic: CacheDescriptor = {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			scope: "public",
 			params: { id: 10, viewerBucket: "public" },
 		};
 		validateUserCacheDescriptor(validPublic);
-		expect(await userCacheKey(f.env, validPublic)).toBe("user:public:v2:10:public");
+		expect(await userCacheKey(f.env, validPublic)).toBe("user:public:v3:10:public");
 
 		const validStaff: CacheDescriptor = {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			scope: "staff",
 			params: { id: 10, viewerBucket: "staff" },
 		};
 		validateUserCacheDescriptor(validStaff);
-		expect(await userCacheKey(f.env, validStaff)).toBe("user:public:v2:10:staff");
+		expect(await userCacheKey(f.env, validStaff)).toBe("user:public:v3:10:staff");
 
 		// Scope mismatch with viewerBucket
 		expect(() =>
 			validateUserCacheDescriptor({
-				family: "user:public:v2",
+				family: "user:public:v3",
 				scope: "public",
 				params: { id: 10, viewerBucket: "staff" },
 			}),
@@ -63,7 +61,7 @@ describe("lib/cache/user-read — descriptor validation & key generation", () =>
 		// Non-positive ID
 		expect(() =>
 			validateUserCacheDescriptor({
-				family: "user:public:v2",
+				family: "user:public:v3",
 				scope: "public",
 				params: { id: 0, viewerBucket: "public" },
 			}),
@@ -72,14 +70,14 @@ describe("lib/cache/user-read — descriptor validation & key generation", () =>
 		// Unknown dimension
 		expect(() =>
 			validateUserCacheDescriptor({
-				family: "user:public:v2",
+				family: "user:public:v3",
 				scope: "public",
 				params: { id: 10, viewerBucket: "public", extra: 1 },
 			}),
 		).toThrow("Invalid user cache dimensions");
 	});
 
-	it("validates user:stats and user:avatar-path exact keys and public scope", async () => {
+	it("validates user:stats exact keys and public scope", async () => {
 		const statsDesc: CacheDescriptor = {
 			family: "user:stats",
 			scope: "public",
@@ -87,14 +85,6 @@ describe("lib/cache/user-read — descriptor validation & key generation", () =>
 		};
 		validateUserCacheDescriptor(statsDesc);
 		expect(await userCacheKey(f.env, statsDesc)).toBe("user:stats:10");
-
-		const avatarDesc: CacheDescriptor = {
-			family: "user:avatar-path",
-			scope: "public",
-			params: { id: 10 },
-		};
-		validateUserCacheDescriptor(avatarDesc);
-		expect(await userCacheKey(f.env, avatarDesc)).toBe("user:avatar-path:10");
 
 		// Reject non-public scope
 		expect(() =>
@@ -207,7 +197,7 @@ describe("lib/cache/user-read — isUserCacheData validator branch table", () =>
 	it("validates null negative cache entries only for allowed families", () => {
 		expect(
 			isUserCacheData(
-				{ family: "user:public:v2", scope: "public", params: { id: 10, viewerBucket: "public" } },
+				{ family: "user:public:v3", scope: "public", params: { id: 10, viewerBucket: "public" } },
 				null,
 			),
 		).toBe(true);
@@ -216,7 +206,7 @@ describe("lib/cache/user-read — isUserCacheData validator branch table", () =>
 		).toBe(true);
 		expect(
 			isUserCacheData({ family: "user:avatar-path", scope: "public", params: { id: 10 } }, null),
-		).toBe(true);
+		).toBe(false);
 		expect(
 			isUserCacheData(
 				{ family: "user:search", scope: "public", params: { q: "test", limit: 10 } },
@@ -263,14 +253,14 @@ describe("lib/cache/user-read — isUserCacheData validator branch table", () =>
 		expect(isUserCacheData(searchDesc, { items: [] })).toBe(false);
 	});
 
-	it("validates user:public:v2 stable fields and staff/public whitelist", () => {
+	it("validates user:public:v3 stable fields and staff/public whitelist", () => {
 		const publicDesc: CacheDescriptor = {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			scope: "public",
 			params: { id: 10, viewerBucket: "public" },
 		};
 		const staffDesc: CacheDescriptor = {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			scope: "staff",
 			params: { id: 10, viewerBucket: "staff" },
 		};
@@ -278,7 +268,6 @@ describe("lib/cache/user-read — isUserCacheData validator branch table", () =>
 		const samplePublic = {
 			id: 10,
 			username: "alice",
-			avatar: "alice.png",
 			avatarPath: "alice.jpg",
 			role: 0,
 			regDate: 100,
@@ -302,6 +291,8 @@ describe("lib/cache/user-read — isUserCacheData validator branch table", () =>
 		};
 
 		expect(isUserCacheData(publicDesc, samplePublic)).toBe(true);
+		expect(isUserCacheData(publicDesc, { ...samplePublic, avatarPath: undefined })).toBe(false);
+		expect(isUserCacheData(publicDesc, { ...samplePublic, avatar: "obsolete.jpg" })).toBe(false);
 
 		// ID poisoning / mismatch
 		expect(isUserCacheData(publicDesc, { ...samplePublic, id: 20 })).toBe(false);
@@ -364,17 +355,6 @@ describe("lib/cache/user-read — isUserCacheData validator branch table", () =>
 		expect(isUserCacheData(statsDesc, corruptCheckin)).toBe(false);
 	});
 
-	it("validates user:avatar-path exact payload", () => {
-		const avatarDesc: CacheDescriptor = {
-			family: "user:avatar-path",
-			scope: "public",
-			params: { id: 10 },
-		};
-		expect(isUserCacheData(avatarDesc, { avatarPath: "path/to/avatar.jpg" })).toBe(true);
-		expect(isUserCacheData(avatarDesc, { avatarPath: "path", extra: 1 })).toBe(false);
-		expect(isUserCacheData(avatarDesc, { avatarPath: 123 })).toBe(false);
-	});
-
 	it("validates user history payload structure and post vs thread requirements", () => {
 		const threadHistDesc: CacheDescriptor = {
 			family: "user:threads",
@@ -412,7 +392,7 @@ describe("lib/cache/user-read — rebuildUserCache pure queries & safety", () =>
 			.run();
 
 		const profile = (await rebuildUserCache(f.env, undefined, {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			scope: "public",
 			params: { id: 10, viewerBucket: "public" },
 		})) as Record<string, unknown>;
@@ -431,7 +411,7 @@ describe("lib/cache/user-read — rebuildUserCache pure queries & safety", () =>
 			.run();
 
 		const profile = (await rebuildUserCache(f.env, undefined, {
-			family: "user:public:v2",
+			family: "user:public:v3",
 			scope: "staff",
 			params: { id: 10, viewerBucket: "staff" },
 		})) as Record<string, unknown>;
@@ -470,19 +450,9 @@ describe("lib/cache/user-read — rebuildUserCache pure queries & safety", () =>
 		});
 	});
 
-	it("rebuilds avatar path", async () => {
-		const avatar = (await rebuildUserCache(f.env, undefined, {
-			family: "user:avatar-path",
-			scope: "public",
-			params: { id: 10 },
-		})) as { avatarPath: string };
-		expect(avatar.avatarPath).toBe("alice.jpg");
-	});
-
 	it("returns null for non-existent user on single profile/stats/avatar loads", async () => {
 		expect(await loadUserPublicFromDb(f.env, 99999, false)).toBeNull();
 		expect(await loadUserStatsFromDb(f.env, 99999)).toBeNull();
-		expect(await loadAvatarPathFromDb(f.env, 99999)).toBeNull();
 	});
 });
 
@@ -581,19 +551,6 @@ describe("lib/cache/user-read — history and search caching", () => {
 		const res2 = await getUserSearchCached(f.env, f.ctx, "CHA", 5);
 		expect(res2).toEqual(res1);
 		// Served from cache
-		expect(f.calls.length).toBe(callsBefore);
-	});
-
-	it("cached avatar path returns null for missing users and caches result", async () => {
-		const res = await getAvatarPathCached(f.env, f.ctx, 10);
-		expect(res?.avatarPath).toBe("alice.jpg");
-
-		const missing = await getAvatarPathCached(f.env, f.ctx, 9999);
-		expect(missing).toBeNull();
-
-		const callsBefore = f.calls.length;
-		const missingCached = await getAvatarPathCached(f.env, f.ctx, 9999);
-		expect(missingCached).toBeNull();
 		expect(f.calls.length).toBe(callsBefore);
 	});
 });

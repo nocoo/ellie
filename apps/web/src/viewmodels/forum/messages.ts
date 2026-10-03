@@ -16,8 +16,10 @@ export interface MessageListItem {
 	id: number;
 	senderId: number;
 	senderName: string;
+	senderAvatarPath: string;
 	receiverId: number;
 	receiverName: string;
+	receiverAvatarPath: string;
 	subject: string;
 	preview: string;
 	isRead: boolean;
@@ -29,8 +31,10 @@ export interface Message {
 	id: number;
 	senderId: number;
 	senderName: string;
+	senderAvatarPath: string;
 	receiverId: number;
 	receiverName: string;
+	receiverAvatarPath: string;
 	subject: string;
 	content: string;
 	isRead: boolean;

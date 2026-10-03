@@ -123,7 +123,9 @@ try {
 			}
 
 			// Sample with avatar
-			const withAvatar = db.query("SELECT COUNT(*) as c FROM users WHERE avatar != ''").get() as {
+			const withAvatar = db
+				.query("SELECT COUNT(*) as c FROM users WHERE avatar_path != ''")
+				.get() as {
 				c: number;
 			};
 			log(`Users with avatar: ${withAvatar.c}`);

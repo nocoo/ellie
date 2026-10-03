@@ -46,7 +46,6 @@ function makeD1UserRow(overrides?: Record<string, unknown>) {
 		site: "",
 		campus: "",
 		last_activity: 0,
-		has_avatar: 0,
 		email_verified_at: 0,
 		email_normalized: "",
 		email_changed_at: 0,
@@ -59,6 +58,17 @@ function makeD1UserRow(overrides?: Record<string, unknown>) {
 }
 
 describe("admin user handlers", () => {
+	it.each(["1", "0"])("derives avatar presence filter %s only from avatar_path", async (value) => {
+		const { db, calls } = createMockDb({ firstResults: { "SELECT COUNT": { total: 0 } } });
+		const response = await list(
+			createAdminRequest("GET", `/api/admin/users?hasAvatar=${value}`),
+			adminEnv(db),
+		);
+		expect(response.status).toBe(200);
+		const count = calls.find((call) => call.sql.includes("COUNT"))?.sql;
+		expect(count).toContain(value === "1" ? "avatar_path != ''" : "avatar_path = ''");
+		expect(count).not.toContain("has_avatar");
+	});
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
 
 	// ─── list ─────────────────────────────────────────────────
@@ -104,7 +114,6 @@ describe("admin user handlers", () => {
 
 			expect(res.status).toBe(200);
 			expect(body.data[0]).toMatchObject({
-				avatar: "x.png",
 				avatarPath: "avatars/u1.jpg",
 			});
 			const projection = calls.find((c) => c.sql.includes("avatar_path"));
@@ -1584,6 +1593,24 @@ describe("admin user handlers", () => {
 			).toEqual(["att/a.png", "att/b.png", "avatars/42.png"]);
 		});
 
+		it("retains an avatar object still referenced by another user", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
+					"SELECT id FROM users WHERE avatar_path": { id: 99 },
+				},
+			});
+			const r2 = createMockR2();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+			const response = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
+			expect(response.status).toBe(200);
+			expect((await response.json()).data.r2.deletedCount).toBe(0);
+			expect(r2.delete).not.toHaveBeenCalled();
+			expect(
+				calls.find((call) => call.sql.startsWith("SELECT id FROM users WHERE avatar_path"))?.params,
+			).toEqual(["avatars/42.png", 42]);
+		});
+
 		it("returns 500 PURGE_DB_FAILED if DB batch throws (R2 not touched)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
@@ -2099,36 +2126,15 @@ describe("admin user handlers", () => {
 
 	// ─── update — avatar validation ──────────────────────────────
 
-	describe("update — avatar validation", () => {
-		it("should update avatar with valid string", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-					"SELECT id, username": makeD1UserRow({ id: 42, avatar: "new.png" }),
-				},
+	describe("update — avatar mapping is upload-only", () => {
+		it.each(["avatar", "avatarPath"])("rejects generic %s edits", async (field) => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 			});
-
-			const request = createAdminRequest("PATCH", "/api/admin/users/42", {
-				avatar: "new.png",
-			});
-			const res = await update(request, adminEnv(db));
-			expect(res.status).toBe(200);
-		});
-
-		it("should reject non-string avatar", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-				},
-			});
-
-			const request = createAdminRequest("PATCH", "/api/admin/users/42", {
-				avatar: 123,
-			});
+			const request = createAdminRequest("PATCH", "/api/admin/users/42", { [field]: "new.png" });
 			const res = await update(request, adminEnv(db));
 			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toBe("avatar must be a string");
+			expect(calls.some((call) => call.sql.startsWith("UPDATE users"))).toBe(false);
 		});
 	});
 

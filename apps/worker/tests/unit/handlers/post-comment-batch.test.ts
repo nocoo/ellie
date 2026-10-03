@@ -143,11 +143,15 @@ describe("batchByPostIds (post-comments)", () => {
 	});
 
 	it("should return comments for multiple posts in a single request", async () => {
-		const { db } = createMockDb({
+		const { db, calls } = createMockDb({
 			firstResults: {
 				"FROM threads t": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 			},
 			allResults: {
+				"SELECT id, username, avatar_path": [
+					{ id: 100, username: "alice", avatar_path: "avatar/alice.jpg", role: 0 },
+					{ id: 200, username: "bob", avatar_path: "", role: 0 },
+				],
 				"FROM posts": [10, 20, 30, 40, 50].map((id) => ({
 					id,
 					thread_id: 1,
@@ -186,6 +190,11 @@ describe("batchByPostIds (post-comments)", () => {
 		expect(response.status).toBe(200);
 		const data = (await response.json()) as { data: unknown[] };
 		expect(data.data).toHaveLength(2);
+		expect(data.data).toMatchObject([
+			{ authorAvatarPath: "avatar/alice.jpg" },
+			{ authorAvatarPath: "" },
+		]);
+		expect(calls.filter((call) => call.sql.includes("FROM users WHERE id IN"))).toHaveLength(1);
 	});
 
 	it("should map comments to camelCase", async () => {

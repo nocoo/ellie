@@ -225,8 +225,8 @@ describe("admin statistics invalidation", () => {
 		);
 		expect(res.status).toBe(200);
 		expect(deleted.mock.calls.map(([key]) => key).sort()).toEqual([
-			"user:self:10",
-			"user:self:11",
+			"user:self:v2:10",
+			"user:self:v2:11",
 			"user:stats:10",
 			"user:stats:11",
 		]);

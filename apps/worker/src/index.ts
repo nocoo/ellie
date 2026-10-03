@@ -17,6 +17,18 @@ export default {
 	async fetch(request: CFRequest, bindings: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const path = url.pathname;
+		if (
+			bindings.DEPLOYMENT_FREEZE === "true" &&
+			!(
+				"GET" === request.method &&
+				(path === "/api/live" || path === "/api/internal/statistics/snapshot")
+			)
+		) {
+			return new Response(JSON.stringify({ error: { code: "DEPLOYMENT_FROZEN" } }), {
+				status: 503,
+				headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+			});
+		}
 		const origin = request.headers.get("Origin") ?? undefined;
 		const env = bindings;
 
@@ -165,9 +177,6 @@ export default {
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).getById(request, env, ctx);
-			}
-			if (path.match(/^\/api\/v1\/users\/\d+\/avatar-path$/) && request.method === "GET") {
-				return await (await import("./handlers/user")).getAvatarPath(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/threads$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).listThreads(request, env, ctx);
@@ -855,6 +864,7 @@ export default {
 	},
 
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+		if (env.DEPLOYMENT_FREEZE === "true") return;
 		if (event.cron !== "0 19 * * *") {
 			console.warn("[cron] unknown schedule fired", { cron: event.cron });
 			return;

@@ -48,7 +48,6 @@ describe("userTombstone", () => {
 				"email",
 				"password_hash",
 				"password_salt",
-				"avatar",
 				"avatar_path",
 				"signature",
 				"group_title",
@@ -84,7 +83,6 @@ describe("userTombstone", () => {
 				"birth_month",
 				"birth_day",
 				"last_activity",
-				"has_avatar",
 				"email_verified_at",
 				"email_changed_at",
 			];

@@ -29,9 +29,6 @@ export interface UserStatsPayload {
 	checkin: UserCheckinSummary | null;
 }
 export type StablePublicUser = Omit<PublicUser, keyof UserStatsPayload>;
-export interface AvatarPathPayload {
-	avatarPath: string;
-}
 export interface UserSearchResultItem {
 	id: number;
 	username: string;
@@ -51,16 +48,15 @@ export interface CachedHistoryList {
 }
 export type UserHistoryFamily = "user:threads" | "user:posts" | "user:digest";
 const TIERS: Record<string, CacheTier> = {
-	"user:public:v2": "MEDIUM",
+	"user:public:v3": "MEDIUM",
 	"user:stats": "SHORT",
-	"user:avatar-path": "LONG",
 	"user:threads": "SHORT",
 	"user:posts": "SHORT",
 	"user:digest": "SHORT",
 	"user:search": "HOUR",
 };
 const STABLE_COLUMNS =
-	"id, username, avatar, avatar_path, role, reg_date, signature, group_title, group_stars, group_color, custom_title, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus";
+	"id, username, avatar_path, role, reg_date, signature, group_title, group_stars, group_color, custom_title, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus";
 const STATS_COLUMNS =
 	"u.id, u.threads, u.posts, u.credits, u.coins, u.digest_posts, u.ol_time, u.last_activity, c.total_days, c.month_days, c.streak_days, c.last_checkin_at";
 function positive(value: unknown): value is number {
@@ -70,8 +66,7 @@ const record = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 /** Validate reusable fields and the original audience before trusting a KV value. */
 export function isUserCacheData(d: CacheDescriptor, value: unknown): boolean {
-	if (value === null)
-		return ["user:public:v2", "user:stats", "user:avatar-path"].includes(d.family);
+	if (value === null) return ["user:public:v3", "user:stats"].includes(d.family);
 	if (d.family === "user:search")
 		return (
 			Array.isArray(value) &&
@@ -85,7 +80,7 @@ export function isUserCacheData(d: CacheDescriptor, value: unknown): boolean {
 			)
 		);
 	if (!record(value)) return false;
-	if (d.family === "user:public:v2") {
+	if (d.family === "user:public:v3") {
 		const fields = Object.keys(stableUser({}, d.scope === "staff"));
 		return (
 			value.id === d.params.id &&
@@ -95,8 +90,6 @@ export function isUserCacheData(d: CacheDescriptor, value: unknown): boolean {
 			Object.keys(value).every((key) => fields.includes(key))
 		);
 	}
-	if (d.family === "user:avatar-path")
-		return Object.keys(value).length === 1 && typeof value.avatarPath === "string";
 	if (d.family === "user:stats") {
 		const numbers = [
 			"threads",
@@ -186,10 +179,10 @@ export function validateUserCacheDescriptor(d: CacheDescriptor): void {
 	} else if (["user:threads", "user:posts", "user:digest"].includes(d.family)) {
 		validateHistoryDescriptor(d);
 	} else {
-		dimensions(d, d.family === "user:public:v2" ? ["id", "viewerBucket"] : ["id"]);
+		dimensions(d, d.family === "user:public:v3" ? ["id", "viewerBucket"] : ["id"]);
 		if (!positive(p.id)) throw new TypeError("Invalid user ID");
 		if (
-			d.family === "user:public:v2"
+			d.family === "user:public:v3"
 				? !["public", "staff"].includes(d.scope) || p.viewerBucket !== d.scope
 				: d.scope !== "public"
 		)
@@ -198,9 +191,8 @@ export function validateUserCacheDescriptor(d: CacheDescriptor): void {
 }
 export async function userCacheKey(_env: Env, d: CacheDescriptor): Promise<string> {
 	validateUserCacheDescriptor(d);
-	if (d.family === "user:public:v2") return `user:public:v2:${d.params.id}:${d.scope}`;
-	if (d.family === "user:stats" || d.family === "user:avatar-path")
-		return `${d.family}:${d.params.id}`;
+	if (d.family === "user:public:v3") return `user:public:v3:${d.params.id}:${d.scope}`;
+	if (d.family === "user:stats") return `${d.family}:${d.params.id}`;
 	const key = await dataCacheKey(d.family, d.params, d.scope);
 	return d.family === "user:search" && String(d.params.q).length > 256
 		? `${key}:!unavailable`
@@ -312,15 +304,6 @@ export async function loadUserPublicFromDb(
 export async function loadUserStatsFromDb(env: Env, id: number): Promise<UserStatsPayload | null> {
 	return (await loadStatsUsers(env, [id])).get(id) ?? null;
 }
-export async function loadAvatarPathFromDb(
-	env: Env,
-	id: number,
-): Promise<AvatarPathPayload | null> {
-	const row = await env.DB.prepare("SELECT avatar_path FROM users WHERE id = ?")
-		.bind(id)
-		.first<{ avatar_path: string | null }>();
-	return row ? { avatarPath: row.avatar_path ?? "" } : null;
-}
 
 /** Each family reads KV in bulk and shares one lazy SQL batch for its missing IDs. */
 async function getUserParts<T>(
@@ -392,7 +375,7 @@ export async function getPublicUsers(
 			env,
 			ctx,
 			ids,
-			(id) => ({ family: "user:public:v2", params: { id, viewerBucket: bucket }, scope: bucket }),
+			(id) => ({ family: "user:public:v3", params: { id, viewerBucket: bucket }, scope: bucket }),
 			(missing) => loadStableUsers(env, missing, bucket === "staff"),
 		),
 		getUserParts(
@@ -410,18 +393,6 @@ export async function getPublicUsers(
 		if (profile && counters) result.set(id, { ...profile, ...counters });
 	}
 	return result;
-}
-export async function getAvatarPathCached(
-	env: Env,
-	ctx: ExecutionContext | undefined,
-	id: number,
-): Promise<AvatarPathPayload | null> {
-	const d = { family: "user:avatar-path", params: { id }, scope: "public" };
-	return cacheGetOrSet(env, ctx, await userCacheKey(env, d), () => loadAvatarPathFromDb(env, id), {
-		...d,
-		tier: "LONG",
-		validator: (value): value is AvatarPathPayload | null => isUserCacheData(d, value),
-	});
 }
 export async function loadUserHistory(env: Env, d: CacheDescriptor): Promise<CachedHistoryList> {
 	validateUserCacheDescriptor(d);
@@ -513,10 +484,9 @@ export async function rebuildUserCache(
 	d: CacheDescriptor,
 ): Promise<unknown> {
 	validateUserCacheDescriptor(d);
-	if (d.family === "user:public:v2")
+	if (d.family === "user:public:v3")
 		return loadUserPublicFromDb(env, Number(d.params.id), d.scope === "staff");
 	if (d.family === "user:stats") return loadUserStatsFromDb(env, Number(d.params.id));
-	if (d.family === "user:avatar-path") return loadAvatarPathFromDb(env, Number(d.params.id));
 	if (d.family === "user:search")
 		return loadUserSearchFromDb(env, String(d.params.q), Number(d.params.limit));
 	return loadUserHistory(env, d);

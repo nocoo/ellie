@@ -53,11 +53,10 @@ function dispatchFirst(
 		return { role: 0, status: 0, email_verified_at: 1700000000 };
 	}
 	if (sql.includes("SELECT key, value FROM settings")) return null;
-	if (sql.includes("SELECT status, avatar_path, has_avatar, reg_date, role FROM users")) {
+	if (sql.includes("SELECT status, avatar_path, reg_date, role FROM users")) {
 		return {
 			status: 0,
 			avatar_path: "avatars/x.jpg",
-			has_avatar: 1,
 			reg_date: 0,
 			role: 0,
 		};

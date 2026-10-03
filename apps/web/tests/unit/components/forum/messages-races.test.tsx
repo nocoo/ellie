@@ -24,7 +24,9 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("@/components/forum/compose-message-dialog", () => ({ ComposeMessageDialog: () => null }));
 vi.mock("@/components/forum/user-avatar", () => ({
-	ForumAvatar: () => <span aria-hidden="true" />,
+	ForumAvatar: ({ avatarPath }: { avatarPath: string }) => (
+		<span data-testid="avatar" data-path={avatarPath} />
+	),
 }));
 
 import { ForumToastProvider } from "@/components/forum/forum-toast";
@@ -35,8 +37,10 @@ const incoming = {
 	id: 42,
 	senderId: 10,
 	senderName: "Alice",
+	senderAvatarPath: "avatars/alice.jpg",
 	receiverId: 20,
 	receiverName: "Bob",
+	receiverAvatarPath: "avatars/bob.jpg",
 	subject: "Incoming message",
 	content: "Received message content",
 	preview: "Received message content",
@@ -48,8 +52,10 @@ const outgoing = {
 	id: 99,
 	senderId: 20,
 	senderName: "Bob",
+	senderAvatarPath: "",
 	receiverId: 30,
 	receiverName: "Carol",
+	receiverAvatarPath: "avatar/000/00/00/30_avatar_big.jpg",
 	subject: "Unread outgoing message",
 };
 
@@ -72,6 +78,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Independent message async review", () => {
+	it("passes explicit sender and recipient paths to inbox and outbox avatars", async () => {
+		render(
+			<ForumToastProvider>
+				<MessagesPageClient breadcrumbs={[{ label: "站内信" }]} />
+			</ForumToastProvider>,
+		);
+		await screen.findByText("Alice");
+		expect(screen.getByTestId("avatar").getAttribute("data-path")).toBe("avatars/alice.jpg");
+		fireEvent.click(screen.getByRole("button", { name: "发信箱" }));
+		await screen.findByText("Carol");
+		expect(screen.getByTestId("avatar").getAttribute("data-path")).toBe(
+			"avatar/000/00/00/30_avatar_big.jpg",
+		);
+	});
+
 	it("does not submit another delete while the successful navigation is pending", async () => {
 		let finishDelete!: (value: unknown) => void;
 		remove.mockReturnValueOnce(
@@ -85,6 +106,7 @@ describe("Independent message async review", () => {
 			</ForumToastProvider>,
 		);
 		await screen.findByText("Alice");
+		expect(screen.getByTestId("avatar").getAttribute("data-path")).toBe("avatars/alice.jpg");
 		fireEvent.click(screen.getByRole("button", { name: "删除站内信" }));
 		fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 		expect(remove).toHaveBeenCalledExactlyOnceWith("/api/v1/messages/42");

@@ -88,7 +88,7 @@ const MOCK_USER: User = {
 	id: 42,
 	username: "alice",
 	email: "alice@test.com",
-	avatar: "",
+	avatarPath: "",
 	role: 0,
 	status: 0,
 	threads: 0,

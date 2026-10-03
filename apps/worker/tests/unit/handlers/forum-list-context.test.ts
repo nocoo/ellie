@@ -58,11 +58,11 @@ describe("POST /api/v1/forums/context", () => {
 			id: 1,
 			threads: 12,
 			posts: 34,
-			lastThreadId: 0,
-			lastPostAt: 0,
-			lastPoster: "",
-			lastPosterId: 0,
-			lastThreadSubject: "",
+			lastThreadId: 8,
+			lastPostAt: 8,
+			lastPoster: "alice",
+			lastPosterId: 10,
+			lastThreadSubject: "Live",
 		});
 		expect(f.calls.some((call) => call.sql.includes("COUNT(*)"))).toBe(false);
 		expect(f.env.KV.put).toHaveBeenCalled();
@@ -381,7 +381,7 @@ describe("POST /api/v1/forums/context", () => {
 			(await (await forumListContext(post(request({ typeId: 70 })), f.env)).json()).data.typeId,
 		).toBe(null);
 		f.sqlite.exec("UPDATE forums SET thread_types_listable = 0 WHERE id = 1");
-		f.values.delete("reading:v1:config:1:anon");
+		f.values.delete("reading:v2:config:1:anon");
 		expect(
 			(await (await forumListContext(post(request({ typeId: 7 })), f.env)).json()).data.typeId,
 		).toBe(null);
@@ -474,7 +474,7 @@ describe("POST /api/v1/forums/context", () => {
 		expect(body.data.announcementCount).toBe(0);
 		const sql = f.calls.map((call) => call.sql).join("\n");
 		expect(sql).not.toContain("forum_recommended_threads");
-		expect(sql).not.toContain("t.sticky");
+		expect(sql).not.toContain("SELECT t.id, t.sticky");
 	});
 
 	it("rejects overflow instead of returning a truncated page", async () => {

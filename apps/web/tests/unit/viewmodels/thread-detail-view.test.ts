@@ -43,6 +43,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
 		subject: "Hello",
 		authorId: 5,
 		authorName: "alice",
+		authorAvatarPath: "",
 		createdAt: 1_700_000_000,
 		lastPostAt: 0,
 		replies: 0,

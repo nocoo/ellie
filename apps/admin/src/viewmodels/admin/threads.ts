@@ -17,9 +17,6 @@ export interface Thread {
 	forumId: number;
 	authorId: number;
 	authorName: string;
-	/** Avatar URL — populated by worker from the user KV cache; "" if unknown. */
-	authorAvatar: string;
-	/** R2 key for the avatar; "" if unknown. Mirrors `authorAvatar` semantics. */
 	authorAvatarPath: string;
 	replies: number;
 	views: number;
@@ -33,9 +30,6 @@ export interface Thread {
 	lastPoster: string;
 	/** User id of the most recent poster; 0 when no reply yet. */
 	lastPosterId: number;
-	/** Avatar URL of the most recent poster; "" if unknown. */
-	lastPosterAvatar: string;
-	/** R2 key for the last-poster avatar; "" if unknown. */
 	lastPosterAvatarPath: string;
 	createdAt: number;
 	/** Thread type chip (e.g. "公告", "投票"); "" when unset. */

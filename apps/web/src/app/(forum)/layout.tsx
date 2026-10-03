@@ -105,6 +105,7 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 					? {
 							uid: context.user.id,
 							username: context.user.username,
+							avatarPath: context.user.avatarPath,
 							groupTitle: context.user.groupTitle,
 							credits: context.user.credits,
 							coins: context.user.coins,
@@ -155,6 +156,7 @@ async function loadCurrentUser(): Promise<HeaderUserInfo | null> {
 
 		return {
 			username: user.username,
+			avatarPath: user.avatarPath,
 			uid: user.id,
 			groupTitle: user.groupTitle,
 			credits: user.credits,

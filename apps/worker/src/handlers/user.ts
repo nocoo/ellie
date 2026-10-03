@@ -15,7 +15,6 @@ import {
 	threadAccessStatus,
 } from "../lib/cache/thread-loaders";
 import {
-	getAvatarPathCached,
 	getPublicUsers,
 	getUserHistory,
 	getUserSearchCached,
@@ -114,20 +113,6 @@ export async function getById(
 	).get(id);
 	return user
 		? jsonResponse(user, origin)
-		: errorResponse("USER_NOT_FOUND", 404, undefined, origin);
-}
-export async function getAvatarPath(
-	request: Request,
-	env: Env,
-	ctx?: ExecutionContext,
-): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const id = parsePathSegment(request, 1);
-	if (!id || id < 1)
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
-	const value = await getAvatarPathCached(env, ctx, id);
-	return value
-		? jsonResponse(value, origin)
 		: errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 }
 function canListThread(
@@ -254,6 +239,7 @@ async function composePosts(
 	for (const item of items) {
 		const author = users.get(item.post.authorId);
 		if (author) item.post.authorName = author.username;
+		item.post.authorAvatarPath = author?.avatarPath ?? "";
 	}
 	return items;
 }

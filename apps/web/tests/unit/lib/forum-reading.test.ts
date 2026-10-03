@@ -46,7 +46,6 @@ function makeSummary(overrides: Partial<ForumSummaryTopic> = {}): ForumSummaryTo
 		topicCreatedAt: 1_700_000_000,
 		authorId: 5,
 		authorName: "alice",
-		authorAvatar: "https://cdn.example.com/a.png",
 		authorAvatarPath: "avatars/a.jpg",
 		...overrides,
 	};
@@ -83,7 +82,6 @@ function makeStructure(overrides: Partial<ForumStructure["forums"][number]> = {}
 		lastPostAt: 0,
 		lastPoster: "",
 		lastPosterId: 0,
-		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 		threadTypes: { enabled: false, required: false, listable: false, prefix: false, types: [] },
@@ -138,6 +136,12 @@ beforeEach(() => {
 });
 
 describe("boundForumSummaryTopic", () => {
+	it("rejects an incomplete avatar payload before caching it", () => {
+		expect(() => boundForumSummaryTopic(makeSummary({ authorAvatarPath: undefined }))).toThrow(
+			"Avatar path is required",
+		);
+	});
+
 	it("clamps numerics and cuts subject/name without splitting surrogate pairs", () => {
 		const bounded = boundForumSummaryTopic(
 			makeSummary({
@@ -160,13 +164,10 @@ describe("boundForumSummaryTopic", () => {
 
 	it("omits oversized avatar URLs instead of truncating them", () => {
 		const long = `https://cdn.example.com/${"a".repeat(2100)}`;
-		const bounded = boundForumSummaryTopic(
-			makeSummary({ authorAvatar: long, authorAvatarPath: long }),
-		);
-		expect(bounded.authorAvatar).toBe("");
+		const bounded = boundForumSummaryTopic(makeSummary({ authorAvatarPath: long }));
 		expect(bounded.authorAvatarPath).toBe("");
 		const ok = "https://cdn.example.com/normal.png";
-		expect(boundForumSummaryTopic(makeSummary({ authorAvatar: ok })).authorAvatar).toBe(ok);
+		expect(boundForumSummaryTopic(makeSummary({ authorAvatarPath: ok })).authorAvatarPath).toBe(ok);
 	});
 });
 

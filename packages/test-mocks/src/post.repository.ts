@@ -78,6 +78,7 @@ export function createMockPostRepository(store: MockDataStore): PostRepository {
 				forumId,
 				authorId: input.authorId,
 				authorName: input.authorName,
+				authorAvatarPath: store.users.find((user) => user.id === input.authorId)?.avatarPath ?? "",
 				content: input.content,
 				createdAt: now,
 				isFirst: false,

@@ -96,11 +96,9 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 			<div className="flex flex-col md:flex-row">
 				{/* Author sidebar */}
 				<div className="flex md:flex-col items-center md:items-center gap-3 md:gap-2 border-b md:border-b-0 md:border-r p-3 md:w-40 md:shrink-0">
-					{/* Avatar — falls back to default tavatar.gif via UserAvatar onError. */}
 					<UserAvatar
-						uid={author?.id ?? post.authorId}
 						username={author?.username ?? post.authorName}
-						avatarPath={author?.avatarPath}
+						avatarPath={post.authorAvatarPath}
 						className="md:h-16 md:w-16 h-12 w-12"
 					/>
 

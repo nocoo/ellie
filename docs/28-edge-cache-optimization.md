@@ -1,5 +1,8 @@
 # Edge cache optimization
 
+Avatar-specific UID proxy and fallback sections below are historical after the path-only cutover. [Plan 37](37-avatar-path-normalization.md) supersedes them: no UID image proxy, no guessed legacy URL, and a local default asset. Preserve unrelated static-asset rules.
+
+
 ## Scope and decisions
 
 The approved direction is to serve reusable HTTP responses from Cloudflare before

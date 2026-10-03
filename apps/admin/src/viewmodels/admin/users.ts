@@ -9,16 +9,7 @@ export interface User {
 	id: number;
 	username: string;
 	email: string;
-	avatar: string;
-	/** GUID-based avatar path (e.g. "avatars/abc.jpg"); empty string when not set. Direct CDN address. */
-	avatarPath?: string;
-	/**
-	 * Legacy Discuz has_avatar flag (D1 users.has_avatar). true iff the user
-	 * uploaded an avatar under the pre-GUID scheme. Kept alongside avatarPath
-	 * so admin views can mirror postingPermission.ts's rule:
-	 * hasAvatar = !!avatar_path || has_avatar === 1.
-	 */
-	hasAvatar?: boolean;
+	avatarPath: string;
 	role: number;
 	status: number;
 	threads: number;
@@ -82,8 +73,6 @@ export interface UserFilters {
 export interface UserUpdate {
 	username?: string;
 	email?: string;
-	avatar?: string;
-	avatarPath?: string;
 	status?: number;
 	role?: number;
 	credits?: number;

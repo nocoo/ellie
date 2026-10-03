@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ImgHTMLAttributes, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ForumAvatar, TrackedUserAvatar, UserAvatar } from "@/components/forum/user-avatar";
-import { FALLBACK_URL } from "@/lib/avatar-proxy";
+import { FALLBACK_URL } from "@/lib/avatar";
 
 vi.mock("@/components/ui/avatar", () => ({
 	Avatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -14,17 +14,17 @@ vi.mock("@/components/ui/avatar", () => ({
 afterEach(cleanup);
 
 describe("UserAvatar", () => {
-	it.each(["", null])("keeps known legacy paths direct in composed avatars (%s)", (avatarPath) => {
+	it("uses local defaults for explicitly empty paths in composed avatars", () => {
 		const { container } = render(
 			<>
-				<ForumAvatar userId={42} userName="forum" avatarPath={avatarPath} />
-				<TrackedUserAvatar uid={42} username="profile" avatarPath={avatarPath} />
+				<ForumAvatar userId={42} userName="forum" avatarPath="" />
+				<TrackedUserAvatar uid={42} username="profile" avatarPath="" />
 			</>,
 		);
 		const images = container.querySelectorAll("img");
 		expect(images).toHaveLength(2);
 		for (const image of images) {
-			expect(image.getAttribute("src")).toBe("https://t.no.mt/avatar/000/00/00/42_avatar_big.jpg");
+			expect(image.getAttribute("src")).toBe(FALLBACK_URL);
 		}
 	});
 

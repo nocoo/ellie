@@ -114,7 +114,6 @@ export declare enum Gender {
 export interface PublicUser {
     id: number;
     username: string;
-    avatar: string;
     avatarPath: string;
     role: UserRole;
     regDate: number;
@@ -153,7 +152,6 @@ export interface User {
     id: number;
     username: string;
     email: string;
-    avatar: string;
     avatarPath: string;
     status: UserStatus;
     role: UserRole;
@@ -195,8 +193,6 @@ export interface User {
     emailNormalized: string;
     /** Unix seconds of the last successful email change while unverified. 0 if never. */
     emailChangedAt: number;
-    /** Whether user has uploaded an avatar (determines posting permission) */
-    hasAvatar?: boolean;
     /** Registration IP (admin-only) */
     regIp?: string;
     /** Last login IP (admin-only) */
@@ -296,7 +292,6 @@ export interface Forum {
     lastPostAt: number;
     lastPoster: string;
     lastPosterId: number;
-    lastPosterAvatar: string;
     lastPosterAvatarPath: string;
     lastThreadSubject: string;
     /** Per-forum thread-category configuration; always returned. */
@@ -308,14 +303,12 @@ export interface Thread {
     forumId: number;
     authorId: number;
     authorName: string;
-    authorAvatar: string;
     authorAvatarPath: string;
     subject: string;
     createdAt: number;
     lastPostAt: number;
     lastPoster: string;
     lastPosterId: number;
-    lastPosterAvatar: string;
     lastPosterAvatarPath: string;
     replies: number;
     views: number;
@@ -361,6 +354,7 @@ export interface Post {
     forumId: number;
     authorId: number;
     authorName: string;
+    authorAvatarPath: string;
     content: string;
     createdAt: number;
     isFirst: boolean;
@@ -456,6 +450,7 @@ export interface PostComment {
     postId: number;
     authorId: number;
     authorName: string;
+    authorAvatarPath: string;
     content: string;
     score: number;
     replyPostId: number;

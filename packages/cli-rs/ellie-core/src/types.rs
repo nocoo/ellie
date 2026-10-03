@@ -104,7 +104,7 @@ pub enum ForumType {
 pub struct User {
 	pub id: u64,
 	pub username: String,
-	pub avatar: String,
+	pub avatar_path: String,
 	pub role: UserRole,
 	pub reg_date: u64,
 	pub threads: u64,
@@ -319,7 +319,7 @@ mod tests {
 		let json = r#"{
 			"id": 123,
 			"username": "alice",
-			"avatar": "default.png",
+			"avatarPath": "default.png",
 			"role": 1,
 			"regDate": 1609459200,
 			"threads": 42,
@@ -334,6 +334,8 @@ mod tests {
 		assert_eq!(user.posts, 256);
 		assert_eq!(user.threads, 42);
 		assert_eq!(user.credits, 1000);
+		assert_eq!(user.avatar_path, "default.png");
+		assert!(serde_json::from_str::<User>(&json.replace("avatarPath", "avatar")).is_err());
 	}
 
 	#[test]
@@ -343,7 +345,7 @@ mod tests {
 			"username": "alice",
 			"email": "private@example.com",
 			"password": "not-public",
-			"avatar": "default.png",
+			"avatarPath": "default.png",
 			"status": 0,
 			"role": 1,
 			"regDate": 1609459200,
@@ -355,6 +357,8 @@ mod tests {
 		let user: User = serde_json::from_str(json).unwrap();
 		assert_eq!(user.username, "alice");
 		let public = serde_json::to_value(user).unwrap();
+		assert_eq!(public["avatarPath"], "default.png");
+		assert!(public.get("avatar").is_none());
 		for field in ["email", "status", "lastLogin", "password"] {
 			assert!(public.get(field).is_none(), "private field {field}");
 		}

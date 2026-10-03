@@ -105,14 +105,8 @@ export function registrationDays(regDate: number, nowSeconds: number): number {
 	return Math.floor(delta / 86400);
 }
 
-/**
- * Mirror of postingPermission.ts::checkPostingPermission's avatar rule:
- * hasAvatar = !!avatar_path || has_avatar === 1. Kept as its own helper
- * so the list-page badge (P2/P3) and the detail-page card share the
- * exact same predicate.
- */
-export function userHasAvatar(user: Pick<User, "avatarPath" | "hasAvatar">): boolean {
-	return Boolean(user.avatarPath) || user.hasAvatar === true;
+export function userHasAvatar(user: Pick<User, "avatarPath">): boolean {
+	return user.avatarPath.length > 0;
 }
 
 // ─── Main evaluator ─────────────────────────────────────────────────────────
