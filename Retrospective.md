@@ -284,7 +284,6 @@ not stop on the failed Python guard. Hooks ran and Git rejected the empty commit
 no bad lockfile was committed. Chain staging/commit with successful validation (or
 set shell errexit), restore only the generated registry URL expansion, and assert
 an exact version-only lockfile diff before proceeding.
-
 ## 2026-10-04: Preserve scope and normal gates during dependency maintenance
 
 The Rust upgrade checkout initially selected an Xcode linker with a newer Command Line Tools SDK. A per-invocation matching Xcode SDK/compiler pair passed a real compile/run probe; no global machine configuration changed. The next parallel hook exposed two unchanged Worker tests exceeding their existing five-second limit while the first Rust build competed for resources. The same 48 targeted tests passed separately, and subsequent complete hooks passed with supported Vitest worker and Cargo build concurrency limits. Test timeouts, assertions, coverage thresholds, skips and hooks were unchanged; original failures remain in the duty evidence.
@@ -294,3 +293,22 @@ A global `cargo update -p base64 --precise` resolution attempted an unrelated te
 Issues naming `.next/standalone` refer to generated output. Verify the maintained workspace manifest and regenerate the output through the normal build before reporting a target already satisfied; never edit that ignored directory as source. Existing coverage and isolation gaps remain gaps rather than a full 6DQ certification.
 
 Final review found an unused Rust advisory ignore for GHSA-cq8v-f236-94qc. Scanning an exact copy of the current Cargo lock outside all repository scanner configuration returned no findings. The obsolete ignore file was removed, and the normal gates and final scans were rerun without that waiver.
+
+## 2026-10-03 — D1 avatar DDL batch rejected during cutover
+
+The normal migration-first deploy twice returned Cloudflare internal error 7500
+for migration 0057 after the verified data backfill. Inspection confirmed neither
+column drop nor migration bookkeeping had committed. Kept the request/scheduled
+fence active, executed the exact three DDL statements individually through `cf`,
+verified both removed columns, the index and population counts, then recorded the
+completed migration and reran normal deployment. Individual drops took about two
+seconds each. Local SQLite success does not establish D1 multi-statement rewrite
+support; retain per-statement recovery receipts and inspect remote state before
+retrying. Never mark a failed migration applied until every postcondition passes.
+
+The first production fence probe used Python HTTP handling and received a non-JSON
+response; repeating the exact read-only probes with curl verified all routes before
+any mutation. Production browser smoke must import the installed `@playwright/test`
+package, not assume a root `playwright` dependency; reaching a login redirect is not
+evidence of authenticated page coverage.
+

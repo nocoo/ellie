@@ -5,6 +5,11 @@ legacy-field removal, and explicit Z+1 release (1.14.20). The owner selected no
 avatar for all six smaller-only cases. Production cutover remains gated on passing
 validation and a proven write fence; execution receipts follow completion.
 
+Completed: [v1.14.20](https://github.com/nocoo/ellie/releases/tag/v1.14.20), release
+commit `74ab19dea34649408c62522885201aeb8a7ffaf7`. The complete 151,360-row backfill
+was read back exactly; migration 0057 is applied; Web/Admin/Worker report 1.14.20;
+the deployment fence is removed. See [execution receipts](38-avatar-inventory-assessment.md#production-execution).
+
 ## Objective
 
 Resolve avatar ownership and object existence once, then remove runtime guessing.

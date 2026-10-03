@@ -154,3 +154,61 @@ project L1 attainment or validate production image contents.
    using this inventory for offline fixtures and analysis, not another R2 scan.
 3. Rehearse the migration and recovery, then approve and verify the write-fenced
    maintenance window and final reconciliation before any production write.
+
+## Production execution
+
+Completed on 2026-10-03 as explicitly requested Z+1 release 1.14.20.
+
+- Implementation: `53b5e803`; browser fixture correction: `a5e4a790`; release:
+  `74ab19dea34649408c62522885201aeb8a7ffaf7`.
+- The owner chose no avatar for all six smaller-only users. No runtime fallback
+  was added. Avatar-gate losses are 1,555 overall, including 69 nonnegative-status
+  accounts; gains remain 60,403 overall, with 1,653 non-exempt avatar-gate gains.
+- A temporary prior-code request fence was deployed at approximately 02:43 UTC.
+  It denied public/admin/auth/upload/internal writes, allowed only health and the
+  authenticated statistics read, and disabled scheduled work. The matching new
+  Worker honored the same freeze through a temporary operational binding.
+- A D1 recovery bookmark was captured after drain. The 43 existing explicit paths,
+  total population, tombstones and all 151,360 expected-old backfill rows matched
+  the inventory. No path/status conflicts occurred. No R2 re-list or object probe
+  was used for the migration; account audit inspection returned no R2 events and
+  the bucket has no object-deletion lifecycle policy. Those checks are supporting
+  evidence, not an atomic cross-service storage snapshot guarantee.
+- Applied 151,360 updates in 76 batches; each SQL batch used a primary-key join
+  and expected-old-value/status/deletion guards. D1 reported 151,360 written rows,
+  756,800 read rows, and a maximum update-query duration of 47.3129 ms. Every path
+  was read back and matched the manifest before schema changes.
+- Final population: 1,142,949 users; 151,403 explicit avatar paths; 991,546 empty
+  paths including two tombstones. Zero tombstone avatars were restored.
+- Cloudflare twice rejected the migration runner's multi-statement DDL request
+  with internal error 7500, leaving 0057 unapplied and both columns present.
+  The exact statements were then executed individually with `cf`: dropping
+  `has_avatar` took 1,942.7231 ms; dropping `avatar` took 1,947.1612 ms; creating
+  `idx_users_avatar_path` took 348.3073 ms. The column/index/count postconditions
+  were verified before inserting the migration bookkeeping record. A subsequent
+  normal `bun run worker:deploy` completed migration-first and deployed the Worker.
+- Removed only the obsolete `/api/avatar/` branch from the existing forum cache
+  rule; verified the sibling rule unchanged. No R2 objects were copied, modified
+  or deleted, and no session namespace was cleared.
+- Matching CI and Docker deployment succeeded for the exact release SHA:
+  [CI 37090911416](https://github.com/nocoo/ellie/actions/runs/37090911416),
+  [Release 37091251685](https://github.com/nocoo/ellie/actions/runs/37091251685).
+- Worker, forum and admin `/api/live` all reported 1.14.20 before unfreezing.
+  The final Worker version is `974abfaa-289f-4a98-af79-f8b833a2af16`, deployment
+  `96dfec93-bfba-4d44-9c88-56f515ecb22a`. The temporary freeze binding was removed.
+- Normal hooks, strict lint/typecheck, production builds, coverage gates, 382 local
+  real-HTTP tests and the 183-route strict coverage audit passed. Forum browser
+  acceptance had 81 passes, one additional scenario passing after retry and four
+  pre-existing skips; Admin had 50 passes. Existing package branch coverage gaps
+  against the all-four 95% contract remain explicit.
+- Production read-only checks covered normalized/missing-avatar users, forum/admin
+  DTOs, removed endpoint 404, rendered page responses, and both local GIF defaults.
+  Anonymous browser smoke reached the required-login page without errors; it does
+  not certify an authenticated production journey. No production test upload or
+  user mutation was performed during smoke checks.
+
+Private execution artifacts are under
+`reference/avatar-normalization/20261003/cutover/`, including the approved manifest,
+expected-state reads, all mutation/readback receipts, DDL receipts, recovery bookmark,
+deployment IDs and final checks. Long-window post-release R2 savings require future
+complete 24-hour/7-day observations; they are not claimed by this release.
