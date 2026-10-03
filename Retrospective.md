@@ -284,3 +284,11 @@ not stop on the failed Python guard. Hooks ran and Git rejected the empty commit
 no bad lockfile was committed. Chain staging/commit with successful validation (or
 set shell errexit), restore only the generated registry URL expansion, and assert
 an exact version-only lockfile diff before proceeding.
+
+## 2026-10-04: Preserve scope and normal gates during dependency maintenance
+
+The Rust upgrade checkout initially selected an Xcode linker with a newer Command Line Tools SDK. A per-invocation matching Xcode SDK/compiler pair passed a real compile/run probe; no global machine configuration changed. The next parallel hook exposed two unchanged Worker tests exceeding their existing five-second limit while the first Rust build competed for resources. The same 48 targeted tests passed separately, and subsequent complete hooks passed with supported Vitest worker and Cargo build concurrency limits. Test timeouts, assertions, coverage thresholds, skips and hooks were unchanged; original failures remain in the duty evidence.
+
+A global `cargo update -p base64 --precise` resolution attempted an unrelated termwiz downgrade. It was rejected before commit. Restoring only the owned uncommitted lock and resolving the actual `ellie-core` workspace added the requested base64 version while preserving unrelated versions. Inspect every Cargo graph delta and retain required feature flags.
+
+Issues naming `.next/standalone` refer to generated output. Verify the maintained workspace manifest and regenerate the output through the normal build before reporting a target already satisfied; never edit that ignored directory as source. Existing coverage and isolation gaps remain gaps rather than a full 6DQ certification.
