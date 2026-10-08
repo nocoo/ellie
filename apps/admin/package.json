@@ -21,7 +21,7 @@
 		"@ellie/types": "workspace:*",
 		"@nocoo/basalt": "2.2.0",
 		"@tailwindcss/postcss": "^4.3.3",
-		"lucide-react": "1.49.0",
+		"lucide-react": "1.53.0",
 		"next": "16.3.8",
 		"next-auth": "^5.0.0-beta.32",
 		"react": "19.3.0",
