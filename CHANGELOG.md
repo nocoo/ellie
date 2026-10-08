@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.21] - 2026-10-09
+
+### Changed
+
+- Upgrade dependencies across web, admin, worker and shared packages: Lucide React to 1.53.0, Radix UI packages (dialog, popover, slot, tooltip, select, avatar, checkbox, tabs, collapsible, dropdown-menu, separator, label), Node types to 26.6.4, Workers types to 5.20261008.1, and align web Sharp to 0.35.5.
+- Upgrade Rust CLI dependencies: bump ureq, serde, serde_json, regex, clap, base64, and anyhow.
+- Patch Sharp and source-map-js security vulnerabilities.
+- Remove unused Rust cargo-audit advisory ignore.
+
+### Removed
+
+- Decommission obsolete remote test database `tongjinet-db-test` and remove legacy test environment configuration from Worker wrangler settings and documentation.
+
 ## [1.14.20] - 2026-10-03
 
 ### Fixed
