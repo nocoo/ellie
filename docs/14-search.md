@@ -485,10 +485,10 @@ if (data.disabled) {
 3. 部署到生产 D1
 
 ```bash
-# 测试库
-npx wrangler d1 migrations apply tongjinet-db-test --remote -c apps/worker/wrangler.toml
+# 本地验证
+npx wrangler d1 migrations apply DB --local -c apps/worker/wrangler.toml
 
-# 生产库
+# 生产部署
 npx wrangler d1 migrations apply tongjinet-db --remote -c apps/worker/wrangler.toml
 ```
 

@@ -721,8 +721,8 @@ CLI 是纯 HTTP 客户端，不直接持有 D1/KV 访问能力。资源隔离的
 
 | 层 | 职责 | 实施方 |
 |----|------|--------|
-| 资源隔离 | `tongjinet-db-test` D1 / `ellie-test` KV | Worker `[env.test]` |
-| 隔离三重验证 | binding 校验 / 运行时资源名 / `_test_marker` 表 | Worker 测试 (04b) |
+| 资源隔离 | 本地独立 SQLite D1 / Miniflare KV | 本地测试 Worker（`--local --persist-to`） |
+| 隔离验证 | `--local` 运行模式 / 运行时 `--var ENVIRONMENT=test` 注入 | 测试套件与本地启动脚本 |
 | **连接目标验证** | 确认 CLI L2 测试连接的是 test Worker | **CLI (本文档)** |
 
 **CLI 侧验证方式**：

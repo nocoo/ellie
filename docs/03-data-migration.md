@@ -199,13 +199,12 @@ UCenter 的 PM 系统使用会话模式，需要转换为简单的收发模式�
 
 > **注意**: UCenter PM 是会话式的多人私信，转换到 Ellie 的双人私信模式需要特殊处理。
 
-## 测试数据库演练
+## 迁移演练
 
 ### 环境配置
 
-- **测试 D1**: configured in `wrangler.toml` under `[env.test]`
-- **测试 KV**: configured in `wrangler.toml` under `[env.test]`
-- **Worker 环境**: `--env test --remote`
+- **演练 D1**: 本地 SQLite 或通过环境变量 `IMPORT_D1_DATABASE` 指定的独立沙箱
+- **Worker 环境**: 本地开发/测试环境（`--local`）
 
 ### 演练流程
 
@@ -265,7 +264,6 @@ npx wrangler d1 execute YOUR_TEST_D1_DATABASE \
 ### 脚本位置
 
 - `scripts/import/` — 导入脚本目录
-- `scripts/verify-test-db.ts` — D1 隔离验证脚本
 
 ## 生产迁移检查清单
 

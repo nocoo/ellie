@@ -268,7 +268,7 @@ npx wrangler d1 export tongjinet-db --remote --output ../../reference/d1-backups
 ```
 
 Database name: `tongjinet-db` (binding: `DB`, per `apps/worker/wrangler.toml`).
-Test DB: `tongjinet-db-test` — do NOT touch production until dry-run passes on test.
+Local dry-run database: isolated SQLite — do NOT touch production until dry-run passes locally.
 
 ### Local Dry-Run
 

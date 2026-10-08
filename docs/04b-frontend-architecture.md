@@ -394,13 +394,13 @@ Next.js 16 使用 `proxy.ts` 替代 `middleware.ts`：
 
 | 阶段 | 隔离策略 | 说明 |
 |------|---------|------|
-| **当前（Mock 原型）** | N/A | 所有数据来自内存 Mock，无外部资源 → D1 缺失，**Tier 封顶 B** |
-| **Phase 2（Worker 就绪后）** | 独立 `-test` 后缀资源 | `ellie-db-test` D1 + `ellie-test` R2 + `ellie-test` KV |
+| **生产环境** | 生产 Cloudflare 资源 | `tongjinet-db` D1 + 生产 R2/KV |
+| **测试环境** | 本地隔离 SQLite / Miniflare | 运行器自动管理 `--local --persist-to` 独立状态目录，脱网执行 |
 
-Phase 2 隔离三重验证：
-1. **构建期绑定验证**：`verify-test-bindings.ts` 解析 wrangler.toml `[env.test]`，校验所有 binding 名称含 `-test` 后缀
-2. **运行时资源名校验**：测试 setup 中检查 `RESOURCE_ENV === "test"`，不匹配则 throw
-3. **测试数据标记表**：测试 D1 含 `_test_marker` 表 (key=env, value=test)，reset 前先验证标记
+测试隔离验证：
+1. **本地运行隔离**：测试环境强制运行于 `--local` 模式，状态持久化到各自独立的 `.wrangler/state/` 目录
+2. **运行时环境变量**：测试启动时注入 `ENVIRONMENT = "test"`
+3. **确定性测试夹具**：每次启动自动应用全量本地迁移并载入初始测试种子数据
 
 ### Tier 判定
 

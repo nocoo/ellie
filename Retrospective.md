@@ -1,5 +1,11 @@
 # Retrospective
 
+### 2026-10-08: Decommission remote test database tongjinet-db-test
+
+- Fully decommissioned the legacy remote test database `tongjinet-db-test` and deleted it on Cloudflare via `cf d1 delete`.
+- Cleaned up obsolete `[env.test]` block from `apps/worker/wrangler.toml` and `.example`, removed legacy `worker:*:test` and `verify:test-db` scripts from `package.json`, deleted `scripts/verify-test-db.ts`, and updated all architecture documentation to reflect the fully local SQLite / Miniflare test stack.
+- Verified that all unit, integration (L2), and linting gates pass entirely offline with zero dependency on remote test resources.
+
 ### 2026-10-01: Wait for the commit hook before editing the next unit
 
 - While `git commit` for the lint-staged 17.6.0 upgrade was still inside the

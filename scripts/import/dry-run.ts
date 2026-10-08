@@ -23,7 +23,7 @@ import { $ } from "bun";
 
 // Configuration
 const CONFIG = {
-	testDb: "tongjinet-db-test",
+	testDb: process.env.IMPORT_D1_DATABASE || "DB",
 	wranglerConfig: "apps/worker/wrangler.toml",
 	dumpDir: "reference/db",
 	schemaFile: "apps/worker/migrations/0000_init_schema.sql",

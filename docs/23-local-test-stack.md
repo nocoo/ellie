@@ -1,6 +1,6 @@
 # 23 — 本地化测试栈：移除远端 D1/Worker 测试资源
 
-> **状态**：草稿，待哥 review 后进入实施。
+> **状态**：已完成实施（2026-10-08：Phase E 清理完成，线上 `tongjinet-db-test` 已彻底下线删除）。
 > **作者**：Claude（Opus 4.7）+ @zheng-li
 > **取代/相关**：扩展 [docs/18-quality-baseline.md](./18-quality-baseline.md) 的 L2/L3 章节；与 [docs/01-architecture.md](./01-architecture.md) §"D1 测试隔离"段、[docs/06-cli-design.md](./06-cli-design.md) §"资源隔离"段联动更新。
 

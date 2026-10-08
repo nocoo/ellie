@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { $ } from "bun";
 
 const CONFIG = {
-	testDb: "tongjinet-db-test",
+	testDb: process.env.IMPORT_D1_DATABASE || "DB",
 	wranglerConfig: "apps/worker/wrangler.toml",
 	batchSize: 50, // Rows per batch
 	maxSqlLength: 90000, // D1 limit is 100KB, leave margin

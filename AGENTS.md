@@ -78,7 +78,7 @@ Dev: forum 7031, admin 7032, Worker 8787. L2: 17031 or an available port, `.wran
 
 ## Operations / Release
 
-The manifest still exposes `worker:migrate:test` / `worker:deploy:test` for remote test resources; those legacy operational paths conflict with the local-only test contract and must not be used for verification.
+All test verification strictly uses local isolated resources (SQLite/Miniflare). Remote test resources and legacy `worker:*:test` operational paths have been fully decommissioned.
 
 Current Docker hosts and CI release behavior are in [development](docs/25-development.md); Worker deployment is separate. Root version is synchronized across workspaces, shared version exports and `/api/live`; follow [version details](docs/26-agent-development.md). Do not infer live deployment from a local commit.
 

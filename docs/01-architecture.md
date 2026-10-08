@@ -140,7 +140,7 @@ ellie/
 | L3 端到端测试 | Playwright | E2E 场景 | CI |
 | G1 静态分析 | Biome strict | 0 error, 0 warning | pre-commit |
 | G2 安全门控 | osv-scanner + gitleaks | 依赖漏洞 + 密钥泄露 | pre-push |
-| D1 测试隔离 | tongjinet-db-test | 独立测试 D1 实例 | L2 连接 |
+| D1 测试隔离 | local SQLite | 独立本地 SQLite/Miniflare 状态 | L2/L3 连接 |
 
 ### Rust 项目（CLI）
 

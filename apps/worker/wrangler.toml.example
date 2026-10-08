@@ -48,32 +48,3 @@ DOVE_TEMPLATE_SLUG = "verify-email"
 [triggers]
 crons = ["*/5 * * * *", "0 19 * * *"]
 
-# ─── Test Environment ───────────────────────────────────────────
-# D1 Isolation: L2/L3 tests MUST use [env.test] to avoid touching production data.
-# Run with: wrangler dev --env test --remote
-
-[env.test]
-name = "ellie-test"
-
-[[env.test.d1_databases]]
-binding = "DB"
-database_name = "YOUR_TEST_D1_DATABASE_NAME"
-database_id = "YOUR_TEST_D1_DATABASE_ID"
-
-[[env.test.kv_namespaces]]
-binding = "KV"
-id = "YOUR_TEST_KV_NAMESPACE_ID"
-preview_id = "YOUR_TEST_KV_PREVIEW_ID"
-
-[[env.test.r2_buckets]]
-binding = "R2"
-bucket_name = "your-test-bucket"
-preview_bucket_name = "your-test-bucket"
-
-[env.test.vars]
-ENVIRONMENT = "test"
-ALLOWED_ORIGINS = "*"
-DOVE_BASE_URL = "https://your-email-relay.example"
-DOVE_PROJECT_ID = "YOUR_DOVE_PROJECT_ID"
-DOVE_TEMPLATE_SLUG = "verify-email"
-DOVE_WEBHOOK_TOKEN = "test-token-not-real"

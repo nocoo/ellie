@@ -1,7 +1,7 @@
 -- L2 + L3 Test Seed Data
 -- Seed minimal data required for L2 integration tests AND L3 browser E2E specs
 -- (tests/e2e/navigation.spec.ts references forum 114, thread 662174, user 64495).
--- Run with: npx wrangler d1 execute tongjinet-db-test -c apps/worker/wrangler.toml --remote --file scripts/seed-test-db.sql
+-- Loaded automatically by local test runners (scripts/run-l2.ts, scripts/run-l3.ts).
 --
 -- Ordering note:
 --   1. Purge ad-hoc rows that L3 tests previously wrote into thread 1 /

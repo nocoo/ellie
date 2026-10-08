@@ -87,7 +87,7 @@ async function main() {
 		console.error("   Aborting to prevent accidental production data loss.");
 		process.exit(1);
 	}
-	console.log("   ✅ Test database confirmed (tongjinet-db-test)");
+	console.log("   ✅ Test database confirmed");
 
 	// Show current state
 	console.log("\n2. Current state:");
