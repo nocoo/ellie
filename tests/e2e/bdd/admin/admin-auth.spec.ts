@@ -48,6 +48,21 @@ test.describe("Feature: Admin Authentication Gate", () => {
 		).toBeVisible();
 	});
 
+	test("Given I am an admin, When I open /admin, Then statistics load without an extra action", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		await loginAsAdmin();
+		await page.goto("/admin");
+		await expect(page.getByRole("region", { name: "累计计数" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "内容增长", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "版块活跃度", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "认证活动", exact: true })).toBeVisible();
+		await expect(page.getByRole("link", { name: "加载统计", exact: true })).toHaveCount(0);
+		await expect(page.getByText("登录数据暂不可用", { exact: true })).toHaveCount(0);
+		await expect(page.getByText("部分趋势暂不可用，缺失数据不计为零。")).toHaveCount(0);
+	});
+
 	test("Given my email is NOT in ADMIN_EMAILS, When I open /admin with a session cookie, Then the gate redirects me to /login", async ({
 		page,
 		loginAsAdmin,

@@ -318,3 +318,7 @@ any mutation. Production browser smoke must import the installed `@playwright/te
 package, not assume a root `playwright` dependency; reaching a login redirect is not
 evidence of authenticated page coverage.
 
+### 2026-10-13: Authorize dashboard requests before automatic loading
+
+The first automatic-loading implementation relied only on the parent Admin layout's redirect. Local browser tests showed that an unauthorized request still issued the five dashboard report requests before redirecting because Next.js can render pages and layouts concurrently. Reuse the existing session/allowlist check in the dashboard before loading any report, and test that rejected sessions invoke neither statistics loader. A layout redirect alone does not prevent child Server Component data access.
+

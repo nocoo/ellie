@@ -15,10 +15,13 @@ import {
 	Users,
 } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { auth } from "@/auth";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { DashboardActivity } from "@/components/admin/dashboard-activity";
 import { StatCard } from "@/components/admin/stat-card";
+import { resolveAdmin } from "@/lib/admin";
 import type { DashboardStats } from "@/viewmodels/admin/dashboard";
 import { fetchDashboardActivity, fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 
@@ -35,20 +38,15 @@ async function ActivitySection() {
 	return <DashboardActivity activity={await fetchDashboardActivity()} />;
 }
 
-export default async function DashboardPage({
-	searchParams,
-}: {
-	searchParams: Promise<{ statistics?: string | string[] }>;
-}) {
-	const showStatistics = (await searchParams).statistics === "1";
+export default async function DashboardPage() {
+	if (!resolveAdmin(await auth())) redirect("/login");
+
 	let stats: DashboardStats | null = null;
 	let error: string | null = null;
-	if (showStatistics) {
-		try {
-			stats = await fetchDashboardStats();
-		} catch (e) {
-			error = e instanceof Error ? e.message : "统计数据加载失败";
-		}
+	try {
+		stats = await fetchDashboardStats();
+	} catch (e) {
+		error = e instanceof Error ? e.message : "统计数据加载失败";
 	}
 
 	return (
@@ -84,14 +82,6 @@ export default async function DashboardPage({
 				}
 			/>
 			{error && <AdminInlineMessage variant="error" text={error} />}
-			<LayerCard padding="sm" className="flex flex-wrap items-center justify-between gap-3">
-				<p className="text-sm text-basalt-muted-foreground">需要时再查看累计计数和社区活动。</p>
-				<Button asChild variant="outline" size="sm">
-					<Link href={showStatistics ? "/admin" : "/admin?statistics=1"} prefetch={false}>
-						{showStatistics ? "收起统计" : "加载统计"}
-					</Link>
-				</Button>
-			</LayerCard>
 			{stats && (
 				<section aria-label="累计计数" className="space-y-2">
 					<div className="grid gap-3 sm:grid-cols-3">
@@ -108,20 +98,18 @@ export default async function DashboardPage({
 				</section>
 			)}
 
-			{showStatistics && (
-				<Suspense
-					fallback={
-						<LayerCard className="flex min-h-48 items-center justify-center gap-2">
-							<Loader size={20} />
-							<span role="status" className="text-sm text-basalt-muted-foreground">
-								加载社区活动…
-							</span>
-						</LayerCard>
-					}
-				>
-					<ActivitySection />
-				</Suspense>
-			)}
+			<Suspense
+				fallback={
+					<LayerCard className="flex min-h-48 items-center justify-center gap-2">
+						<Loader size={20} />
+						<span role="status" className="text-sm text-basalt-muted-foreground">
+							加载社区活动…
+						</span>
+					</LayerCard>
+				}
+			>
+				<ActivitySection />
+			</Suspense>
 
 			<LayerCard padding="sm">
 				<div className="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-6">
