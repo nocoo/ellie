@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.22] - 2026-10-13
+
+### Fixed
+
+- Load admin dashboard totals and community activity automatically on entry, removing the manual statistics toggle.
+- Verify the administrator session before loading dashboard reports so unauthorized visits do not trigger statistics queries.
+- Preserve existing statistics sources, cache lifetimes, missing-value handling and partial-failure display.
+
 ## [1.14.21] - 2026-10-09
 
 ### Changed
