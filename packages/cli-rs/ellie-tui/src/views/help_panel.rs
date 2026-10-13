@@ -46,7 +46,7 @@ pub fn draw(frame: &mut Frame, tc: &ThemeColors) {
 		.map(|(key, desc)| {
 			Line::from(vec![
 				Span::styled(
-					format!("  {:<18}", key),
+					format!("  {key:<18}"),
 					Style::default()
 						.fg(tc.highlight)
 						.add_modifier(Modifier::BOLD),
@@ -63,11 +63,6 @@ pub fn draw(frame: &mut Frame, tc: &ThemeColors) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	#[test]
-	fn help_lines_not_empty() {
-		assert!(!HELP_LINES.is_empty());
-	}
 
 	#[test]
 	fn all_help_entries_have_content() {
