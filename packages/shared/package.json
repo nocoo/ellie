@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/shared",
-	"version": "1.14.22",
+	"version": "1.14.23",
 	"private": true,
 	"type": "module",
 	"main": "./src/index.ts",
@@ -16,10 +16,10 @@
 	},
 	"dependencies": {
 		"entities": "8.1.0",
-		"sanitize-html": "2.17.7"
+		"sanitize-html": "2.18.0"
 	},
 	"devDependencies": {
-		"@types/sanitize-html": "^2.16.1",
+		"@types/sanitize-html": "^2.16.2",
 		"typescript": "^7.0.2"
 	}
 }
