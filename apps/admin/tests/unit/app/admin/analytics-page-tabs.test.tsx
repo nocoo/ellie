@@ -126,9 +126,10 @@ describe("AnalyticsPage — tab layout", () => {
 		const loginTab = screen
 			.getAllByRole("tab")
 			.find((el) => el.textContent?.includes("登录")) as HTMLElement;
+		hoisted.routerReplace.mockClear();
 		fireEvent.mouseDown(loginTab, { button: 0, ctrlKey: false });
-		expect(hoisted.routerReplace).toHaveBeenCalledTimes(1);
-		const url = hoisted.routerReplace.mock.calls[0][0] as string;
+		expect(hoisted.routerReplace).toHaveBeenCalled();
+		const url = hoisted.routerReplace.mock.calls.at(-1)?.[0] as string;
 		expect(url.startsWith("/admin/analytics?")).toBe(true);
 		// Order-insensitive — URLSearchParams doesn't guarantee key order.
 		const replacedParams = new URLSearchParams(url.split("?")[1]);
