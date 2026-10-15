@@ -121,6 +121,8 @@
 		"tailwind-merge": "3.7.0"
 	},
 	"overrides": {
+		"react": "19.3.1",
+		"react-dom": "19.3.1",
 		"@tiptap/core": "3.31.4",
 		"@tiptap/extensions": "3.31.4",
 		"@tiptap/pm": "3.31.4",
