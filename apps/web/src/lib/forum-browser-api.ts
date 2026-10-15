@@ -69,8 +69,9 @@ export async function checkUsernameAvailability(
  */
 export async function requestEmailVerificationCode(
 	email: string,
+	capToken: string,
 ): Promise<{ sent_to?: string; next_resend_allowed_at?: number; expires_in?: number } | undefined> {
-	const body: EmailRequestCodeBody = { email };
+	const body: EmailRequestCodeBody = { email, capToken };
 	const res = await apiClient.post<{
 		sent_to?: string;
 		next_resend_allowed_at?: number;

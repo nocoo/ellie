@@ -102,6 +102,8 @@ const ALLOWLIST: Record<string, string> = {
 
 	// Group G — multipart upload, raw fetch passthrough; not a JSON proxy.
 	"app/api/v1/upload/route.ts": "raw multipart upload passthrough",
+	"app/api/v1/cap/[action]/route.ts":
+		"Cap widget native JSON passthrough (not the Ellie {data,meta} envelope)",
 };
 
 // ---------------------------------------------------------------------------

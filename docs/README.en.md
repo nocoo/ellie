@@ -60,7 +60,7 @@ Fill in the configuration before starting:
 | `apps/web/.env.local` | `AUTH_SECRET` and `FORUM_API_KEY` matching the Worker's `API_KEY`; retain the local `WORKER_API_URL`, `AUTH_URL`, and `NEXT_PUBLIC_SITE_URL` |
 | `apps/admin/.env.local` | Its own `AUTH_SECRET`, `ADMIN_API_KEY` matching the Worker, Google OAuth `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, and `ADMIN_EMAILS` |
 
-Forum login and registration need a working `NEXT_PUBLIC_CAP_API_ENDPOINT`. Email verification also requires the Worker's `EMAIL_VERIFY_HMAC_KEY`, Dove configuration, and token. Without those settings you can prepare pages and data, but cannot complete these interactions. The admin Google callback is `http://localhost:7032/api/auth/callback/google`.
+Forum Cap defaults to same-origin `/api/v1/cap/`; the Worker needs `CAP_SECRET`. Email verification also requires `EMAIL_VERIFY_HMAC_KEY`, Dove configuration, and token. Without those settings you can prepare pages and data, but cannot complete these interactions. The admin Google callback is `http://localhost:7032/api/auth/callback/google`.
 
 Initialize D1 in a separate local directory, then start the Worker:
 

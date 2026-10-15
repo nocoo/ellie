@@ -33,6 +33,7 @@ export const TEST_WORKER_VARS: Readonly<Record<string, string>> = Object.freeze(
 	// Dove integration is mocked in tests but injecting a placeholder var
 	// avoids any "missing var" warnings in worker boot logs.
 	DOVE_WEBHOOK_TOKEN: "test-token-not-real",
+	CAP_SECRET: "test-cap-secret-16",
 });
 
 export async function seedDailyStatistics(baseUrl: string): Promise<void> {

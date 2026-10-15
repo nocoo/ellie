@@ -46,6 +46,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): TestEnv {
 		DOVE_TEMPLATE_SLUG: "verify-email",
 		DOVE_WEBHOOK_TOKEN: "test-token-not-real",
 		EMAIL_VERIFY_HMAC_KEY: "test-hmac-key",
+		CAP_SECRET: "test-cap-secret-16",
 		_sqlite: sqlite,
 		...overrides,
 	} as TestEnv;

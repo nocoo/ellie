@@ -10,6 +10,7 @@ import {
 	adminPost,
 	adminPut,
 	createTestJwt,
+	issueCapToken,
 	workerPost,
 } from "../setup";
 
@@ -614,7 +615,12 @@ describe("L2: Worker Admin API", () => {
 			// 1a. Submit thread report.
 			const threadRes = await workerPost(
 				"/api/v1/reports",
-				{ type: "thread", targetId: 662174, reason: "垃圾广告" },
+				{
+					type: "thread",
+					targetId: 662174,
+					reason: "垃圾广告",
+					capToken: await issueCapToken(),
+				},
 				reporterJwt,
 			);
 			// Accept 201 (fresh) or 400 DUPLICATE_REPORT (dedup window from prior run)
@@ -633,7 +639,12 @@ describe("L2: Worker Admin API", () => {
 			// 1b. Submit user report.
 			const userRes = await workerPost(
 				"/api/v1/reports",
-				{ type: "user", targetId: 64495, reason: "人身攻击" },
+				{
+					type: "user",
+					targetId: 64495,
+					reason: "人身攻击",
+					capToken: await issueCapToken(),
+				},
 				reporterJwt,
 			);
 			let userReportId: number | null = null;
@@ -857,7 +868,12 @@ describe("L2: Worker Admin API", () => {
 			// 1. Submit a thread report.
 			const submitRes = await workerPost(
 				"/api/v1/reports",
-				{ type: "thread", targetId: 662174, reason: "垃圾广告" },
+				{
+					type: "thread",
+					targetId: 662174,
+					reason: "垃圾广告",
+					capToken: await issueCapToken(),
+				},
 				reporterJwt,
 			);
 			let reportId: number | null = null;

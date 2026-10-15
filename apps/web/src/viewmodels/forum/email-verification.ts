@@ -225,9 +225,10 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
  * keeps the wire shape consistent with the proxy's projection guard so the
  * Worker contract stays the single source of truth.
  */
-export function makeRequestCodeBody(email: string): EmailRequestCodeBody {
+export function makeRequestCodeBody(email: string, capToken: string): EmailRequestCodeBody {
 	return {
 		email: email.trim(),
+		capToken: capToken.trim(),
 	};
 }
 

@@ -18,6 +18,8 @@ import { invalidateUserCaches } from "../lib/cache/invalidate";
 // with `EMAIL_ALREADY_VERIFIED` so accidental re-flows are no-ops.
 
 import type { EmailRequestCodeBody, EmailVerifyCodeBody } from "@ellie/types";
+import { readCapToken } from "../lib/cap";
+import { requireCapToken } from "../lib/cap-gate";
 import { sendDoveEmail } from "../lib/dove";
 import {
 	CODE_TTL_SECONDS,
@@ -96,6 +98,8 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	if (!isValidEmail(submittedEmail)) {
 		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
 	}
+	const captchaError = await requireCapToken(env, readCapToken(body), origin);
+	if (captchaError) return captchaError;
 	const pendingEmailNormalized = normalizeEmail(submittedEmail);
 
 	const dbUser = await loadUser(env, user.userId);

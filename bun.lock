@@ -127,6 +127,7 @@
       "dependencies": {
         "@cloudflare/workers-types": "5.20261014.1",
         "@ellie/types": "workspace:*",
+        "capjs-core": "0.1.5",
         "crypto-js": "^4.2.0",
       },
       "devDependencies": {
@@ -919,6 +920,7 @@
     "bun-types": ["bun-types@1.4.3", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-tinRJNGOmUN+tEAsn2y2e942n9JHRHR42iUYzDH75NmhJqVBokGSQkkfSFdNWwsANIdrK6ACH9t01M452YyTwg=="],
 
     "caniuse-lite": ["caniuse-lite@1.0.30001782", "", {}, "sha512-dZcaJLJeDMh4rELYFw1tvSn1bhZWYFOt468FcbHHxx/Z/dFidd1I6ciyFdi3iwfQCyOjqo9upF6lGQYtMiJWxw=="],
+    "capjs-core": ["capjs-core@0.1.5", "", { "dependencies": { "esbuild": "^0.28.0" }, "optionalDependencies": { "javascript-obfuscator": "^4.2.2" } }, "sha512-o455xLaFtlyFrI1eOq0ec2nqd7Mo/phT1aPzAxXJWBzKMeRJnxVNLcodnFmS5uX1GOpcuXxCyIsQTmw6fcWafg=="],
 
     "chai": ["chai@6.3.0", "", {}, "sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg=="],
 

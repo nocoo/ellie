@@ -1,9 +1,6 @@
 // Proxy route: POST /api/v1/users/me/email/request-code
 //
-// Browser → Next.js → Worker. Forwards the request body verbatim. Client-side
-// Cap captcha gates the send button; the token is NOT forwarded to the Worker
-// (same model as login/register). The Worker still has JWT auth + 60s throttle +
-// 5 attempt limit + HMAC code signing as abuse protection.
+// Browser → Next.js → Worker. Forwards email + redeemed Cap token.
 
 import type { EmailRequestCodeBody } from "@ellie/types";
 import { NextResponse } from "next/server";
@@ -47,6 +44,7 @@ export async function POST(request: Request) {
 		const raw = (await request.json()) as Partial<Record<string, unknown>>;
 		const body: EmailRequestCodeBody = {
 			email: raw.email as string,
+			capToken: typeof raw.capToken === "string" ? raw.capToken : "",
 		};
 		const result = await forumApi.postAuth<unknown>(
 			"/api/v1/users/me/email/request-code",

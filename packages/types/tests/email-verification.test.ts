@@ -74,12 +74,14 @@ describe("cloneEmailNotVerifiedPayload — defensive copy", () => {
 });
 
 describe("EmailRequestCodeBody / EmailVerifyCodeBody — wire shape (docs/17 §7.2 / §7.3, §9)", () => {
-	it("EmailRequestCodeBody carries only email, string", () => {
+	it("EmailRequestCodeBody carries email and capToken", () => {
 		const body: EmailRequestCodeBody = {
 			email: "user@example.com",
+			capToken: "redeemed-token",
 		};
 		expect(typeof body.email).toBe("string");
-		expect(Object.keys(body)).toEqual(["email"]);
+		expect(typeof body.capToken).toBe("string");
+		expect(Object.keys(body)).toEqual(["email", "capToken"]);
 	});
 
 	it("EmailVerifyCodeBody carries email + code (no captcha at submit time)", () => {

@@ -6,6 +6,8 @@ import {
 } from "../lib/analytics/loginHistory";
 import { getPrivateData } from "../lib/cache/private-read";
 import { cacheDelete } from "../lib/cache/wrap";
+import { readCapToken } from "../lib/cap";
+import { requireCapToken } from "../lib/cap-gate";
 // Auth handlers for Cloudflare Worker
 import { checkCensorWords } from "../lib/censor";
 import { extractTrustedClientIp } from "../lib/clientIp";
@@ -390,6 +392,7 @@ interface RegisterInput {
 	username: string;
 	password: string;
 	email: string;
+	capToken?: string;
 	/** Optional profile fields — validated via shared validateProfileFields */
 	profile?: Record<string, unknown>;
 }
@@ -491,6 +494,41 @@ function classifyUniqueConstraintError(err: Error): "EMAIL_ALREADY_IN_USE" | "US
  * `ctx` is OPTIONAL so existing 2-arg call sites keep compiling. See
  * `login()` above for the audit-write contract.
  */
+async function parseRegisterRequest(
+	request: Request,
+	env: Env,
+	origin: string | undefined,
+): Promise<
+	| Response
+	| { username: string; password: string; email: string; profileFields: Record<string, unknown> }
+> {
+	const body = (await request.json()) as RegisterInput;
+	const parsed = parseRegisterInput(body, origin);
+	if (parsed instanceof Response) return parsed;
+
+	const captchaError = await requireCapToken(env, readCapToken(body), origin);
+	if (captchaError) return captchaError;
+
+	let profileFields: Record<string, unknown> = {};
+	if (body.profile && typeof body.profile === "object") {
+		const { email: _e, ...profileBody } = body.profile;
+		const validation = validateProfileFields(profileBody, origin, true);
+		if (!validation.success) return validation.error;
+		profileFields = validation.fields;
+	}
+
+	const gs = profileFields.graduateSchool;
+	if (!gs || (typeof gs === "string" && !gs.trim())) {
+		return errorResponse("INVALID_BODY", 400, { message: "Identity type is required" }, origin);
+	}
+	const camp = profileFields.campus;
+	if (!camp || (typeof camp === "string" && !camp.trim())) {
+		return errorResponse("INVALID_BODY", 400, { message: "Campus is required" }, origin);
+	}
+
+	return { ...parsed, profileFields };
+}
+
 export async function register(
 	request: Request,
 	env: Env,
@@ -498,39 +536,9 @@ export async function register(
 ): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	try {
-		const body = (await request.json()) as RegisterInput;
-
-		// ── Input validation (before any DB calls for efficiency) ──
-		// Body-shape failures do NOT audit — username slot is untrusted.
-		const parsed = parseRegisterInput(body, origin);
+		const parsed = await parseRegisterRequest(request, env, origin);
 		if (parsed instanceof Response) return parsed;
-		const { username, password, email } = parsed;
-
-		// ── Validate profile fields (education fields required at registration) ──
-		let profileFields: Record<string, unknown> = {};
-		if (body.profile && typeof body.profile === "object") {
-			// Strip email from profile to avoid double-handling
-			const { email: _e, ...profileBody } = body.profile;
-			const validation = validateProfileFields(
-				profileBody,
-				origin,
-				true, // skipEmptyCheck — individual field presence checked below
-			);
-			if (!validation.success) {
-				return validation.error;
-			}
-			profileFields = validation.fields;
-		}
-
-		// Education fields are required at registration (not for PATCH /users/me)
-		const gs = profileFields.graduateSchool;
-		if (!gs || (typeof gs === "string" && !gs.trim())) {
-			return errorResponse("INVALID_BODY", 400, { message: "Identity type is required" }, origin);
-		}
-		const camp = profileFields.campus;
-		if (!camp || (typeof camp === "string" && !camp.trim())) {
-			return errorResponse("INVALID_BODY", 400, { message: "Campus is required" }, origin);
-		}
+		const { username, password, email, profileFields } = parsed;
 
 		// Independent guards: settings lookup + censor check + IP rate-limit
 		// counter. Run them in parallel — saves up to 2 D1/KV round-trips on

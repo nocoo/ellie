@@ -95,8 +95,10 @@ function normalizeReportPayload(payload: ReportPayload): {
 /**
  * Submit a report. Accepts thread / post / user targets.
  */
-export async function submitReport(payload: ReportPayload): Promise<ReportResult> {
-	const apiPayload = normalizeReportPayload(payload);
+export async function submitReport(
+	payload: ReportPayload & { capToken?: string },
+): Promise<ReportResult> {
+	const apiPayload = { ...normalizeReportPayload(payload), capToken: payload.capToken };
 	const result = await apiClient.post<ReportResult>("/api/v1/reports", apiPayload);
 	return result.data;
 }

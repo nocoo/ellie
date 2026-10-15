@@ -7,7 +7,7 @@ import {
 	REPORT_REASONS,
 } from "../../../src/handlers/report";
 import { createJwt } from "../../../src/lib/jwt";
-import { createMockDb, makeEnv, TEST_JWT_SECRET } from "../../helpers";
+import { createMockDb, makeEnv, TEST_CAP_TOKEN, TEST_JWT_SECRET } from "../../helpers";
 import {
 	expectEmailNotVerifiedResponse,
 	makeUnverifiedEnv,
@@ -30,7 +30,15 @@ function reportRequest(method: string, path: string, token?: string, body?: unkn
 	return new Request(`https://api.example.com${path}`, {
 		method,
 		headers,
-		...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+		...(body !== undefined
+			? {
+					body: JSON.stringify(
+						body && typeof body === "object" && !Array.isArray(body)
+							? { capToken: TEST_CAP_TOKEN, ...(body as Record<string, unknown>) }
+							: body,
+					),
+				}
+			: {}),
 	});
 }
 

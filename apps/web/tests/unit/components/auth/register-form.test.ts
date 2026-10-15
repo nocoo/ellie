@@ -430,16 +430,16 @@ describe("CAPTCHA fail-closed when not configured", () => {
 		vi.doMock("@/components/cap-widget", inertCapMock);
 	});
 
-	it("does not render CAP widget when env is empty", async () => {
+	it("renders CAP widget when env is empty (same-origin default)", async () => {
 		const { RegisterFormDialog } = await loadForm();
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
-		expect(screen.queryByTestId("cap-widget")).toBeNull();
+		expect(screen.getByTestId("cap-widget")).toBeTruthy();
 	});
 
-	it("renders fail-closed error banner when env is empty", async () => {
+	it("does not render the unconfigured banner when env is empty", async () => {
 		const { RegisterFormDialog } = await loadForm();
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
-		expect(screen.getByText(/人机验证服务未就绪/)).toBeTruthy();
+		expect(screen.queryByText(/人机验证服务未就绪/)).toBeNull();
 	});
 
 	it("submit button is disabled when CAP is not configured (even with valid fields)", async () => {

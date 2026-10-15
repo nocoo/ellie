@@ -273,7 +273,7 @@ function EmailVerificationForm({
 		requestPending.current = true;
 		dispatch({ type: "send_start" });
 		try {
-			const data = await requestEmailVerificationCode(email);
+			const data = await requestEmailVerificationCode(email, capToken ?? "");
 			const parsed = parseSendCodeResponse(data, email);
 			dispatch({ type: "send_success", ...parsed });
 			toast.success(`验证码已发送至 ${parsed.sentTo}`);

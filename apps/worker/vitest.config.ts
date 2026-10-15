@@ -30,6 +30,7 @@ export default defineConfig({
 				// Auto-generated SQL constant for L2-fast; equivalence checked by
 				// tests/unit/init-sql-equiv.test.ts (Phase A5) against wrangler.
 				"src/test-support/init-sql.generated.ts",
+				"src/lib/cap-optional-stub.ts",
 			],
 			thresholds: {
 				statements: 95,

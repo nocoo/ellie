@@ -48,6 +48,10 @@ vi.mock("../../src/handlers/forum-list", () => ({
 vi.mock("../../src/handlers/thread-context", () => ({
 	threadContext: mockHandler(),
 }));
+vi.mock("../../src/handlers/cap", () => ({
+	challenge: mockHandler(),
+	redeem: mockHandler(),
+}));
 vi.mock("../../src/handlers/auth", () => ({
 	login: mockHandler(),
 	refresh: mockHandler(),
@@ -281,6 +285,7 @@ const MODULE_PATHS: Record<string, string> = {
 	"thread-context": "../../src/handlers/thread-context",
 	settings: "../../src/handlers/settings",
 	auth: "../../src/handlers/auth",
+	cap: "../../src/handlers/cap",
 	me: "../../src/handlers/me",
 	message: "../../src/handlers/message",
 	"post-comment": "../../src/handlers/post-comment",
@@ -895,6 +900,8 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/auth/me", "auth", "me"],
 				["POST", "/api/v1/auth/register", "auth", "register"],
 				["GET", "/api/v1/auth/check-username", "auth", "checkUsername"],
+				["POST", "/api/v1/cap/challenge", "cap", "challenge"],
+				["POST", "/api/v1/cap/redeem", "cap", "redeem"],
 			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());

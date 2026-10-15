@@ -39,6 +39,10 @@ JWT_SECRET=
 # cannot post.
 EMAIL_VERIFY_HMAC_KEY=
 
+# HMAC secret for Worker-hosted Cap challenges (capjs-core).
+# openssl rand -base64 32
+CAP_SECRET=
+
 # Dove email-relay bearer token. Non-secret Dove config
 # (DOVE_BASE_URL / DOVE_PROJECT_ID / DOVE_TEMPLATE_SLUG) lives in
 # wrangler.toml [vars] because those are not sensitive. Without this

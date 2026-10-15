@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 import {
@@ -25,7 +26,7 @@ import {
 } from "../_components/auth-id-card";
 import { RegisterFormDialog } from "../register/register-form";
 
-const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
+const CAP_API_ENDPOINT = resolveCapApiEndpoint();
 
 function LoginFormInner() {
 	const searchParams = useSearchParams();

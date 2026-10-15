@@ -1,7 +1,7 @@
 // Behavioral tests for the two email-verification proxy routes.
 //
 // These prove the wire contract the EmailVerificationCard depends on:
-//   - request-code forwards only `{ email }` to the Worker.
+//   - request-code forwards `{ email, capToken }` to the Worker.
 //   - verify forwards `{ email, code }` (no captcha token).
 //   - both routes propagate the docs/17 §5.4 flat payload unmodified.
 //   - both routes reject CSRF before touching the Worker / session.
@@ -74,24 +74,24 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		expect(postAuthMock).not.toHaveBeenCalled();
 	});
 
-	it("forwards only { email } to the Worker", async () => {
+	it("forwards { email, capToken } to the Worker", async () => {
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		postAuthMock.mockResolvedValue({
 			data: { sent_to: "x***@y.io" },
 			meta: { timestamp: 1, requestId: "r1" },
 		});
 		const { POST } = await import("@/app/api/v1/users/me/email/request-code/route");
-		const res = await POST(makeRequest({ email: "x@y.io" }));
+		const res = await POST(makeRequest({ email: "x@y.io", capToken: "tok" }));
 		expect(res.status).toBe(200);
 		expect(postAuthMock).toHaveBeenCalledWith(
 			"/api/v1/users/me/email/request-code",
-			{ email: "x@y.io" },
+			{ email: "x@y.io", capToken: "tok" },
 			"jwt-abc",
 			emptyClient,
 		);
 	});
 
-	it("projects body to EmailRequestCodeBody — only email, strips extras", async () => {
+	it("projects body to EmailRequestCodeBody — email + capToken, strips extras", async () => {
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		postAuthMock.mockResolvedValue({
 			data: { sent_to: "x***@y.io" },
@@ -101,7 +101,8 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		const res = await POST(
 			makeRequest({
 				email: "x@y.io",
-				cf_turnstile_token: "tok-xyz",
+				capToken: "tok-xyz",
+				cf_turnstile_token: "legacy",
 				code: "999999",
 				role: "admin",
 			}),
@@ -109,8 +110,8 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		expect(res.status).toBe(200);
 		expect(postAuthMock).toHaveBeenCalledTimes(1);
 		const [, forwardedBody] = postAuthMock.mock.calls[0];
-		expect(forwardedBody).toEqual({ email: "x@y.io" });
-		expect(Object.keys(forwardedBody as Record<string, unknown>)).toEqual(["email"]);
+		expect(forwardedBody).toEqual({ email: "x@y.io", capToken: "tok-xyz" });
+		expect(Object.keys(forwardedBody as Record<string, unknown>)).toEqual(["email", "capToken"]);
 	});
 
 	it("forwards the docs/17 §5.4 flat payload verbatim on 403 EMAIL_NOT_VERIFIED", async () => {

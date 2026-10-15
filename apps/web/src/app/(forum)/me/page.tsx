@@ -31,6 +31,7 @@ import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { MeAvatarSection } from "@/components/forum/me-avatar-section";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 
@@ -84,7 +85,7 @@ export default async function MePage() {
 					</h2>
 					<EmailVerificationCard
 						user={toEmailVerificationUserView(self)}
-						capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}
+						capApiEndpoint={resolveCapApiEndpoint()}
 					/>
 				</section>
 

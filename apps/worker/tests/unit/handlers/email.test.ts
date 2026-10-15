@@ -44,7 +44,7 @@ import {
 } from "../../../src/lib/email-verify";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
-import { createMockDb, createMockKV } from "../../helpers";
+import { createMockDb, createMockKV, TEST_CAP_SECRET, TEST_CAP_TOKEN } from "../../helpers";
 
 const HMAC_KEY = "test-hmac-key-do-not-use-in-prod";
 const JWT_SECRET = "test-jwt-secret-for-hs256";
@@ -122,7 +122,10 @@ function makeEnv(opts: {
 		},
 	} as unknown as D1Database;
 
-	const kv = createMockKV(opts.kv ?? {});
+	const kv = createMockKV({
+		[`cap-token:${TEST_CAP_TOKEN}`]: "1",
+		...(opts.kv ?? {}),
+	});
 	const doveOn = opts.doveConfigured !== false;
 	const env: Env = {
 		API_KEY: "k",
@@ -133,6 +136,7 @@ function makeEnv(opts: {
 		KV: kv,
 		R2: {} as R2Bucket,
 		EMAIL_VERIFY_HMAC_KEY: HMAC_KEY,
+		CAP_SECRET: TEST_CAP_SECRET,
 		DOVE_BASE_URL: doveOn ? "https://dove.example.com" : undefined,
 		DOVE_PROJECT_ID: doveOn ? "ellie" : undefined,
 		DOVE_WEBHOOK_TOKEN: doveOn ? "tok" : undefined,
@@ -151,7 +155,14 @@ async function makeRequest(path: string, body?: unknown, userId = 7): Promise<Re
 			Authorization: `Bearer ${token}`,
 			"Content-Type": "application/json",
 		},
-		body: body !== undefined ? JSON.stringify(body) : undefined,
+		body:
+			body !== undefined
+				? JSON.stringify(
+						body && typeof body === "object" && !Array.isArray(body)
+							? { capToken: TEST_CAP_TOKEN, ...(body as Record<string, unknown>) }
+							: body,
+					)
+				: undefined,
 	});
 }
 
@@ -407,11 +418,12 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 	it("races: two concurrent requestCode calls only invoke dove once", async () => {
 		const { env, kv } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+			kv: { "cap-token:tok-a": "1", "cap-token:tok-b": "1" },
 		});
 		const tracker = stubDoveOk(env);
 		const [a, b] = await Promise.all([
-			requestCode(await makeRequest("/x", { email: "user@example.com" }), env),
-			requestCode(await makeRequest("/x", { email: "user@example.com" }), env),
+			requestCode(await makeRequest("/x", { email: "user@example.com", capToken: "tok-a" }), env),
+			requestCode(await makeRequest("/x", { email: "user@example.com", capToken: "tok-b" }), env),
 		]);
 		const statuses = [a.status, b.status].sort();
 		expect(statuses).toEqual([200, 429]);

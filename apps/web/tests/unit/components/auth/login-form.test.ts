@@ -155,28 +155,28 @@ describe("LoginForm — CAP configured", () => {
 	});
 });
 
-// ─── CAP not configured — fail-closed ───────────────────────────────────────
+// ─── CAP env empty — same-origin default ────────────────────────────────────
 
-describe("LoginForm — fail-closed when CAP not configured", () => {
+describe("LoginForm — empty CAP env uses same-origin endpoint", () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
 		Reflect.deleteProperty(process.env, "NEXT_PUBLIC_CAP_API_ENDPOINT");
 	});
 
-	it("does not render CAP widget", async () => {
+	it("renders CAP widget", async () => {
 		const { default: LoginForm } = await loadLoginForm();
 		render(createElement(LoginForm));
-		expect(screen.queryByTestId("cap-widget")).toBeNull();
+		expect(screen.getByTestId("cap-widget")).toBeTruthy();
 	});
 
-	it("renders fail-closed error banner", async () => {
+	it("does not render the unconfigured banner", async () => {
 		const { default: LoginForm } = await loadLoginForm();
 		render(createElement(LoginForm));
-		expect(screen.getByText(/人机验证服务未就绪/)).toBeTruthy();
+		expect(screen.queryByText(/人机验证服务未就绪/)).toBeNull();
 	});
 
-	it("submit button is disabled", async () => {
+	it("submit button is disabled until solved", async () => {
 		const { default: LoginForm } = await loadLoginForm();
 		render(createElement(LoginForm));
 		const submitBtn = screen.getByText("登录");

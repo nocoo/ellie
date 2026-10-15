@@ -43,7 +43,7 @@ vi.mock("../../../src/lib/analytics/loginHistory", () => ({
 import { login, register } from "../../../src/handlers/auth";
 import { scheduleLoginHistory } from "../../../src/lib/analytics/loginHistory";
 import { hashPassword } from "../../../src/lib/password";
-import { createMockDb, createMockKV, makeEnv } from "../../helpers";
+import { createMockDb, createMockKV, makeEnv, TEST_CAP_TOKEN } from "../../helpers";
 
 const scheduleMock = scheduleLoginHistory as unknown as ReturnType<typeof vi.fn>;
 
@@ -64,7 +64,7 @@ function createLoginRequest(body: Record<string, unknown>, ip = "203.0.113.42") 
 function createRegisterRequest(body: Record<string, unknown>, ip = "1.2.3.4") {
 	return new Request("https://example.com/api/v1/auth/register", {
 		method: "POST",
-		body: JSON.stringify(body),
+		body: JSON.stringify({ capToken: TEST_CAP_TOKEN, ...body }),
 		headers: {
 			"Content-Type": "application/json",
 			"CF-Connecting-IP": ip,
@@ -364,7 +364,7 @@ describe("register() — login_history instrumentation", () => {
 		});
 		const env = makeEnv({
 			DB: db,
-			KV: createMockKV({ "reg-ip:1.2.3.4": "3" }),
+			KV: createMockKV({ "reg-ip:1.2.3.4": "3", [`cap-token:${TEST_CAP_TOKEN}`]: "1" }),
 		});
 		const ctx = makeCtx();
 		const res = await register(createRegisterRequest(validBody), env, ctx);

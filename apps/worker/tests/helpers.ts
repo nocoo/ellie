@@ -7,6 +7,8 @@ import type { Env } from "../src/lib/env";
 export const TEST_API_KEY = "test-api-key";
 export const TEST_ADMIN_API_KEY = "test-admin-api-key";
 export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
+export const TEST_CAP_SECRET = "test-cap-secret-16";
+export const TEST_CAP_TOKEN = "test-cap-token";
 
 // ─── Env Factory ───────────────────────────────────────────
 
@@ -94,7 +96,8 @@ export function makeEnv(overrides?: Partial<Env>): Env {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
-		KV: createMockKV(),
+		KV: createMockKV({ [`cap-token:${TEST_CAP_TOKEN}`]: "1" }),
+		CAP_SECRET: TEST_CAP_SECRET,
 		...overrides,
 	};
 }

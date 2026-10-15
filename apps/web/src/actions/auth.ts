@@ -29,13 +29,14 @@ export async function registerUser(
 	password: string,
 	email: string,
 	profile?: Record<string, unknown>,
+	capToken?: string,
 ): Promise<{ success: true } | { error: string }> {
 	try {
 		const clientIP = await getClientIP();
 		const clientUA = await getClientUA();
 		await forumApi.postWithIP(
 			"/api/v1/auth/register",
-			{ username, password, email, profile },
+			{ username, password, email, profile, capToken },
 			clientIP,
 			clientUA,
 		);

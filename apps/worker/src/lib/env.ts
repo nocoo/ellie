@@ -56,6 +56,13 @@ export interface Env {
 	 * Missing configuration fails closed. Never accept API_KEY here.
 	 */
 	WEB_STATISTICS_WRITE_KEY?: string;
+	/**
+	 * HMAC secret for Cap.js challenges hosted in this Worker (capjs-core).
+	 * Set via `wrangler secret put CAP_SECRET`. Missing configuration
+	 * fails closed: challenge/redeem return 503 and business handlers
+	 * reject captcha-gated writes.
+	 */
+	CAP_SECRET?: string;
 }
 
 export interface CFRequest extends Request {

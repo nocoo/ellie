@@ -31,7 +31,7 @@ Worker 的 `API_KEY` 对应论坛 `FORUM_API_KEY`；`ADMIN_API_KEY` 对应后台
 
 ## 登录与可选服务
 
-- 论坛使用用户名 / 密码，通过 Auth.js Credentials 调用 Worker 登录接口。Cap 控件位于网页的登录、注册及相关交互中，`NEXT_PUBLIC_CAP_API_ENDPOINT` 为空时界面禁止提交。当前 Credentials 回调本身不验证 Cap Token，不能把网页控件当作 API 的完整防自动化保证。
+- 论坛使用用户名 / 密码，通过 Auth.js Credentials 调用 Worker 登录接口。Cap 控件默认打同源 `/api/v1/cap/`（Worker `capjs-core` 签发/核销）。注册、发码、举报会核销一次性 token；登录控件仍是网页摩擦，Credentials 回调不验 token。Worker 需要 `CAP_SECRET`（`wrangler secret put CAP_SECRET`）。
 - 发帖、回复等写入要求账号状态允许且邮箱已验证。验证码服务需要 Worker 的 `EMAIL_VERIFY_HMAC_KEY`、`DOVE_WEBHOOK_TOKEN`，以及 Wrangler 中的 `DOVE_BASE_URL`、`DOVE_PROJECT_ID`、`DOVE_TEMPLATE_SLUG`。示例配置的邮件服务并非可直接使用的公共演练接口。
 - 后台使用 Google OAuth 与 `ADMIN_EMAILS`。本地 Google OAuth Web 客户端的回调 URI 为 `http://localhost:7032/api/auth/callback/google`；它与论坛用户的版主 / 管理角色不是同一套登录配置。
 - Phase 2 replaces application visit analytics with bounded Next.js memory statistics. Configure `WEB_STATISTICS_WRITE_KEY` on Web and Worker; configure `MEMORY_CACHE_ADMIN_KEY` on Web/Admin and `WEB_MEMORY_ADMIN_URL` on Admin. TodayVisitsMemory and `ANALYTICS_INGEST_KEY` are retired. Admin IP lookup still uses `IP_LOOKUP_API_KEY`. See [the cutover plan](29-nextjs-memory-statistics.md); local implementation does not imply deployment.

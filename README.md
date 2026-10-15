@@ -60,7 +60,7 @@ cp apps/admin/.env.local.example apps/admin/.env.local
 | `apps/web/.env.local` | `AUTH_SECRET`、与 Worker `API_KEY` 一致的 `FORUM_API_KEY`；保留本地 `WORKER_API_URL`、`AUTH_URL` 与 `NEXT_PUBLIC_SITE_URL` |
 | `apps/admin/.env.local` | 独立 `AUTH_SECRET`、匹配 Worker 的 `ADMIN_API_KEY`，以及 Google OAuth 的 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`、`ADMIN_EMAILS` |
 
-论坛登录与注册需要可用的 `NEXT_PUBLIC_CAP_API_ENDPOINT`。邮箱验证还需要 Worker 的 `EMAIL_VERIFY_HMAC_KEY`、Dove 配置与 Token；未配置时可以准备页面和数据，但无法完成这些交互。后台 Google 回调地址为 `http://localhost:7032/api/auth/callback/google`。
+论坛 Cap 默认走同源 `/api/v1/cap/`，Worker 需要 `CAP_SECRET`。邮箱验证还需要 `EMAIL_VERIFY_HMAC_KEY`、Dove 配置与 Token；未配置时可以准备页面和数据，但无法完成这些交互。后台 Google 回调地址为 `http://localhost:7032/api/auth/callback/google`。
 
 在本地独立目录初始化 D1，再启动 Worker：
 

@@ -221,6 +221,12 @@ export function registerErrorMessage(errorCode: string | null | undefined): stri
 			return "该邮箱已被其他账户绑定";
 		case "RATE_LIMITED":
 			return "注册太频繁，请稍后再试";
+		case "CAPTCHA_REQUIRED":
+			return "请先完成人机验证";
+		case "CAPTCHA_INVALID":
+			return "人机验证失败，请刷新后重试";
+		case "SERVICE_UNAVAILABLE":
+			return "人机验证服务未就绪，请稍后再试";
 		default:
 			return "注册失败，请重试";
 	}

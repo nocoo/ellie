@@ -88,12 +88,12 @@ export function cloneEmailNotVerifiedPayload(): EmailNotVerifiedPayload {
 
 /**
  * POST /api/v1/users/me/email/request-code body.
- * Carries the pending email the user wants to verify. Client-side Cap
- * captcha gates the send button; the token is NOT forwarded to the Worker
- * (same model as login/register).
+ * Carries the pending email the user wants to verify and the one-time
+ * Cap token redeemed by the Worker-hosted challenge.
  */
 export interface EmailRequestCodeBody {
 	email: string;
+	capToken: string;
 }
 
 /**

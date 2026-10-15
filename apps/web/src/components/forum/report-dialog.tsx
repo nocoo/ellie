@@ -15,6 +15,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { cn } from "@/lib/utils";
 import {
 	ApiError,
@@ -25,7 +26,7 @@ import {
 } from "@/viewmodels/forum/report";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 
-const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
+const CAP_API_ENDPOINT = resolveCapApiEndpoint();
 
 // Type-aware copy. Keys correspond to ReportTargetType.
 const TYPE_COPY: Record<
@@ -117,6 +118,7 @@ export function ReportDialog({
 	const successRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	const [capToken, setCapToken] = useState<string | null>(null);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// Cleanup timer on unmount or when dialog closes
@@ -151,6 +153,7 @@ export function ReportDialog({
 			successRef.current = false;
 			setError(null);
 			setSuccess(false);
+			setCapToken(null);
 		}
 	}, [open]);
 
@@ -179,7 +182,8 @@ export function ReportDialog({
 		};
 	}, [open, onOpenChange]);
 
-	const handleCapSolve = useCallback(() => {
+	const handleCapSolve = useCallback((token: string) => {
+		setCapToken(token);
 		setStep((prev) => ({ ...prev, captcha: "passed" }));
 	}, []);
 
@@ -210,6 +214,7 @@ export function ReportDialog({
 				targetType,
 				targetId,
 				reason: step.reason as ReportReason,
+				capToken: capToken ?? undefined,
 			});
 			successRef.current = true;
 			setSuccess(true);

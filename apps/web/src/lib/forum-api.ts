@@ -380,6 +380,28 @@ export const forumApi = {
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
+	/**
+	 * POST that returns the Worker body unchanged. Used by Cap widget
+	 * challenge/redeem, which speak Cap-native JSON instead of the
+	 * `{ data, meta }` envelope.
+	 */
+	async postRaw(path: string, body: unknown, client?: ClientContext): Promise<Response> {
+		const url = new URL(path, getWorkerUrl());
+		const headers = buildHeaders({
+			method: "POST",
+			path,
+			body,
+			clientIP: client?.ip,
+			clientUA: client?.userAgent,
+		});
+		return fetch(url.toString(), {
+			method: "POST",
+			headers,
+			body: JSON.stringify(body ?? {}),
+			cache: "no-store",
+		});
+	},
+
 	/** DELETE with Bearer token (authenticated Worker API call) */
 	async deleteAuth<T>(
 		path: string,

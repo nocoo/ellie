@@ -248,6 +248,12 @@ export default {
 			if (path === "/api/v1/auth/check-username" && request.method === "GET") {
 				return await (await import("./handlers/auth")).checkUsername(request, env);
 			}
+			if (path === "/api/v1/cap/challenge" && request.method === "POST") {
+				return await (await import("./handlers/cap")).challenge(request, env);
+			}
+			if (path === "/api/v1/cap/redeem" && request.method === "POST") {
+				return await (await import("./handlers/cap")).redeem(request, env);
+			}
 
 			// ── Authenticated routes (#6, #9) ────────────────
 			if (path === "/api/v1/threads" && request.method === "POST") {

@@ -1,10 +1,12 @@
 # 17 — Email Verification & Read-Only Gate
 
-Status: **Revision 5 (Cap.js replaces Turnstile; shipped in v1.2.0)**
+Status: **Revision 6 (Worker-hosted capjs-core; request-code verifies Cap token)**
 Owner: Claude-02 (impl) · Codex-02 (review) · SD-SDE-A (rev4–rev5 impl) · SD-Reviewer-A (rev4–rev5 review)
 Related: `04g-user-auth.md`, `api-architecture.md`, dove webhook (`POST /api/webhook/:projectId/send`), Cap.js client widget (shared with login/register; see `apps/web/src/components/cap-widget.tsx`)
 
 ## 0. Revision History
+
+**Rev6 — Worker-hosted Cap (capjs-core).** Challenge and redeem live on `POST /api/v1/cap/challenge` and `POST /api/v1/cap/redeem`. The widget talks to same-origin `/api/v1/cap/`. `EmailRequestCodeBody` is `{ email, capToken }`. The Worker consumes the one-time redeemed token before sending mail. Login still does not verify a Cap token at the Credentials callback.
 
 **Rev5 (2026-05-02) — CAPTCHA unified to Cap.js (client-side only); Cloudflare Turnstile fully removed.**
 v1.2.0 shipped (`07e467e`) instead of the Turnstile-based design from rev4. The forum already uses Cap.js for login/register, and operating two CAPTCHA providers added avoidable surface area without improving the user experience. The functional model — "request-code's send button is gated by a client-side challenge, verify is not" — is preserved; what changes is the provider and the fact that **Cap.js is a client-only gate**: the request-code wire body is unchanged in structure (just `{ email }`), the Cap token is **not** forwarded to the proxy or to the Worker, and there is **no server-side Cap verification**. Backend brute-force protection continues to rely on the existing `attempts ≤ 5 / TTL 900s / CODE_LOCKED` chain, the per-user in-flight send lock, and the resend throttle.

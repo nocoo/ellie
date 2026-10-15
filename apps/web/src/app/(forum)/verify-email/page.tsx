@@ -35,6 +35,7 @@ import { redirect } from "next/navigation";
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 
@@ -63,7 +64,7 @@ export default async function VerifyEmailPage() {
 			/>
 			<EmailVerificationCard
 				user={toEmailVerificationUserView(self)}
-				capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}
+				capApiEndpoint={resolveCapApiEndpoint()}
 				redirectAfterVerify="/"
 			/>
 		</div>

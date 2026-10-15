@@ -174,6 +174,80 @@ export async function workerPost(
 	});
 }
 
+function fnv1a(str: string): number {
+	let hash = 2166136261;
+	for (let i = 0; i < str.length; i++) {
+		hash ^= str.charCodeAt(i);
+		hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+	}
+	return hash >>> 0;
+}
+
+function fnv1aResume(state: number, str: string): number {
+	let h = state;
+	for (let i = 0; i < str.length; i++) {
+		h ^= str.charCodeAt(i);
+		h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+	}
+	return h >>> 0;
+}
+
+function prngFromHash(initialHash: number, length: number): string {
+	let state = initialHash;
+	let result = "";
+	while (result.length < length) {
+		state ^= state << 13;
+		state ^= state >>> 17;
+		state ^= state << 5;
+		state >>>= 0;
+		result += state.toString(16).padStart(8, "0");
+	}
+	return result.substring(0, length);
+}
+
+async function sha256Hex(input: string): Promise<string> {
+	const bytes = new TextEncoder().encode(input);
+	const digest = await crypto.subtle.digest("SHA-256", bytes);
+	return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function solveFormat1(token: string, c: number, s: number, d: number): Promise<number[]> {
+	const solutions: number[] = [];
+	const tokenFnv = fnv1a(token);
+	for (let i = 0; i < c; i++) {
+		const saltSeed = fnv1aResume(tokenFnv, String(i + 1));
+		const targetSeed = fnv1aResume(saltSeed, "d");
+		const salt = prngFromHash(saltSeed, s);
+		const target = prngFromHash(targetSeed, d);
+		let nonce = 0;
+		for (;;) {
+			const hash = await sha256Hex(salt + String(nonce));
+			if (hash.startsWith(target)) {
+				solutions.push(nonce);
+				break;
+			}
+			nonce++;
+		}
+	}
+	return solutions;
+}
+
+/** Redeem a Worker-hosted Cap challenge and return the one-time token. */
+export async function issueCapToken(): Promise<string> {
+	const issued = await workerPost("/api/v1/cap/challenge", {});
+	if (!issued.ok) throw new Error(`cap challenge failed: ${issued.status}`);
+	const { token, challenge } = (await issued.json()) as {
+		token: string;
+		challenge: { c: number; s: number; d: number };
+	};
+	const solutions = await solveFormat1(token, challenge.c, challenge.s, challenge.d);
+	const redeemed = await workerPost("/api/v1/cap/redeem", { token, solutions });
+	if (!redeemed.ok) throw new Error(`cap redeem failed: ${redeemed.status}`);
+	const body = (await redeemed.json()) as { token?: string };
+	if (!body.token) throw new Error("cap redeem missing token");
+	return body.token;
+}
+
 /**
  * PATCH JSON to Worker with Key A.
  */

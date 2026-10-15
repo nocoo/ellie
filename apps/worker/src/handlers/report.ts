@@ -1,6 +1,8 @@
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { canViewForumVisibility } from "@ellie/types";
 import { getPrivateData, type PostingPreview } from "../lib/cache/private-read";
+import { readCapToken } from "../lib/cap";
+import { requireCapToken } from "../lib/cap-gate";
 import type { Env } from "../lib/env";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
@@ -154,6 +156,9 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 			origin,
 		);
 	}
+
+	const captchaError = await requireCapToken(env, readCapToken(body), origin);
+	if (captchaError) return captchaError;
 
 	// Check posting permission (reuse existing logic)
 	const permissionResult = await checkPostingPermission(env, user, origin);

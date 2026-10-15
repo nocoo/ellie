@@ -256,15 +256,16 @@ describe("nextState", () => {
 
 // ─── makeRequestCodeBody / makeVerifyBody ────────────────────────────────────
 describe("makeRequestCodeBody", () => {
-	it("projects to { email } and trims", () => {
-		expect(makeRequestCodeBody("  x@y.io  ")).toEqual({
+	it("projects to { email, capToken } and trims", () => {
+		expect(makeRequestCodeBody("  x@y.io  ", "  tok  ")).toEqual({
 			email: "x@y.io",
+			capToken: "tok",
 		});
 	});
 
-	it("returns exactly one key (no extras)", () => {
-		const body = makeRequestCodeBody("x@y.io");
-		expect(Object.keys(body)).toEqual(["email"]);
+	it("returns exactly two keys (no extras)", () => {
+		const body = makeRequestCodeBody("x@y.io", "tok");
+		expect(Object.keys(body)).toEqual(["email", "capToken"]);
 	});
 });
 

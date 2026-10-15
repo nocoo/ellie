@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { checkUsername, register } from "../../../src/handlers/auth";
-import { createMockDb, makeEnv } from "../../helpers";
+import { createMockDb, makeEnv, TEST_CAP_TOKEN } from "../../helpers";
 
 // ---------------------------------------------------------------------------
 // Request factories
@@ -12,7 +12,7 @@ const REQUIRED_PROFILE = { graduateSchool: "校内人士", campus: "四平路校
 function createRegisterRequest(body: Record<string, unknown>) {
 	return new Request("https://example.com/api/v1/auth/register", {
 		method: "POST",
-		body: JSON.stringify(body),
+		body: JSON.stringify({ capToken: TEST_CAP_TOKEN, ...body }),
 		headers: {
 			"Content-Type": "application/json",
 			"CF-Connecting-IP": "1.2.3.4",
@@ -37,7 +37,12 @@ function createMockKV(overrides?: {
 }) {
 	const putCalls = overrides?.putCalls ?? [];
 	return {
-		get: vi.fn(async (key: string) => overrides?.get?.[key] ?? null),
+		get: vi.fn(async (key: string) => {
+			if (key === `cap-token:${TEST_CAP_TOKEN}` && overrides?.get?.[key] === undefined) {
+				return "1";
+			}
+			return overrides?.get?.[key] ?? null;
+		}),
 		put: vi.fn(async (key: string, value: string, opts?: unknown) => {
 			putCalls.push({ key, value, opts });
 		}),
@@ -149,6 +154,40 @@ describe("register", () => {
 		expect(res.status).toBe(400);
 		const body = (await res.json()) as { error: { code: string } };
 		expect(body.error.code).toBe("INVALID_EMAIL");
+	});
+
+	it("rejects missing cap token → CAPTCHA_REQUIRED 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
+				capToken: "",
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("CAPTCHA_REQUIRED");
+	});
+
+	it("rejects unknown cap token → CAPTCHA_INVALID 403", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
+				capToken: "forged",
+			}),
+			env,
+		);
+		expect(res.status).toBe(403);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("CAPTCHA_INVALID");
 	});
 
 	it("rejects missing email → INVALID_EMAIL 400", async () => {

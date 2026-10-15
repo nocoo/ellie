@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { checkUsernameAvailability } from "@/lib/forum-browser-api";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,7 @@ import {
 	AuthIdCard,
 } from "../_components/auth-id-card";
 
-const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
+const CAP_API_ENDPOINT = resolveCapApiEndpoint();
 
 // ---------------------------------------------------------------------------
 // Username availability status
@@ -242,6 +243,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				password,
 				email.trim(),
 				buildRegisterProfile(formState),
+				capToken ?? undefined,
 			);
 
 			if ("error" in result) {
