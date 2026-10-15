@@ -533,7 +533,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
 name = "ellie-core"
-version = "1.14.23"
+version = "1.14.24"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "ellie-tui"
-version = "1.14.23"
+version = "1.14.24"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1675,9 +1675,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.45"
+version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
+checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
  "log",
  "once_cell",
