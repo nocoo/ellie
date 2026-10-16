@@ -151,7 +151,7 @@ function LoginFormInner() {
 					{/* Cap CAPTCHA — required. When endpoint is missing, fail-closed:
 				    show an error banner and the submit button stays disabled. */}
 					{capConfigured ? (
-						<div className="flex min-h-14 items-center justify-center">
+						<div className="w-full">
 							<CapWidget
 								apiEndpoint={CAP_API_ENDPOINT}
 								onSolve={setCapToken}

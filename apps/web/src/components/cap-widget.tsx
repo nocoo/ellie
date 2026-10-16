@@ -4,6 +4,29 @@
 // https://github.com/tiagozip/cap
 
 import React, { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
+
+const CAP_SHADOW_SKIN = `
+.credits {
+	left: -9999px !important;
+	width: 0 !important;
+	height: 0 !important;
+	overflow: hidden !important;
+	margin: 0 !important;
+	padding: 0 !important;
+}
+.captcha {
+	box-sizing: border-box;
+	overflow: hidden;
+}
+.captcha:hover {
+	filter: none;
+}
+.captcha p {
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+`;
 
 interface CapWidgetProps {
 	/** Cap API endpoint URL (e.g., https://cap.example.com/site-key/) */
@@ -58,18 +81,28 @@ export function CapWidget({ apiEndpoint, onSolve, onError, className }: CapWidge
 		widget.addEventListener("solve", handleSolve);
 		widget.addEventListener("error", handleError);
 
+		const applySkin = () => {
+			const root = widget.shadowRoot;
+			if (!root || root.querySelector("[data-ellie-cap-skin]")) return;
+			const style = document.createElement("style");
+			style.setAttribute("data-ellie-cap-skin", "");
+			style.textContent = CAP_SHADOW_SKIN;
+			root.appendChild(style);
+		};
+		applySkin();
+		const frame = requestAnimationFrame(applySkin);
+
 		return () => {
+			cancelAnimationFrame(frame);
 			widget.removeEventListener("solve", handleSolve);
 			widget.removeEventListener("error", handleError);
 		};
 	}, [mounted]);
 
 	if (!mounted) {
-		// SSR placeholder
-		return <div className={className} style={{ height: 50 }} />;
+		return <div className={cn("h-11 w-full", className)} />;
 	}
 
-	// Use React.createElement for custom element to bypass JSX type checking
 	return React.createElement("cap-widget", {
 		ref: widgetRef,
 		"data-cap-api-endpoint": apiEndpoint,
@@ -77,6 +110,6 @@ export function CapWidget({ apiEndpoint, onSolve, onError, className }: CapWidge
 		"data-cap-i18n-verifying-label": "验证中...",
 		"data-cap-i18n-solved-label": "验证成功",
 		"data-cap-i18n-error-label": "验证失败",
-		className,
+		className: cn("w-full", className),
 	});
 }

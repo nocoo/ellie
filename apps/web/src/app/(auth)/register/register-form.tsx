@@ -580,7 +580,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 
 	/** CAP is required: missing configuration keeps registration disabled. */
 	const captchaField = capConfigured ? (
-		<div className="flex min-h-14 items-center justify-center">
+		<div className="w-full">
 			<CapWidget
 				key={widgetKey}
 				apiEndpoint={CAP_API_ENDPOINT}

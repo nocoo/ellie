@@ -257,10 +257,18 @@
    Cap.js CAPTCHA Widget Theming
    ========================================================================== */
 cap-widget {
-	--cap-background: hsl(var(--card));
-	--cap-border-color: hsl(var(--border));
+	display: block;
+	width: 100%;
+	--cap-background: transparent;
+	--cap-border-color: transparent;
 	--cap-border-radius: var(--radius);
 	--cap-color: hsl(var(--foreground));
+	--cap-widget-width: 100%;
+	--cap-widget-height: 2.75rem;
+	--cap-widget-padding: 0 0.625rem;
+	--cap-gap: 0.5rem;
+	--cap-checkbox-size: 1.125rem;
+	--cap-checkbox-margin: 0;
 	--cap-checkbox-background: hsl(var(--muted));
 	--cap-checkbox-border: 1px solid hsl(var(--border));
 	--cap-spinner-color: hsl(var(--primary));
@@ -268,13 +276,17 @@ cap-widget {
 	--cap-font: var(--font-sans), system-ui, sans-serif;
 }
 .dark cap-widget {
-	--cap-background: hsl(var(--card));
-	--cap-border-color: hsl(var(--border));
+	--cap-background: transparent;
+	--cap-border-color: transparent;
 	--cap-color: hsl(var(--foreground));
 	--cap-checkbox-background: hsl(var(--muted));
 	--cap-checkbox-border: 1px solid hsl(var(--border));
 	--cap-spinner-color: hsl(var(--primary));
 	--cap-spinner-background-color: hsl(var(--accent));
+}
+cap-widget::part(label) {
+	font-size: 0.875rem;
+	font-weight: 500;
 }
 
 /* ==========================================================================
