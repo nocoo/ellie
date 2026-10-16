@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { solveFormat1, workerPost } from "../setup";
+import { issueCapToken, solveFormat1, workerPost } from "../setup";
 
 describe("L2: Worker Cap API", () => {
 	test("POST /api/v1/cap/challenge returns a challenge", async () => {
@@ -27,6 +27,32 @@ describe("L2: Worker Cap API", () => {
 		expect(first.status).toBe(200);
 		const replay = await workerPost("/api/v1/cap/redeem", { token, solutions });
 		expect(replay.status).toBe(400);
+	});
+
+	test("concurrent register consumes a capToken once", async () => {
+		const capToken = await issueCapToken();
+		const profile = { graduateSchool: "校内人士", campus: "四平路校区" };
+		const [first, second] = await Promise.all([
+			workerPost("/api/v1/auth/register", {
+				username: "caprace1",
+				password: "password123",
+				email: "caprace1@example.com",
+				profile,
+				capToken,
+			}),
+			workerPost("/api/v1/auth/register", {
+				username: "caprace2",
+				password: "password123",
+				email: "caprace2@example.com",
+				profile,
+				capToken,
+			}),
+		]);
+		const statuses = [first.status, second.status].sort();
+		expect(statuses).toEqual([201, 403]);
+		const failed = first.status === 403 ? first : second;
+		const body = (await failed.json()) as { error?: { code?: string } };
+		expect(body.error?.code).toBe("CAPTCHA_INVALID");
 	});
 
 	test("POST /api/v1/auth/register without capToken is CAPTCHA_REQUIRED", async () => {

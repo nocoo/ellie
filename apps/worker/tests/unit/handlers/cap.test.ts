@@ -293,15 +293,25 @@ describe("POST /api/v1/cap/redeem", () => {
 			expiresMs: 60_000,
 			scope: "ellie",
 		});
+		const solutions = solveFormat1(
+			issued.token,
+			issued.challenge.c,
+			issued.challenge.s,
+			issued.challenge.d,
+		);
 		const res = await redeem(
 			new Request("https://example.com/api/v1/cap/redeem", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ token: issued.token, solutions: [0, 0, 0, 0] }),
+				body: JSON.stringify({ token: issued.token, solutions }),
 			}),
 			env,
 		);
 		expect(res.status).toBe(400);
+		expect((await res.json()) as { error: string }).toEqual({
+			success: false,
+			error: "invalid_token",
+		});
 	});
 
 	it("rejects a challenge issued for another scope", async () => {
@@ -312,15 +322,25 @@ describe("POST /api/v1/cap/redeem", () => {
 			expiresMs: 60_000,
 			scope: "other",
 		});
+		const solutions = solveFormat1(
+			issued.token,
+			issued.challenge.c,
+			issued.challenge.s,
+			issued.challenge.d,
+		);
 		const res = await redeem(
 			new Request("https://example.com/api/v1/cap/redeem", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ token: issued.token, solutions: [0, 0, 0, 0] }),
+				body: JSON.stringify({ token: issued.token, solutions }),
 			}),
 			env,
 		);
 		expect(res.status).toBe(400);
+		expect((await res.json()) as { error: string }).toEqual({
+			success: false,
+			error: "scope_mismatch",
+		});
 	});
 
 	it("rejects invalid solutions", async () => {
