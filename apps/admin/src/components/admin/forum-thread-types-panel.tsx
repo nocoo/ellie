@@ -330,7 +330,9 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 								</Badge>
 							)}
 						</span>
-						{state.kind === "loading" && <Loader className="h-3.5 w-3.5" />}
+						{state.kind === "loading" && (
+							<Loader className="h-3.5 w-3.5" showLabel={false} showElapsed={false} />
+						)}
 					</Button>
 				</CollapsibleTrigger>
 
@@ -341,7 +343,7 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 						)}
 						{state.kind === "loading" && (
 							<div className="flex items-center gap-2 text-xs text-basalt-muted-foreground">
-								<Loader className="h-3.5 w-3.5" />
+								<Loader className="h-3.5 w-3.5" showLabel={false} showElapsed={false} />
 								加载中...
 							</div>
 						)}

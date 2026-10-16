@@ -283,7 +283,7 @@ function ExpandedKeyList({
 	if (state.loading && state.rows.length === 0) {
 		return (
 			<div className="flex items-center justify-center py-6 text-xs text-basalt-muted-foreground">
-				<Loader className="mr-2 h-3 w-3" />
+				<Loader className="mr-2 h-3 w-3" showLabel={false} showElapsed={false} />
 				加载 key 列表…
 			</div>
 		);
@@ -389,7 +389,7 @@ function ExpandedKeyList({
 					<Button size="sm" variant="outline" disabled={state.loading} onClick={onLoadMore}>
 						{state.loading ? (
 							<>
-								<Loader className="mr-1 h-3 w-3" />
+								<Loader className="mr-1 h-3 w-3" showLabel={false} showElapsed={false} />
 								加载中
 							</>
 						) : (
@@ -432,7 +432,7 @@ function OverviewTable({
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center py-12 text-basalt-muted-foreground">
-				<Loader className="mr-2 h-4 w-4" />
+				<Loader className="mr-2 h-4 w-4" showLabel={false} showElapsed={false} />
 				加载中…
 			</div>
 		);
@@ -510,7 +510,7 @@ function OverviewTable({
 										onClick={() => onInvalidateGroup(row)}
 									>
 										{busyFamily === row.family ? (
-											<Loader className="mr-1 h-3 w-3" />
+											<Loader className="mr-1 h-3 w-3" showLabel={false} showElapsed={false} />
 										) : (
 											<RefreshCw className="mr-1 h-3 w-3" />
 										)}
@@ -605,7 +605,7 @@ function KeyDetailDialog({
 				</DialogHeader>
 				{state.loading && (
 					<div className="flex items-center justify-center py-6 text-xs text-basalt-muted-foreground">
-						<Loader className="mr-2 h-3 w-3" />
+						<Loader className="mr-2 h-3 w-3" showLabel={false} showElapsed={false} />
 						加载中…
 					</div>
 				)}

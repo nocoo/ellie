@@ -112,6 +112,7 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 							</span>
 							<CodeBlock
 								data-testid="admin-log-details"
+								copyable={false}
 								className="overflow-x-auto p-3 text-xs leading-relaxed whitespace-pre-wrap break-words"
 							>
 								{renderDetails(parsed)}

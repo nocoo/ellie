@@ -101,7 +101,7 @@ export default async function DashboardPage() {
 			<Suspense
 				fallback={
 					<LayerCard className="flex min-h-48 items-center justify-center gap-2">
-						<Loader size={20} />
+						<Loader size={20} showLabel={false} showElapsed={false} />
 						<span role="status" className="text-sm text-basalt-muted-foreground">
 							加载社区活动…
 						</span>

@@ -570,7 +570,7 @@ export default function AttachmentsPage() {
 					{/* Loading */}
 					{loading && (
 						<div role="status" className="flex items-center justify-center gap-2 py-12">
-							<Loader size={16} />
+							<Loader size={16} showLabel={false} showElapsed={false} />
 							<span className="text-sm text-basalt-muted-foreground">加载中...</span>
 						</div>
 					)}

@@ -61,7 +61,9 @@ export function IpLookupInline({ ip }: IpLookupInlineProps) {
 		<div className="mt-1 space-y-2">
 			<div className="flex items-center gap-2">
 				<Button type="button" size="sm" variant="outline" onClick={handleQuery} disabled={loading}>
-					{loading ? <Loader className="mr-1 h-3 w-3" /> : null}
+					{loading ? (
+						<Loader className="mr-1 h-3 w-3" showLabel={false} showElapsed={false} />
+					) : null}
 					{result ? "重新查询" : "查询"}
 				</Button>
 				{result?.cached ? (

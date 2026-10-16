@@ -625,7 +625,7 @@ export default function MemoryCachePage() {
 
 			{phase === "loading" && !overview && (
 				<LayerCard className="flex min-h-48 items-center justify-center gap-2">
-					<Loader size={20} />
+					<Loader size={20} showLabel={false} showElapsed={false} />
 					<span role="status" className="text-sm text-basalt-muted-foreground">
 						加载内存缓存状态…
 					</span>

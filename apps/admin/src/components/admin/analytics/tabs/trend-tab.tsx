@@ -211,7 +211,7 @@ export function TrendTab(): React.JSX.Element {
 							role="status"
 							className="flex h-60 items-center justify-center gap-2 text-sm text-basalt-muted-foreground"
 						>
-							<Loader size={16} />
+							<Loader size={16} showLabel={false} showElapsed={false} />
 							加载趋势…
 						</div>
 					)}
@@ -239,7 +239,7 @@ export function TrendTab(): React.JSX.Element {
 						)}
 						{!forumDist && !forumDistError && (
 							<div role="status" className="flex h-60 items-center justify-center">
-								<Loader size={16} />
+								<Loader size={16} showLabel={false} showElapsed={false} />
 							</div>
 						)}
 						{forumDist && forumDist.rows.length > 0 && (
@@ -314,7 +314,7 @@ export function TrendTab(): React.JSX.Element {
 						)}
 						{!checkin && !checkinError && (
 							<div role="status" className="flex h-60 items-center justify-center">
-								<Loader size={16} />
+								<Loader size={16} showLabel={false} showElapsed={false} />
 							</div>
 						)}
 						{checkin && (

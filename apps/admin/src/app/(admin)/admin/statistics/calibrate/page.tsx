@@ -261,7 +261,9 @@ export default function StatsCalibratePage() {
 								onClick={fetchState}
 								disabled={loading || running || applying}
 							>
-								{loading && <Loader className="mr-1 h-4 w-4" />}
+								{loading && (
+									<Loader className="mr-1 h-4 w-4" showLabel={false} showElapsed={false} />
+								)}
 								刷新
 							</Button>
 							<Button
@@ -270,7 +272,9 @@ export default function StatsCalibratePage() {
 								onClick={runStats}
 								disabled={loading || running || applying}
 							>
-								{running && <Loader className="mr-1 h-4 w-4" />}
+								{running && (
+									<Loader className="mr-1 h-4 w-4" showLabel={false} showElapsed={false} />
+								)}
 								运行统计
 							</Button>
 						</div>
@@ -386,7 +390,9 @@ export default function StatsCalibratePage() {
 								loading || running || applying || Object.values(offsets).every((v) => v === 0)
 							}
 						>
-							{applying && <Loader className="mr-1 h-4 w-4" />}
+							{applying && (
+								<Loader className="mr-1 h-4 w-4" showLabel={false} showElapsed={false} />
+							)}
 							应用偏移
 						</Button>
 						<Button
@@ -394,7 +400,9 @@ export default function StatsCalibratePage() {
 							onClick={applyReal}
 							disabled={loading || running || applying || !hasDrift}
 						>
-							{applying && <Loader className="mr-1 h-4 w-4" />}
+							{applying && (
+								<Loader className="mr-1 h-4 w-4" showLabel={false} showElapsed={false} />
+							)}
 							<RefreshCw className="mr-1 h-4 w-4" />
 							同步真实值
 						</Button>

@@ -113,7 +113,7 @@ function RecalcCard({ config }: { config: CardConfig }) {
 			<LayerCard.Well className="flex flex-1 flex-col gap-4">
 				{loading && !snapshot ? (
 					<div className="flex items-center text-xs text-basalt-muted-foreground">
-						<Loader className="mr-2 h-4 w-4" />
+						<Loader className="mr-2 h-4 w-4" showLabel={false} showElapsed={false} />
 						加载状态中…
 					</div>
 				) : snapshot ? (
@@ -179,7 +179,9 @@ function RecalcCard({ config }: { config: CardConfig }) {
 							onClick={onPrimary}
 							disabled={isPosting || isRunning}
 						>
-							{isPosting && <Loader className="mr-2 h-4 w-4" />}
+							{isPosting && (
+								<Loader className="mr-2 h-4 w-4" showLabel={false} showElapsed={false} />
+							)}
 							{primaryLabel}
 						</Button>
 					) : (

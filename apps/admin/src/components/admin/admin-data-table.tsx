@@ -96,7 +96,7 @@ export function AdminDataTable<T>({
 	if (loading) {
 		return (
 			<div role="status" className="flex items-center justify-center gap-2 py-12">
-				<Loader size={16} />
+				<Loader size={16} showLabel={false} showElapsed={false} />
 				<p className="text-sm text-basalt-muted-foreground">加载中...</p>
 			</div>
 		);

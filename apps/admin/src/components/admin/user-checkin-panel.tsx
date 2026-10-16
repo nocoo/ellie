@@ -169,7 +169,11 @@ export function UserCheckinPanel({ userId }: Props) {
 				</LayerCard.Header>
 				<LayerCard.Well>
 					<div className="flex items-center justify-center py-10">
-						<Loader className="h-5 w-5 text-basalt-muted-foreground" />
+						<Loader
+							className="h-5 w-5 text-basalt-muted-foreground"
+							showLabel={false}
+							showElapsed={false}
+						/>
 					</div>
 				</LayerCard.Well>
 			</LayerCard>

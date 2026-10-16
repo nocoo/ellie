@@ -169,7 +169,7 @@ function AttachmentViewer({
 						aria-label="加载图片"
 						className="pointer-events-none absolute inset-0 flex items-center justify-center"
 					>
-						<Loader className="h-8 w-8" />
+						<Loader className="h-8 w-8" showLabel={false} showElapsed={false} />
 					</div>
 				)}
 				{images.length > 1 && (

@@ -198,7 +198,11 @@ export default function ThreadDetailPage() {
 	if (loading && !data) {
 		return (
 			<div className="flex items-center justify-center py-20">
-				<Loader className="h-6 w-6 text-basalt-muted-foreground" />
+				<Loader
+					className="h-6 w-6 text-basalt-muted-foreground"
+					showLabel={false}
+					showElapsed={false}
+				/>
 			</div>
 		);
 	}
