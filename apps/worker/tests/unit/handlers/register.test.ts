@@ -38,9 +38,6 @@ function createMockKV(overrides?: {
 	const putCalls = overrides?.putCalls ?? [];
 	return {
 		get: vi.fn(async (key: string) => {
-			if (key === `cap-token:${TEST_CAP_TOKEN}` && overrides?.get?.[key] === undefined) {
-				return "1";
-			}
 			return overrides?.get?.[key] ?? null;
 		}),
 		put: vi.fn(async (key: string, value: string, opts?: unknown) => {

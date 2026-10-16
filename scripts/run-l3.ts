@@ -45,7 +45,6 @@ import {
 	startLocalL3WorkerProcess,
 } from "./lib/l3-local-worker";
 import { killTree, spawnDetached } from "./lib/process-tree";
-import { readDotenvValue } from "./lib/read-dotenv";
 import { type GuardedPlaywrightResult, runPlaywrightGuarded } from "./lib/run-playwright-guarded";
 import {
 	classifyTestExit,
@@ -74,16 +73,6 @@ let workerHandle: LocalWorkerHandle | null = null;
 
 async function startServer(): Promise<void> {
 	console.log(`🚀 Starting Next.js (forum) on port ${TEST_PORT}…`);
-	// next dev auto-loads .env.local when it owns the process. We spawn next
-	// directly with a curated env, so anything the login form needs from
-	// .env.local has to be forwarded here. CI provides
-	// NEXT_PUBLIC_CAP_API_ENDPOINT via a repo secret; locally it only lives
-	// in apps/web/.env.local, so we read that file as the fallback. Empty
-	// endpoint → login submit stays disabled (fail-closed) → auth E2E hits
-	// 60s Cap-wait timeouts.
-	const capEndpoint =
-		process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ??
-		readDotenvValue(resolve(REPO_ROOT, "apps/web/.env.local"), "NEXT_PUBLIC_CAP_API_ENDPOINT");
 	serverProcess = spawnDetached(NEXT_BIN, ["dev", "--turbopack", "-p", String(TEST_PORT)], {
 		cwd: resolve(REPO_ROOT, "apps/web"),
 		env: {
@@ -104,7 +93,6 @@ async function startServer(): Promise<void> {
 			// which mismatches everything the L3 fixtures and NextAuth
 			// callbacks assume when hitting http://localhost.
 			AUTH_URL: BASE_URL,
-			NEXT_PUBLIC_CAP_API_ENDPOINT: capEndpoint,
 		},
 	});
 	await waitForServer();

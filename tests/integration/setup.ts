@@ -211,7 +211,12 @@ async function sha256Hex(input: string): Promise<string> {
 	return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function solveFormat1(token: string, c: number, s: number, d: number): Promise<number[]> {
+export async function solveFormat1(
+	token: string,
+	c: number,
+	s: number,
+	d: number,
+): Promise<number[]> {
 	const solutions: number[] = [];
 	const tokenFnv = fnv1a(token);
 	for (let i = 0; i < c; i++) {

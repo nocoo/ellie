@@ -106,7 +106,6 @@ AUTH_URL=https://ellie.hexly.ai
 AUTH_SECRET=<generate: openssl rand -base64 32>
 WORKER_API_URL=https://ellie.worker.hexly.ai
 FORUM_API_KEY=<same as Worker's API_KEY>
-NEXT_PUBLIC_CAP_API_ENDPOINT=<cap endpoint>
 ```
 
 ### .env.admin

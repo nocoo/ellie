@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: 34b69f9b03bbdb2e43362a9f0a690e6f3b1fb4fd2d07f23fac4df1f27b7f07b8):
+ * Source migrations (sha256: 0bfe30478c0309d31908b77884f1c7e20b80086103ecea2a633dfd016d191686):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -41,6 +41,7 @@
  *   - 0055_memory_statistics_indexes.sql
  *   - 0056_forum_authority_revision.sql
  *   - 0057_avatar_path_only.sql
+ *   - 0058_cap_one_time.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1757,9 +1758,28 @@ ALTER TABLE users DROP COLUMN has_avatar;
 ALTER TABLE users DROP COLUMN avatar;
 
 CREATE INDEX idx_users_avatar_path ON users(avatar_path) WHERE avatar_path != '';
+
+-- ── 0058_cap_one_time.sql ────────────────────────────────────────────
+-- One-time Cap challenge nonces, redeemed tokens, and per-IP challenge
+-- counters. KV cannot atomically consume a key, so these live in D1.
+CREATE TABLE cap_tokens (
+	token TEXT PRIMARY KEY NOT NULL,
+	expires_at INTEGER NOT NULL
+);
+
+CREATE TABLE cap_nonces (
+	signature_hex TEXT PRIMARY KEY NOT NULL,
+	expires_at INTEGER NOT NULL
+);
+
+CREATE TABLE cap_challenge_ip (
+	ip TEXT PRIMARY KEY NOT NULL,
+	window_start INTEGER NOT NULL,
+	count INTEGER NOT NULL
+);
 `;
 
-export const INIT_SQL_HASH = "34b69f9b03bbdb2e43362a9f0a690e6f3b1fb4fd2d07f23fac4df1f27b7f07b8";
+export const INIT_SQL_HASH = "0bfe30478c0309d31908b77884f1c7e20b80086103ecea2a633dfd016d191686";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1798,5 +1818,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0054_same_ip_indexes.sql",
 	"0055_memory_statistics_indexes.sql",
 	"0056_forum_authority_revision.sql",
-	"0057_avatar_path_only.sql"
+	"0057_avatar_path_only.sql",
+	"0058_cap_one_time.sql"
 ] as const;

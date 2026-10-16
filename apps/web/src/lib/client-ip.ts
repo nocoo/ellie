@@ -32,8 +32,6 @@
 // its own (no-op) extractor for analytics, preventing a silently-forged
 // IP from being treated as a real one.
 
-import type { NextRequest } from "next/server";
-
 export interface ExtractClientIpOptions {
 	/**
 	 * Allow `X-Forwarded-For` (first hop) outside production. Defaults to
@@ -94,7 +92,7 @@ export function extractClientIp(
  * also accepts an inbound `X-Real-IP` (dev convenience for `curl -H`
  * testing). NEVER applied when `process.env.NODE_ENV === "production"`.
  */
-export function resolveTrustedClientIp(request: NextRequest): string {
+export function resolveTrustedClientIp(request: { headers: ReadOnlyHeaders }): string {
 	const cf = request.headers.get("cf-connecting-ip");
 	if (cf && cf.length > 0) return cf;
 

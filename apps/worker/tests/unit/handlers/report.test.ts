@@ -170,6 +170,46 @@ describe("POST /api/v1/reports", () => {
 		expect(data.error.details?.message).toContain("reason");
 	});
 
+	it("rejects missing cap token before writing a report", async () => {
+		const token = await makeUserToken();
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "post",
+			targetId: 1,
+			reason: "垃圾广告",
+			capToken: "",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(400);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("CAPTCHA_REQUIRED");
+	});
+
+	it("rejects an unknown cap token before writing a report", async () => {
+		const token = await makeUserToken();
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "post",
+			targetId: 1,
+			reason: "垃圾广告",
+			capToken: "forged",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(403);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("CAPTCHA_INVALID");
+	});
+
 	it("should return 403 when user is banned", async () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({

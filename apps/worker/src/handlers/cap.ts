@@ -2,15 +2,12 @@ import { generateChallenge, validateChallenge } from "capjs-core";
 import {
 	CAP_CHALLENGE_COUNT,
 	CAP_CHALLENGE_DIFFICULTY,
-	CAP_CHALLENGE_IP_LIMIT,
-	CAP_CHALLENGE_IP_PREFIX,
-	CAP_CHALLENGE_IP_WINDOW_SEC,
 	CAP_CHALLENGE_TTL_MS,
 	CAP_REDEEM_TTL_MS,
 	CAP_SCOPE,
-	CAP_TOKEN_PREFIX,
 	consumeCapNonce,
-	kvTtlSec,
+	storeCapToken,
+	takeChallengeSlot,
 } from "../lib/cap";
 import { extractTrustedClientIp } from "../lib/clientIp";
 import type { Env } from "../lib/env";
@@ -39,13 +36,8 @@ export async function challenge(request: Request, env: Env): Promise<Response> {
 		return capJson({ success: false, error: "missing_client_ip" }, 400, origin);
 	}
 
-	if (!RATE_LIMIT_IP_WHITELIST.has(ip)) {
-		const rateKey = `${CAP_CHALLENGE_IP_PREFIX}${ip}`;
-		const used = Number.parseInt((await env.KV.get(rateKey)) ?? "0", 10);
-		if (used >= CAP_CHALLENGE_IP_LIMIT) {
-			return capJson({ success: false, error: "rate_limited" }, 429, origin);
-		}
-		await env.KV.put(rateKey, String(used + 1), { expirationTtl: CAP_CHALLENGE_IP_WINDOW_SEC });
+	if (!RATE_LIMIT_IP_WHITELIST.has(ip) && !(await takeChallengeSlot(env, ip))) {
+		return capJson({ success: false, error: "rate_limited" }, 429, origin);
 	}
 
 	const testLane = env.ENVIRONMENT === "test";
@@ -94,8 +86,6 @@ export async function redeem(request: Request, env: Env): Promise<Response> {
 	if (ttlMs < 1000) {
 		return capJson({ success: false, error: "expired" }, 400, origin);
 	}
-	await env.KV.put(`${CAP_TOKEN_PREFIX}${result.token}`, result.tokenKey ?? "1", {
-		expirationTtl: kvTtlSec(ttlMs),
-	});
+	await storeCapToken(env, result.token, result.expires);
 	return capJson({ success: true, token: result.token, expires: result.expires }, 200, origin);
 }

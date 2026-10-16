@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { extractClientIp } from "@/lib/client-ip";
+import { resolveTrustedClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { forumApi } from "@/lib/forum-api";
 
@@ -24,6 +24,11 @@ export async function POST(
 		);
 	}
 
+	const ip = resolveTrustedClientIp(request);
+	if (!ip) {
+		return NextResponse.json({ success: false, error: "missing_client_ip" }, { status: 400 });
+	}
+
 	let body: unknown = {};
 	try {
 		body = await request.json();
@@ -32,7 +37,7 @@ export async function POST(
 	}
 
 	const upstream = await forumApi.postRaw(`/api/v1/cap/${action}`, body, {
-		ip: extractClientIp(request) || undefined,
+		ip,
 		userAgent: request.headers.get("User-Agent") || undefined,
 	});
 	return new NextResponse(await upstream.text(), {

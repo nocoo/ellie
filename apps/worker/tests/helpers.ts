@@ -90,16 +90,123 @@ export function createMockCtx() {
 }
 
 export function makeEnv(overrides?: Partial<Env>): Env {
-	return {
+	const cap = new CapMemoryStore();
+	const env: Env = {
 		API_KEY: TEST_API_KEY,
 		ADMIN_API_KEY: TEST_ADMIN_API_KEY,
-		DB: {} as D1Database,
+		DB: cap.asD1(),
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
-		KV: createMockKV({ [`cap-token:${TEST_CAP_TOKEN}`]: "1" }),
+		KV: createMockKV(),
 		CAP_SECRET: TEST_CAP_SECRET,
 		...overrides,
 	};
+	if (overrides?.DB) attachCapSql(env.DB, cap);
+	return env;
+}
+
+export class CapMemoryStore {
+	readonly tokens = new Map<string, number>();
+	readonly nonces = new Set<string>();
+	readonly ipWindows = new Map<string, { windowStart: number; count: number }>();
+
+	constructor(seedTokens: string[] = [TEST_CAP_TOKEN]) {
+		const expiresAt = Date.now() + 1_200_000;
+		for (const token of seedTokens) this.tokens.set(token, expiresAt);
+	}
+
+	asD1(): D1Database {
+		return {
+			prepare: vi.fn((sql: string) => this.prepare(sql)),
+			batch: vi.fn(async () => []),
+		} as unknown as D1Database;
+	}
+
+	prepare(sql: string): D1PreparedStatement {
+		const execFirst = async (params: unknown[]) => this.execFirst(sql, params);
+		const execRun = async (params: unknown[]) => this.execRun(sql, params);
+		return {
+			bind: (...params: unknown[]) => ({
+				first: () => execFirst(params),
+				run: () => execRun(params),
+				all: async () => ({ success: true, results: [], meta: {} }),
+			}),
+			first: () => execFirst([]),
+			run: () => execRun([]),
+			all: async () => ({ success: true, results: [], meta: {} }),
+		} as unknown as D1PreparedStatement;
+	}
+
+	private execFirst(sql: string, params: unknown[]): unknown {
+		if (sql.includes("DELETE FROM cap_tokens")) {
+			const token = String(params[0] ?? "");
+			const now = Number(params[1] ?? 0);
+			const expiresAt = this.tokens.get(token);
+			if (expiresAt != null && expiresAt > now) {
+				this.tokens.delete(token);
+				return { token };
+			}
+			return null;
+		}
+		if (sql.includes("INSERT INTO cap_challenge_ip")) {
+			const ip = String(params[0] ?? "");
+			const windowStart = Number(params[1] ?? 0);
+			const previous = this.ipWindows.get(ip);
+			const count = previous && previous.windowStart === windowStart ? previous.count + 1 : 1;
+			this.ipWindows.set(ip, { windowStart, count });
+			return { count };
+		}
+		return null;
+	}
+
+	private execRun(sql: string, params: unknown[]): D1Result {
+		if (sql.includes("INSERT INTO cap_nonces")) {
+			const signature = String(params[0] ?? "");
+			if (this.nonces.has(signature)) {
+				throw new Error("UNIQUE constraint failed: cap_nonces.signature_hex");
+			}
+			this.nonces.add(signature);
+		} else if (sql.includes("INSERT INTO cap_tokens")) {
+			this.tokens.set(String(params[0] ?? ""), Number(params[1] ?? 0));
+		}
+		return { success: true, results: [], meta: { changes: 1, last_row_id: 0, duration: 0 } };
+	}
+}
+
+const CAP_SQL = /cap_tokens|cap_nonces|cap_challenge_ip/;
+
+export function attachCapSql(
+	db: D1Database,
+	store: CapMemoryStore = new CapMemoryStore(),
+): CapMemoryStore {
+	const prepare = db.prepare as ((sql: string) => D1PreparedStatement) & {
+		getMockImplementation?: () => ((sql: string) => D1PreparedStatement) | undefined;
+		mockImplementation?: (fn: (sql: string) => D1PreparedStatement) => unknown;
+	};
+	if (typeof prepare?.mockImplementation === "function") {
+		const previous = prepare.getMockImplementation?.();
+		prepare.mockImplementation((sql: string) => {
+			if (CAP_SQL.test(sql)) return store.prepare(sql);
+			if (previous) return previous(sql);
+			throw new Error(`unexpected SQL: ${sql}`);
+		});
+		return store;
+	}
+	if (typeof prepare === "function") {
+		(db as { prepare: (sql: string) => D1PreparedStatement }).prepare = (sql: string) => {
+			if (CAP_SQL.test(sql)) return store.prepare(sql);
+			return prepare(sql);
+		};
+	}
+	return store;
+}
+
+export function wrapDbWithCapStore(
+	db: D1Database,
+	store: CapMemoryStore = new CapMemoryStore(),
+): { db: D1Database; cap: CapMemoryStore } {
+	attachCapSql(db, store);
+	return { db, cap: store };
 }
 
 // ─── D1 Row Factories ──────────────────────────────────────

@@ -17,6 +17,7 @@
  */
 
 import type { EmailRequestCodeBody, EmailVerifyCodeBody } from "@ellie/types";
+import { DEFAULT_CAP_API_ENDPOINT } from "@/lib/cap-endpoint";
 
 // ---------------------------------------------------------------------------
 // Initial-user shape (subset of `User` the page passes in as a prop)
@@ -370,23 +371,12 @@ export function describeWrappedError(body: unknown, status: number): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Validate the Cap API endpoint passed in from `NEXT_PUBLIC_CAP_API_ENDPOINT`.
- *
- * A missing/blank endpoint MUST surface as an explicit configuration error in
- * the viewmodel and UI, and any attempt to call `request-code` MUST be
- * blocked. Returning `{ ok: false }` here is what the card uses to dispatch
- * the `config_invalid` event into the state machine.
+ * Cap challenges are always the same-origin Worker proxy.
  */
 export function validateCaptchaConfig(
-	apiEndpoint: string | undefined,
+	_apiEndpoint?: string,
 ): { ok: true; apiEndpoint: string } | { ok: false; reason: string } {
-	if (apiEndpoint == null || apiEndpoint.trim() === "") {
-		return {
-			ok: false,
-			reason: "邮箱验证暂不可用：站点未配置 NEXT_PUBLIC_CAP_API_ENDPOINT，请联系管理员。",
-		};
-	}
-	return { ok: true, apiEndpoint: apiEndpoint.trim() };
+	return { ok: true, apiEndpoint: DEFAULT_CAP_API_ENDPOINT };
 }
 
 /**

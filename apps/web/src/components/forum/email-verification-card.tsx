@@ -44,8 +44,7 @@ const DEFAULT_CODE_TTL = 900;
 
 export interface EmailVerificationCardProps {
 	user: EmailVerificationUserView;
-	/** NEXT_PUBLIC_CAP_API_ENDPOINT — passed in so the page renders fail-closed
-	 *  when env var is missing instead of crashing the client bundle. */
+	/** Same-origin Cap widget endpoint (`/api/v1/cap/`). */
 	capApiEndpoint: string | undefined;
 	/**
 	 * If set, navigate to this URL after successful email verification instead

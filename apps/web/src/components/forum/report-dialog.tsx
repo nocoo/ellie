@@ -119,7 +119,13 @@ export function ReportDialog({
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
 	const [capToken, setCapToken] = useState<string | null>(null);
+	const [widgetKey, setWidgetKey] = useState(0);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const resetCap = () => {
+		setCapToken(null);
+		setWidgetKey((key) => key + 1);
+		setStep((prev) => ({ ...prev, captcha: "pending" }));
+	};
 
 	// Cleanup timer on unmount or when dialog closes
 	useEffect(() => {
@@ -188,6 +194,8 @@ export function ReportDialog({
 	}, []);
 
 	const handleCapError = useCallback(() => {
+		setCapToken(null);
+		setWidgetKey((key) => key + 1);
 		setStep((prev) => ({ ...prev, captcha: "pending" }));
 	}, []);
 
@@ -226,6 +234,7 @@ export function ReportDialog({
 			}, 1500);
 		} catch (err) {
 			submittingRef.current = false;
+			resetCap();
 			const message = mapSubmitError(err, copy);
 			setError(message);
 			toast.error({ title: "举报提交失败", description: message });
@@ -307,6 +316,7 @@ export function ReportDialog({
 							{step.captcha === "pending" && (
 								<div className="pl-6">
 									<CapWidget
+										key={widgetKey}
 										apiEndpoint={CAP_API_ENDPOINT}
 										onSolve={handleCapSolve}
 										onError={handleCapError}

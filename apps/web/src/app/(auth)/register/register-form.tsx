@@ -151,10 +151,15 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [email, setEmail] = useState("");
 	const [capToken, setCapToken] = useState("");
+	const [widgetKey, setWidgetKey] = useState(0);
 	const [loading, setLoading] = useState(false);
 	const submittingRef = useRef(false);
 	const [error, setError] = useState<string | null>(null);
 	const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+	const resetCap = () => {
+		setCapToken("");
+		setWidgetKey((key) => key + 1);
+	};
 
 	// Profile fields
 	const [gender, setGender] = useState(REGISTER_PROFILE_DEFAULTS.gender);
@@ -279,6 +284,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				submittingRef.current = false;
 				setLoading(false);
 				onPendingChange?.(false);
+				resetCap();
 			}
 		}
 	};
@@ -576,9 +582,10 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 	const captchaField = capConfigured ? (
 		<div className="flex min-h-14 items-center justify-center">
 			<CapWidget
+				key={widgetKey}
 				apiEndpoint={CAP_API_ENDPOINT}
 				onSolve={setCapToken}
-				onError={() => setCapToken("")}
+				onError={resetCap}
 			/>
 		</div>
 	) : (

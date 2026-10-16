@@ -431,32 +431,26 @@ describe("describeWrappedError", () => {
 });
 
 // ─── validateCaptchaConfig ────────────────────────────────────────────────
-describe("validateCaptchaConfig (fail-closed)", () => {
-	it("returns ok with trimmed endpoint for a non-empty string", () => {
+describe("validateCaptchaConfig", () => {
+	it("always uses the same-origin Worker proxy", () => {
 		expect(validateCaptchaConfig("  https://cap.example.com/key/  ")).toEqual({
 			ok: true,
-			apiEndpoint: "https://cap.example.com/key/",
+			apiEndpoint: "/api/v1/cap/",
 		});
-	});
-
-	it("fails closed for undefined", () => {
-		const r = validateCaptchaConfig(undefined);
-		expect(r.ok).toBe(false);
-		if (!r.ok) expect(r.reason).toMatch(/NEXT_PUBLIC_CAP_API_ENDPOINT/);
-	});
-
-	it("fails closed for empty string", () => {
-		expect(validateCaptchaConfig("").ok).toBe(false);
-	});
-
-	it("fails closed for whitespace-only string", () => {
-		expect(validateCaptchaConfig("   ").ok).toBe(false);
+		expect(validateCaptchaConfig(undefined)).toEqual({
+			ok: true,
+			apiEndpoint: "/api/v1/cap/",
+		});
+		expect(validateCaptchaConfig("")).toEqual({
+			ok: true,
+			apiEndpoint: "/api/v1/cap/",
+		});
 	});
 });
 
 // ─── requestCodePreflight ───────────────────────────────────────────────────
 describe("requestCodePreflight (combined gate)", () => {
-	it("returns null when config + email + token are all valid", () => {
+	it("returns null when email + token are valid", () => {
 		expect(
 			requestCodePreflight({
 				apiEndpoint: "https://cap.example.com/key/",
@@ -466,14 +460,14 @@ describe("requestCodePreflight (combined gate)", () => {
 		).toBeNull();
 	});
 
-	it("blocks when api endpoint is missing (fail-closed) — even if token+email look fine", () => {
-		const msg = requestCodePreflight({
-			apiEndpoint: undefined,
-			capToken: "tok",
-			email: "x@y.io",
-		});
-		expect(msg).not.toBeNull();
-		expect(msg).toMatch(/NEXT_PUBLIC_CAP_API_ENDPOINT/);
+	it("does not block on a missing public Cap endpoint", () => {
+		expect(
+			requestCodePreflight({
+				apiEndpoint: undefined,
+				capToken: "tok",
+				email: "x@y.io",
+			}),
+		).toBeNull();
 	});
 
 	it("blocks on bad email format", () => {
@@ -501,15 +495,6 @@ describe("requestCodePreflight (combined gate)", () => {
 				email: "x@y.io",
 			}),
 		).toBe("请先完成人机验证。");
-	});
-
-	it("config error takes precedence over email and captcha errors", () => {
-		const msg = requestCodePreflight({
-			apiEndpoint: undefined,
-			capToken: null,
-			email: "no-at",
-		});
-		expect(msg).toMatch(/NEXT_PUBLIC_CAP_API_ENDPOINT/);
 	});
 
 	it("email error takes precedence over captcha error", () => {

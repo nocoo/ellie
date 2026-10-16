@@ -44,7 +44,14 @@ import {
 } from "../../../src/lib/email-verify";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
-import { createMockDb, createMockKV, TEST_CAP_SECRET, TEST_CAP_TOKEN } from "../../helpers";
+import {
+	CapMemoryStore,
+	createMockDb,
+	createMockKV,
+	TEST_CAP_SECRET,
+	TEST_CAP_TOKEN,
+	wrapDbWithCapStore,
+} from "../../helpers";
 
 const HMAC_KEY = "test-hmac-key-do-not-use-in-prod";
 const JWT_SECRET = "test-jwt-secret-for-hs256";
@@ -71,6 +78,7 @@ function makeEnv(opts: {
 	updateChanges?: number;
 	/** If set, the email_normalized uniqueness pre-check returns this row (simulating another user owns the email). */
 	emailOwner?: { id: number } | null;
+	capTokens?: string[];
 }): { env: Env; kv: KVNamespace } {
 	const dbUser = opts.dbUser;
 	const userRow =
@@ -122,15 +130,16 @@ function makeEnv(opts: {
 		},
 	} as unknown as D1Database;
 
-	const kv = createMockKV({
-		[`cap-token:${TEST_CAP_TOKEN}`]: "1",
-		...(opts.kv ?? {}),
-	});
+	const kv = createMockKV(opts.kv ?? {});
 	const doveOn = opts.doveConfigured !== false;
+	const { db: capDb } = wrapDbWithCapStore(
+		db,
+		new CapMemoryStore(opts.capTokens ?? [TEST_CAP_TOKEN]),
+	);
 	const env: Env = {
 		API_KEY: "k",
 		ADMIN_API_KEY: "k",
-		DB: db,
+		DB: capDb,
 		ENVIRONMENT: "test",
 		JWT_SECRET,
 		KV: kv,
@@ -211,6 +220,30 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 		});
 		const res = await requestCode(req, env);
 		expect(res.status).toBe(401);
+	});
+
+	it("rejects missing cap token without sending mail", async () => {
+		const { env } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
+		const tracker = stubDoveOk(env);
+		const res = await requestCode(
+			await makeRequest("/x", { email: "user@example.com", capToken: "" }),
+			env,
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()).error.code).toBe("CAPTCHA_REQUIRED");
+		expect(tracker.calls).toBe(0);
+	});
+
+	it("rejects an unknown cap token without sending mail", async () => {
+		const { env } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
+		const tracker = stubDoveOk(env);
+		const res = await requestCode(
+			await makeRequest("/x", { email: "user@example.com", capToken: "forged" }),
+			env,
+		);
+		expect(res.status).toBe(403);
+		expect((await res.json()).error.code).toBe("CAPTCHA_INVALID");
+		expect(tracker.calls).toBe(0);
 	});
 
 	it("returns 400 INVALID_BODY when body is not JSON", async () => {
@@ -418,7 +451,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 	it("races: two concurrent requestCode calls only invoke dove once", async () => {
 		const { env, kv } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
-			kv: { "cap-token:tok-a": "1", "cap-token:tok-b": "1" },
+			capTokens: ["tok-a", "tok-b"],
 		});
 		const tracker = stubDoveOk(env);
 		const [a, b] = await Promise.all([

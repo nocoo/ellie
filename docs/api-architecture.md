@@ -105,7 +105,7 @@ The Worker is the **single source of truth** for all data operations.
 - `GET /api/v1/posts?threadId=X` - List posts
 - `POST /api/v1/auth/login` - Login, returns JWT
 - `POST /api/v1/cap/challenge` - Cap.js challenge (Key A, Cap-native JSON)
-- `POST /api/v1/cap/redeem` - Cap.js redeem; stores a one-time token in KV
+- `POST /api/v1/cap/redeem` - Cap.js redeem; stores a one-time token in D1
 - `POST /api/v1/auth/register` - Register; requires redeemed `capToken`
 - `GET /api/v1/settings` - Feature flags. Web shares one five-minute public-settings snapshot with page rendering; prefix filtering stays in memory and failed loads are not cached. The page access-policy check retains its separate 60-second cache and runs only for anonymous content pages whose access depends on `require_login`.
 - `PATCH /api/v1/users/me` - Update profile (requires JWT)

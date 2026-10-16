@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { challenge, redeem } from "../../../src/handlers/cap";
-import { consumeCapNonce, consumeCapToken, kvTtlSec, readCapToken } from "../../../src/lib/cap";
+import { consumeCapNonce, consumeCapToken, readCapToken } from "../../../src/lib/cap";
 import { requireCapToken } from "../../../src/lib/cap-gate";
 import { createMockKV, makeEnv, TEST_CAP_SECRET, TEST_CAP_TOKEN } from "../../helpers";
 
@@ -94,15 +94,19 @@ describe("consumeCapToken", () => {
 		expect(readCapToken({ capToken: 1 })).toBe("");
 	});
 
-	it("floors KV TTL at 60 seconds", () => {
-		expect(kvTtlSec(1000)).toBe(60);
-		expect(kvTtlSec(120_000)).toBe(120);
-	});
-
 	it("rejects a replayed nonce", async () => {
-		const env = makeEnv({ KV: createMockKV() });
+		const env = makeEnv();
 		expect(await consumeCapNonce(env, "sig", 1000)).toBe(true);
 		expect(await consumeCapNonce(env, "sig", 1000)).toBe(false);
+	});
+
+	it("consumes a token only once under concurrent calls", async () => {
+		const env = makeEnv();
+		const results = await Promise.all([
+			consumeCapToken(env, TEST_CAP_TOKEN),
+			consumeCapToken(env, TEST_CAP_TOKEN),
+		]);
+		expect(results.sort()).toEqual(["invalid", "ok"]);
 	});
 });
 
@@ -163,6 +167,19 @@ describe("POST /api/v1/cap/challenge", () => {
 		};
 		expect(body.challenge.c).toBe(4);
 		expect(body.token.length).toBeGreaterThan(10);
+	});
+
+	it("issues production difficulty outside the test lane", async () => {
+		const env = makeEnv({
+			CAP_SECRET: TEST_CAP_SECRET,
+			ENVIRONMENT: "production",
+			KV: createMockKV(),
+		});
+		const res = await challenge(challengeReq(), env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { challenge: { c: number; d: number } };
+		expect(body.challenge.c).toBe(20);
+		expect(body.challenge.d).toBe(4);
 	});
 });
 
@@ -228,6 +245,15 @@ describe("POST /api/v1/cap/redeem", () => {
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { success: boolean; token: string };
 		expect(body.success).toBe(true);
+		const replay = await redeem(
+			new Request("https://example.com/api/v1/cap/redeem", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ token, solutions }),
+			}),
+			env,
+		);
+		expect(replay.status).toBe(400);
 		expect(await consumeCapToken(env, body.token)).toBe("ok");
 		expect(await consumeCapToken(env, body.token)).toBe("invalid");
 	});

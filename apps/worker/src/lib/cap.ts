@@ -1,9 +1,7 @@
+import { confirmedRun } from "./d1-write";
 import type { Env } from "./env";
 
 export const CAP_SCOPE = "ellie";
-export const CAP_TOKEN_PREFIX = "cap-token:";
-export const CAP_NONCE_PREFIX = "cap-nonce:";
-export const CAP_CHALLENGE_IP_PREFIX = "cap-chal-ip:";
 
 export const CAP_CHALLENGE_COUNT = 20;
 export const CAP_CHALLENGE_DIFFICULTY = 4;
@@ -14,9 +12,7 @@ export const CAP_CHALLENGE_IP_WINDOW_SEC = 300;
 
 export type CapConsumeResult = "ok" | "required" | "invalid" | "unavailable";
 
-export function kvTtlSec(ms: number): number {
-	return Math.max(60, Math.ceil(ms / 1000));
-}
+const UNIQUE_ERROR_RE = /UNIQUE\s+constraint\s+failed/i;
 
 export function readCapToken(body: unknown): string {
 	if (!body || typeof body !== "object") return "";
@@ -27,11 +23,21 @@ export function readCapToken(body: unknown): string {
 export async function consumeCapToken(env: Env, token: unknown): Promise<CapConsumeResult> {
 	if (!env.CAP_SECRET) return "unavailable";
 	if (typeof token !== "string" || token.trim() === "") return "required";
-	const key = `${CAP_TOKEN_PREFIX}${token.trim()}`;
-	const stored = await env.KV.get(key);
-	if (!stored) return "invalid";
-	await env.KV.delete(key);
-	return "ok";
+	const row = await env.DB.prepare(
+		"DELETE FROM cap_tokens WHERE token = ? AND expires_at > ? RETURNING token",
+	)
+		.bind(token.trim(), Date.now())
+		.first<{ token: string }>();
+	return row?.token ? "ok" : "invalid";
+}
+
+export async function storeCapToken(env: Env, token: string, expiresAt: number): Promise<void> {
+	await confirmedRun(
+		env.DB.prepare("INSERT INTO cap_tokens (token, expires_at) VALUES (?, ?)").bind(
+			token,
+			expiresAt,
+		),
+	);
 }
 
 export async function consumeCapNonce(
@@ -39,8 +45,32 @@ export async function consumeCapNonce(
 	signatureHex: string,
 	ttlMs: number,
 ): Promise<boolean> {
-	const key = `${CAP_NONCE_PREFIX}${signatureHex}`;
-	if (await env.KV.get(key)) return false;
-	await env.KV.put(key, "1", { expirationTtl: kvTtlSec(ttlMs) });
-	return true;
+	try {
+		await confirmedRun(
+			env.DB.prepare("INSERT INTO cap_nonces (signature_hex, expires_at) VALUES (?, ?)").bind(
+				signatureHex,
+				Date.now() + ttlMs,
+			),
+		);
+		return true;
+	} catch (error) {
+		if (error instanceof Error && UNIQUE_ERROR_RE.test(error.message)) return false;
+		throw error;
+	}
+}
+
+export async function takeChallengeSlot(env: Env, ip: string): Promise<boolean> {
+	const windowStart =
+		Math.floor(Date.now() / 1000 / CAP_CHALLENGE_IP_WINDOW_SEC) * CAP_CHALLENGE_IP_WINDOW_SEC;
+	const row = await env.DB.prepare(
+		`INSERT INTO cap_challenge_ip (ip, window_start, count)
+		 VALUES (?, ?, 1)
+		 ON CONFLICT(ip) DO UPDATE SET
+		   count = CASE WHEN cap_challenge_ip.window_start = excluded.window_start THEN cap_challenge_ip.count + 1 ELSE 1 END,
+		   window_start = excluded.window_start
+		 RETURNING count`,
+	)
+		.bind(ip, windowStart)
+		.first<{ count: number }>();
+	return (row?.count ?? CAP_CHALLENGE_IP_LIMIT + 1) <= CAP_CHALLENGE_IP_LIMIT;
 }

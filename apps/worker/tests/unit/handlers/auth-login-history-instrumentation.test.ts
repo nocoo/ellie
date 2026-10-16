@@ -364,7 +364,7 @@ describe("register() — login_history instrumentation", () => {
 		});
 		const env = makeEnv({
 			DB: db,
-			KV: createMockKV({ "reg-ip:1.2.3.4": "3", [`cap-token:${TEST_CAP_TOKEN}`]: "1" }),
+			KV: createMockKV({ "reg-ip:1.2.3.4": "3" }),
 		});
 		const ctx = makeCtx();
 		const res = await register(createRegisterRequest(validBody), env, ctx);

@@ -21,9 +21,7 @@ const documented = [
 // a claim that a regex can prove every indirect call in TypeScript is safe.
 const rawKvOwners: Record<string, string> = {
 	"handlers/auth.ts": "Login sessions, lockout and rate limiting",
-	"handlers/cap.ts": "Cap challenge rate-limit and redeemed tokens",
 	"handlers/email.ts": "Verification codes and send locks",
-	"lib/cap.ts": "Cap nonce consume and redeemed-token lookup",
 	"handlers/admin/kv.ts": "Bounded diagnosis and explicit management",
 	"lib/cache/store.ts": "Unified envelope I/O",
 	"lib/cache/wrap.ts": "Unified coalescing and invalidation",
