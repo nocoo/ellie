@@ -172,7 +172,7 @@ describe("POST /api/v1/reports", () => {
 
 	it("rejects missing cap token before writing a report", async () => {
 		const token = await makeUserToken();
-		const { db } = createMockDb({
+		const { db, calls } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 			},
@@ -188,11 +188,12 @@ describe("POST /api/v1/reports", () => {
 		expect(res.status).toBe(400);
 		const data = (await res.json()) as { error: { code: string } };
 		expect(data.error.code).toBe("CAPTCHA_REQUIRED");
+		expect(calls.some((call) => /INSERT INTO reports/i.test(call.sql))).toBe(false);
 	});
 
 	it("rejects an unknown cap token before writing a report", async () => {
 		const token = await makeUserToken();
-		const { db } = createMockDb({
+		const { db, calls } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 			},
@@ -208,6 +209,7 @@ describe("POST /api/v1/reports", () => {
 		expect(res.status).toBe(403);
 		const data = (await res.json()) as { error: { code: string } };
 		expect(data.error.code).toBe("CAPTCHA_INVALID");
+		expect(calls.some((call) => /INSERT INTO reports/i.test(call.sql))).toBe(false);
 	});
 
 	it("should return 403 when user is banned", async () => {

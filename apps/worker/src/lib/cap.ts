@@ -59,6 +59,25 @@ export async function consumeCapNonce(
 	}
 }
 
+export async function cleanupCapState(env: Env, now = Date.now()): Promise<number> {
+	const windowStart =
+		Math.floor(now / 1000 / CAP_CHALLENGE_IP_WINDOW_SEC) * CAP_CHALLENGE_IP_WINDOW_SEC;
+	const tokens = await confirmedRun(
+		env.DB.prepare("DELETE FROM cap_tokens WHERE expires_at <= ?").bind(now),
+	);
+	const nonces = await confirmedRun(
+		env.DB.prepare("DELETE FROM cap_nonces WHERE expires_at <= ?").bind(now),
+	);
+	const ips = await confirmedRun(
+		env.DB.prepare("DELETE FROM cap_challenge_ip WHERE window_start < ?").bind(windowStart),
+	);
+	return (
+		Number(tokens.meta.changes ?? 0) +
+		Number(nonces.meta.changes ?? 0) +
+		Number(ips.meta.changes ?? 0)
+	);
+}
+
 export async function takeChallengeSlot(env: Env, ip: string): Promise<boolean> {
 	const windowStart =
 		Math.floor(Date.now() / 1000 / CAP_CHALLENGE_IP_WINDOW_SEC) * CAP_CHALLENGE_IP_WINDOW_SEC;

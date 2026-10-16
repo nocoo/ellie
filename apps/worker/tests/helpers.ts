@@ -107,7 +107,7 @@ export function makeEnv(overrides?: Partial<Env>): Env {
 
 export class CapMemoryStore {
 	readonly tokens = new Map<string, number>();
-	readonly nonces = new Set<string>();
+	readonly nonces = new Map<string, number>();
 	readonly ipWindows = new Map<string, { windowStart: number; count: number }>();
 
 	constructor(seedTokens: string[] = [TEST_CAP_TOKEN]) {
@@ -159,17 +159,49 @@ export class CapMemoryStore {
 		return null;
 	}
 
+	private ok(changes: number): D1Result {
+		return { success: true, results: [], meta: { changes, last_row_id: 0, duration: 0 } };
+	}
+
+	private deleteExpired(map: Map<string, number>, cutoff: number): D1Result {
+		let changes = 0;
+		for (const [key, expiresAt] of [...map]) {
+			if (expiresAt <= cutoff) {
+				map.delete(key);
+				changes += 1;
+			}
+		}
+		return this.ok(changes);
+	}
+
 	private execRun(sql: string, params: unknown[]): D1Result {
+		if (sql.includes("DELETE FROM cap_tokens") && !sql.includes("RETURNING")) {
+			return this.deleteExpired(this.tokens, Number(params[0] ?? 0));
+		}
+		if (sql.includes("DELETE FROM cap_nonces")) {
+			return this.deleteExpired(this.nonces, Number(params[0] ?? 0));
+		}
+		if (sql.includes("DELETE FROM cap_challenge_ip")) {
+			const windowStart = Number(params[0] ?? 0);
+			let changes = 0;
+			for (const [ip, row] of [...this.ipWindows]) {
+				if (row.windowStart < windowStart) {
+					this.ipWindows.delete(ip);
+					changes += 1;
+				}
+			}
+			return this.ok(changes);
+		}
 		if (sql.includes("INSERT INTO cap_nonces")) {
 			const signature = String(params[0] ?? "");
 			if (this.nonces.has(signature)) {
 				throw new Error("UNIQUE constraint failed: cap_nonces.signature_hex");
 			}
-			this.nonces.add(signature);
+			this.nonces.set(signature, Number(params[1] ?? 0));
 		} else if (sql.includes("INSERT INTO cap_tokens")) {
 			this.tokens.set(String(params[0] ?? ""), Number(params[1] ?? 0));
 		}
-		return { success: true, results: [], meta: { changes: 1, last_row_id: 0, duration: 0 } };
+		return this.ok(1);
 	}
 }
 

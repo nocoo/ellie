@@ -1,6 +1,7 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import { CacheLoadLimitError } from "./lib/cache/wrap";
+import { cleanupCapState } from "./lib/cap";
 import { refreshDailyStatistics } from "./lib/daily-statistics";
 import type { CFRequest, Env } from "./lib/env";
 import { validateApiKey } from "./middleware/apiKey";
@@ -883,6 +884,11 @@ export default {
 		ctx.waitUntil(
 			cleanupLoginHistory(env).catch((err) => {
 				console.warn("[cron] cleanupLoginHistory failed", err);
+			}),
+		);
+		ctx.waitUntil(
+			cleanupCapState(env).catch((err) => {
+				console.warn("[cron] cleanupCapState failed", err);
 			}),
 		);
 	},

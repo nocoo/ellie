@@ -1,7 +1,14 @@
 import { createHash } from "node:crypto";
+import { generateChallenge } from "capjs-core";
 import { describe, expect, it } from "vitest";
 import { challenge, redeem } from "../../../src/handlers/cap";
-import { consumeCapNonce, consumeCapToken, readCapToken } from "../../../src/lib/cap";
+import {
+	cleanupCapState,
+	consumeCapNonce,
+	consumeCapToken,
+	readCapToken,
+	storeCapToken,
+} from "../../../src/lib/cap";
 import { requireCapToken } from "../../../src/lib/cap-gate";
 import { createMockKV, makeEnv, TEST_CAP_SECRET, TEST_CAP_TOKEN } from "../../helpers";
 
@@ -107,6 +114,26 @@ describe("consumeCapToken", () => {
 			consumeCapToken(env, TEST_CAP_TOKEN),
 		]);
 		expect(results.sort()).toEqual(["invalid", "ok"]);
+	});
+
+	it("treats an empty CAP_SECRET as unavailable", async () => {
+		const env = makeEnv({ CAP_SECRET: "" });
+		expect(await consumeCapToken(env, TEST_CAP_TOKEN)).toBe("unavailable");
+	});
+
+	it("rejects an expired stored token", async () => {
+		const env = makeEnv();
+		await storeCapToken(env, "stale", Date.now() - 1000);
+		expect(await consumeCapToken(env, "stale")).toBe("invalid");
+	});
+
+	it("deletes expired rows and keeps live nonces", async () => {
+		const env = makeEnv();
+		await storeCapToken(env, "stale", Date.now() - 1000);
+		expect(await consumeCapNonce(env, "live-sig", 60_000)).toBe(true);
+		expect(await cleanupCapState(env)).toBeGreaterThan(0);
+		expect(await consumeCapToken(env, "stale")).toBe("invalid");
+		expect(await consumeCapNonce(env, "live-sig", 60_000)).toBe(false);
 	});
 });
 
@@ -256,6 +283,44 @@ describe("POST /api/v1/cap/redeem", () => {
 		expect(replay.status).toBe(400);
 		expect(await consumeCapToken(env, body.token)).toBe("ok");
 		expect(await consumeCapToken(env, body.token)).toBe("invalid");
+	});
+
+	it("rejects a challenge signed with a different secret", async () => {
+		const env = makeEnv({ CAP_SECRET: TEST_CAP_SECRET, KV: createMockKV() });
+		const issued = await generateChallenge("other-cap-secret-16", {
+			challengeCount: 4,
+			challengeDifficulty: 2,
+			expiresMs: 60_000,
+			scope: "ellie",
+		});
+		const res = await redeem(
+			new Request("https://example.com/api/v1/cap/redeem", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ token: issued.token, solutions: [0, 0, 0, 0] }),
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("rejects a challenge issued for another scope", async () => {
+		const env = makeEnv({ CAP_SECRET: TEST_CAP_SECRET, KV: createMockKV() });
+		const issued = await generateChallenge(TEST_CAP_SECRET, {
+			challengeCount: 4,
+			challengeDifficulty: 2,
+			expiresMs: 60_000,
+			scope: "other",
+		});
+		const res = await redeem(
+			new Request("https://example.com/api/v1/cap/redeem", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ token: issued.token, solutions: [0, 0, 0, 0] }),
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
 	});
 
 	it("rejects invalid solutions", async () => {

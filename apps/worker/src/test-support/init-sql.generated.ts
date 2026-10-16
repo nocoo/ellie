@@ -3,7 +3,7 @@
  * Regenerate with: bun run prepare:test-sql
  * Verify in sync : bun run prepare:test-sql --check
  *
- * Source migrations (sha256: 0bfe30478c0309d31908b77884f1c7e20b80086103ecea2a633dfd016d191686):
+ * Source migrations (sha256: fae49b897d64350e92da6af0d23dab650fb51a08ea7474d65450308db80edd9a):
  *   - 0000_init_schema.sql
  *   - 0023_create_threads_fts.sql
  *   - 0024_add_campus_field.sql
@@ -42,6 +42,7 @@
  *   - 0056_forum_authority_revision.sql
  *   - 0057_avatar_path_only.sql
  *   - 0058_cap_one_time.sql
+ *   - 0059_cap_expiry_indexes.sql
  *
  * IMPORTANT: This SQL is for fresh `:memory:` databases only — it contains
  * ALTER TABLE … ADD COLUMN statements that fail on re-run. L2-http / L3 use
@@ -1777,9 +1778,14 @@ CREATE TABLE cap_challenge_ip (
 	window_start INTEGER NOT NULL,
 	count INTEGER NOT NULL
 );
+
+-- ── 0059_cap_expiry_indexes.sql ────────────────────────────────────────────
+CREATE INDEX idx_cap_tokens_expires_at ON cap_tokens(expires_at);
+CREATE INDEX idx_cap_nonces_expires_at ON cap_nonces(expires_at);
+CREATE INDEX idx_cap_challenge_ip_window ON cap_challenge_ip(window_start);
 `;
 
-export const INIT_SQL_HASH = "0bfe30478c0309d31908b77884f1c7e20b80086103ecea2a633dfd016d191686";
+export const INIT_SQL_HASH = "fae49b897d64350e92da6af0d23dab650fb51a08ea7474d65450308db80edd9a";
 
 export const INIT_SQL_SOURCE_FILES = [
 	"0000_init_schema.sql",
@@ -1819,5 +1825,6 @@ export const INIT_SQL_SOURCE_FILES = [
 	"0055_memory_statistics_indexes.sql",
 	"0056_forum_authority_revision.sql",
 	"0057_avatar_path_only.sql",
-	"0058_cap_one_time.sql"
+	"0058_cap_one_time.sql",
+	"0059_cap_expiry_indexes.sql"
 ] as const;

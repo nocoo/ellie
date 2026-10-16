@@ -232,6 +232,10 @@ vi.mock("../../src/lib/analytics/loginHistory", () => ({
 	cleanupLoginHistory: vi.fn(async () => 0),
 	scheduleLoginHistory: vi.fn(),
 }));
+vi.mock("../../src/lib/cap", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../src/lib/cap")>();
+	return { ...actual, cleanupCapState: vi.fn(async () => 0) };
+});
 vi.mock("../../src/handlers/internal/statisticsBatch", () => ({
 	statisticsBatchHandler: mockHandler(),
 }));
@@ -698,17 +702,20 @@ describe("router (src/index.ts)", () => {
 		it("dispatches the daily cron to statistics and retention independently", async () => {
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
 			const statsRollover = await import("../../src/lib/daily-statistics");
+			const cap = await import("../../src/lib/cap");
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
 			(statsRollover.refreshDailyStatistics as ReturnType<typeof vi.fn>).mockClear();
+			(cap.cleanupCapState as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
 			const event = { cron: "0 19 * * *" } as ScheduledEvent;
 
 			await worker.scheduled(event, env, ctx);
 
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(3);
 			expect(statsRollover.refreshDailyStatistics).toHaveBeenCalledTimes(1);
 			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
+			expect(cap.cleanupCapState).toHaveBeenCalledTimes(1);
 		});
 
 		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory", async () => {
@@ -722,7 +729,7 @@ describe("router (src/index.ts)", () => {
 
 			// All retention jobs are queued via waitUntil so a failure in
 			// one does not block the others (P5 reviewer pin).
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(3);
 			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
 		});
 
