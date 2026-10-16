@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/shared",
-	"version": "1.14.25",
+	"version": "1.14.26",
 	"private": true,
 	"type": "module",
 	"main": "./src/index.ts",

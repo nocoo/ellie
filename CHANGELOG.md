@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.26] - 2026-10-16
+
+### Changed
+
+- Upgrade Vitest and `@vitest/coverage-v8` to 5.0.5, Next.js to 16.4.2, Cloudflare Workers types to 5.20261016.1, happy-dom to 21.0.3, pin web and admin `@types/node` to 26.6.5, and upgrade admin Basalt to 3.1.0.
+
 ## [1.14.25] - 2026-10-16
 
 ### Added
