@@ -80,12 +80,12 @@
 		"@tiptap/starter-kit": "3.32.0",
 		"@types/bun": "1.4.3",
 		"@types/node": "26.6.5",
-		"@vitest/coverage-v8": "5.0.4",
+		"@vitest/coverage-v8": "5.0.5",
 		"happy-dom": "20.14.5",
 		"husky": "^9.1.7",
 		"lint-staged": "17.6.0",
 		"typescript": "^7.0.2",
-		"vitest": "5.0.4"
+		"vitest": "5.0.5"
 	},
 	"trustedDependencies": [
 		"@biomejs/biome"
