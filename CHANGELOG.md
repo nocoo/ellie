@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.25] - 2026-10-16
+
+### Added
+
+- Host Cap.js challenges inside the existing Worker with `capjs-core`. The forum widget talks to same-origin `/api/v1/cap/`; register, email request-code and report consume one-time D1 tokens.
+
+### Changed
+
+- Size the Cap widget to the same full-width `h-11` row as login and register inputs, drop its border, and hide the Cap credit link.
+
+### Fixed
+
+- Consume Cap nonces and redeemed tokens atomically in D1 instead of KV, expire unused rows on the daily cron, and keep production challenge difficulty at 20/4.
+
 ## [1.14.22] - 2026-10-13
 
 ### Fixed
