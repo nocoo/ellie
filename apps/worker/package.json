@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/worker",
-	"version": "1.14.26",
+	"version": "1.14.27",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -12,7 +12,7 @@
 		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
-		"@cloudflare/workers-types": "5.20261016.1",
+		"@cloudflare/workers-types": "5.20261019.1",
 		"@ellie/types": "workspace:*",
 		"capjs-core": "0.1.5",
 		"crypto-js": "^4.2.0"
@@ -22,6 +22,6 @@
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
 		"typescript": "^7.0.2",
-		"wrangler": "4.151.0"
+		"wrangler": "4.151.3"
 	}
 }
