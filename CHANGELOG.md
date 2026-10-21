@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.27] - 2026-10-21
+
+### Changed
+
+- Bump lucide-react to 1.60.0, wrangler to 4.151.3, Cloudflare Workers types to 5.20261019.1, inquirer to 14.2.4, Basalt to 3.2.0, fast-uri to 4.2.3, happy-dom to 21.0.4, and pin the vite override to 8.1.6 (security).
+
 ## [1.14.26] - 2026-10-16
 
 ### Changed
