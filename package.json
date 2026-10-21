@@ -116,7 +116,7 @@
 		"@radix-ui/react-slot": "1.5.0",
 		"@radix-ui/react-tabs": "1.2.1",
 		"@radix-ui/react-tooltip": "1.4.1",
-		"fast-uri": "4.2.2",
+		"fast-uri": "4.2.3",
 		"lucide-react": "1.60.0",
 		"tailwind-merge": "3.7.0"
 	},
@@ -131,7 +131,7 @@
 		"cookie": "^0.7.2",
 		"defu": "^6.1.7",
 		"esbuild": "^0.28.1",
-		"fast-uri": "4.2.2",
+		"fast-uri": "4.2.3",
 		"ip-address": "^10.1.1",
 		"nanoid": "3.3.18",
 		"postcss": "^8.5.18",
