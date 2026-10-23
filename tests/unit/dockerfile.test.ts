@@ -4,20 +4,18 @@ import { describe, expect, test } from "vitest";
 const dockerfile = readFileSync(new URL("../../Dockerfile", import.meta.url), "utf8");
 
 describe("Docker build runtimes", () => {
-	test("keeps the Bun canary workaround scoped to the Next.js build", () => {
-		expect(dockerfile).toContain("ARG BUN_STABLE_IMAGE=oven/bun:1.3.14@sha256:");
-		expect(dockerfile).toContain("ARG BUN_BUILD_IMAGE=oven/bun:canary@sha256:");
+	test("pins production Bun to 1.4.4 across deps, builder, and runner", () => {
+		expect(dockerfile).toContain(
+			"ARG BUN_STABLE_IMAGE=oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d",
+		);
+		expect(dockerfile).not.toContain("BUN_BUILD_IMAGE");
+		expect(dockerfile).not.toContain("build-runtime");
 		expect(dockerfile.match(/FROM \$\{BUN_STABLE_IMAGE\}/g)).toHaveLength(3);
-		expect(dockerfile).toMatch(/FROM \$\{BUN_BUILD_IMAGE\} AS build-runtime/);
 
 		const stableInstall = dockerfile.lastIndexOf("RUN bun install --frozen-lockfile");
-		const canaryCopy = dockerfile.indexOf(
-			"COPY --from=build-runtime /usr/local/bin/bun /usr/local/bin/bun",
-		);
 		const appBuild = dockerfile.indexOf("bun run build:admin");
 
 		expect(stableInstall).toBeGreaterThan(-1);
-		expect(canaryCopy).toBeGreaterThan(stableInstall);
-		expect(appBuild).toBeGreaterThan(canaryCopy);
+		expect(appBuild).toBeGreaterThan(stableInstall);
 	});
 });
