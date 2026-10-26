@@ -74,6 +74,8 @@ Never bypass commit/push hooks, force-push, or use autofix in checks. Documentat
 
 ## Resources / Isolation
 
+Open local development and manual browser acceptance through the existing Caddy HTTPS domains: `https://ellie.dev.hexly.ai` (forum) and `https://ellie-admin.dev.hexly.ai` (admin). Loopback URLs are internal proxy upstreams or isolated automated-test endpoints, not manual browser entry points. Do not change certificates or Caddy configuration when an existing mapping works.
+
 Dev: forum 7031, admin 7032, Worker 8787. L2: 17031 or an available port, `.wrangler/state/e2e`; L3: Worker 8788, forum 27031, admin 7032, `.wrangler/state/l3`. Run browser lanes sequentially and keep their ports free. Target unique per-run SQLite/KV/R2 state, test marker and canonical-path/ownership guards before cleanup; never remote `-test` resources.
 
 ## Operations / Release

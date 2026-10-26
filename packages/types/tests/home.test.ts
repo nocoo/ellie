@@ -25,8 +25,8 @@ describe("home context contract", () => {
 		expect(HOME_CONTEXT_PATH).toBe("/api/v1/home/context");
 		expect(HOME_CONTEXT_MAX_BODY_BYTES).toBe(32768);
 		expect(HOME_SUMMARY_TOPIC_MAX).toBe(512);
-		expect(HOME_DIGEST_TOPIC_MAX).toBe(5);
-		expect(HOME_DIGEST_LIMIT).toBe(5);
+		expect(HOME_DIGEST_TOPIC_MAX).toBe(7);
+		expect(HOME_DIGEST_LIMIT).toBe(7);
 	});
 
 	it("parses a warm hint and rejects caller identity", () => {
@@ -66,7 +66,7 @@ describe("home context contract", () => {
 		expect(
 			parseHomeContextRequest({
 				...request,
-				digestTopicIds: [1, 2, 3, 4, 5, 6],
+				digestTopicIds: [1, 2, 3, 4, 5, 6, 7, 8],
 			}),
 		).toMatchObject({ ok: false, message: HOME_MESSAGES.tooManyTopics });
 	});

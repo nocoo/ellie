@@ -7,6 +7,7 @@ import {
 	type HomeDigestGate,
 	type HomeDigestTopic,
 	type HomeForum,
+	type HomeRecentCandidate,
 	type HomeRecentTopic,
 	type HomeUser,
 	homeForumVisible,
@@ -47,6 +48,8 @@ interface TopicRow {
 	views: number;
 	forum_name: string;
 	last_post_at: number;
+	last_poster_id: number;
+	anonymous_last_poster: number;
 	forum_status: number;
 	visibility: ForumVisibility;
 }
@@ -156,7 +159,7 @@ export async function loadHomeAuthority(env: Env, user: HomeUser | null): Promis
 export async function loadHomeDisplay(
 	env: Env,
 	authority: HomeAuthority,
-	recentCandidates: readonly HomeRecentTopic[] = [],
+	recentCandidates: readonly HomeRecentCandidate[] = [],
 ): Promise<{
 	forums: HomeForum[];
 	summaries: ForumSummaryTopic[];
@@ -212,7 +215,7 @@ export async function loadHomeGates(
 	authority: HomeAuthority,
 	summaryTopicIds: readonly number[],
 	digestTopicIds: readonly number[],
-	recentCandidates: readonly HomeRecentTopic[] = [],
+	recentCandidates: readonly HomeRecentCandidate[] = [],
 ): Promise<{
 	summaryGates: ForumSummaryGate[];
 	digestGates: HomeDigestGate[];
@@ -331,6 +334,7 @@ function toDigestTopic(row: TopicRow): HomeDigestTopic {
 	return {
 		id: row.id,
 		forumId: row.forum_id,
+		forumName: cut(row.forum_name, 200),
 		subject: cut(row.subject, SUBJECT_MAX),
 		digest: row.digest,
 		createdAt: nonnegative(row.created_at),
@@ -338,6 +342,7 @@ function toDigestTopic(row: TopicRow): HomeDigestTopic {
 		views: nonnegative(row.views),
 		anonymousAuthor: author.anonymousAuthor,
 		authorId: author.authorId,
+		authorAvatarPath: "",
 		authorName:
 			author.anonymousAuthor === 1 ? author.authorName : cut(author.authorName, AUTHOR_NAME_MAX),
 	};
@@ -381,7 +386,7 @@ async function loadTopicRows(env: Env, ids: number[], includeDisplay = false): P
 		const part = ids.slice(start, start + SQL_BATCH);
 		const result = await env.DB.prepare(
 			`SELECT t.id, t.forum_id, t.sticky, t.anonymous_author, t.author_id,
-			        t.digest, t.subject, t.replies, t.last_post_at, f.name AS forum_name, ${displayColumns},
+			        t.digest, t.subject, t.replies, t.last_post_at, t.last_poster_id, t.anonymous_last_poster, f.name AS forum_name, ${displayColumns},
 			        f.status AS forum_status, f.visibility
 			 FROM threads t JOIN forums f ON f.id = t.forum_id ${authorJoin}
 			 WHERE t.id IN (${part.map(() => "?").join(",")})`,
@@ -428,7 +433,7 @@ function nonnegative(value: number): number {
 
 function toRecentTopics(
 	rows: TopicRow[],
-	candidates: readonly HomeRecentTopic[],
+	candidates: readonly HomeRecentCandidate[],
 	authority: HomeAuthority,
 ): HomeRecentTopic[] {
 	const byId = new Map(rows.map((row) => [row.id, row]));
@@ -455,6 +460,10 @@ function toRecentTopics(
 					subject: cut(row.subject, SUBJECT_MAX),
 					lastPostAt: row.last_post_at,
 					replies: nonnegative(row.replies),
+					lastPosterId: row.anonymous_last_poster === 1 ? 0 : nonnegative(row.last_poster_id),
+					lastPoster: row.anonymous_last_poster === 1 ? "匿名" : "未知用户",
+					lastPosterAvatarPath: "",
+					anonymousLastPoster: row.anonymous_last_poster === 1 ? (1 as const) : (0 as const),
 				},
 			];
 		})

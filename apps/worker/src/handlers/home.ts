@@ -10,6 +10,7 @@ import { loadHomeAuthority, loadHomeDisplay, loadHomeGates, loadHomeUser } from 
 import { isTokenExpired, verifyJwt } from "../lib/jwt";
 import { readRecentActivity, selectRecentCandidates } from "../lib/recent-activity";
 import { jsonNoStoreResponse } from "../lib/response";
+import { getUserProfiles } from "../lib/user-cache";
 import { errorResponse } from "../middleware/error";
 
 interface JwtClaims {
@@ -74,6 +75,25 @@ export async function homeContext(request: Request, env: Env): Promise<Response>
 				})
 			: undefined,
 	]);
+	const digest = "digest" in loaded ? loaded.digest : [];
+	const profiles = await getUserProfiles(env, undefined, [
+		...digest.map((topic) => topic.authorId),
+		...loaded.recent.map((topic) => topic.lastPosterId),
+	]);
+	for (const topic of digest) {
+		const profile = profiles.get(topic.authorId);
+		if (profile) {
+			topic.authorName = profile.username;
+			topic.authorAvatarPath = profile.avatarPath;
+		}
+	}
+	for (const topic of loaded.recent) {
+		const profile = profiles.get(topic.lastPosterId);
+		if (profile) {
+			topic.lastPoster = profile.username;
+			topic.lastPosterAvatarPath = profile.avatarPath;
+		}
+	}
 	const data: HomeContextData = {
 		bucket: authority.bucket,
 		user: authority.user,

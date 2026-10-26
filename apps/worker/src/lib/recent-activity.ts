@@ -1,4 +1,4 @@
-import { HOME_DIGEST_LIMIT, type HomeRecentTopic } from "@ellie/types";
+import { HOME_DIGEST_LIMIT, type HomeRecentCandidate } from "@ellie/types";
 import type { Env } from "./env";
 
 export const RECENT_ACTIVITY_KEY = "activity:recent:v1";
@@ -6,16 +6,16 @@ const DIRTY_PREFIX = "statistics:changed:v1:";
 const DAY = 86_400;
 const MAX_TOPICS = 512;
 const CANDIDATE_LIMIT = HOME_DIGEST_LIMIT * 4;
-const memory = new WeakMap<KVNamespace, { topics: HomeRecentTopic[]; expiresAt: number }>();
+const memory = new WeakMap<KVNamespace, { topics: HomeRecentCandidate[]; expiresAt: number }>();
 
-function prune(topics: HomeRecentTopic[], now: number): HomeRecentTopic[] {
+function prune(topics: HomeRecentCandidate[], now: number): HomeRecentCandidate[] {
 	return topics
 		.filter((topic) => topic.lastPostAt <= now)
 		.sort((a, b) => b.lastPostAt - a.lastPostAt || b.id - a.id)
 		.slice(0, MAX_TOPICS);
 }
 
-function validTopic(value: unknown): value is HomeRecentTopic {
+function validTopic(value: unknown): value is HomeRecentCandidate {
 	if (!value || typeof value !== "object") return false;
 	const row = value as Record<string, unknown>;
 	return (
@@ -34,7 +34,7 @@ function validTopic(value: unknown): value is HomeRecentTopic {
 export async function readRecentActivity(
 	env: Env,
 	now = Math.floor(Date.now() / 1000),
-): Promise<HomeRecentTopic[]> {
+): Promise<HomeRecentCandidate[]> {
 	const cached = memory.get(env.KV);
 	if (cached && cached.expiresAt > now) return prune(cached.topics, now);
 	try {
@@ -51,13 +51,17 @@ export async function readRecentActivity(
 	}
 }
 
-async function saveRecentActivity(env: Env, topics: HomeRecentTopic[], now: number): Promise<void> {
+async function saveRecentActivity(
+	env: Env,
+	topics: HomeRecentCandidate[],
+	now: number,
+): Promise<void> {
 	const value = prune(topics.filter(validTopic), now);
 	memory.set(env.KV, { topics: value, expiresAt: now + 300 });
 	await env.KV.put(RECENT_ACTIVITY_KEY, JSON.stringify(value));
 }
 
-export async function recordRecentActivity(env: Env, topic: HomeRecentTopic): Promise<void> {
+export async function recordRecentActivity(env: Env, topic: HomeRecentCandidate): Promise<void> {
 	try {
 		if (!validTopic(topic)) return;
 		const current = await readRecentActivity(env);
@@ -123,7 +127,7 @@ export async function refreshRecentActivity(
 		FROM older t JOIN forums f ON f.id = t.forum_id
 		ORDER BY lastPostAt DESC, id DESC`)
 		.bind(now - DAY, CANDIDATE_LIMIT, now - DAY, now)
-		.all<HomeRecentTopic>();
+		.all<HomeRecentCandidate>();
 	if (!result.success) throw new Error("Recent activity refresh failed");
 	const forumIds = [
 		...new Set(
@@ -140,9 +144,9 @@ export async function refreshRecentActivity(
 }
 
 export function selectRecentCandidates(
-	topics: HomeRecentTopic[],
+	topics: HomeRecentCandidate[],
 	allowed: ReadonlySet<number>,
-): HomeRecentTopic[] {
+): HomeRecentCandidate[] {
 	// Keep replacements available when fresh topic gates reject a cached candidate.
 	return topics.filter((topic) => allowed.has(topic.forumId)).slice(0, CANDIDATE_LIMIT);
 }

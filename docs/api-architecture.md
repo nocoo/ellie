@@ -449,14 +449,16 @@ The trusted homepage request marker is overwritten by Next.js Proxy. Browser
 notification polling, avatars, token refresh and periodic settings reads remain
 separate requests.
 
+Homepage showcase cards share a two-line item template and an equal-height scrollable viewport. They retain item padding and text line height while making up to seven topics available.
+
 The request contains `cachedBucket`, `includeDisplay`, `includeStats`,
 `summaryTopicIds` and `digestTopicIds`. The bucket is a rebuild hint, never
 an authorization claim. Responses contain fresh `bucket`, `user`,
 `allowedForumIds`, `summaryGates`, `digestGates` and `recent`, with optional `display`
-and `stats`. `recent` contains at most five `{ id, forumId, forumName, subject,
-lastPostAt, replies }` rows ordered by last activity, without author identities.
-The nightly snapshot includes the last 24 hours and up to 20 historical candidates
-so quiet periods can still display five discussions. Historical rows pass the same
+and `stats`. `recent` contains at most seven `{ id, forumId, forumName, subject,
+lastPostAt, replies, lastPosterId, lastPoster, lastPosterAvatarPath, anonymousLastPoster }` rows ordered by last activity. Fresh topic gates mask anonymous last posters before profile hydration. Digest display also includes `forumName` and `authorAvatarPath`. Both lists hydrate only visible user IDs in one batch through the existing `user:mini:v3` cache; cache misses use the existing batched loader, never one request per item. Recent candidate snapshots remain identity-free.
+The nightly snapshot includes the last 24 hours and up to 28 historical candidates
+so quiet periods can still display seven discussions. Historical rows pass the same
 current-authority gates and do not trigger daily forum recounts.
 It is refreshed on every context request from Worker memory/KV candidates, filtered
 against the existing fresh forum and topic gates, and never cached in Web display.
@@ -484,7 +486,7 @@ candidates; replaced display IDs are not read again. Single-forum metadata reque
 scope latest-topic selection to that forum. Topic and viewer authorization remain fresh.
 
 Web caches only the coherent `display` projection (forum structure, numeric
-summaries/latest nonanonymous topics, and five digest topics). It never caches
+summaries/latest nonanonymous topics, and seven digest topics). It never caches
 context users or authorization gates. `home-display` has four entries at most,
 512 KiB per entry, thirty-minute maximum lifetime and Shanghai-midnight expiry;
 the existing aggregate eight-MiB payload ceiling remains. Statistics reuse

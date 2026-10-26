@@ -412,7 +412,7 @@ it("uses freshly authorized recent activity without freezing it in the display c
 });
 
 it("filters forbidden recent forums and bounds the homepage recent list", async () => {
-	const recent = Array.from({ length: 8 }, (_, index) => ({
+	const recent = Array.from({ length: 10 }, (_, index) => ({
 		id: index + 1,
 		forumId: index === 0 ? 2 : 1,
 		forumName: "Forum",
@@ -422,6 +422,6 @@ it("filters forbidden recent forums and bounds the homepage recent list", async 
 	}));
 	mocks.post.mockResolvedValueOnce({ data: context({ display, recent }) });
 	const result = await loadHomeContext();
-	expect(result.recent).toHaveLength(5);
+	expect(result.recent).toHaveLength(7);
 	expect(result.recent.every((row) => row.forumId === 1)).toBe(true);
 });

@@ -73,6 +73,7 @@ describe("POST /api/v1/home/context", () => {
 		const cold = await homeContext(post({ ...warm, includeDisplay: true }), f.env);
 		const body = await cold.json();
 		expect(body.data.display.digest[0].authorName).toBe("Renamed");
+		expect(body.data.display.digest[0].authorAvatarPath).toBe("alice.jpg");
 		f.calls.length = 0;
 		await homeContext(post({ ...warm, summaryTopicIds: [8], digestTopicIds: [8] }), f.env);
 		const queries = f.calls.map((call) => call.sql).join("\n");
@@ -233,7 +234,7 @@ describe("POST /api/v1/home/context", () => {
 		expect(accepted.status).toBe(200);
 	});
 
-	it("ranks five allowed digests in one json_each query", async () => {
+	it("ranks seven allowed digests in one json_each query", async () => {
 		open();
 		f.insert("forums", { id: 40, name: "Hidden parent", status: 0, visibility: "public" });
 		f.insert("forums", { id: 41, name: "Hidden child", parent_id: 40, visibility: "public" });
@@ -244,21 +245,23 @@ describe("POST /api/v1/home/context", () => {
 		f.thread(205, { digest: 3, last_post_at: 700, subject: "Tie newer id" });
 		f.thread(206, { digest: 2, last_post_at: 600, subject: "Second" });
 		f.thread(207, { digest: 1, last_post_at: 500, subject: "First low" });
-		f.thread(208, { digest: 1, last_post_at: 400, subject: "Dropped sixth" });
+		f.thread(208, { digest: 1, last_post_at: 400, subject: "Sixth" });
 		f.thread(209, { digest: 3, last_post_at: 1000, subject: "Top" });
+		f.thread(210, { digest: 1, last_post_at: 300, subject: "Seventh" });
+		f.thread(211, { digest: 1, last_post_at: 200, subject: "Dropped eighth" });
 		const response = await homeContext(
 			post({ ...warm, cachedBucket: null, includeDisplay: true }),
 			f.env,
 		);
 		const body = await response.json();
 		expect(body.data.display.digest.map((row: { id: number }) => row.id)).toEqual([
-			209, 205, 204, 206, 207,
+			209, 205, 204, 206, 207, 208, 210,
 		]);
 		const digestSql = f.calls.filter((call) => call.sql.includes("idx_threads_digest"));
 		expect(digestSql).toHaveLength(1);
 		expect(digestSql[0]?.sql).toContain("json_each(?)");
 		expect(digestSql[0]?.params[0]).toBe(JSON.stringify([1]));
-		expect(digestSql[0]?.params[1]).toBe(5);
+		expect(digestSql[0]?.params[1]).toBe(7);
 	});
 
 	it("rejects an incorrect JWT and does not read the user row", async () => {

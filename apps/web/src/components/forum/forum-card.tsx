@@ -91,16 +91,24 @@ function ForumStats({
 		return (
 			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
 				<span className="whitespace-nowrap" data-testid="forum-stats-desktop" title="主题 / 帖子">
-					<span className="text-foreground font-medium">{formatCount(threads)}</span>
+					<span className="text-foreground font-medium">
+						{formatCount(threads)}
+						<span className="hidden @min-[60rem]/forum:inline"> 主题</span>
+					</span>
 					{" / "}
 					{formatCount(posts)}
+					<span className="hidden @min-[60rem]/forum:inline"> 帖子</span>
 				</span>
 			</div>
 		);
 	}
 	return (
 		<span className="whitespace-nowrap" data-testid="forum-stats-inline" title="主题 / 帖子">
-			{formatCount(threads)} / {formatCount(posts)}
+			{formatCount(threads)}
+			<span className="hidden @min-[26rem]/forum:inline"> 主题</span>
+			{" / "}
+			{formatCount(posts)}
+			<span className="hidden @min-[26rem]/forum:inline"> 帖子</span>
 		</span>
 	);
 }
@@ -311,7 +319,7 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 	return (
 		<div
-			className="relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="@container/forum relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
 			data-testid="forum-card"
 		>
 			{/*
@@ -321,7 +329,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 			 *  lg  (>=1024) : 36px | 1fr | 120px | 240px  (full)
 			 * Top-aligned so multi-line info doesn't push the avatar baseline.
 			 */}
-			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_112px] lg:grid-cols-[36px_minmax(0,1fr)_120px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
+			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_112px] lg:grid-cols-[36px_minmax(0,1fr)_120px_240px] @min-[60rem]/forum:grid-cols-[36px_minmax(0,1fr)_192px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
 				<div className="self-start pt-0.5">
 					<ForumIcon lastPostAt={forum.lastPostAt} />
 				</div>
@@ -394,7 +402,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 	return (
 		<div
-			className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="@container/forum relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
 			data-testid="forum-card"
 		>
 			<div className="mt-0.5 shrink-0">

@@ -61,6 +61,7 @@ export default function PinPreviewPage() {
 	const digestThreads = [1, 2, 3].map((digest) => ({
 		...threads[3],
 		id: 100 + digest,
+		forumName: "校园生活",
 		anonymousAuthor: 1 as const,
 		digest,
 		subject: `${digest} 级精华 · 社区精选内容`,

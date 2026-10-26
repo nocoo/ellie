@@ -6,8 +6,8 @@ import type { ForumType, ForumVisibility, ModeratorInfo } from "./types";
 export declare const HOME_CONTEXT_PATH = "/api/v1/home/context";
 export declare const HOME_CONTEXT_MAX_BODY_BYTES = 32768;
 export declare const HOME_SUMMARY_TOPIC_MAX = 512;
-export declare const HOME_DIGEST_TOPIC_MAX = 5;
-export declare const HOME_DIGEST_LIMIT = 5;
+export declare const HOME_DIGEST_TOPIC_MAX = 7;
+export declare const HOME_DIGEST_LIMIT = 7;
 export declare const HOME_ANONYMOUS_AUTHOR_NAME = "\u533F\u540D";
 export declare const HOME_MESSAGES: {
     readonly invalidBody: "Invalid request body";
@@ -57,6 +57,7 @@ export interface HomeForum {
 export interface HomeDigestTopic {
     id: number;
     forumId: number;
+    forumName: string;
     subject: string;
     digest: number;
     createdAt: number;
@@ -65,6 +66,7 @@ export interface HomeDigestTopic {
     anonymousAuthor: 0 | 1;
     authorId: number;
     authorName: string;
+    authorAvatarPath: string;
 }
 export interface HomeDigestGate {
     topicId: number;
@@ -74,13 +76,19 @@ export interface HomeDigestGate {
     anonymousAuthor: 0 | 1;
     authorId: number;
 }
-export interface HomeRecentTopic {
+export interface HomeRecentCandidate {
     id: number;
     forumId: number;
     forumName: string;
     subject: string;
     lastPostAt: number;
     replies: number;
+}
+export interface HomeRecentTopic extends HomeRecentCandidate {
+    lastPosterId: number;
+    lastPoster: string;
+    lastPosterAvatarPath: string;
+    anonymousLastPoster: 0 | 1;
 }
 export interface HomeStats {
     todayPosts: number;

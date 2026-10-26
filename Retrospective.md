@@ -322,3 +322,7 @@ evidence of authenticated page coverage.
 
 The first automatic-loading implementation relied only on the parent Admin layout's redirect. Local browser tests showed that an unauthorized request still issued the five dashboard report requests before redirecting because Next.js can render pages and layouts concurrently. Reuse the existing session/allowlist check in the dashboard before loading any report, and test that rejected sessions invoke neither statistics loader. A layout redirect alone does not prevent child Server Component data access.
 
+
+## 2026-10-26: Use the Caddy origin for manual previews
+
+The forum layout preview was initially opened through localhost instead of the existing Caddy HTTPS origin. Manual acceptance must use the project domain so origin and secure-cookie behavior match normal development. Inspect the existing mapping first, set the preview auth/site origin accordingly, and reserve loopback URLs for internal upstreams and isolated automated tests. No certificate or proxy changes were needed.

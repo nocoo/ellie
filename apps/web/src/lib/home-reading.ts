@@ -158,7 +158,9 @@ async function readHomeContext(
 			return valid;
 		})
 		.map((topic) =>
-			topic.anonymousAuthor === 1 ? { ...topic, authorId: 0, authorName: "" } : topic,
+			topic.anonymousAuthor === 1
+				? { ...topic, authorId: 0, authorName: "", authorAvatarPath: "" }
+				: topic,
 		);
 	if (mismatch) runtime.clear("home-display", data.bucket);
 	else if (

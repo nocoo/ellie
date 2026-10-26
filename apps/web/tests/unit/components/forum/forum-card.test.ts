@@ -520,3 +520,21 @@ describe("ForumCard poster avatar placement", () => {
 		},
 	);
 });
+
+describe("ForumCard responsive count labels", () => {
+	it.each(["wide", "grid"] as const)(
+		"%s shows count units only when its container is wide enough",
+		(layout) => {
+			render(createElement(ForumCard, { forum: makeForum(), layout }));
+			const stats = screen.getByTestId(
+				layout === "wide" ? "forum-stats-desktop" : "forum-stats-inline",
+			);
+			expect(stats.textContent).toBe("71,254 主题 / 195,347 帖子");
+			const labels = [...stats.querySelectorAll("span")].filter((el) =>
+				el.className.includes("/forum:inline"),
+			);
+			expect(labels).toHaveLength(2);
+			for (const label of labels) expect(label.className).toContain("hidden @min-");
+		},
+	);
+});

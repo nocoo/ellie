@@ -104,7 +104,7 @@ describe("recent activity", () => {
 		expect(rows.some((row) => row.id >= 513)).toBe(false);
 	});
 
-	it("backfills five authorized discussions from bounded history without marking quiet forums for recount", async () => {
+	it("backfills seven authorized discussions from bounded history without marking quiet forums for recount", async () => {
 		for (let id = 1; id <= 30; id++)
 			f.thread(id, { last_post_at: SECOND - 86_400 - id, forum_id: id <= 3 ? 2 : 1 });
 		f.thread(31, { last_post_at: SECOND - 86_400, sticky: -1 });
@@ -115,25 +115,26 @@ describe("recent activity", () => {
 		const plan = f.sqlite.prepare(`EXPLAIN QUERY PLAN ${query.sql}`).all(...query.params);
 		expect(JSON.stringify(plan)).toContain("SEARCH threads USING INDEX idx_threads_latest");
 		expect(f.env.KV.put).toHaveBeenCalledTimes(1);
-		expect(await readRecentActivity(f.env)).toHaveLength(20);
+		expect(await readRecentActivity(f.env)).toHaveLength(28);
 		vi.setSystemTime(NOW + 86_400_000);
 		const restarted = { ...f.env, KV: { ...f.env.KV } };
-		expect(await readRecentActivity(restarted)).toHaveLength(20);
+		expect(await readRecentActivity(restarted)).toHaveLength(28);
 		expect(f.calls).toHaveLength(1);
 		vi.mocked(f.env.KV.get).mockClear();
 		f.calls.length = 0;
 		const body = await (await homeContext(request(), restarted)).json();
-		expect(body.data.recent.map((row: { id: number }) => row.id)).toEqual([4, 5, 6, 7, 8]);
-		expect(f.calls).toHaveLength(4);
-		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
+		expect(body.data.recent.map((row: { id: number }) => row.id)).toEqual([4, 5, 6, 7, 8, 9, 10]);
+		expect(f.calls).toHaveLength(5);
+		expect(f.calls.filter((call) => call.sql.includes("avatar_path"))).toHaveLength(1);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(3);
 		f.calls.length = 0;
 		vi.mocked(f.env.KV.get).mockClear();
 		await homeContext(request(), restarted);
 		expect(f.calls).toHaveLength(2);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.get).toHaveBeenCalledExactlyOnceWith(["user:mini:v3:20"], "json");
 		f.sqlite.exec("DELETE FROM threads WHERE id=32");
 		expect(await refreshRecentActivity(restarted)).toEqual([]);
-		expect(await readRecentActivity(restarted)).toHaveLength(20);
+		expect(await readRecentActivity(restarted)).toHaveLength(28);
 	});
 
 	it("keeps unique dirty markers for forum zero, deduplicates IDs, and pages across old markers", async () => {
@@ -153,15 +154,25 @@ describe("recent activity", () => {
 		vi.mocked(f.env.KV.get).mockClear();
 		const load = async () => (await (await homeContext(request(), f.env)).json()).data;
 		const body = await load();
-		expect(body.recent).toEqual([{ ...topic, subject: "Thread 1" }]);
+		expect(body.recent).toEqual([
+			{
+				...topic,
+				subject: "Thread 1",
+				lastPosterId: 20,
+				lastPoster: "bob",
+				lastPosterAvatarPath: "bob.jpg",
+				anonymousLastPoster: 0,
+			},
+		]);
 		expect(JSON.stringify(body.recent)).not.toContain("alice");
-		expect(f.calls).toHaveLength(4);
-		expect(f.env.KV.get).toHaveBeenCalledTimes(1);
+		expect(f.calls).toHaveLength(5);
+		expect(f.calls.filter((call) => call.sql.includes("avatar_path"))).toHaveLength(1);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(3);
 		f.calls.length = 0;
 		vi.mocked(f.env.KV.get).mockClear();
 		await load();
 		expect(f.calls).toHaveLength(2);
-		expect(f.env.KV.get).not.toHaveBeenCalled();
+		expect(f.env.KV.get).toHaveBeenCalledExactlyOnceWith(["user:mini:v3:20"], "json");
 		for (const sql of [
 			"UPDATE threads SET sticky=-1 WHERE id=1",
 			"UPDATE threads SET sticky=0, forum_id=2 WHERE id=1",
@@ -174,6 +185,26 @@ describe("recent activity", () => {
 		}
 		f.sqlite.exec("UPDATE forums SET status=1 WHERE id=1; DELETE FROM threads WHERE id=1");
 		expect((await load()).recent).toEqual([]);
-		expect(f.env.KV.get).toHaveBeenCalledTimes(2);
+		expect(f.env.KV.get).toHaveBeenCalledTimes(3);
+	});
+	it("masks newly anonymous last posters before reading cached profiles", async () => {
+		f.thread(1, { last_post_at: SECOND });
+		await recordRecentActivity(f.env, topic);
+		const first = await (await homeContext(request(), f.env)).json();
+		expect(first.data.recent[0]).toMatchObject({
+			lastPosterId: 20,
+			lastPoster: "bob",
+			lastPosterAvatarPath: "bob.jpg",
+		});
+		f.sqlite.exec("UPDATE threads SET anonymous_last_poster=1 WHERE id=1");
+		vi.mocked(f.env.KV.get).mockClear();
+		const masked = await (await homeContext(request(), f.env)).json();
+		expect(masked.data.recent[0]).toMatchObject({
+			lastPosterId: 0,
+			lastPoster: "匿名",
+			lastPosterAvatarPath: "",
+			anonymousLastPoster: 1,
+		});
+		expect(f.env.KV.get).not.toHaveBeenCalled();
 	});
 });
