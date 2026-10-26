@@ -521,20 +521,23 @@ describe("ForumCard poster avatar placement", () => {
 	);
 });
 
-describe("ForumCard responsive count labels", () => {
+describe("ForumCard Lucide count icons", () => {
 	it.each(["wide", "grid"] as const)(
-		"%s shows count units only when its container is wide enough",
+		"%s shows accessible topic and post icons without wrapping",
 		(layout) => {
 			render(createElement(ForumCard, { forum: makeForum(), layout }));
 			const stats = screen.getByTestId(
 				layout === "wide" ? "forum-stats-desktop" : "forum-stats-inline",
 			);
-			expect(stats.textContent).toBe("71,254 主题 / 195,347 帖子");
-			const labels = [...stats.querySelectorAll("span")].filter((el) =>
-				el.className.includes("/forum:inline"),
-			);
-			expect(labels).toHaveLength(2);
-			for (const label of labels) expect(label.className).toContain("hidden @min-");
+			expect(stats.className).toContain("whitespace-nowrap");
+			expect(stats.textContent).toContain("主题 71,254");
+			expect(stats.textContent).toContain("帖子 195,347");
+			for (const label of ["主题", "帖子"]) {
+				const metric = screen.getByTitle(label);
+				expect(metric.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+				expect(metric.querySelector("svg")?.getAttribute("class")).toContain("size-3");
+				expect(metric.querySelector(".sr-only")?.textContent).toBe(`${label} `);
+			}
 		},
 	);
 });

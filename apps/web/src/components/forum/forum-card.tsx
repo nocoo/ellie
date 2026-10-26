@@ -1,23 +1,7 @@
 "use client";
 
-// components/forum/forum-card.tsx — Forum card with two layout variants
-// "wide" = full-width row (学习与学术区 style), "grid" = compact cell in 2-col grid (社团与爱好区 style)
-//
-// Wide layout uses a fixed CSS grid template so the icon, info, stats, and
-// last-post columns line up across rows regardless of name/description length.
-// - <640px:  single-column mobile compact stack
-// - 640–1023: `36px minmax(0,1fr) 112px`  — stats anchor stays put, last-post hidden
-// - >=1024:   `36px minmax(0,1fr) 120px 240px` — full 4-column row
-//
-// Stats column width (112/120px) is sized to fit a 6-digit + 6-digit pair on
-// one line at the body font size; ForumStats also pins `whitespace-nowrap` on
-// the inner span to defend against future font-size changes. Numbers like
-// `71,254 / 195,347` (回收站) used to wrap at the `/` and force a 2-line row.
-//
-// `<ForumMetaLine>` and `<LastPostPreview>` keep the visual rhythm centralised
-// so future tweaks don't have to chase 2 layouts.
-
 import type { ForumTreeNode } from "@ellie/types";
+import { MessageSquare, MessagesSquare } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatCount, hasRecentForumActivity } from "@/viewmodels/forum/forum-list";
@@ -65,19 +49,6 @@ function LastPosterAvatarLink({
 	);
 }
 
-/** Forum thread/post count display — desktop column or inline meta.
- *
- * `whitespace-nowrap` on the inner `<span>` is load-bearing: without it,
- * 5–6 digit counts (e.g. `71,254 / 195,347` from 回收站) wrap at the `/`,
- * pushing the row to two lines and breaking column alignment. The outer
- * column is widened to fit a 6-digit + 6-digit pair on one line at the
- * common breakpoints — see `ForumCardWide` grid template.
- *
- * `data-testid` hooks let `forum-card.test.ts` assert the no-wrap class is
- * still present after refactors; the homepage regression that prompted
- * this fix is exactly the kind of CSS regression that silently degrades
- * without a guard.
- */
 function ForumStats({
 	threads,
 	posts,
@@ -87,29 +58,31 @@ function ForumStats({
 	posts: number;
 	variant: "desktop" | "inline";
 }) {
-	if (variant === "desktop") {
-		return (
-			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
-				<span className="whitespace-nowrap" data-testid="forum-stats-desktop" title="主题 / 帖子">
-					<span className="text-foreground font-medium">
-						{formatCount(threads)}
-						<span className="hidden @min-[60rem]/forum:inline"> 主题</span>
-					</span>
-					{" / "}
-					{formatCount(posts)}
-					<span className="hidden @min-[60rem]/forum:inline"> 帖子</span>
+	const counts = (
+		<span
+			className="inline-flex items-center gap-3 whitespace-nowrap"
+			data-testid={variant === "desktop" ? "forum-stats-desktop" : "forum-stats-inline"}
+		>
+			<span className="inline-flex items-center gap-1" title="主题">
+				<MessagesSquare className="size-3 shrink-0" aria-hidden="true" />
+				<span className="sr-only">主题 </span>
+				<span className={variant === "desktop" ? "text-foreground font-medium" : undefined}>
+					{formatCount(threads)}
 				</span>
-			</div>
-		);
-	}
-	return (
-		<span className="whitespace-nowrap" data-testid="forum-stats-inline" title="主题 / 帖子">
-			{formatCount(threads)}
-			<span className="hidden @min-[26rem]/forum:inline"> 主题</span>
-			{" / "}
-			{formatCount(posts)}
-			<span className="hidden @min-[26rem]/forum:inline"> 帖子</span>
+			</span>
+			<span className="inline-flex items-center gap-1" title="帖子">
+				<MessageSquare className="size-3 shrink-0" aria-hidden="true" />
+				<span className="sr-only">帖子 </span>
+				{formatCount(posts)}
+			</span>
 		</span>
+	);
+	return variant === "desktop" ? (
+		<div className="flex justify-end self-start text-xs text-muted-foreground tabular-nums leading-5">
+			{counts}
+		</div>
+	) : (
+		counts
 	);
 }
 
@@ -319,17 +292,10 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 	return (
 		<div
-			className="@container/forum relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
 			data-testid="forum-card"
 		>
-			{/*
-			 * Desktop ≥640: CSS grid template ensures stats / last-post columns
-			 * line up across rows regardless of name length.
-			 *  sm  (640–1023): 36px | 1fr | 112px           (last-post hidden)
-			 *  lg  (>=1024) : 36px | 1fr | 120px | 240px  (full)
-			 * Top-aligned so multi-line info doesn't push the avatar baseline.
-			 */}
-			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_112px] lg:grid-cols-[36px_minmax(0,1fr)_120px_240px] @min-[60rem]/forum:grid-cols-[36px_minmax(0,1fr)_192px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
+			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_160px] lg:grid-cols-[36px_minmax(0,1fr)_160px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
 				<div className="self-start pt-0.5">
 					<ForumIcon lastPostAt={forum.lastPostAt} />
 				</div>
@@ -402,7 +368,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 	return (
 		<div
-			className="@container/forum relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
 			data-testid="forum-card"
 		>
 			<div className="mt-0.5 shrink-0">

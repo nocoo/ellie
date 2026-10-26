@@ -64,7 +64,7 @@ describe("homepage shared showcase", () => {
 		expect(avatars[0].nextElementSibling?.textContent).toBe("Alice");
 		expect(screen.getByText("time:100")).toBeTruthy();
 		expect(screen.getByText("time:200")).toBeTruthy();
-		expect(screen.getAllByTitle("查看")).toHaveLength(1);
+		expect(screen.getAllByTitle("阅读量")).toHaveLength(1);
 	});
 	it("keeps equal-height keyboard-scrollable lists and includes seven topics", () => {
 		render(

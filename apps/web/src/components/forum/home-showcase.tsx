@@ -29,11 +29,13 @@ export function HomeShowcaseItem({ item }: { item: HomeShowcaseItemViewModel }) 
 				<span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground tabular-nums">
 					<span className="inline-flex items-center gap-1" title="回复">
 						<MessageSquare className="size-3" aria-hidden="true" />
+						<span className="sr-only">回复 </span>
 						{item.replies}
 					</span>
 					{item.views !== undefined && (
-						<span className="inline-flex items-center gap-1" title="查看">
+						<span className="inline-flex items-center gap-1" title="阅读量">
 							<Eye className="size-3" aria-hidden="true" />
+							<span className="sr-only">阅读量 </span>
 							{item.views}
 						</span>
 					)}
