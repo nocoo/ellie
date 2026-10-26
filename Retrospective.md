@@ -330,3 +330,9 @@ The forum layout preview was initially opened through localhost instead of the e
 ## 2026-10-26: Do not inspect compound scripts with help arguments
 
 During the authorized patch release, passing `--help` to `bun run worker:deploy` still invoked the compound script's migration check before displaying deploy help. A subsequent remote migration listing found no pending migrations, deployment history remained unchanged, and the live Worker still reported 1.14.25. Read package scripts before invocation and query the underlying executable's help directly; never assume wrapper arguments suppress earlier commands or discard operational output.
+
+## 2026-10-26: Include browser assertions when changing display limits
+
+The homepage limit changed from five to seven topics, but the navigation BDD still asserted five. Local unit and API gates passed; exact-release CI correctly blocked Docker deployment on the stale browser assertion. Keep browser counts tied to the shared transport limit and verify keyboard-scrollable access to the final item. Preserve the published tag and record the follow-up test-only deployment revision rather than moving release history.
+
+A local preflight marker probe failed while opening a SQLite candidate, but newline-separated shell commands still started the isolated L3 runner. Chain safety probes with `&&` or enable `set -e`, and identify the D1 database before inspecting its marker; a failed probe must prevent cleanup and startup.
