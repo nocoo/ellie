@@ -326,3 +326,7 @@ The first automatic-loading implementation relied only on the parent Admin layou
 ## 2026-10-26: Use the Caddy origin for manual previews
 
 The forum layout preview was initially opened through localhost instead of the existing Caddy HTTPS origin. Manual acceptance must use the project domain so origin and secure-cookie behavior match normal development. Inspect the existing mapping first, set the preview auth/site origin accordingly, and reserve loopback URLs for internal upstreams and isolated automated tests. No certificate or proxy changes were needed.
+
+## 2026-10-26: Do not inspect compound scripts with help arguments
+
+During the authorized patch release, passing `--help` to `bun run worker:deploy` still invoked the compound script's migration check before displaying deploy help. A subsequent remote migration listing found no pending migrations, deployment history remained unchanged, and the live Worker still reported 1.14.25. Read package scripts before invocation and query the underlying executable's help directly; never assume wrapper arguments suppress earlier commands or discard operational output.

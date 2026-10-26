@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.28] - 2026-10-26
+
+### Changed
+
+- Share a two-line homepage item template between featured topics and recent discussions, with equal-height scrollable cards and up to seven entries.
+- Hydrate author and last-poster names and avatars in a batch through the existing user mini-profile cache, retaining fresh permission and anonymous-identity checks.
+- Align forum statistics with board titles and place avatars beside usernames in both wide and two-column layouts. Use consistent Lucide icons for topics, posts, replies and views.
+- Require existing Caddy HTTPS domains for manual development previews.
+- Upgrade Basalt to 3.2.1, Rust certificate dependencies, and the shared CI workflow revision.
+
+### Security
+
+- Upgrade Bun to 1.4.4 for CVE-2026-111497 and the CI Node runtime to 22.23.4.
+
 ## [1.14.27] - 2026-10-21
 
 ### Changed
