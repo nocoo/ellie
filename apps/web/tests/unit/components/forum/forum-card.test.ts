@@ -297,11 +297,8 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 
 	it("LastPostPreview outer wrapper stays text-sm (thread title is 14px)", () => {
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
-		// Date span sits inside the LastPostPreview's outer grid; that grid
-		// owns the text-sm class so the last-thread title inherits 14px.
 		const date = screen.getByTestId("last-post-date");
-		// date span → outer flex span (last-post-meta) → flex-col div → outer grid div
-		const grid = date.parentElement?.parentElement?.parentElement;
+		const grid = date.parentElement?.parentElement;
 		expect(grid?.className).toContain("text-sm");
 	});
 
@@ -413,32 +410,24 @@ describe("ForumCard — mobile 2-row contract", () => {
 		expect(pillOrAncestorShrink).toBe(true);
 	});
 
-	it("grid layout Row 1 (name + today badge) is flex-nowrap on mobile, flex-wrap on sm+", () => {
-		// Reviewer freeze msg=683d8fff: grid mobile Row 1 used to be
-		// `flex-wrap`, which let a long forum name push the today-badge to a
-		// 2nd line and broke the 2-row mobile density contract. Pin the new
-		// mobile-only `flex-nowrap` + `sm:flex-wrap` tokens, the name link's
-		// `flex-1 min-w-0 truncate`, and the badge wrapper's `shrink-0` so a
-		// future refactor can't silently re-introduce the wrap.
-		const longName = makeForum({
-			name: "一二三四五六七八九十一二三四五六七",
-			todayThreads: 5,
-		});
-		render(createElement(ForumCard, { forum: longName, layout: "grid" }));
-		const row1 = screen.getByTestId("grid-row1");
-		expect(row1.className).toContain("flex-nowrap");
-		expect(row1.className).toContain("sm:flex-wrap");
-		const nameLink = row1.querySelector("a");
-		expect(nameLink).not.toBeNull();
-		expect(nameLink?.className).toContain("flex-1");
-		expect(nameLink?.className).toContain("min-w-0");
-		expect(nameLink?.className).toContain("truncate");
-		// Today badge wrapper keeps shrink-0 — guards against name pushing it out.
-		const badgeText = screen.getAllByText(/^[+(]?5[)]?$/);
-		const wrapper = badgeText.find((el) =>
-			el.parentElement?.classList.contains("shrink-0"),
-		)?.parentElement;
-		expect(wrapper?.className).toContain("shrink-0");
+	it("grid title and right-aligned statistics stay on one baseline without wrapping", () => {
+		const forum = makeForum({ name: "A long forum name", todayThreads: 5 });
+		render(createElement(ForumCard, { forum, layout: "grid" }));
+		const row = screen.getByTestId("grid-row1");
+		const stats = screen.getByTestId("grid-stats-row");
+		expect(stats.parentElement).toBe(row);
+		expect(row.className).toContain("flex-nowrap");
+		expect(row.className).toContain("items-baseline");
+		expect(row.className).toContain("leading-5");
+		expect(stats.className).toContain("ml-auto");
+		expect(stats.className).toContain("shrink-0");
+		expect(stats.className).toContain("leading-5");
+		expect(stats.className).toContain("hidden sm:block");
+		expect(stats.className).not.toContain("mt-1");
+		const name = row.querySelector("a");
+		expect(name?.className).toContain("truncate");
+		expect(name?.parentElement?.className).toContain("flex-1");
+		expect(screen.getByText("+5").className).toContain("shrink-0");
 	});
 
 	it("grid layout: mobile Row 2 surfaces shared MobileLastPostLine; desktop row stays `hidden sm:flex`", () => {
@@ -495,4 +484,39 @@ describe("ForumCard activity icon", () => {
 			expect(icon.getAttribute("src")).toBe("/icons/forum.svg");
 		}
 	});
+});
+
+describe("ForumCard poster avatar placement", () => {
+	const forum = makeForum({
+		lastThreadId: 9,
+		lastThreadSubject: "Latest topic",
+		lastPostAt: 100,
+		lastPoster: "alice",
+		lastPosterId: 1,
+	});
+
+	it.each(["wide", "grid"] as const)(
+		"%s places the desktop avatar immediately before the username",
+		(layout) => {
+			render(createElement(ForumCard, { forum, layout }));
+			const poster = screen.getByTestId(
+				layout === "wide" ? "last-poster-link" : "last-poster-link-grid",
+			);
+			const avatar = poster.previousElementSibling;
+			expect(avatar?.querySelector('[data-testid="avatar"]')).not.toBeNull();
+			expect(avatar?.getAttribute("href")).toBe("/users/1");
+		},
+	);
+
+	it.each(["wide", "grid"] as const)(
+		"%s keeps the mobile avatar beside the username, after the topic",
+		(layout) => {
+			render(createElement(ForumCard, { forum, layout }));
+			const poster = screen.getByTestId("mobile-last-poster-link");
+			expect(poster.previousElementSibling?.querySelector('[data-testid="avatar"]')).not.toBeNull();
+			expect(poster.parentElement?.previousElementSibling).toBe(
+				screen.getByTestId("mobile-last-thread-link"),
+			);
+		},
+	);
 });

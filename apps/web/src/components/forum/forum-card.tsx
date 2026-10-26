@@ -60,7 +60,7 @@ function LastPosterAvatarLink({
 	if (userId <= 0) return null;
 	return (
 		<Link href={`/users/${userId}`} prefetch={false} className="shrink-0">
-			<ForumAvatar userId={userId} userName={userName} avatarPath={avatarPath} shadow />
+			<ForumAvatar userId={userId} userName={userName} avatarPath={avatarPath} size="xs" shadow />
 		</Link>
 	);
 }
@@ -99,8 +99,8 @@ function ForumStats({
 		);
 	}
 	return (
-		<span className="whitespace-nowrap" data-testid="forum-stats-inline">
-			{formatCount(threads)} 主题 / {formatCount(posts)} 帖子
+		<span className="whitespace-nowrap" data-testid="forum-stats-inline" title="主题 / 帖子">
+			{formatCount(threads)} / {formatCount(posts)}
 		</span>
 	);
 }
@@ -203,81 +203,46 @@ function ModeratorLinks({ mods }: { mods: { id: number; name: string }[] }) {
 	);
 }
 
-/** Last post column — avatar (32px) + title + meta, top-aligned to row baseline.
- *
- * When the last poster is anonymous / missing (`lastPosterId <= 0`), the
- * avatar slot is dropped entirely and the text spans both grid columns —
- * otherwise the text would slide into the 32px avatar cell and squeeze the
- * column.
- *
- * Date and username are rendered as **separate spans** so a long username
- * can `truncate` without eating the date — the previous single-span layout
- * let `min-w-0 truncate` swallow the timestamp on long names. The username
- * itself is a plain `<Link>` to `/users/:id` (no `UserPopover` wrap) — the
- * popover's `PopoverTrigger` is a `<button>`, and nesting `<a>` inside
- * `<button>` is invalid interactive markup. The avatar also links to the
- * profile (see `LastPosterAvatarLink`), so users have a redundant entry
- * point even without a popover here. */
 function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) return null;
-	const hasAvatar = forum.lastPosterId > 0;
 	return (
-		<div className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-2 text-sm text-muted-foreground self-start">
-			{hasAvatar && (
+		<div className="min-w-0 flex flex-col text-sm text-muted-foreground leading-5">
+			<Link
+				href={`/threads/${forum.lastThreadId}`}
+				prefetch={false}
+				className="relative z-10 text-forum-link hover:underline truncate"
+			>
+				{forum.lastThreadSubject || "最新主题"}
+			</Link>
+			<span
+				className="flex items-center gap-1 min-w-0 text-xs leading-5"
+				data-testid="last-post-meta"
+			>
+				<span className="whitespace-nowrap shrink-0" data-testid="last-post-date">
+					{formatDateTime(forum.lastPostAt)}
+				</span>
 				<LastPosterAvatarLink
 					userId={forum.lastPosterId}
 					userName={forum.lastPoster}
 					avatarPath={forum.lastPosterAvatarPath}
 				/>
-			)}
-			<div className={`min-w-0 flex flex-col leading-5${hasAvatar ? "" : " col-span-2"}`}>
-				<Link
-					href={`/threads/${forum.lastThreadId}`}
-					prefetch={false}
-					className="relative z-10 text-forum-link hover:underline truncate"
-				>
-					{forum.lastThreadSubject || "最新主题"}
-				</Link>
-				<span className="flex items-baseline gap-1 min-w-0 text-xs" data-testid="last-post-meta">
-					<span className="whitespace-nowrap shrink-0" data-testid="last-post-date">
-						{formatDateTime(forum.lastPostAt)}
-					</span>
-					{forum.lastPosterId > 0 ? (
-						<Link
-							href={`/users/${forum.lastPosterId}`}
-							prefetch={false}
-							className="relative z-10 text-forum-link hover:underline truncate min-w-0"
-							data-testid="last-poster-link"
-						>
-							{forum.lastPoster}
-						</Link>
-					) : (
-						<span className="text-forum-link">{forum.lastPoster}</span>
-					)}
-				</span>
-			</div>
+				{forum.lastPosterId > 0 ? (
+					<Link
+						href={`/users/${forum.lastPosterId}`}
+						prefetch={false}
+						className="relative z-10 text-forum-link hover:underline truncate min-w-0"
+						data-testid="last-poster-link"
+					>
+						{forum.lastPoster}
+					</Link>
+				) : (
+					<span className="text-forum-link">{forum.lastPoster}</span>
+				)}
+			</span>
 		</div>
 	);
 }
 
-/** Mobile-only Row 2 — keeps every forum/sub-forum row at exactly 2 lines on
- * 320–375px viewports. Shared by both `ForumCardWide` and `ForumCardGrid` so a
- * single helper owns the contract: 16px avatar (xs) + truncated thread title
- * (`flex-1`) + bounded meta (`max-w-[42%] shrink-0`) holding truncated username
- * and a `whitespace-nowrap` compact date.
- *
- * Empty state (`lastPostAt <= 0`) renders a single "暂无最新主题" line so the row
- * height stays at 2 lines instead of collapsing to 1 — reviewer freeze
- * msg=efa3c2e9. Drops the avatar/user/date when empty.
- *
- * Date format is `formatDateTimeMobile` (HH:mm / MM-DD / YYYY-MM-DD), not the
- * full `formatDateTime`, because at 12px the long form crowds the title on
- * 320px viewports.
- *
- * `data-testid` hooks: `mobile-last-thread-link`, `mobile-last-poster-link`,
- * `mobile-last-post-date`, `mobile-last-post-empty` — used by both the unit
- * tests and the `mobile-layout.spec.ts` e2e to pin the 2-line contract.
- */
 function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) {
 		return (
@@ -295,16 +260,6 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 			className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground leading-5 min-w-0"
 			data-testid="mobile-last-post-row"
 		>
-			{hasAvatar && (
-				<span className="shrink-0">
-					<ForumAvatar
-						userId={forum.lastPosterId}
-						userName={forum.lastPoster}
-						avatarPath={forum.lastPosterAvatarPath}
-						size="xs"
-					/>
-				</span>
-			)}
 			<Link
 				href={`/threads/${forum.lastThreadId}`}
 				prefetch={false}
@@ -314,6 +269,16 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 				{forum.lastThreadSubject || "最新主题"}
 			</Link>
 			<span className="flex items-center gap-1 shrink-0 max-w-[42%] min-w-0">
+				{hasAvatar && (
+					<span className="shrink-0">
+						<ForumAvatar
+							userId={forum.lastPosterId}
+							userName={forum.lastPoster}
+							avatarPath={forum.lastPosterAvatarPath}
+							size="xs"
+						/>
+					</span>
+				)}
 				{hasAvatar ? (
 					<Link
 						href={`/users/${forum.lastPosterId}`}
@@ -366,7 +331,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						<Link
 							href={`/forums/${forum.id}`}
 							prefetch={false}
-							className="text-sm font-bold text-foreground hover:text-primary transition-colors"
+							className="text-sm font-bold text-foreground hover:text-primary transition-colors leading-5"
 						>
 							{forum.name}
 						</Link>
@@ -437,32 +402,23 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 			</div>
 
 			<div className="min-w-0 flex-1">
-				{/* Row 1 — name + today badge. Mobile uses `flex-nowrap` so a
-				    long forum name + badge can't wrap to a 2nd line and break
-				    the 2-row mobile density contract (reviewer freeze
-				    msg=683d8fff). Desktop keeps `flex-wrap` so wider rows can
-				    relax — the wide grid template already absorbs the slack. */}
-				<div
-					className="flex flex-nowrap sm:flex-wrap items-baseline gap-1.5"
-					data-testid="grid-row1"
-				>
-					<Link
-						href={`/forums/${forum.id}`}
-						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0 flex-1 sm:flex-initial"
-					>
-						{forum.name}
-					</Link>
-					<span className="shrink-0">
+				<div className="flex flex-nowrap items-baseline gap-3 leading-5" data-testid="grid-row1">
+					<div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+						<Link
+							href={`/forums/${forum.id}`}
+							prefetch={false}
+							className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0 leading-5"
+						>
+							{forum.name}
+						</Link>
 						<TodayThreadBadge count={forum.todayThreads} variant="plus" />
-					</span>
-				</div>
-				{/* Mobile (<640px) hides 回/览 stats per reviewer freeze; desktop keeps. */}
-				<div
-					className="mt-1 text-xs text-muted-foreground tabular-nums leading-5 hidden sm:block"
-					data-testid="grid-stats-row"
-				>
-					<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
+					</div>
+					<div
+						className="ml-auto shrink-0 text-right text-xs text-muted-foreground tabular-nums leading-5 hidden sm:block"
+						data-testid="grid-stats-row"
+					>
+						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
+					</div>
 				</div>
 
 				{/* Moderator line is auxiliary meta — desktop only on the grid card. */}
@@ -474,16 +430,9 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				    below so wide/grid stay aligned at 2-row density. */}
 				{forum.lastPostAt > 0 && (
 					<div
-						className="mt-1 hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground"
+						className="mt-1 hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground leading-5"
 						data-testid="grid-last-post-row"
 					>
-						<span className="inline-flex items-center gap-1.5">
-							<LastPosterAvatarLink
-								userId={forum.lastPosterId}
-								userName={forum.lastPoster}
-								avatarPath={forum.lastPosterAvatarPath}
-							/>
-						</span>
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							prefetch={false}
@@ -492,17 +441,24 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						>
 							{forum.lastThreadSubject || "最新主题"}
 						</Link>
+						<LastPosterAvatarLink
+							userId={forum.lastPosterId}
+							userName={forum.lastPoster}
+							avatarPath={forum.lastPosterAvatarPath}
+						/>
 						{forum.lastPosterId > 0 ? (
 							<Link
 								href={`/users/${forum.lastPosterId}`}
 								prefetch={false}
-								className="shrink-0 text-xs text-forum-link hover:underline"
+								className="truncate min-w-0 max-w-[35%] shrink-0 text-xs text-forum-link hover:underline"
 								data-testid="last-poster-link-grid"
 							>
 								{forum.lastPoster}
 							</Link>
 						) : (
-							<span className="shrink-0 text-xs">{forum.lastPoster}</span>
+							<span className="truncate min-w-0 max-w-[35%] shrink-0 text-xs">
+								{forum.lastPoster}
+							</span>
 						)}
 					</div>
 				)}
