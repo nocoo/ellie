@@ -10,35 +10,35 @@
 
 ### 1.1 本次实现
 
-| 功能 | 说明 |
-|------|------|
-| 发送站内信 | 用户可向其他用户发送私信 |
-| 收信箱 | 查看收到的站内信列表 |
-| 发信箱 | 查看已发送的站内信列表 |
-| 查看详情 | 阅读单条站内信内容 |
-| 标记已读 | 打开站内信时自动标记已读 |
+| 功能       | 说明                        |
+| ---------- | --------------------------- |
+| 发送站内信 | 用户可向其他用户发送私信    |
+| 收信箱     | 查看收到的站内信列表        |
+| 发信箱     | 查看已发送的站内信列表      |
+| 查看详情   | 阅读单条站内信内容          |
+| 标记已读   | 打开站内信时自动标记已读    |
 | 删除站内信 | 用户可删除自己收/发的站内信 |
 
 ### 1.2 不在本次范围
 
-| 功能 | 说明 |
-|------|------|
+| 功能     | 说明                                           |
+| -------- | ---------------------------------------------- |
 | 会话模式 | 不实现类似微信的对话聚合，保持传统信件列表模式 |
-| 群发消息 | 不支持一次发送给多人 |
-| 附件 | 站内信不支持附件 |
-| 系统通知 | 系统消息走单独的通知系统（未来实现） |
-| 黑名单 | 不支持屏蔽特定用户的消息 |
+| 群发消息 | 不支持一次发送给多人                           |
+| 附件     | 站内信不支持附件                               |
+| 系统通知 | 系统消息走单独的通知系统（未来实现）           |
+| 黑名单   | 不支持屏蔽特定用户的消息                       |
 
 ### 1.3 术语统一
 
 **全站统一使用"站内信"**：
 
-| 位置 | 当前 | 改为 |
-|------|------|------|
-| 页面 title | `消息` | `站内信` |
-| 面包屑 | `通知 > 消息` | `站内信` |
-| 侧边栏标题 | `通知` | `站内信` |
-| 按钮 | `发消息` | `发站内信` |
+| 位置       | 当前          | 改为       |
+| ---------- | ------------- | ---------- |
+| 页面 title | `消息`        | `站内信`   |
+| 面包屑     | `通知 > 消息` | `站内信`   |
+| 侧边栏标题 | `通知`        | `站内信`   |
+| 按钮       | `发消息`      | `发站内信` |
 
 **图标**：统一使用 `Mail`（信封图标）。
 
@@ -64,19 +64,19 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 ```
 
-| 列 | 类型 | 说明 |
-|----|------|------|
-| `id` | INTEGER PK | 自增主键 |
-| `sender_id` | INTEGER | 发送者 UID |
-| `sender_name` | TEXT | 发送者用户名（冗余，避免 JOIN） |
-| `receiver_id` | INTEGER | 接收者 UID |
-| `receiver_name` | TEXT | 接收者用户名（冗余） |
-| `subject` | TEXT | 主题（可空，默认空字符串） |
-| `content` | TEXT | 正文内容 |
-| `is_read` | INTEGER | 0=未读，1=已读 |
-| `sender_deleted` | INTEGER | 发送者是否删除（0/1） |
-| `receiver_deleted` | INTEGER | 接收者是否删除（0/1） |
-| `created_at` | INTEGER | 发送时间（Unix 时间戳） |
+| 列                 | 类型       | 说明                            |
+| ------------------ | ---------- | ------------------------------- |
+| `id`               | INTEGER PK | 自增主键                        |
+| `sender_id`        | INTEGER    | 发送者 UID                      |
+| `sender_name`      | TEXT       | 发送者用户名（冗余，避免 JOIN） |
+| `receiver_id`      | INTEGER    | 接收者 UID                      |
+| `receiver_name`    | TEXT       | 接收者用户名（冗余）            |
+| `subject`          | TEXT       | 主题（可空，默认空字符串）      |
+| `content`          | TEXT       | 正文内容                        |
+| `is_read`          | INTEGER    | 0=未读，1=已读                  |
+| `sender_deleted`   | INTEGER    | 发送者是否删除（0/1）           |
+| `receiver_deleted` | INTEGER    | 接收者是否删除（0/1）           |
+| `created_at`       | INTEGER    | 发送时间（Unix 时间戳）         |
 
 **设计决策**：
 
@@ -104,24 +104,24 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 用户必须满足**所有**以下条件才能发送站内信：
 
-| # | 条件 | 检查方式 |
-|---|------|---------|
-| 1 | 已登录 | JWT 鉴权 |
-| 2 | 账号状态正常 | `users.status >= 0`（非封禁/禁言） |
-| 3 | 符合新用户限制 | 与发帖限制相同（见 §3.2） |
-| 4 | 收信人存在 | `receiver_id` 在 users 表中存在 |
-| 5 | 不能发给自己 | `sender_id != receiver_id` |
+| #   | 条件           | 检查方式                           |
+| --- | -------------- | ---------------------------------- |
+| 1   | 已登录         | JWT 鉴权                           |
+| 2   | 账号状态正常   | `users.status >= 0`（非封禁/禁言） |
+| 3   | 符合新用户限制 | 与发帖限制相同（见 §3.2）          |
+| 4   | 收信人存在     | `receiver_id` 在 users 表中存在    |
+| 5   | 不能发给自己   | `sender_id != receiver_id`         |
 
 ### 3.2 新用户限制（复用 features.posting 设置）
 
 站内信发送与发帖使用相同的限制规则：
 
-| 设置 key | 说明 |
-|---------|------|
-| `features.posting.enabled` | 总开关，关闭则不检查限制 |
-| `features.posting.min_registration_days` | 注册满 N 天才能发送 |
+| 设置 key                                  | 说明                                     |
+| ----------------------------------------- | ---------------------------------------- |
+| `features.posting.enabled`                | 总开关，关闭则不检查限制                 |
+| `features.posting.min_registration_days`  | 注册满 N 天才能发送                      |
 | `features.posting.require_email_verified` | 需要邮箱验证（预留，当前无邮箱验证功能） |
-| `features.posting.require_avatar` | 需要设置头像 |
+| `features.posting.require_avatar`         | 需要设置头像                             |
 
 **实现**：抽取 `checkPostingPermission(env, user)` 公共函数，供发帖和发站内信复用。
 
@@ -157,48 +157,48 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ### 4.2 端点列表
 
-| # | Method | Path | 鉴权 | 说明 |
-|---|--------|------|------|------|
-| #70 | `GET` | `/api/v1/messages` | Key A + JWT | 获取站内信列表 |
-| #71 | `GET` | `/api/v1/messages/unread-count` | Key A + JWT | 获取未读数量 |
-| #72 | `GET` | `/api/v1/messages/:id` | Key A + JWT | 获取单条站内信详情 |
-| #73 | `POST` | `/api/v1/messages` | Key A + JWT | 发送站内信 |
-| #74 | `DELETE` | `/api/v1/messages/:id` | Key A + JWT | 删除站内信 |
-| #75 | `GET` | `/api/v1/users/search` | Key A | 用户名搜索（自动补全用） |
+| #   | Method   | Path                            | 鉴权        | 说明                     |
+| --- | -------- | ------------------------------- | ----------- | ------------------------ |
+| #70 | `GET`    | `/api/v1/messages`              | Key A + JWT | 获取站内信列表           |
+| #71 | `GET`    | `/api/v1/messages/unread-count` | Key A + JWT | 获取未读数量             |
+| #72 | `GET`    | `/api/v1/messages/:id`          | Key A + JWT | 获取单条站内信详情       |
+| #73 | `POST`   | `/api/v1/messages`              | Key A + JWT | 发送站内信               |
+| #74 | `DELETE` | `/api/v1/messages/:id`          | Key A + JWT | 删除站内信               |
+| #75 | `GET`    | `/api/v1/users/search`          | Key A       | 用户名搜索（自动补全用） |
 
 ### 4.3 #70 GET /api/v1/messages
 
 **Query 参数**：
 
-| 参数 | 类型 | 默认 | 说明 |
-|------|------|------|------|
-| `box` | string | `inbox` | `inbox`=收信箱，`outbox`=发信箱 |
-| `limit` | number | 20 | 每页数量，最大 100 |
-| `cursor` | string | - | 分页游标 |
+| 参数     | 类型   | 默认    | 说明                            |
+| -------- | ------ | ------- | ------------------------------- |
+| `box`    | string | `inbox` | `inbox`=收信箱，`outbox`=发信箱 |
+| `limit`  | number | 20      | 每页数量，最大 100              |
+| `cursor` | string | -       | 分页游标                        |
 
 **响应**：
 
 ```json
 {
-  "data": [
-    {
-      "id": 1,
-      "senderId": 100,
-      "senderName": "alice",
-      "receiverId": 200,
-      "receiverName": "bob",
-      "subject": "关于您的帖子",
-      "preview": "您好，想请教一下...",
-      "isRead": false,
-      "createdAt": 1712345678
-    }
-  ],
-  "meta": {
-    "timestamp": 1712345700000,
-    "requestId": "uuid-xxx",
-    "nextCursor": "xxx",
-    "unreadCount": 5
-  }
+	"data": [
+		{
+			"id": 1,
+			"senderId": 100,
+			"senderName": "alice",
+			"receiverId": 200,
+			"receiverName": "bob",
+			"subject": "关于您的帖子",
+			"preview": "您好，想请教一下...",
+			"isRead": false,
+			"createdAt": 1712345678
+		}
+	],
+	"meta": {
+		"timestamp": 1712345700000,
+		"requestId": "uuid-xxx",
+		"nextCursor": "xxx",
+		"unreadCount": 5
+	}
 }
 ```
 
@@ -212,13 +212,13 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ```json
 {
-  "data": {
-    "count": 5
-  },
-  "meta": {
-    "timestamp": 1712345700000,
-    "requestId": "uuid-xxx"
-  }
+	"data": {
+		"count": 5
+	},
+	"meta": {
+		"timestamp": 1712345700000,
+		"requestId": "uuid-xxx"
+	}
 }
 ```
 
@@ -232,21 +232,21 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ```json
 {
-  "data": {
-    "id": 1,
-    "senderId": 100,
-    "senderName": "alice",
-    "receiverId": 200,
-    "receiverName": "bob",
-    "subject": "关于您的帖子",
-    "content": "完整内容...",
-    "isRead": true,
-    "createdAt": 1712345678
-  },
-  "meta": {
-    "timestamp": 1712345700000,
-    "requestId": "uuid-xxx"
-  }
+	"data": {
+		"id": 1,
+		"senderId": 100,
+		"senderName": "alice",
+		"receiverId": 200,
+		"receiverName": "bob",
+		"subject": "关于您的帖子",
+		"content": "完整内容...",
+		"isRead": true,
+		"createdAt": 1712345678
+	},
+	"meta": {
+		"timestamp": 1712345700000,
+		"requestId": "uuid-xxx"
+	}
 }
 ```
 
@@ -256,9 +256,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ```json
 {
-  "receiverId": 200,
-  "subject": "可选主题",
-  "content": "消息内容"
+	"receiverId": 200,
+	"subject": "可选主题",
+	"content": "消息内容"
 }
 ```
 
@@ -273,17 +273,17 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ```json
 {
-  "data": {
-    "id": 123,
-    "receiverId": 200,
-    "receiverName": "bob",
-    "subject": "可选主题",
-    "createdAt": 1712345678
-  },
-  "meta": {
-    "timestamp": 1712345700000,
-    "requestId": "uuid-xxx"
-  }
+	"data": {
+		"id": 123,
+		"receiverId": 200,
+		"receiverName": "bob",
+		"subject": "可选主题",
+		"createdAt": 1712345678
+	},
+	"meta": {
+		"timestamp": 1712345700000,
+		"requestId": "uuid-xxx"
+	}
 }
 ```
 
@@ -298,14 +298,14 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ```json
 {
-  "data": {
-    "deleted": true,
-    "id": 123
-  },
-  "meta": {
-    "timestamp": 1712345700000,
-    "requestId": "uuid-xxx"
-  }
+	"data": {
+		"deleted": true,
+		"id": 123
+	},
+	"meta": {
+		"timestamp": 1712345700000,
+		"requestId": "uuid-xxx"
+	}
 }
 ```
 
@@ -315,23 +315,20 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 **Query 参数**：
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `q` | string | ✅ | 搜索关键词，最少 2 字符 |
-| `limit` | number | ❌ | 返回数量，默认 10，最大 20 |
+| 参数    | 类型   | 必填 | 说明                       |
+| ------- | ------ | ---- | -------------------------- |
+| `q`     | string | ✅   | 搜索关键词，最少 2 字符    |
+| `limit` | number | ❌   | 返回数量，默认 10，最大 20 |
 
 **响应**：
 
 ```json
 {
-  "data": [
-    { "id": 100, "username": "alice" },
-    { "id": 101, "username": "alice_test" }
-  ],
-  "meta": {
-    "timestamp": 1712345700000,
-    "requestId": "uuid-xxx"
-  }
+	"data": [{ "id": 100, "username": "alice" }, { "id": 101, "username": "alice_test" }],
+	"meta": {
+		"timestamp": 1712345700000,
+		"requestId": "uuid-xxx"
+	}
 }
 ```
 
@@ -342,10 +339,10 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 
 ### 4.9 文件位置
 
-| 文件 | 说明 |
-|------|------|
-| `apps/worker/src/handlers/message.ts` | 5 个 message handler 函数 |
-| `apps/worker/src/handlers/user.ts` | 追加 `search` handler |
+| 文件                                       | 说明                      |
+| ------------------------------------------ | ------------------------- |
+| `apps/worker/src/handlers/message.ts`      | 5 个 message handler 函数 |
+| `apps/worker/src/handlers/user.ts`         | 追加 `search` handler     |
 | `apps/worker/src/lib/postingPermission.ts` | 发帖/发信权限检查公共函数 |
 
 ### 4.10 路由注册
@@ -378,14 +375,14 @@ Other routes...
 
 由于浏览器需要调用这些 API，需要创建 proxy routes：
 
-| Next.js Route | 方法 | 说明 |
-|---------------|------|------|
-| `/api/v1/messages` | GET | 列表（`forumApi.getAuth`） |
-| `/api/v1/messages` | POST | 发送（`forumApi.postAuth`） |
-| `/api/v1/messages/unread-count` | GET | 未读数（`forumApi.getAuth`） |
-| `/api/v1/messages/[id]` | GET | 详情（`forumApi.getAuth`） |
-| `/api/v1/messages/[id]` | DELETE | 删除（`forumApi.deleteAuth`） |
-| `/api/v1/users/search` | GET | 用户搜索（`forumApi.get`，无需 JWT） |
+| Next.js Route                   | 方法   | 说明                                 |
+| ------------------------------- | ------ | ------------------------------------ |
+| `/api/v1/messages`              | GET    | 列表（`forumApi.getAuth`）           |
+| `/api/v1/messages`              | POST   | 发送（`forumApi.postAuth`）          |
+| `/api/v1/messages/unread-count` | GET    | 未读数（`forumApi.getAuth`）         |
+| `/api/v1/messages/[id]`         | GET    | 详情（`forumApi.getAuth`）           |
+| `/api/v1/messages/[id]`         | DELETE | 删除（`forumApi.deleteAuth`）        |
+| `/api/v1/users/search`          | GET    | 用户搜索（`forumApi.get`，无需 JWT） |
 
 **文件**：
 - `apps/web/src/app/api/v1/messages/route.ts` — GET（`forumApi.getAuth`）、POST（`forumApi.postAuth`）
@@ -408,34 +405,34 @@ import { forumApi, ForumApiError } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  const jwt = await getWorkerJwt();
-  if (!jwt) {
-    return NextResponse.json(
-      { error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
-      { status: 401 }
-    );
-  }
-  
-  try {
-    const url = new URL(request.url);
-    const result = await forumApi.getAuth<MessagesResponse>(
-      `/api/v1/messages`,
-      jwt,
-      Object.fromEntries(url.searchParams)
-    );
-    return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof ForumApiError) {
-      return NextResponse.json(
-        { error: { code: err.code, message: err.message } },
-        { status: err.status }
-      );
-    }
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-      { status: 500 }
-    );
-  }
+	const jwt = await getWorkerJwt();
+	if (!jwt) {
+		return NextResponse.json(
+			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
+			{ status: 401 },
+		);
+	}
+
+	try {
+		const url = new URL(request.url);
+		const result = await forumApi.getAuth<MessagesResponse>(
+			`/api/v1/messages`,
+			jwt,
+			Object.fromEntries(url.searchParams),
+		);
+		return NextResponse.json(result);
+	} catch (err) {
+		if (err instanceof ForumApiError) {
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
+		}
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+			{ status: 500 },
+		);
+	}
 }
 ```
 
@@ -454,34 +451,30 @@ import { forumApi, ForumApiError } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const jwt = await getWorkerJwt();
-  if (!jwt) {
-    return NextResponse.json(
-      { error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
-      { status: 401 }
-    );
-  }
+	const jwt = await getWorkerJwt();
+	if (!jwt) {
+		return NextResponse.json(
+			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
+			{ status: 401 },
+		);
+	}
 
-  try {
-    const body = await request.json();
-    const result = await forumApi.postAuth<CreateMessageResponse>(
-      "/api/v1/messages",
-      body,
-      jwt
-    );
-    return NextResponse.json(result, { status: 201 });
-  } catch (err) {
-    if (err instanceof ForumApiError) {
-      return NextResponse.json(
-        { error: { code: err.code, message: err.message } },
-        { status: err.status }
-      );
-    }
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-      { status: 500 }
-    );
-  }
+	try {
+		const body = await request.json();
+		const result = await forumApi.postAuth<CreateMessageResponse>("/api/v1/messages", body, jwt);
+		return NextResponse.json(result, { status: 201 });
+	} catch (err) {
+		if (err instanceof ForumApiError) {
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
+		}
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+			{ status: 500 },
+		);
+	}
 }
 ```
 
@@ -493,38 +486,35 @@ import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApi, ForumApiError } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const jwt = await getWorkerJwt();
-  if (!jwt) {
-    return NextResponse.json(
-      { error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
-      { status: 401 }
-    );
-  }
-  
-  try {
-    const { id } = await params;
-    const result = await forumApi.deleteAuth<DeleteResponse>(
-      `/api/v1/messages/${id}`,
-      undefined,  // 无 body，传 undefined 避免发送 JSON
-      jwt
-    );
-    return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof ForumApiError) {
-      return NextResponse.json(
-        { error: { code: err.code, message: err.message } },
-        { status: err.status }
-      );
-    }
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-      { status: 500 }
-    );
-  }
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	const jwt = await getWorkerJwt();
+	if (!jwt) {
+		return NextResponse.json(
+			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
+			{ status: 401 },
+		);
+	}
+
+	try {
+		const { id } = await params;
+		const result = await forumApi.deleteAuth<DeleteResponse>(
+			`/api/v1/messages/${id}`,
+			undefined, // 无 body，传 undefined 避免发送 JSON
+			jwt,
+		);
+		return NextResponse.json(result);
+	} catch (err) {
+		if (err instanceof ForumApiError) {
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
+		}
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+			{ status: 500 },
+		);
+	}
 }
 ```
 
@@ -536,25 +526,25 @@ import { forumApi, ForumApiError } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  try {
-    const url = new URL(request.url);
-    const result = await forumApi.get<UserSearchResponse>(
-      `/api/v1/users/search`,
-      Object.fromEntries(url.searchParams)
-    );
-    return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof ForumApiError) {
-      return NextResponse.json(
-        { error: { code: err.code, message: err.message } },
-        { status: err.status }
-      );
-    }
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-      { status: 500 }
-    );
-  }
+	try {
+		const url = new URL(request.url);
+		const result = await forumApi.get<UserSearchResponse>(
+			`/api/v1/users/search`,
+			Object.fromEntries(url.searchParams),
+		);
+		return NextResponse.json(result);
+	} catch (err) {
+		if (err instanceof ForumApiError) {
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
+		}
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+			{ status: 500 },
+		);
+	}
 }
 ```
 
@@ -562,16 +552,16 @@ export async function GET(request: Request) {
 
 **`apps/web/src/viewmodels/forum/messages.ts`**（改造现有文件）：
 
-| 导出 | 说明 |
-|------|------|
-| `Message` | 站内信类型定义 |
-| `MessageListItem` | 列表项（含 preview） |
-| `useMessages(box)` | React hook，获取消息列表 |
-| `useUnreadCount()` | React hook，获取未读数 |
-| `sendMessage(payload)` | 发送站内信 |
-| `deleteMessage(id)` | 删除站内信 |
-| `searchUsers(query)` | 搜索用户（自动补全） |
-| `SIDEBAR_ITEMS` | 侧边栏菜单定义 |
+| 导出                   | 说明                     |
+| ---------------------- | ------------------------ |
+| `Message`              | 站内信类型定义           |
+| `MessageListItem`      | 列表项（含 preview）     |
+| `useMessages(box)`     | React hook，获取消息列表 |
+| `useUnreadCount()`     | React hook，获取未读数   |
+| `sendMessage(payload)` | 发送站内信               |
+| `deleteMessage(id)`    | 删除站内信               |
+| `searchUsers(query)`   | 搜索用户（自动补全）     |
+| `SIDEBAR_ITEMS`        | 侧边栏菜单定义           |
 
 ---
 
@@ -605,9 +595,9 @@ export async function GET(request: Request) {
 // apps/web/src/lib/forum-auth.ts 新增
 /** Get current session provider, or null if not logged in */
 export async function getSessionProvider(): Promise<string | null> {
-  const token = await getSessionToken();
-  if (!token) return null;
-  return (token.provider as string) ?? null;
+	const token = await getSessionToken();
+	if (!token) return null;
+	return (token.provider as string) ?? null;
 }
 ```
 
@@ -626,7 +616,7 @@ App Router 的 layout 无法直接获取当前 URL pathname。采用分层方案
 // apps/web/src/proxy.ts - 新增函数
 /** Routes that need credentials but allow Google OAuth to reach layout for notice */
 export function isMessagesRoute(pathname: string): boolean {
-  return pathname === "/messages" || pathname.startsWith("/messages/");
+	return pathname === "/messages" || pathname.startsWith("/messages/");
 }
 ```
 
@@ -639,70 +629,70 @@ export function isMessagesRoute(pathname: string): boolean {
 
 // 1. 修改返回类型，支持动态 redirect 路径
 export function resolveProxyAction(
-  nextUrl: URL,  // 改为传入完整 URL 对象
-  isLoggedIn: boolean,
-  email?: string | null,
-  provider?: string | null,
-  requireLogin = false,
+	nextUrl: URL, // 改为传入完整 URL 对象
+	isLoggedIn: boolean,
+	email?: string | null,
+	provider?: string | null,
+	requireLogin = false,
 ): string {
-  const pathname = nextUrl.pathname;
+	const pathname = nextUrl.pathname;
 
-  // Always-public routes (login, register, api/auth) are never blocked
-  if (isAlwaysPublicRoute(pathname)) {
-    // Authenticated admin on admin login page -> redirect to admin dashboard
-    if (pathname === "/admin/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
+	// Always-public routes (login, register, api/auth) are never blocked
+	if (isAlwaysPublicRoute(pathname)) {
+		// Authenticated admin on admin login page -> redirect to admin dashboard
+		if (pathname === "/admin/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
 
-    // Credentials users already have a forum session — redirect away from auth pages
-    if (
-      (pathname === "/login" || pathname === "/register") &&
-      isLoggedIn &&
-      provider === "credentials"
-    ) {
-      return "redirect:/";
-    }
+		// Credentials users already have a forum session — redirect away from auth pages
+		if (
+			(pathname === "/login" || pathname === "/register") &&
+			isLoggedIn &&
+			provider === "credentials"
+		) {
+			return "redirect:/";
+		}
 
-    return "next";
-  }
+		return "next";
+	}
 
-  // If require_login is enabled, all forum content requires authentication
-  if (requireLogin && isPublicRoute(pathname) && !isLoggedIn) {
-    return "redirect:/login";
-  }
+	// If require_login is enabled, all forum content requires authentication
+	if (requireLogin && isPublicRoute(pathname) && !isLoggedIn) {
+		return "redirect:/login";
+	}
 
-  if (isPublicRoute(pathname)) {
-    return "next";
-  }
+	if (isPublicRoute(pathname)) {
+		return "next";
+	}
 
-  // Messages routes: special handling - Google OAuth users reach layout for notice
-  if (isMessagesRoute(pathname)) {
-    if (!isLoggedIn) {
-      // 未登录 → 跳转登录，带完整目标 URL
-      const target = pathname + nextUrl.search;
-      return `redirect:/login?redirect=${encodeURIComponent(target)}`;
-    }
-    // Google OAuth 用户放行到 layout，由 layout 显示 CredentialsOnlyNotice
-    // Credentials 用户正常放行
-    return "next";
-  }
+	// Messages routes: special handling - Google OAuth users reach layout for notice
+	if (isMessagesRoute(pathname)) {
+		if (!isLoggedIn) {
+			// 未登录 → 跳转登录，带完整目标 URL
+			const target = pathname + nextUrl.search;
+			return `redirect:/login?redirect=${encodeURIComponent(target)}`;
+		}
+		// Google OAuth 用户放行到 layout，由 layout 显示 CredentialsOnlyNotice
+		// Credentials 用户正常放行
+		return "next";
+	}
 
-  // Forum auth routes (e.g., /threads/new): require credentials provider
-  // Google OAuth users have no Worker JWT, cannot use these features
-  if (isForumAuthRoute(pathname)) {
-    if (!isLoggedIn || provider !== "credentials") return "redirect:/login";
-    return "next";
-  }
+	// Forum auth routes (e.g., /threads/new): require credentials provider
+	// Google OAuth users have no Worker JWT, cannot use these features
+	if (isForumAuthRoute(pathname)) {
+		if (!isLoggedIn || provider !== "credentials") return "redirect:/login";
+		return "next";
+	}
 
-  // Admin page routes require admin whitelist check
-  if (isAdminRoute(pathname)) {
-    if (!isLoggedIn) return "redirect:/admin/login";
-    if (!isAdmin(email)) return "redirect:/admin/login";
-    return "next";
-  }
+	// Admin page routes require admin whitelist check
+	if (isAdminRoute(pathname)) {
+		if (!isLoggedIn) return "redirect:/admin/login";
+		if (!isAdmin(email)) return "redirect:/admin/login";
+		return "next";
+	}
 
-  // Other non-public routes: require login
-  if (!isLoggedIn) return "redirect:/login";
+	// Other non-public routes: require login
+	if (!isLoggedIn) return "redirect:/login";
 
-  return "next";
+	return "next";
 }
 ```
 
@@ -714,27 +704,27 @@ export function resolveProxyAction(
 // apps/web/src/proxy.ts - proxy() 函数修改
 
 export async function proxy(request: NextRequest) {
-  const requireLogin = await getRequireLogin();
+	const requireLogin = await getRequireLogin();
 
-  const authHandler = await auth((req) => {
-    const session = req.auth;
-    const provider = session?.user ? (session.user as { provider?: string }).provider : undefined;
-    
-    // 改为传入完整 nextUrl 对象
-    const action = resolveProxyAction(
-      req.nextUrl,  // 原来是 req.nextUrl.pathname
-      !!session,
-      session?.user?.email,
-      provider,
-      requireLogin,
-    );
+	const authHandler = await auth((req) => {
+		const session = req.auth;
+		const provider = session?.user ? (session.user as { provider?: string }).provider : undefined;
 
-    if (action === "next") return NextResponse.next();
-    const target = action.replace("redirect:", "");
-    return NextResponse.redirect(buildRedirectUrl(req, target));
-  });
+		// 改为传入完整 nextUrl 对象
+		const action = resolveProxyAction(
+			req.nextUrl, // 原来是 req.nextUrl.pathname
+			!!session,
+			session?.user?.email,
+			provider,
+			requireLogin,
+		);
 
-  return authHandler(request, {} as never);
+		if (action === "next") return NextResponse.next();
+		const target = action.replace("redirect:", "");
+		return NextResponse.redirect(buildRedirectUrl(req, target));
+	});
+
+	return authHandler(request, {} as never);
 }
 ```
 
@@ -747,21 +737,21 @@ import { CredentialsOnlyNotice } from "@/components/forum/credentials-only-notic
 import type { ReactNode } from "react";
 
 export default async function MessagesLayout({ children }: { children: ReactNode }) {
-  const provider = await getSessionProvider();
-  
-  // 未登录用户已被 proxy.ts 拦截跳转，这里 provider 必不为 null
-  // 但为安全起见仍做检查（理论上不会到达）
-  if (!provider) {
-    return null;
-  }
-  
-  // Google OAuth 用户 → 显示提示
-  if (provider !== "credentials") {
-    return <CredentialsOnlyNotice feature="站内信" />;
-  }
-  
-  // Credentials 用户 → 渲染子页面
-  return <>{children}</>;
+	const provider = await getSessionProvider();
+
+	// 未登录用户已被 proxy.ts 拦截跳转，这里 provider 必不为 null
+	// 但为安全起见仍做检查（理论上不会到达）
+	if (!provider) {
+		return null;
+	}
+
+	// Google OAuth 用户 → 显示提示
+	if (provider !== "credentials") {
+		return <CredentialsOnlyNotice feature="站内信" />;
+	}
+
+	// Credentials 用户 → 渲染子页面
+	return <>{children}</>;
 }
 ```
 
@@ -792,12 +782,12 @@ export default async function MessagesLayout({ children }: { children: ReactNode
 
 ### 6.4 新增组件
 
-| 文件 | 说明 |
-|------|------|
-| `messages/layout.tsx` | 鉴权守卫 layout |
-| `messages/[id]/page.tsx` | 站内信详情页（无需单独鉴权） |
-| `compose-message-dialog.tsx` | 写站内信弹窗（含用户名自动补全） |
-| `credentials-only-notice.tsx` | "请使用论坛账号登录"提示组件 |
+| 文件                          | 说明                             |
+| ----------------------------- | -------------------------------- |
+| `messages/layout.tsx`         | 鉴权守卫 layout                  |
+| `messages/[id]/page.tsx`      | 站内信详情页（无需单独鉴权）     |
+| `compose-message-dialog.tsx`  | 写站内信弹窗（含用户名自动补全） |
+| `credentials-only-notice.tsx` | "请使用论坛账号登录"提示组件     |
 
 ### 6.5 UI 布局
 
@@ -861,15 +851,15 @@ export default async function MessagesLayout({ children }: { children: ReactNode
 
 ```tsx
 <Link href="/messages" title="站内信">
-  <div className="relative">
-    <Mail className="h-4 w-4" />
-    {unreadCount > 0 && (
-      <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-2xs flex items-center justify-center">
-        {unreadCount > 99 ? "99+" : unreadCount}
-      </span>
-    )}
-  </div>
-</Link>
+	<div className="relative">
+		<Mail className="h-4 w-4" />
+		{unreadCount > 0 && (
+			<span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-2xs flex items-center justify-center">
+				{unreadCount > 99 ? "99+" : unreadCount}
+			</span>
+		)}
+	</div>
+</Link>;
 ```
 
 **注意**：未读数仅对 credentials 用户显示，Google OAuth 用户不调用 unread-count API。
@@ -880,24 +870,24 @@ export default async function MessagesLayout({ children }: { children: ReactNode
 
 按依赖顺序，每步一个原子化 commit：
 
-| Step | 任务 | 关键文件 |
-|------|------|---------|
-| 1 | DB schema 更新 | `packages/db/src/schema.ts` |
-| 2 | 发帖权限检查函数抽取 | `apps/worker/src/lib/postingPermission.ts` |
-| 3 | Worker 用户搜索 handler | `apps/worker/src/handlers/user.ts` |
-| 4 | Worker message handlers | `apps/worker/src/handlers/message.ts` |
-| 5 | Worker 路由注册 | `apps/worker/src/index.ts` |
-| 6 | Proxy 增加 `/messages*` 路由守卫 | `apps/web/src/proxy.ts`（新增 `isMessagesRoute()` + `resolveProxyAction` 改传 `nextUrl`） |
-| 7 | 新增 `getSessionProvider()` 函数 | `apps/web/src/lib/forum-auth.ts` |
-| 8 | Next.js proxy routes | `apps/web/src/app/api/v1/messages/`, `users/search/` |
-| 9 | ViewModel 改造 | `apps/web/src/viewmodels/forum/messages.ts` |
-| 10 | CredentialsOnlyNotice 组件 | `apps/web/src/components/forum/credentials-only-notice.tsx` |
-| 11 | Messages layout（Google OAuth 提示） | `apps/web/src/app/(forum)/messages/layout.tsx` |
-| 12 | 写站内信弹窗 | `compose-message-dialog.tsx` |
-| 13 | 消息列表页改造 | `messages-page.tsx`（导出改名为 `MessagesPageClient`）、`messages/page.tsx` |
-| 14 | 消息详情页 | `messages/[id]/page.tsx` |
-| 15 | Header 未读角标 | `forum-header.tsx` |
-| 16 | 术语统一 & 清理 | 各处"消息"改为"站内信" |
+| Step | 任务                                 | 关键文件                                                                                  |
+| ---- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 1    | DB schema 更新                       | `packages/db/src/schema.ts`                                                               |
+| 2    | 发帖权限检查函数抽取                 | `apps/worker/src/lib/postingPermission.ts`                                                |
+| 3    | Worker 用户搜索 handler              | `apps/worker/src/handlers/user.ts`                                                        |
+| 4    | Worker message handlers              | `apps/worker/src/handlers/message.ts`                                                     |
+| 5    | Worker 路由注册                      | `apps/worker/src/index.ts`                                                                |
+| 6    | Proxy 增加 `/messages*` 路由守卫     | `apps/web/src/proxy.ts`（新增 `isMessagesRoute()` + `resolveProxyAction` 改传 `nextUrl`） |
+| 7    | 新增 `getSessionProvider()` 函数     | `apps/web/src/lib/forum-auth.ts`                                                          |
+| 8    | Next.js proxy routes                 | `apps/web/src/app/api/v1/messages/`, `users/search/`                                      |
+| 9    | ViewModel 改造                       | `apps/web/src/viewmodels/forum/messages.ts`                                               |
+| 10   | CredentialsOnlyNotice 组件           | `apps/web/src/components/forum/credentials-only-notice.tsx`                               |
+| 11   | Messages layout（Google OAuth 提示） | `apps/web/src/app/(forum)/messages/layout.tsx`                                            |
+| 12   | 写站内信弹窗                         | `compose-message-dialog.tsx`                                                              |
+| 13   | 消息列表页改造                       | `messages-page.tsx`（导出改名为 `MessagesPageClient`）、`messages/page.tsx`               |
+| 14   | 消息详情页                           | `messages/[id]/page.tsx`                                                                  |
+| 15   | Header 未读角标                      | `forum-header.tsx`                                                                        |
+| 16   | 术语统一 & 清理                      | 各处"消息"改为"站内信"                                                                    |
 
 ```
 Step 1 → Step 2 → Step 3 → Step 4 → Step 5 ─┐
@@ -933,9 +923,9 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 ─┐
 
 ## 9. 后续工作
 
-| 功能 | 说明 |
-|------|------|
+| 功能     | 说明                                                 |
+| -------- | ---------------------------------------------------- |
 | 系统通知 | 回复提醒、@提及、管理通知等走单独的 notifications 表 |
-| 批量操作 | 批量删除、批量标记已读 |
-| 搜索 | 按发送人、内容搜索站内信 |
-| 黑名单 | 屏蔽特定用户的消息 |
+| 批量操作 | 批量删除、批量标记已读                               |
+| 搜索     | 按发送人、内容搜索站内信                             |
+| 黑名单   | 屏蔽特定用户的消息                                   |

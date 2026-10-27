@@ -17,18 +17,18 @@ Cloudflare GraphQL adaptive analytics window: **2026-09-22 22:00:00Z through
 2026-09-23 22:00:00Z**, end exclusive (Shanghai September 23 06:00 through
 September 24 06:00). These are observed adaptive estimates, not invoice totals.
 
-| Metric | Pre-release 24 hours |
-| --- | ---: |
-| KV reads | 831,281 |
-| KV writes | 64,943 |
-| KV deletes / lists | 373 / 290 |
-| Worker requests / execution errors | 128,542 / 0 |
-| KV reads per Worker request | 6.47 |
-| KV writes per Worker request | 0.505 |
-| D1 read / write queries | 51,886 / 1,964 |
-| D1 rows read / written | 4,533,182 / 3,343 |
-| Old visit-analysis DO requests | 5,170 |
-| DO success / clientDisconnected requests | 5,089 / 81 |
+| Metric                                   | Pre-release 24 hours |
+| ---------------------------------------- | -------------------: |
+| KV reads                                 |              831,281 |
+| KV writes                                |               64,943 |
+| KV deletes / lists                       |            373 / 290 |
+| Worker requests / execution errors       |          128,542 / 0 |
+| KV reads per Worker request              |                 6.47 |
+| KV writes per Worker request             |                0.505 |
+| D1 read / write queries                  |       51,886 / 1,964 |
+| D1 rows read / written                   |    4,533,182 / 3,343 |
+| Old visit-analysis DO requests           |                5,170 |
+| DO success / clientDisconnected requests |           5,089 / 81 |
 
 KV read results: 507,060 hot (61.0%), 141,388 cold (17.0%), and 182,833 not-found
 (22.0%). Missing cache generations are not necessarily user-visible errors.
@@ -45,15 +45,15 @@ All rows below are September 23 UTC, one-hour buckets. Traffic and request mix
 vary substantially; the quiet 19:00/20:00 buckets cannot stand in for a normal day.
 
 | UTC hour | KV reads | KV writes | Worker requests | Reads / request |
-| --- | ---: | ---: | ---: | ---: |
-| 14:00 | 49,013 | 3,711 | 6,114 | 8.02 |
-| 15:00 | 30,576 | 2,202 | 4,926 | 6.21 |
-| 16:00 | 11,774 | 1,556 | 2,469 | 4.77 |
-| 17:00 | 9,714 | 1,345 | 1,817 | 5.35 |
-| 18:00 | 9,861 | 891 | 1,566 | 6.30 |
-| 19:00 | 1,049 | 242 | 1,044 | 1.00 |
-| 20:00 | 193 | 35 | 1,458 | 0.13 |
-| 21:00 | 14,794 | 1,383 | 3,214 | 4.60 |
+| -------- | -------: | --------: | --------------: | --------------: |
+| 14:00    |   49,013 |     3,711 |           6,114 |            8.02 |
+| 15:00    |   30,576 |     2,202 |           4,926 |            6.21 |
+| 16:00    |   11,774 |     1,556 |           2,469 |            4.77 |
+| 17:00    |    9,714 |     1,345 |           1,817 |            5.35 |
+| 18:00    |    9,861 |       891 |           1,566 |            6.30 |
+| 19:00    |    1,049 |       242 |           1,044 |            1.00 |
+| 20:00    |      193 |        35 |           1,458 |            0.13 |
+| 21:00    |   14,794 |     1,383 |           3,214 |            4.60 |
 
 ## Reproducible measurement scope
 

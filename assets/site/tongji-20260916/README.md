@@ -13,13 +13,13 @@
 
 R2 桶为 `tongjinet`，域名为 `https://t.no.mt`。旧前缀仅有 10 个图片对象，详见 [legacy-r2-inventory.json](legacy-r2-inventory.json)：
 
-| 用途 | R2 key | 原尺寸 |
-|---|---|---|
-| 旧导航 | `ellie/bg-menu-light.jpg`、`bg-menu-light2.jpg` | 471 × 200 |
-| 早期页脚 | `ellie/bg_footer_light_01.jpg`、`bg_footer_dark_01.jpg` | 2846 × 1504 |
-| 当前页脚 | `ellie/Bg-shanghai-light.png`、`Bg-shanghai-dark.png` | 1423 × 752 |
-| 当前帆船文字标志 | `ellie/Logo-light-2.png`、`Logo-dark-2.png` | 600 × 200 |
-| 早期文字标志 | `ellie/Logo-light.jpg`、`Logo-dark.jpg` | 原版 JPG |
+| 用途             | R2 key                                                  | 原尺寸      |
+| ---------------- | ------------------------------------------------------- | ----------- |
+| 旧导航           | `ellie/bg-menu-light.jpg`、`bg-menu-light2.jpg`         | 471 × 200   |
+| 早期页脚         | `ellie/bg_footer_light_01.jpg`、`bg_footer_dark_01.jpg` | 2846 × 1504 |
+| 当前页脚         | `ellie/Bg-shanghai-light.png`、`Bg-shanghai-dark.png`   | 1423 × 752  |
+| 当前帆船文字标志 | `ellie/Logo-light-2.png`、`Logo-dark-2.png`             | 600 × 200   |
+| 早期文字标志     | `ellie/Logo-light.jpg`、`Logo-dark.jpg`                 | 原版 JPG    |
 
 旧导航采用浓黑的密集城市速写；新图继承页脚的细线建筑素描风格。帆船文字标志和后台大象保留原有造型。仅对已知旧默认 URL 做显示层替换，自定义 URL 和空值保留；没有修改 D1 设置。
 

@@ -54,11 +54,11 @@ cp apps/admin/.env.local.example apps/admin/.env.local
 
 Fill in the configuration before starting:
 
-| Location | Required values |
-| --- | --- |
-| Root `.dev.vars` | Generate separate `API_KEY`, `ADMIN_API_KEY`, and `JWT_SECRET` values; the two API keys must differ |
-| `apps/web/.env.local` | `AUTH_SECRET` and `FORUM_API_KEY` matching the Worker's `API_KEY`; retain the local `WORKER_API_URL`, `AUTH_URL`, and `NEXT_PUBLIC_SITE_URL` |
-| `apps/admin/.env.local` | Its own `AUTH_SECRET`, `ADMIN_API_KEY` matching the Worker, Google OAuth `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, and `ADMIN_EMAILS` |
+| Location                | Required values                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Root `.dev.vars`        | Generate separate `API_KEY`, `ADMIN_API_KEY`, and `JWT_SECRET` values; the two API keys must differ                                          |
+| `apps/web/.env.local`   | `AUTH_SECRET` and `FORUM_API_KEY` matching the Worker's `API_KEY`; retain the local `WORKER_API_URL`, `AUTH_URL`, and `NEXT_PUBLIC_SITE_URL` |
+| `apps/admin/.env.local` | Its own `AUTH_SECRET`, `ADMIN_API_KEY` matching the Worker, Google OAuth `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, and `ADMIN_EMAILS`         |
 
 Forum Cap defaults to same-origin `/api/v1/cap/`; the Worker needs `CAP_SECRET`. Email verification also requires `EMAIL_VERIFY_HMAC_KEY`, Dove configuration, and token. Without those settings you can prepare pages and data, but cannot complete these interactions. The admin Google callback is `http://localhost:7032/api/auth/callback/google`.
 
@@ -83,14 +83,14 @@ bun run dev:admin
 
 The forum is at `http://localhost:7031` and the admin console at `http://localhost:7032`. A fresh database contains the schema and a small amount of initial configuration; create forums through the admin console or prepare imported data. These commands explicitly use local resources. Remote migrations and deployment require your own Cloudflare resources; see the [development and deployment guide](25-development.md).
 
-| Command / path | Purpose |
-| --- | --- |
-| `bun run build` | Build the forum and admin console |
-| `bun run typecheck`, `bun run lint` | Type and code checks |
-| `apps/worker/src/` | Worker routes, permissions, data access, and scheduled jobs |
-| `apps/worker/migrations/` | Current Worker database migrations |
-| `packages/migrate/` | Discuz dump parsing, transformation, and local SQLite output |
-| `packages/cli-rs/` | Rust API client and TUI |
+| Command / path                      | Purpose                                                      |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `bun run build`                     | Build the forum and admin console                            |
+| `bun run typecheck`, `bun run lint` | Type and code checks                                         |
+| `apps/worker/src/`                  | Worker routes, permissions, data access, and scheduled jobs  |
+| `apps/worker/migrations/`           | Current Worker database migrations                           |
+| `packages/migrate/`                 | Discuz dump parsing, transformation, and local SQLite output |
+| `packages/cli-rs/`                  | Rust API client and TUI                                      |
 
 After CI succeeds on `main`, the Release workflow deploys Docker images for the forum and admin console. The Worker has a separate `bun run worker:deploy` flow that applies migrations before deployment; Docker releases do not update it.
 
@@ -116,17 +116,17 @@ Forum tests establish sessions through the Credentials callback; admin tests inj
 
 ## Stack
 
-| Technology | Purpose |
-| --- | --- |
-| TypeScript, Bun | Applications, shared packages, migration and test scripts |
-| Next.js, React | Forum, admin console, and server-side API proxies |
-| Tailwind CSS, shadcn/ui, Tiptap, Recharts | Components, rich-text editing, and statistics charts |
-| Cloudflare Workers | Native Fetch API routing and scheduled jobs |
-| Cloudflare D1, KV, R2 | Forum data, caches and state, uploaded files |
-| Auth.js, JWT | Forum password login, admin Google login, and sessions |
-| Cap, Dove | Web verification widget and email verification messages |
-| Rust, ratatui, crossterm | Terminal client |
-| Vitest, Bun test, Playwright | Unit, API, and browser tests |
+| Technology                                | Purpose                                                   |
+| ----------------------------------------- | --------------------------------------------------------- |
+| TypeScript, Bun                           | Applications, shared packages, migration and test scripts |
+| Next.js, React                            | Forum, admin console, and server-side API proxies         |
+| Tailwind CSS, shadcn/ui, Tiptap, Recharts | Components, rich-text editing, and statistics charts      |
+| Cloudflare Workers                        | Native Fetch API routing and scheduled jobs               |
+| Cloudflare D1, KV, R2                     | Forum data, caches and state, uploaded files              |
+| Auth.js, JWT                              | Forum password login, admin Google login, and sessions    |
+| Cap, Dove                                 | Web verification widget and email verification messages   |
+| Rust, ratatui, crossterm                  | Terminal client                                           |
+| Vitest, Bun test, Playwright              | Unit, API, and browser tests                              |
 
 ## Documentation
 

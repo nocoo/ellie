@@ -47,11 +47,11 @@ Ellie Worker 是基于 Cloudflare Workers 的边缘 API 层，作为前端与 D1
 
 ### 认证模型总览
 
-| 客户端 | API Key | 用户认证 | 访问范围 |
-|--------|---------|---------|---------|
-| **CLI** | Key A（`API_KEY`） | 论坛 JWT（可选，只读不强制） | `/api/v1/*` 只读 |
-| **Web** | Key A（`API_KEY`） | 论坛 JWT（写操作必须） | `/api/v1/*` 读写 + `/api/v1/moderation/*` |
-| **Admin Console（Next.js Server）** | Key B（`ADMIN_API_KEY`） | 仅 Key B（服务端直连） | `/api/admin/*` |
+| 客户端                              | API Key                  | 用户认证                     | 访问范围                                  |
+| ----------------------------------- | ------------------------ | ---------------------------- | ----------------------------------------- |
+| **CLI**                             | Key A（`API_KEY`）       | 论坛 JWT（可选，只读不强制） | `/api/v1/*` 只读                          |
+| **Web**                             | Key A（`API_KEY`）       | 论坛 JWT（写操作必须）       | `/api/v1/*` 读写 + `/api/v1/moderation/*` |
+| **Admin Console（Next.js Server）** | Key B（`ADMIN_API_KEY`） | 仅 Key B（服务端直连）       | `/api/admin/*`                            |
 
 > **Key A 不能访问 `/api/admin/*`，Key B 不能访问 `/api/v1/*`**。两套 Key 在路由层严格隔离。
 >
@@ -82,14 +82,14 @@ apps/worker/
 
 ## 技术栈
 
-| 层 | 技术 | 版本 | 说明 |
-|------|------|------|------|
-| 运行时 | Cloudflare Workers | latest | 边缘计算，全球分布式 |
-| 数据库 | Cloudflare D1 | - | SQLite 兼容，通过 env.DB 绑定 |
-| 部署 | wrangler | ^3.114 | `wrangler dev` / `wrangler deploy` |
-| 类型 | @cloudflare/workers-types | ^4.202 | TypeScript 类型定义 |
-| 路由 | 手动路由 | - | 轻量级，无额外依赖 |
-| 密码 | Web Crypto API | - | PBKDF2-SHA256（Workers 原生） |
+| 层     | 技术                      | 版本   | 说明                               |
+| ------ | ------------------------- | ------ | ---------------------------------- |
+| 运行时 | Cloudflare Workers        | latest | 边缘计算，全球分布式               |
+| 数据库 | Cloudflare D1             | -      | SQLite 兼容，通过 env.DB 绑定      |
+| 部署   | wrangler                  | ^3.114 | `wrangler dev` / `wrangler deploy` |
+| 类型   | @cloudflare/workers-types | ^4.202 | TypeScript 类型定义                |
+| 路由   | 手动路由                  | -      | 轻量级，无额外依赖                 |
+| 密码   | Web Crypto API            | -      | PBKDF2-SHA256（Workers 原生）      |
 
 ---
 
@@ -151,11 +151,11 @@ apps/worker/
 **错误响应：**
 ```json
 {
-  "error": {
-    "code": "FORUM_NOT_FOUND",
-    "message": "Forum not found",
-    "details": { }
-  }
+	"error": {
+		"code": "FORUM_NOT_FOUND",
+		"message": "Forum not found",
+		"details": {}
+	}
 }
 ```
 
@@ -168,13 +168,13 @@ import type { PaginatedResult } from "@ellie/types";
 
 // Handler 返回体
 interface ThreadListResponse {
-  data: PaginatedResult<Thread>;
-  meta: { timestamp: number; requestId: string };
+	data: PaginatedResult<Thread>;
+	meta: { timestamp: number; requestId: string };
 }
 ```
 
 **Cursor 编码**：使用 04a 定义的 opaque cursor（严格遵循索引排序）：
-- `latest` 排序 → `base64(JSON({ sticky, lastPostAt, id }))`  ← 注意含 sticky
+- `latest` 排序 → `base64(JSON({ sticky, lastPostAt, id }))` ← 注意含 sticky
 - `newest` 排序 → `base64(JSON({ createdAt, id }))`
 - `hot` 排序 → `base64(JSON({ replies, id }))`
 
@@ -188,14 +188,14 @@ const cursor = params.cursor ? decodeCursor(params.cursor) : null;
 // latest 排序的 cursor: base64(JSON({ sticky, lastPostAt, id }))
 // 索引: idx_threads_forum(forum_id, sticky DESC, last_post_at DESC)
 const sql = cursor
-  ? `WHERE forum_id = ? AND (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
+	? `WHERE forum_id = ? AND (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
      ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT 20`
-  : `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT 20`;
+	: `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT 20`;
 
 // 参数绑定
 const params = cursor
-  ? [forumId, cursor.sticky, cursor.sticky, cursor.lastPostAt, cursor.lastPostAt, cursor.id]
-  : [forumId];
+	? [forumId, cursor.sticky, cursor.sticky, cursor.lastPostAt, cursor.lastPostAt, cursor.id]
+	: [forumId];
 ```
 
 **Post 分页（基于 position）：**
@@ -203,25 +203,23 @@ const params = cursor
 ```typescript
 // position cursor: base64(JSON({ position }))
 const sql = cursor
-  ? `WHERE thread_id = ? AND position > ? ORDER BY position LIMIT 20`
-  : `WHERE thread_id = ? ORDER BY position LIMIT 20`;
+	? `WHERE thread_id = ? AND position > ? ORDER BY position LIMIT 20`
+	: `WHERE thread_id = ? ORDER BY position LIMIT 20`;
 
-const params = cursor
-  ? [threadId, cursor.position]
-  : [threadId];
+const params = cursor ? [threadId, cursor.position] : [threadId];
 ```
 
 ### 错误码定义
 
-| 错误码 | HTTP 状态 | 说明 |
-|--------|----------|------|
-| `INVALID_REQUEST` | 400 | 请求参数无效 |
-| `UNAUTHORIZED` | 401 | 未认证 |
-| `FORBIDDEN` | 403 | 无权限 |
-| `NOT_FOUND` | 404 | 资源不存在 |
-| `RATE_LIMITED` | 429 | 请求过于频繁 |
-| `INTERNAL_ERROR` | 500 | 服务器错误 |
-| `FEATURE_DISABLED` | 503 | 功能已被管理员禁用 |
+| 错误码             | HTTP 状态 | 说明               |
+| ------------------ | --------- | ------------------ |
+| `INVALID_REQUEST`  | 400       | 请求参数无效       |
+| `UNAUTHORIZED`     | 401       | 未认证             |
+| `FORBIDDEN`        | 403       | 无权限             |
+| `NOT_FOUND`        | 404       | 资源不存在         |
+| `RATE_LIMITED`     | 429       | 请求过于频繁       |
+| `INTERNAL_ERROR`   | 500       | 服务器错误         |
+| `FEATURE_DISABLED` | 503       | 功能已被管理员禁用 |
 
 ---
 
@@ -231,9 +229,9 @@ const params = cursor
 
 #### Health Check（健康检查）
 
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | /api/live | 系统健康检查 | 无 |
+| 方法 | 路径      | 说明         | 认证 |
+| ---- | --------- | ------------ | ---- |
+| GET  | /api/live | 系统健康检查 | 无   |
 
 **设计规范**（来源：Memory 知识库 `label_规范`）：
 - 不被登录保护，不被缓存（`Cache-Control: no-store`）
@@ -244,20 +242,20 @@ const params = cursor
 **正常响应（200）：**
 ```json
 {
-  "status": "ok",
-  "environment": "production",
-  "timestamp": 1711540800000,
-  "checks": { "d1": "connected" }
+	"status": "ok",
+	"environment": "production",
+	"timestamp": 1711540800000,
+	"checks": { "d1": "connected" }
 }
 ```
 
 **异常响应（503）：**
 ```json
 {
-  "status": "error",
-  "environment": "production",
-  "timestamp": 1711540800000,
-  "checks": { "d1": "unreachable: <error message>" }
+	"status": "error",
+	"environment": "production",
+	"timestamp": 1711540800000,
+	"checks": { "d1": "unreachable: <error message>" }
 }
 ```
 
@@ -267,10 +265,10 @@ const params = cursor
 
 #### Forum（版块）
 
-| 方法 | 路径 | 说明 | 查询 |
-|------|------|------|------|
-| GET | /api/v1/forums | 获取所有版块列表 | - |
-| GET | /api/v1/forums/:id | 获取单个版块详情 | - |
+| 方法 | 路径               | 说明             | 查询 |
+| ---- | ------------------ | ---------------- | ---- |
+| GET  | /api/v1/forums     | 获取所有版块列表 | -    |
+| GET  | /api/v1/forums/:id | 获取单个版块详情 | -    |
 
 **响应示例：**
 
@@ -278,32 +276,32 @@ const params = cursor
 
 ```json
 {
-  "data": [
-    {
-      "id": 1,
-      "parentId": 0,
-      "name": "校园交流",
-      "description": "...",
-      "icon": "...",
-      "displayOrder": 1,
-      "threads": 1234,
-      "posts": 5678,
-      "type": "forum",
-      "status": 1,
-      "lastThreadId": 456,
-      "lastPostAt": 1234567890,
-      "lastPoster": "username"
-    }
-  ]
+	"data": [
+		{
+			"id": 1,
+			"parentId": 0,
+			"name": "校园交流",
+			"description": "...",
+			"icon": "...",
+			"displayOrder": 1,
+			"threads": 1234,
+			"posts": 5678,
+			"type": "forum",
+			"status": 1,
+			"lastThreadId": 456,
+			"lastPostAt": 1234567890,
+			"lastPoster": "username"
+		}
+	]
 }
 ```
 
 #### Thread（主题）
 
-| 方法 | 路径 | 说明 | 查询参数 |
-|------|------|------|---------|
-| GET | /api/v1/threads | 获取主题列表 | `forumId`, `limit`, `cursor`, `sort` |
-| GET | /api/v1/threads/:id | 获取单个主题详情 | - |
+| 方法 | 路径                | 说明             | 查询参数                             |
+| ---- | ------------------- | ---------------- | ------------------------------------ |
+| GET  | /api/v1/threads     | 获取主题列表     | `forumId`, `limit`, `cursor`, `sort` |
+| GET  | /api/v1/threads/:id | 获取单个主题详情 | -                                    |
 
 **查询参数：**
 - `forumId`: number - 版块 ID
@@ -325,10 +323,10 @@ const params = cursor
 
 #### Post（帖子）
 
-| 方法 | 路径 | 说明 | 查询参数 |
-|------|------|------|---------|
-| GET | /api/v1/posts | 获取帖子列表 | `threadId`, `limit`, `cursor` |
-| GET | /api/v1/posts/:id | 获取单个帖子详情 | - |
+| 方法 | 路径              | 说明             | 查询参数                      |
+| ---- | ----------------- | ---------------- | ----------------------------- |
+| GET  | /api/v1/posts     | 获取帖子列表     | `threadId`, `limit`, `cursor` |
+| GET  | /api/v1/posts/:id | 获取单个帖子详情 | -                             |
 
 **查询参数：**
 - `threadId`: number - 帖子 ID（必需）
@@ -337,9 +335,9 @@ const params = cursor
 
 #### User（用户）
 
-| 方法 | 路径 | 说明 | 查询参数 |
-|------|------|------|---------|
-| GET | /api/v1/users/:id | 获取用户公开信息 | - |
+| 方法 | 路径              | 说明             | 查询参数 |
+| ---- | ----------------- | ---------------- | -------- |
+| GET  | /api/v1/users/:id | 获取用户公开信息 | -        |
 
 ---
 
@@ -347,12 +345,12 @@ const params = cursor
 
 #### Auth（论坛用户认证）
 
-| 方法 | 路径 | 说明 | 请求体 |
-|------|------|------|--------|
-| POST | /api/v1/auth/login | 论坛用户登录 | `{ username, password }` |
-| POST | /api/v1/auth/register | 用户注册 | `{ username, email, password }` |
-| POST | /api/v1/auth/refresh | 刷新 Token | `{ refreshToken }` |
-| POST | /api/v1/auth/logout | 登出 | - |
+| 方法 | 路径                  | 说明         | 请求体                          |
+| ---- | --------------------- | ------------ | ------------------------------- |
+| POST | /api/v1/auth/login    | 论坛用户登录 | `{ username, password }`        |
+| POST | /api/v1/auth/register | 用户注册     | `{ username, email, password }` |
+| POST | /api/v1/auth/refresh  | 刷新 Token   | `{ refreshToken }`              |
+| POST | /api/v1/auth/logout   | 登出         | -                               |
 
 > 论坛用户认证仅用于 Web 前端和 CLI。Admin Console 使用独立的 Google OAuth 认证，在 Next.js 服务端完成身份验证后以 Key B 直连 Worker（Worker 侧无需额外认证）。
 
@@ -374,15 +372,15 @@ const params = cursor
 **登录响应：**
 ```json
 {
-  "data": {
-    "token": "jwt_access_token",
-    "refreshToken": "kv_stored_refresh_token",
-    "user": {
-      "id": 1,
-      "username": "admin",
-      "role": 1
-    }
-  }
+	"data": {
+		"token": "jwt_access_token",
+		"refreshToken": "kv_stored_refresh_token",
+		"user": {
+			"id": 1,
+			"username": "admin",
+			"role": 1
+		}
+	}
 }
 ```
 
@@ -393,89 +391,82 @@ import { MD5 } from "crypto-js"; // 或使用 spark-md5
 
 // 验证 Discuz 旧密码（使用纯 JS MD5 实现）
 export async function verifyDiscuzPassword(
-  input: string,
-  storedHash: string,
-  salt: string,
+	input: string,
+	storedHash: string,
+	salt: string,
 ): Promise<boolean> {
-  // Discuz: md5(md5(password) + salt)
-  // 注意：是普通 MD5，不是 HMAC-MD5
-  const firstMd5 = MD5(input).toString();
-  const doubleMd5 = MD5(firstMd5).toString();
-  const finalHash = MD5(doubleMd5 + salt).toString();
-  return finalHash === storedHash;
+	// Discuz: md5(md5(password) + salt)
+	// 注意：是普通 MD5，不是 HMAC-MD5
+	const firstMd5 = MD5(input).toString();
+	const doubleMd5 = MD5(firstMd5).toString();
+	const finalHash = MD5(doubleMd5 + salt).toString();
+	return finalHash === storedHash;
 }
 
 // PBKDF2-SHA256 哈希（升级目标格式）
 export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
+	const encoder = new TextEncoder();
+	const keyMaterial = await crypto.subtle.importKey(
+		"raw",
+		encoder.encode(password),
+		"PBKDF2",
+		false,
+		["deriveBits"],
+	);
 
-  // 生成随机 salt (16 bytes)
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+	// 生成随机 salt (16 bytes)
+	const salt = crypto.getRandomValues(new Uint8Array(16));
 
-  // 派生 256-bit key
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: salt,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    256,
-  );
+	// 派生 256-bit key
+	const derivedBits = await crypto.subtle.deriveBits(
+		{
+			name: "PBKDF2",
+			salt: salt,
+			iterations: 100000,
+			hash: "SHA-256",
+		},
+		keyMaterial,
+		256,
+	);
 
-  // 存储格式：base64(salt + hash) = base64(salt) + "." + base64(hash)
-  const saltB64 = btoa(String.fromCharCode(...salt));
-  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(derivedBits)));
+	// 存储格式：base64(salt + hash) = base64(salt) + "." + base64(hash)
+	const saltB64 = btoa(String.fromCharCode(...salt));
+	const hashB64 = btoa(String.fromCharCode(...new Uint8Array(derivedBits)));
 
-  return `${saltB64}.${hashB64}`;
+	return `${saltB64}.${hashB64}`;
 }
 
 // 验证新密码格式
-export async function verifyPassword(
-  input: string,
-  storedHash: string,
-): Promise<boolean> {
-  const [saltB64, hashB64] = storedHash.split(".");
-  const salt = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
-  const expectedHash = Uint8Array.from(atob(hashB64), c => c.charCodeAt(0));
+export async function verifyPassword(input: string, storedHash: string): Promise<boolean> {
+	const [saltB64, hashB64] = storedHash.split(".");
+	const salt = Uint8Array.from(atob(saltB64), (c) => c.charCodeAt(0));
+	const expectedHash = Uint8Array.from(atob(hashB64), (c) => c.charCodeAt(0));
 
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(input),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
+	const encoder = new TextEncoder();
+	const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(input), "PBKDF2", false, [
+		"deriveBits",
+	]);
 
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: salt,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    256,
-  );
+	const derivedBits = await crypto.subtle.deriveBits(
+		{
+			name: "PBKDF2",
+			salt: salt,
+			iterations: 100000,
+			hash: "SHA-256",
+		},
+		keyMaterial,
+		256,
+	);
 
-  const derivedArray = new Uint8Array(derivedBits);
+	const derivedArray = new Uint8Array(derivedBits);
 
-  // 常量时间比较
-  if (derivedArray.length !== expectedHash.length) return false;
-  let match = 0;
-  for (let i = 0; i < derivedArray.length; i++) {
-    match |= derivedArray[i] ^ expectedHash[i];
-  }
-  return match === 0;
+	// 常量时间比较
+	if (derivedArray.length !== expectedHash.length) return false;
+	let match = 0;
+	for (let i = 0; i < derivedArray.length; i++) {
+		match |= derivedArray[i] ^ expectedHash[i];
+	}
+	return match === 0;
 }
 ```
 
@@ -483,62 +474,64 @@ export async function verifyPassword(
 
 ```typescript
 export async function login(request: Request, env: Env): Promise<Response> {
-  const { username, password } = await request.json() as LoginInput;
+	const { username, password } = (await request.json()) as LoginInput;
 
-  // 查询用户
-  const user = await env.DB.prepare(
-    "SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?"
-  ).bind(username).first();
+	// 查询用户
+	const user = await env.DB.prepare(
+		"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
+	)
+		.bind(username)
+		.first();
 
-  if (!user) {
-    return errorResponse("INVALID_CREDENTIALS", 401);
-  }
+	if (!user) {
+		return errorResponse("INVALID_CREDENTIALS", 401);
+	}
 
-  if (user.status !== 0) {
-    return errorResponse("USER_BANNED", 403);
-  }
+	if (user.status !== 0) {
+		return errorResponse("USER_BANNED", 403);
+	}
 
-  // 验证密码（兼容旧格式）
-  let isValid = false;
-  if (user.password_salt) {
-    // 旧密码：md5(md5(password) + salt)
-    isValid = await verifyDiscuzPassword(password, user.password_hash, user.password_salt);
-  } else {
-    // 新密码：PBKDF2-SHA256
-    isValid = await verifyPassword(password, user.password_hash);
-  }
+	// 验证密码（兼容旧格式）
+	let isValid = false;
+	if (user.password_salt) {
+		// 旧密码：md5(md5(password) + salt)
+		isValid = await verifyDiscuzPassword(password, user.password_hash, user.password_salt);
+	} else {
+		// 新密码：PBKDF2-SHA256
+		isValid = await verifyPassword(password, user.password_hash);
+	}
 
-  if (!isValid) {
-    return errorResponse("INVALID_CREDENTIALS", 401);
-  }
+	if (!isValid) {
+		return errorResponse("INVALID_CREDENTIALS", 401);
+	}
 
-  // 生成 token
-  const token = await createJwt({ userId: user.id, role: user.role }, env.JWT_SECRET);
-  const refreshToken = crypto.randomUUID();
+	// 生成 token
+	const token = await createJwt({ userId: user.id, role: user.role }, env.JWT_SECRET);
+	const refreshToken = crypto.randomUUID();
 
-  // 存储 refresh token（KV，30天）
-  await env.KV.put(`refresh:${refreshToken}`, String(user.id), {
-    expirationTtl: 30 * 24 * 60 * 60,
-  });
+	// 存储 refresh token（KV，30天）
+	await env.KV.put(`refresh:${refreshToken}`, String(user.id), {
+		expirationTtl: 30 * 24 * 60 * 60,
+	});
 
-  // 静默升级密码（如果是旧格式）
-  if (user.password_salt) {
-    const newHash = await hashPassword(password);
-    await env.DB.prepare(
-      "UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?"
-    ).bind(newHash, user.id).run();
-  }
+	// 静默升级密码（如果是旧格式）
+	if (user.password_salt) {
+		const newHash = await hashPassword(password);
+		await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?")
+			.bind(newHash, user.id)
+			.run();
+	}
 
-  // 更新最后登录时间
-  await env.DB.prepare(
-    "UPDATE users SET last_login = ? WHERE id = ?"
-  ).bind(Math.floor(Date.now() / 1000), user.id).run();
+	// 更新最后登录时间
+	await env.DB.prepare("UPDATE users SET last_login = ? WHERE id = ?")
+		.bind(Math.floor(Date.now() / 1000), user.id)
+		.run();
 
-  return jsonResponse({
-    token,
-    refreshToken,
-    user: { id: user.id, username: user.username, role: user.role },
-  });
+	return jsonResponse({
+		token,
+		refreshToken,
+		user: { id: user.id, username: user.username, role: user.role },
+	});
 }
 ```
 
@@ -548,14 +541,14 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 #### Thread（主题）
 
-| 方法 | 路径 | 说明 | 请求体 |
-|------|------|------|--------|
+| 方法 | 路径            | 说明     | 请求体                          |
+| ---- | --------------- | -------- | ------------------------------- |
 | POST | /api/v1/threads | 创建主题 | `{ forumId, subject, content }` |
 
 #### Post（帖子）
 
-| 方法 | 路径 | 说明 | 请求体 |
-|------|------|------|--------|
+| 方法 | 路径          | 说明     | 请求体                  |
+| ---- | ------------- | -------- | ----------------------- |
 | POST | /api/v1/posts | 发布回复 | `{ threadId, content }` |
 
 ---
@@ -566,31 +559,31 @@ export async function login(request: Request, env: Env): Promise<Response> {
 - Admin (1) / SuperMod (2) / Mod (3)：均可在论坛前端执行版主操作
 - Mod (3) **不能**进入 Admin Console（Admin Console 使用 Key B + Google OAuth，与论坛用户无关）
 
-| 方法 | 路径 | 说明 | 请求体 |
-|------|------|------|--------|
-| PATCH | /api/v1/moderation/threads/:id/sticky | 设置置顶 | `{ level: "none" \| "forum" \| "global" }` |
-| PATCH | /api/v1/moderation/threads/:id/digest | 设置精华 | `{ level: 0 \| 1 \| 2 \| 3 }` |
-| PATCH | /api/v1/moderation/threads/:id/close | 锁定/解锁主题 | `{ closed: boolean }` |
-| PATCH | /api/v1/moderation/threads/:id/move | 移动主题 | `{ targetForumId: number }` |
-| DELETE | /api/v1/moderation/posts/:id | 删除帖子 | - |
+| 方法   | 路径                                  | 说明          | 请求体                                     |
+| ------ | ------------------------------------- | ------------- | ------------------------------------------ |
+| PATCH  | /api/v1/moderation/threads/:id/sticky | 设置置顶      | `{ level: "none" \| "forum" \| "global" }` |
+| PATCH  | /api/v1/moderation/threads/:id/digest | 设置精华      | `{ level: 0 \| 1 \| 2 \| 3 }`              |
+| PATCH  | /api/v1/moderation/threads/:id/close  | 锁定/解锁主题 | `{ closed: boolean }`                      |
+| PATCH  | /api/v1/moderation/threads/:id/move   | 移动主题      | `{ targetForumId: number }`                |
+| DELETE | /api/v1/moderation/posts/:id          | 删除帖子      | -                                          |
 
 **权限检查（middleware/auth.ts）：**
 
 ```typescript
 export async function moderationMiddleware(
-  request: Request,
-  env: Env,
+	request: Request,
+	env: Env,
 ): Promise<{ user: AuthUser } | Response> {
-  const authResult = await authMiddleware(request, env);
-  if (authResult instanceof Response) return authResult;
+	const authResult = await authMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
 
-  const { user } = authResult;
-  // Mod (3), SuperMod (2), Admin (1) 都可以进行版主操作
-  if (user.role === 0) {
-    return errorResponse("FORBIDDEN", 403);
-  }
+	const { user } = authResult;
+	// Mod (3), SuperMod (2), Admin (1) 都可以进行版主操作
+	if (user.role === 0) {
+		return errorResponse("FORBIDDEN", 403);
+	}
 
-  return { user };
+	return { user };
 }
 ```
 
@@ -600,14 +593,14 @@ export async function moderationMiddleware(
 
 **重要**：`/api/admin/*` 使用 **Key B**（`ADMIN_API_KEY`）认证，与 Key A 完全隔离。Worker 仅验证 Key B，不关心调用者身份。Admin 身份认证（Google OAuth + `ADMIN_EMAILS` 白名单）在 Next.js 服务端完成。所有通过白名单的 Admin 权限相等，不分级。
 
-| 方法 | 路径 | 说明 | 请求体 |
-|------|------|------|--------|
-| GET | /api/admin/users | 用户列表（分页、筛选） | `search`, `role`, `status`, `cursor` |
-| PATCH | /api/admin/users/:id/status | 设置用户状态 | `{ status: -1 \| 0 }` |
-| PATCH | /api/admin/users/:id/role | 设置用户角色 | `{ role: 0 \| 1 \| 2 \| 3 }` |
-| DELETE | /api/admin/users/:id | 删除用户 | - |
-| PATCH | /api/admin/forums/:id | 更新版块 | `{ name?, description?, status?, displayOrder? }` |
-| DELETE | /api/admin/forums/:id | 删除版块 | - |
+| 方法   | 路径                        | 说明                   | 请求体                                            |
+| ------ | --------------------------- | ---------------------- | ------------------------------------------------- |
+| GET    | /api/admin/users            | 用户列表（分页、筛选） | `search`, `role`, `status`, `cursor`              |
+| PATCH  | /api/admin/users/:id/status | 设置用户状态           | `{ status: -1 \| 0 }`                             |
+| PATCH  | /api/admin/users/:id/role   | 设置用户角色           | `{ role: 0 \| 1 \| 2 \| 3 }`                      |
+| DELETE | /api/admin/users/:id        | 删除用户               | -                                                 |
+| PATCH  | /api/admin/forums/:id       | 更新版块               | `{ name?, description?, status?, displayOrder? }` |
+| DELETE | /api/admin/forums/:id       | 删除版块               | -                                                 |
 
 **Admin 端点无需额外认证**：Key B 验证通过即可执行操作。Worker 不验证调用者身份，信任持有 Key B 的调用方（仅 Next.js 服务端持有 Key B）。
 
@@ -619,23 +612,20 @@ export async function moderationMiddleware(
 
 ```typescript
 // middleware/cors.ts
-const ALLOWED_ORIGINS = [
-  "https://ellie.nocoo.cloud",
-  "http://localhost:3000",
-];
+const ALLOWED_ORIGINS = ["https://ellie.nocoo.cloud", "http://localhost:3000"];
 
 export function corsHeaders(origin?: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
-    "Access-Control-Max-Age": "86400",
-  };
+	const headers: Record<string, string> = {
+		"Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+		"Access-Control-Max-Age": "86400",
+	};
 
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    headers["Access-Control-Allow-Origin"] = origin;
-  }
+	if (origin && ALLOWED_ORIGINS.includes(origin)) {
+		headers["Access-Control-Allow-Origin"] = origin;
+	}
 
-  return headers;
+	return headers;
 }
 ```
 
@@ -644,26 +634,22 @@ export function corsHeaders(origin?: string): Record<string, string> {
 ```typescript
 // middleware/apiKey.ts
 // 根据请求路径决定使用哪个 Key 验证
-export function validateApiKey(
-  request: Request,
-  env: Env,
-  pathname: string,
-): Response | null {
-  const key = request.headers.get("X-API-Key");
+export function validateApiKey(request: Request, env: Env, pathname: string): Response | null {
+	const key = request.headers.get("X-API-Key");
 
-  if (pathname.startsWith("/api/admin/")) {
-    // Admin 路由：必须使用 Key B
-    if (!key || key !== env.ADMIN_API_KEY) {
-      return errorResponse("UNAUTHORIZED", 401);
-    }
-  } else {
-    // 公开路由（/api/v1/*）：必须使用 Key A
-    if (!key || key !== env.API_KEY) {
-      return errorResponse("UNAUTHORIZED", 401);
-    }
-  }
+	if (pathname.startsWith("/api/admin/")) {
+		// Admin 路由：必须使用 Key B
+		if (!key || key !== env.ADMIN_API_KEY) {
+			return errorResponse("UNAUTHORIZED", 401);
+		}
+	} else {
+		// 公开路由（/api/v1/*）：必须使用 Key A
+		if (!key || key !== env.API_KEY) {
+			return errorResponse("UNAUTHORIZED", 401);
+		}
+	}
 
-  return null; // 验证通过
+	return null; // 验证通过
 }
 ```
 
@@ -674,35 +660,35 @@ export function validateApiKey(
 ```typescript
 // middleware/auth.ts — 用于 /api/v1/* 写操作 + /api/v1/moderation/*
 interface ForumJwtPayload {
-  userId: number;
-  role: number;
-  exp: number;
-  iat: number;
+	userId: number;
+	role: number;
+	exp: number;
+	iat: number;
 }
 
 // JWT_SECRET 通过 wrangler secret put 管理（不写入版本控制）
 export async function authMiddleware(
-  request: Request,
-  env: Env,
+	request: Request,
+	env: Env,
 ): Promise<{ user: AuthUser } | Response> {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return errorResponse("UNAUTHORIZED", 401);
-  }
+	const authHeader = request.headers.get("Authorization");
+	if (!authHeader?.startsWith("Bearer ")) {
+		return errorResponse("UNAUTHORIZED", 401);
+	}
 
-  const token = authHeader.slice(7);
+	const token = authHeader.slice(7);
 
-  try {
-    const payload = verifyJwt(token, env.JWT_SECRET) as ForumJwtPayload;
+	try {
+		const payload = verifyJwt(token, env.JWT_SECRET) as ForumJwtPayload;
 
-    if (payload.exp < Math.floor(Date.now() / 1000)) {
-      return errorResponse("TOKEN_EXPIRED", 401);
-    }
+		if (payload.exp < Math.floor(Date.now() / 1000)) {
+			return errorResponse("TOKEN_EXPIRED", 401);
+		}
 
-    return { user: { userId: payload.userId, role: payload.role } };
-  } catch {
-    return errorResponse("INVALID_TOKEN", 401);
-  }
+		return { user: { userId: payload.userId, role: payload.role } };
+	} catch {
+		return errorResponse("INVALID_TOKEN", 401);
+	}
 }
 ```
 
@@ -711,19 +697,19 @@ export async function authMiddleware(
 ```typescript
 // middleware/auth.ts — 版主操作中间件
 export async function moderationMiddleware(
-  request: Request,
-  env: Env,
+	request: Request,
+	env: Env,
 ): Promise<{ user: AuthUser } | Response> {
-  const authResult = await authMiddleware(request, env);
-  if (authResult instanceof Response) return authResult;
+	const authResult = await authMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
 
-  const { user } = authResult;
-  // Mod (3), SuperMod (2), Admin (1) 都可以进行版主操作
-  if (user.role === 0) {
-    return errorResponse("FORBIDDEN", 403);
-  }
+	const { user } = authResult;
+	// Mod (3), SuperMod (2), Admin (1) 都可以进行版主操作
+	if (user.role === 0) {
+		return errorResponse("FORBIDDEN", 403);
+	}
 
-  return { user };
+	return { user };
 }
 ```
 
@@ -755,56 +741,51 @@ export async function moderationMiddleware(
 ```typescript
 // worker/rate-limiter.ts
 export class RateLimiter extends DurableObject {
-  private state: DurableObjectState;
-  private counts: Map<string, { count: number; resetTime: number }>;
+	private state: DurableObjectState;
+	private counts: Map<string, { count: number; resetTime: number }>;
 
-  constructor(state: DurableObjectState) {
-    this.state = state;
-    this.counts = new Map();
-  }
+	constructor(state: DurableObjectState) {
+		this.state = state;
+		this.counts = new Map();
+	}
 
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    const key = url.searchParams.get("key");
-    const limit = Number(url.searchParams.get("limit") || "100");
-    const window = Number(url.searchParams.get("window") || "600"); // 10分钟
+	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		const key = url.searchParams.get("key");
+		const limit = Number(url.searchParams.get("limit") || "100");
+		const window = Number(url.searchParams.get("window") || "600"); // 10分钟
 
-    const now = Date.now();
-    const entry = this.counts.get(key);
+		const now = Date.now();
+		const entry = this.counts.get(key);
 
-    if (!entry || now > entry.resetTime) {
-      // 新窗口
-      this.counts.set(key, { count: 1, resetTime: now + window * 1000 });
-      return Response.json({ allowed: true, remaining: limit - 1 });
-    }
+		if (!entry || now > entry.resetTime) {
+			// 新窗口
+			this.counts.set(key, { count: 1, resetTime: now + window * 1000 });
+			return Response.json({ allowed: true, remaining: limit - 1 });
+		}
 
-    if (entry.count >= limit) {
-      return Response.json({ allowed: false, retryAfter: entry.resetTime - now });
-    }
+		if (entry.count >= limit) {
+			return Response.json({ allowed: false, retryAfter: entry.resetTime - now });
+		}
 
-    entry.count++;
-    return Response.json({ allowed: true, remaining: limit - entry.count });
-  }
+		entry.count++;
+		return Response.json({ allowed: true, remaining: limit - entry.count });
+	}
 }
 ```
 
 ```typescript
 // middleware/rate-limit.ts
-export async function rateLimitMiddleware(
-  request: Request,
-  env: Env,
-): Promise<boolean> {
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+export async function rateLimitMiddleware(request: Request, env: Env): Promise<boolean> {
+	const ip = request.headers.get("CF-Connecting-IP") || "unknown";
 
-  // Durable Object 正确调用方式：先获取 stub，再 fetch
-  const id = env.RATE_LIMITER.idFromName(ip);
-  const stub = env.RATE_LIMITER.get(id);
-  const response = await stub.fetch(
-    `https://rate-limiter/?key=${ip}&limit=100&window=600`
-  );
+	// Durable Object 正确调用方式：先获取 stub，再 fetch
+	const id = env.RATE_LIMITER.idFromName(ip);
+	const stub = env.RATE_LIMITER.get(id);
+	const response = await stub.fetch(`https://rate-limiter/?key=${ip}&limit=100&window=600`);
 
-  const result = await response.json();
-  return result.allowed;
+	const result = await response.json();
+	return result.allowed;
 }
 ```
 
@@ -821,17 +802,17 @@ class_name = "RateLimiter"
 
 ```typescript
 export interface Env {
-  // 数据存储
-  DB: D1Database;
-  KV: KVNamespace;
+	// 数据存储
+	DB: D1Database;
+	KV: KVNamespace;
 
-  // 认证密钥
-  API_KEY: string;               // Key A — /api/v1/* 客户端凭证（CLI、Web）
-  ADMIN_API_KEY: string;         // Key B — /api/admin/* 客户端凭证（Next.js 服务端持有）
-  JWT_SECRET: string;            // HS256 签名密钥（论坛用户 JWT）
+	// 认证密钥
+	API_KEY: string; // Key A — /api/v1/* 客户端凭证（CLI、Web）
+	ADMIN_API_KEY: string; // Key B — /api/admin/* 客户端凭证（Next.js 服务端持有）
+	JWT_SECRET: string; // HS256 签名密钥（论坛用户 JWT）
 
-  // 限流
-  RATE_LIMITER: DurableObjectNamespace;
+	// 限流
+	RATE_LIMITER: DurableObjectNamespace;
 }
 ```
 
@@ -845,12 +826,12 @@ export interface Env {
 
 **目标：** 分层覆盖率 ≥ 95%
 
-| 模块 | 测试内容 | 工具 |
-|------|---------|------|
-| `lib/password.ts` | Discuz 密码验证、PBKDF2 哈希 | bun test |
-| `middleware/auth.ts` | JWT 验证逻辑、权限检查 | bun test |
-| `middleware/rate-limit.ts` | 速率限制逻辑（mock DO） | bun test |
-| `handlers/*` | 各 handler 函数 | bun test + mock D1 |
+| 模块                       | 测试内容                     | 工具               |
+| -------------------------- | ---------------------------- | ------------------ |
+| `lib/password.ts`          | Discuz 密码验证、PBKDF2 哈希 | bun test           |
+| `middleware/auth.ts`       | JWT 验证逻辑、权限检查       | bun test           |
+| `middleware/rate-limit.ts` | 速率限制逻辑（mock DO）      | bun test           |
+| `handlers/*`               | 各 handler 函数              | bun test + mock D1 |
 
 **示例：**
 ```typescript
@@ -859,26 +840,26 @@ import { describe, it, expect } from "bun:test";
 import { verifyDiscuzPassword, hashPassword, verifyPassword } from "../../src/lib/password";
 
 describe("verifyDiscuzPassword", () => {
-  it("should verify old Discuz password format", async () => {
-    // md5(md5("password123") + "abcdef")
-    const hash = "expected_hash";
-    const salt = "abcdef";
-    const result = await verifyDiscuzPassword("password123", hash, salt);
-    expect(result).toBe(true);
-  });
+	it("should verify old Discuz password format", async () => {
+		// md5(md5("password123") + "abcdef")
+		const hash = "expected_hash";
+		const salt = "abcdef";
+		const result = await verifyDiscuzPassword("password123", hash, salt);
+		expect(result).toBe(true);
+	});
 
-  it("should reject wrong password", async () => {
-    const result = await verifyDiscuzPassword("wrong", hash, salt);
-    expect(result).toBe(false);
-  });
+	it("should reject wrong password", async () => {
+		const result = await verifyDiscuzPassword("wrong", hash, salt);
+		expect(result).toBe(false);
+	});
 });
 
 describe("hashPassword", () => {
-  it("should create PBKDF2 hash that verifies correctly", async () => {
-    const hash = await hashPassword("password123");
-    const isValid = await verifyPassword("password123", hash);
-    expect(isValid).toBe(true);
-  });
+	it("should create PBKDF2 hash that verifies correctly", async () => {
+		const hash = await hashPassword("password123");
+		const isValid = await verifyPassword("password123", hash);
+		expect(isValid).toBe(true);
+	});
 });
 ```
 
@@ -886,24 +867,24 @@ describe("hashPassword", () => {
 
 **目标：** 100% API 端点覆盖
 
-| 测试内容 | 工具 |
-|---------|------|
-| API 端点测试 | bun test + Miniflare |
-| 真实 D1 交互 | Miniflare D1 模拟 |
-| Durable Object 模拟 | Miniflare DO 模拟 |
+| 测试内容            | 工具                 |
+| ------------------- | -------------------- |
+| API 端点测试        | bun test + Miniflare |
+| 真实 D1 交互        | Miniflare D1 模拟    |
+| Durable Object 模拟 | Miniflare DO 模拟    |
 
 ### L3 端到端测试
 
 **目标：** 关键路径覆盖
 
-| 测试场景 | 工具 |
-|---------|------|
-| 用户登录 → 发帖 → 回帖 | Playwright |
+| 测试场景                            | 工具       |
+| ----------------------------------- | ---------- |
+| 用户登录 → 发帖 → 回帖              | Playwright |
 | 管理员 Google OAuth 登录 → 封禁用户 | Playwright |
-| 版主 → 论坛前端置顶主题 | Playwright |
-| 速率限制触发 | Playwright |
-| Key A 访问 admin 路由被拒 | Playwright |
-| Key B 访问 v1 路由被拒 | Playwright |
+| 版主 → 论坛前端置顶主题             | Playwright |
+| 速率限制触发                        | Playwright |
+| Key A 访问 admin 路由被拒           | Playwright |
+| Key B 访问 v1 路由被拒              | Playwright |
 
 ### G1 静态分析
 
@@ -926,11 +907,11 @@ describe("hashPassword", () => {
 
 ### G2 安全扫描
 
-| 扫描类型 | 工具 | 配置 |
-|---------|------|------|
-| 依赖漏洞 | osv-scanner | `pnpm audit` |
-| 密钥泄露 | gitleaks | `.gitleaksignore` |
-| 类型安全 | TypeScript strict | `tsconfig.json` |
+| 扫描类型 | 工具              | 配置              |
+| -------- | ----------------- | ----------------- |
+| 依赖漏洞 | osv-scanner       | `pnpm audit`      |
+| 密钥泄露 | gitleaks          | `.gitleaksignore` |
+| 类型安全 | TypeScript strict | `tsconfig.json`   |
 
 ### D1 测试隔离
 
@@ -948,69 +929,69 @@ database_id = "<TEST_DB_ID>"
 
 ### Phase 1: 基础设施
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 1 | `feat(worker): init cloudflare worker project` | 初始化项目结构、配置 wrangler.toml、tsconfig.json | — |
-| 2 | `feat(worker): add cors middleware` | CORS 处理中间件 | **G1 生效** |
-| 3 | `feat(worker): add error handling middleware` | 统一错误处理、错误码定义 | **G1 生效** |
-| 4 | `test(worker): setup bun test and coverage` | 测试配置、coverage 配置 | **L1 管道生效** |
-| 5 | `chore(worker): setup g2 security scanning` | osv-scanner + gitleaks 配置 | **G2 生效** |
+| 编号 | 提交信息                                       | 内容                                              | 质量状态        |
+| ---- | ---------------------------------------------- | ------------------------------------------------- | --------------- |
+| 1    | `feat(worker): init cloudflare worker project` | 初始化项目结构、配置 wrangler.toml、tsconfig.json | —               |
+| 2    | `feat(worker): add cors middleware`            | CORS 处理中间件                                   | **G1 生效**     |
+| 3    | `feat(worker): add error handling middleware`  | 统一错误处理、错误码定义                          | **G1 生效**     |
+| 4    | `test(worker): setup bun test and coverage`    | 测试配置、coverage 配置                           | **L1 管道生效** |
+| 5    | `chore(worker): setup g2 security scanning`    | osv-scanner + gitleaks 配置                       | **G2 生效**     |
 
 ### Phase 2: 密码系统（高危修复）
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 6 | `feat(worker): add discuz password verification` | `lib/password.ts` verifyDiscuzPassword | **L1: 100%** |
-| 7 | `feat(worker): add pbkdf2 password hashing` | `lib/password.ts` hashPassword, verifyPassword | **L1: 100%** |
-| 8 | `feat(worker): add jwt create/verify utilities` | HS256 JWT 签名、验证、过期检查 | **L1: 100%** |
+| 编号 | 提交信息                                         | 内容                                           | 质量状态     |
+| ---- | ------------------------------------------------ | ---------------------------------------------- | ------------ |
+| 6    | `feat(worker): add discuz password verification` | `lib/password.ts` verifyDiscuzPassword         | **L1: 100%** |
+| 7    | `feat(worker): add pbkdf2 password hashing`      | `lib/password.ts` hashPassword, verifyPassword | **L1: 100%** |
+| 8    | `feat(worker): add jwt create/verify utilities`  | HS256 JWT 签名、验证、过期检查                 | **L1: 100%** |
 
 ### Phase 3: 公开 API
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 9 | `feat(worker): add forums API` | GET /api/v1/forums（全量，无分页）, 使用 @ellie/types | **L1: 100%** |
-| 10 | `feat(worker): add threads API with keyset cursor` | GET /api/v1/threads, cursor 编码对齐 04a | **L1: 100%** |
-| 11 | `feat(worker): add posts API with position cursor` | GET /api/v1/posts, 基于 position 的 keyset | **L1: 100%** |
-| 12 | `feat(worker): add users API` | GET /api/v1/users/:id | **L1: 100%** |
+| 编号 | 提交信息                                           | 内容                                                  | 质量状态     |
+| ---- | -------------------------------------------------- | ----------------------------------------------------- | ------------ |
+| 9    | `feat(worker): add forums API`                     | GET /api/v1/forums（全量，无分页）, 使用 @ellie/types | **L1: 100%** |
+| 10   | `feat(worker): add threads API with keyset cursor` | GET /api/v1/threads, cursor 编码对齐 04a              | **L1: 100%** |
+| 11   | `feat(worker): add posts API with position cursor` | GET /api/v1/posts, 基于 position 的 keyset            | **L1: 100%** |
+| 12   | `feat(worker): add users API`                      | GET /api/v1/users/:id                                 | **L1: 100%** |
 
 ### Phase 4: 认证系统
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 13 | `feat(worker): add login endpoint with password upgrade` | POST /api/v1/auth/login, 静默升级 PBKDF2 | **L1: 100%** |
-| 14 | `feat(worker): add jwt auth middleware` | JWT 验证、payload 类型 | **L1: 100%** |
-| 15 | `feat(worker): add refresh token flow` | POST /api/v1/auth/refresh, KV 存储 | **L1: 100%** |
-| 16 | `feat(worker): add durable object rate limiter` | DO 实现，替换 KV 计数方案 | **L1: 100%** |
+| 编号 | 提交信息                                                 | 内容                                     | 质量状态     |
+| ---- | -------------------------------------------------------- | ---------------------------------------- | ------------ |
+| 13   | `feat(worker): add login endpoint with password upgrade` | POST /api/v1/auth/login, 静默升级 PBKDF2 | **L1: 100%** |
+| 14   | `feat(worker): add jwt auth middleware`                  | JWT 验证、payload 类型                   | **L1: 100%** |
+| 15   | `feat(worker): add refresh token flow`                   | POST /api/v1/auth/refresh, KV 存储       | **L1: 100%** |
+| 16   | `feat(worker): add durable object rate limiter`          | DO 实现，替换 KV 计数方案                | **L1: 100%** |
 
 ### Phase 5: 版主操作 API（高危修复）
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 17 | `feat(worker): add moderation middleware` | role ∈ {1,2,3} 权限检查 | **L1: 100%** |
-| 18 | `feat(worker): add moderation endpoints` | PATCH /api/v1/moderation/threads/*, DELETE /posts/* | **L1+L2: 100%** |
+| 编号 | 提交信息                                  | 内容                                                | 质量状态        |
+| ---- | ----------------------------------------- | --------------------------------------------------- | --------------- |
+| 17   | `feat(worker): add moderation middleware` | role ∈ {1,2,3} 权限检查                             | **L1: 100%**    |
+| 18   | `feat(worker): add moderation endpoints`  | PATCH /api/v1/moderation/threads/_, DELETE /posts/_ | **L1+L2: 100%** |
 
 ### Phase 6: 受保护的 API
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 19 | `feat(worker): add create thread endpoint` | POST /api/v1/threads | **L1+L2: 100%** |
-| 20 | `feat(worker): add create post endpoint` | POST /api/v1/posts | **L1+L2: 100%** |
+| 编号 | 提交信息                                   | 内容                 | 质量状态        |
+| ---- | ------------------------------------------ | -------------------- | --------------- |
+| 19   | `feat(worker): add create thread endpoint` | POST /api/v1/threads | **L1+L2: 100%** |
+| 20   | `feat(worker): add create post endpoint`   | POST /api/v1/posts   | **L1+L2: 100%** |
 
 ### Phase 7: 管理 API
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 21 | `feat(worker): add dual api key middleware` | apiKey.ts — 路由分流（Key A → /api/v1/*, Key B → /api/admin/*） | **L1: 100%** |
-| 22 | `feat(worker): add admin forum management` | PATCH /api/admin/forums/:id | **L1+L2: 100%** |
-| 23 | `feat(worker): add admin user management` | PATCH /api/admin/users/:id/* | **L1+L2: 100%** |
+| 编号 | 提交信息                                    | 内容                                                            | 质量状态        |
+| ---- | ------------------------------------------- | --------------------------------------------------------------- | --------------- |
+| 21   | `feat(worker): add dual api key middleware` | apiKey.ts — 路由分流（Key A → /api/v1/_, Key B → /api/admin/_） | **L1: 100%**    |
+| 22   | `feat(worker): add admin forum management`  | PATCH /api/admin/forums/:id                                     | **L1+L2: 100%** |
+| 23   | `feat(worker): add admin user management`   | PATCH /api/admin/users/:id/*                                    | **L1+L2: 100%** |
 
 ### Phase 8: 优化和完善
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 24 | `test(worker): add integration tests with miniflare` | Miniflare 配置、L2 测试 | **L1+L2: 100%** |
-| 25 | `test(worker): add e2e tests with playwright` | E2E 测试场景 | **L1+L2+L3: 覆盖** |
-| 26 | `perf(worker): add request logging` | 请求日志、性能监控 | **L1+L2: 100%** |
+| 编号 | 提交信息                                             | 内容                    | 质量状态           |
+| ---- | ---------------------------------------------------- | ----------------------- | ------------------ |
+| 24   | `test(worker): add integration tests with miniflare` | Miniflare 配置、L2 测试 | **L1+L2: 100%**    |
+| 25   | `test(worker): add e2e tests with playwright`        | E2E 测试场景            | **L1+L2+L3: 覆盖** |
+| 26   | `perf(worker): add request logging`                  | 请求日志、性能监控      | **L1+L2: 100%**    |
 
 ---
 
@@ -1034,13 +1015,13 @@ wrangler secret put ADMIN_API_KEY -c apps/worker/wrangler.toml     # Key B — N
 wrangler secret put JWT_SECRET -c apps/worker/wrangler.toml        # JWT 签名密钥（论坛用户 JWT）
 ```
 
-| 变量 | 类型 | 说明 |
-|------|------|------|
-| `API_KEY` | secret | Key A — `/api/v1/*` 客户端凭证，CLI 和 Web 使用 |
-| `ADMIN_API_KEY` | secret | Key B — `/api/admin/*` 客户端凭证，Next.js 服务端持有 |
-| `JWT_SECRET` | secret | HS256 JWT 签名密钥（论坛用户 JWT） |
-| `ENVIRONMENT` | var | 环境标识（"production"） |
-| `ALLOWED_ORIGINS` | var | CORS 允许的源 |
+| 变量              | 类型   | 说明                                                  |
+| ----------------- | ------ | ----------------------------------------------------- |
+| `API_KEY`         | secret | Key A — `/api/v1/*` 客户端凭证，CLI 和 Web 使用       |
+| `ADMIN_API_KEY`   | secret | Key B — `/api/admin/*` 客户端凭证，Next.js 服务端持有 |
+| `JWT_SECRET`      | secret | HS256 JWT 签名密钥（论坛用户 JWT）                    |
+| `ENVIRONMENT`     | var    | 环境标识（"production"）                              |
+| `ALLOWED_ORIGINS` | var    | CORS 允许的源                                         |
 
 > **ADMIN_EMAILS 和 AUTH_GOOGLE_ID**：这两个变量属于 Next.js 服务端环境（`apps/web/.env`），不在 Worker secrets 中配置。完整的 Next.js Admin 环境变量列表（含 `AUTH_GOOGLE_SECRET`、`AUTH_SECRET`、`AUTH_URL`）见 [04c §2.6](./04c-admin-console.md)。
 
@@ -1128,18 +1109,18 @@ wrangler tail
 ```typescript
 // services/log.ts
 interface LogEntry {
-  level: "info" | "warn" | "error";
-  timestamp: number;
-  requestId: string;
-  path: string;
-  method: string;
-  status: number;
-  duration?: number;
-  error?: string;
+	level: "info" | "warn" | "error";
+	timestamp: number;
+	requestId: string;
+	path: string;
+	method: string;
+	status: number;
+	duration?: number;
+	error?: string;
 }
 
 export function logRequest(entry: LogEntry): void {
-  console.log(JSON.stringify(entry));
+	console.log(JSON.stringify(entry));
 }
 ```
 

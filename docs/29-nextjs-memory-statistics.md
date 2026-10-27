@@ -56,13 +56,13 @@ RSC, route bundles and instrumentation inspect the same instance in a process.
 Use Next instrumentation register for one runtime timer, never during build.
 Admin and Web are separate processes; the management target is Web.
 
-| Family | Maximum entries | Freshness / action |
-| --- | ---: | --- |
-| Site display statistics | 1 | 5 minutes |
-| Forum numeric/latest-topic summaries | 256 | 5 minutes |
-| Forum/type list totals | 1024 | 5 minutes |
-| Pending view increments | 2048 thread IDs | Flush every 5 minutes |
-| Activity observations | 4096 user IDs | Inspect every 5 minutes, throttle writes |
+| Family                               | Maximum entries | Freshness / action                       |
+| ------------------------------------ | --------------: | ---------------------------------------- |
+| Site display statistics              |               1 | 5 minutes                                |
+| Forum numeric/latest-topic summaries |             256 | 5 minutes                                |
+| Forum/type list totals               |            1024 | 5 minutes                                |
+| Pending view increments              | 2048 thread IDs | Flush every 5 minutes                    |
+| Activity observations                |   4096 user IDs | Inspect every 5 minutes, throttle writes |
 
 Bound field lengths, composite keys, in-flight loads, detached flush batches,
 generation bookkeeping and telemetry as well as resident entries. Use an 8 MiB
@@ -336,15 +336,15 @@ Validation completed locally:
   The normal commit hook re-runs coverage, local L2, lint-staged, staged secret
   scanning and TypeScript; the containing commit exists only if those gates pass.
 
-| Package | Tests | Statements | Branches | Functions | Lines |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Worker | 3,837 | 95.00% | 90.44% | 98.11% | 96.56% |
-| Web | 2,424 | 96.27% | 93.67% | 95.32% | 97.48% |
-| Admin | 940 | 96.59% | 93.60% | 96.79% | 97.94% |
-| Shared | 245 | 98.59% | 95.62% | 100% | 98.41% |
-| Test mocks | 73 | 99.58% | 97.07% | 98.73% | 100% |
-| Types | 211 | 99.39% | 99.47% | 98.68% | 99.29% |
-| Migrate | 574 | 97.88% | 90.79% | 100% | 99.27% |
+| Package    | Tests | Statements | Branches | Functions |  Lines |
+| ---------- | ----: | ---------: | -------: | --------: | -----: |
+| Worker     | 3,837 |     95.00% |   90.44% |    98.11% | 96.56% |
+| Web        | 2,424 |     96.27% |   93.67% |    95.32% | 97.48% |
+| Admin      |   940 |     96.59% |   93.60% |    96.79% | 97.94% |
+| Shared     |   245 |     98.59% |   95.62% |      100% | 98.41% |
+| Test mocks |    73 |     99.58% |   97.07% |    98.73% |   100% |
+| Types      |   211 |     99.39% |   99.47% |    98.68% | 99.29% |
+| Migrate    |   574 |     97.88% |   90.79% |      100% | 99.27% |
 
 Seeded local SQLite EXPLAIN using the actual indexed queries reports
 `SEARCH t USING INDEX idx_threads_forum_visible_created (forum_id=?)` without a

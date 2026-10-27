@@ -31,21 +31,21 @@ classify their cause, so the Docker log sample provides no per-error attribution
 
 Cloudflare adaptive estimates, start-inclusive/end-exclusive UTC windows:
 
-| Metric | 2026-09-24 03:00 to 03:15 (15 min) | 2026-09-24 01:45 to 03:15 (1h30m, post-cutover) |
-| --- | ---: | ---: |
-| Worker requests | 787 | 6,207 |
-| Worker execution errors | 0 | 0 |
-| KV reads | 6,678 | 53,402 |
-| KV writes | 226 | 1,876 |
-| KV deletes | 11 | 42 |
-| KV reads / Worker request | 8.486 | 8.603 |
-| KV writes / Worker request | 0.287 | 0.302 |
-| D1 read queries | 441 | 3,499 |
-| D1 write queries | 23 | 144 |
-| D1 rows read | 28,144 | 184,834 |
-| D1 rows written | 48 | 286 |
-| D1 read queries / Worker request | 0.561 | 0.564 |
-| D1 write queries / Worker request | 0.029 | 0.023 |
+| Metric                            | 2026-09-24 03:00 to 03:15 (15 min) | 2026-09-24 01:45 to 03:15 (1h30m, post-cutover) |
+| --------------------------------- | ---------------------------------: | ----------------------------------------------: |
+| Worker requests                   |                                787 |                                           6,207 |
+| Worker execution errors           |                                  0 |                                               0 |
+| KV reads                          |                              6,678 |                                          53,402 |
+| KV writes                         |                                226 |                                           1,876 |
+| KV deletes                        |                                 11 |                                              42 |
+| KV reads / Worker request         |                              8.486 |                                           8.603 |
+| KV writes / Worker request        |                              0.287 |                                           0.302 |
+| D1 read queries                   |                                441 |                                           3,499 |
+| D1 write queries                  |                                 23 |                                             144 |
+| D1 rows read                      |                             28,144 |                                         184,834 |
+| D1 rows written                   |                                 48 |                                             286 |
+| D1 read queries / Worker request  |                              0.561 |                                           0.564 |
+| D1 write queries / Worker request |                              0.029 |                                           0.023 |
 
 Per-hour derived rates for the 1h30m clean window:
 
@@ -70,10 +70,10 @@ Cloudflare zone `e9afae61260e0208d10089c287554009` adaptive HTTP requests for
 `cacheStatus:"hit"` rows (200 or 304). Other cache states are reported separately;
 in particular, misses and expired entries can require an origin fetch.
 
-| Window | Total requests | HTTP 5xx (≥500) | Edge hits (`hit` only) | Edge hit ratio |
-| --- | ---: | ---: | ---: | ---: |
-| 2026-09-24 03:00 to 03:15 (15 min) | 1,484 | 3 | 243 | 16.37% |
-| 2026-09-24 01:45 to 03:15 (1h30m clean) | 12,651 | 3 | 3,379 | 26.71% |
+| Window                                  | Total requests | HTTP 5xx (≥500) | Edge hits (`hit` only) | Edge hit ratio |
+| --------------------------------------- | -------------: | --------------: | ---------------------: | -------------: |
+| 2026-09-24 03:00 to 03:15 (15 min)      |          1,484 |               3 |                    243 |         16.37% |
+| 2026-09-24 01:45 to 03:15 (1h30m clean) |         12,651 |               3 |                  3,379 |         26.71% |
 
 The 1h30m clean window recorded three HTTP responses with
 `edgeResponseStatus:524`. Status 524 is Cloudflare's origin-timeout response,

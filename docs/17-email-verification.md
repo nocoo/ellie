@@ -91,7 +91,6 @@ Verification emails are delivered via the local **dove** service over its existi
 ## 4. User Flow (Rev3)
 
 > **Rev4 supersedes step 2.** 主入口改为「用户页 → 邮箱卡片」（`/me#email`）。前端发现 `me.email_verified_at == 0` 时仅显示 banner（CTA → `/me#email`）；写按钮**永远可点**，点击或绕过时由 §5.4 dialog 双保险引导用户去 `/me#email`。`/verify-email` 仅作为 deep link 保留。原步骤 2「引导到 `/verify-email` 全站写 affordance disable」作废。
-
 1. 用户登录或注册，JWT 照常签发。
 2. 后端 `me` / `login` response 暴露 `email_verified_at`；前端发现 `== 0` ⇒ 引导到 `/verify-email`，全站写操作 affordance disable。
 3. `/verify-email` 页面只有一种交互：**输入邮箱 → 点击「发送验证码」**。
@@ -114,36 +113,36 @@ Verification emails are delivered via the local **dove** service over its existi
 
 Verbatim list — anything not listed here is blocked. Endpoint paths are taken from `apps/worker/src/index.ts` as of HEAD (`9d5b615`).
 
-| Action | Endpoint(s) |
-|---|---|
-| Login | `POST /api/v1/auth/login` |
-| Refresh token | `POST /api/v1/auth/refresh` |
-| Logout | `DELETE /api/v1/auth/logout` |
-| Register | `POST /api/v1/auth/register` |
-| Read own session | `GET /api/v1/auth/me` |
-| Browse forums / threads / posts (read) | All existing public `GET` routes |
-| Read messages metadata | `GET /api/v1/messages`, `GET /api/v1/messages/unread-count`, `GET /api/v1/messages/:id` |
-| **Request verification code (with pending email)** | `POST /api/v1/users/me/email/request-code` *(rev3 — body now carries pending `email`)* |
-| **Submit verification code** | `POST /api/v1/users/me/email/verify` *(rev3 — body now carries `{ email, code }`)* |
-| Change password | `POST /api/v1/users/me/password` |
+| Action                                             | Endpoint(s)                                                                             |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Login                                              | `POST /api/v1/auth/login`                                                               |
+| Refresh token                                      | `POST /api/v1/auth/refresh`                                                             |
+| Logout                                             | `DELETE /api/v1/auth/logout`                                                            |
+| Register                                           | `POST /api/v1/auth/register`                                                            |
+| Read own session                                   | `GET /api/v1/auth/me`                                                                   |
+| Browse forums / threads / posts (read)             | All existing public `GET` routes                                                        |
+| Read messages metadata                             | `GET /api/v1/messages`, `GET /api/v1/messages/unread-count`, `GET /api/v1/messages/:id` |
+| **Request verification code (with pending email)** | `POST /api/v1/users/me/email/request-code` _(rev3 — body now carries pending `email`)_  |
+| **Submit verification code**                       | `POST /api/v1/users/me/email/verify` _(rev3 — body now carries `{ email, code }`)_      |
+| Change password                                    | `POST /api/v1/users/me/password`                                                        |
 
 ### 5.2 Blocked actions for unverified users
 
 Default-deny on write (see §5.3). Concretely the following routes flip from `withAuthVerified` / `authMiddlewareVerified` / `moderationMiddleware` to the new `requireVerifiedEmail` chain:
 
-| Endpoint | Current wrapper | After |
-|---|---|---|
-| `POST /api/v1/threads` | `authMiddlewareVerified` (inline) | `requireVerifiedEmail` |
-| `POST /api/v1/posts` | `authMiddlewareVerified` (inline) | `requireVerifiedEmail` |
-| `PATCH /api/v1/me/posts/:id`, `DELETE /api/v1/me/posts/:id` | `withAuthVerified` | `withVerifiedEmail` (new wrapper, §5.3) |
-| `DELETE /api/v1/me/threads/:id` | `withAuthVerified` | `withVerifiedEmail` |
-| `POST /api/v1/post-comments` | `withAuthVerified` (`post-comment.ts:create`) | `withVerifiedEmail` |
-| `POST /api/v1/messages`, `DELETE /api/v1/messages/:id`, `POST /api/v1/messages/mark-all-read` | `withAuthVerified` (`message.ts`) | `withVerifiedEmail` |
-| `POST /api/v1/reports` | `withAuthVerified` (`report.ts:create`) | `withVerifiedEmail` |
-| `POST /api/v1/upload` | `authMiddlewareVerified` (inline at index.ts:215) | `requireVerifiedEmail` |
-| `PATCH /api/v1/users/me` (profile, excl. email) | `withAuthVerified` (`me.ts`) | `withVerifiedEmail` |
-| `POST /api/v1/users/me/password` | `withAuthVerified` | **unchanged** — explicitly allowed for unverified (§5.1) |
-| All `/api/v1/moderation/*` mutating routes | `moderationMiddleware` | `moderationMiddleware` + verified check (§5.3) |
+| Endpoint                                                                                      | Current wrapper                                   | After                                                    |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| `POST /api/v1/threads`                                                                        | `authMiddlewareVerified` (inline)                 | `requireVerifiedEmail`                                   |
+| `POST /api/v1/posts`                                                                          | `authMiddlewareVerified` (inline)                 | `requireVerifiedEmail`                                   |
+| `PATCH /api/v1/me/posts/:id`, `DELETE /api/v1/me/posts/:id`                                   | `withAuthVerified`                                | `withVerifiedEmail` (new wrapper, §5.3)                  |
+| `DELETE /api/v1/me/threads/:id`                                                               | `withAuthVerified`                                | `withVerifiedEmail`                                      |
+| `POST /api/v1/post-comments`                                                                  | `withAuthVerified` (`post-comment.ts:create`)     | `withVerifiedEmail`                                      |
+| `POST /api/v1/messages`, `DELETE /api/v1/messages/:id`, `POST /api/v1/messages/mark-all-read` | `withAuthVerified` (`message.ts`)                 | `withVerifiedEmail`                                      |
+| `POST /api/v1/reports`                                                                        | `withAuthVerified` (`report.ts:create`)           | `withVerifiedEmail`                                      |
+| `POST /api/v1/upload`                                                                         | `authMiddlewareVerified` (inline at index.ts:215) | `requireVerifiedEmail`                                   |
+| `PATCH /api/v1/users/me` (profile, excl. email)                                               | `withAuthVerified` (`me.ts`)                      | `withVerifiedEmail`                                      |
+| `POST /api/v1/users/me/password`                                                              | `withAuthVerified`                                | **unchanged** — explicitly allowed for unverified (§5.1) |
+| All `/api/v1/moderation/*` mutating routes                                                    | `moderationMiddleware`                            | `moderationMiddleware` + verified check (§5.3)           |
 
 Out of scope for this RFC: `/api/admin/*`. These are **Key B-only** (no end-user JWT — they are server-to-server from the Next.js admin app). There is no actor JWT to gate on, so the verified-email check does not apply at the Worker layer. Admin-console session ownership is governed by the existing admin login (`docs/10-admin-console.md`) and is **not modified by this RFC**. A follow-up RFC may add "admin user must verify their forum email" if needed; for now this is explicitly out of scope.
 
@@ -181,15 +180,15 @@ The frontend additionally hides write affordances, but the Worker is the source 
 
 ```json
 {
-  "error": "EMAIL_NOT_VERIFIED",
-  "message": "请先验证邮箱后再发布或回复内容。",
-  "dialog": {
-    "title": "需要验证邮箱",
-    "body": "你的账户还未验证邮箱，目前只能浏览。请前往个人中心绑定并验证邮箱后再继续。",
-    "cta_label": "去验证邮箱",
-    "cta_variant": "primary"
-  },
-  "redirect_to": "/me#email"
+	"error": "EMAIL_NOT_VERIFIED",
+	"message": "请先验证邮箱后再发布或回复内容。",
+	"dialog": {
+		"title": "需要验证邮箱",
+		"body": "你的账户还未验证邮箱，目前只能浏览。请前往个人中心绑定并验证邮箱后再继续。",
+		"cta_label": "去验证邮箱",
+		"cta_variant": "primary"
+	},
+	"redirect_to": "/me#email"
 }
 ```
 
@@ -267,8 +266,8 @@ All live under `/api/v1/users/me/email*`. All require valid JWT (`authMiddleware
 Request:
 ```json
 {
-  "email": "user@example.com",
-  "cf_turnstile_token": "<turnstile response token>"
+	"email": "user@example.com",
+	"cf_turnstile_token": "<turnstile response token>"
 }
 ```
 
@@ -277,6 +276,7 @@ Behavior:
 - Normalize body.email (`lower(trim(...))`)，长度 ≤ 254、RFC-style regex；失败 ⇒ `400 EMAIL_INVALID`。
 - **不写 `users` 表**。所有 pending 状态都在 KV record 内。
 - KV record 形状（rev4，与 rev3 相同字段）：
+
   ```json
   {
     "codeHmac": "<hex>",
@@ -308,17 +308,18 @@ Errors（rev4 集合）：
 ### 7.2.1 Cloudflare Turnstile contract (Rev4) — **Rev5: REMOVED. Cap.js used instead.**
 
 > **Rev5 (v1.2.0, shipped)**: This entire subsection is historical. v1.2.0 removed Turnstile and reused the existing Cap.js client widget pattern used by login/register (`apps/web/src/components/cap-widget.tsx`); Cap.js gates the send button in the browser only — there is **no server-side Cap verification path**. There is no Turnstile secret/var to provision, no `siteverify` HTTP call, and no `cf_turnstile_token` field. Test environments do not need Cloudflare always-pass test keys. The text below is preserved only to explain why the historical errors `400 CAPTCHA_REQUIRED` / `403 CAPTCHA_INVALID` exist in earlier commits' tests.
-
 - **Provider**：Cloudflare Turnstile（managed widget；Worker 同栈无额外可用性面）。
 - **Worker 配置**：
   - `TURNSTILE_SECRET_KEY` — Worker secret，`wrangler secret put TURNSTILE_SECRET_KEY`。
   - `TURNSTILE_SITE_KEY` — 普通 var（前端可读，写入 `[vars]` 与 `[env.test.vars]`）。test 环境使用 Cloudflare 提供的 always-pass test keys（site key `1x00000000000000000000AA`，secret `1x0000000000000000000000000000000AA`）以保证 vitest / e2e 不依赖外网。
 - **Server-side verify**：
+
   ```
   POST https://challenges.cloudflare.com/turnstile/v0/siteverify
   Content-Type: application/x-www-form-urlencoded
   Body: secret=<TURNSTILE_SECRET_KEY>&response=<token>&remoteip=<cf-connecting-ip>
   ```
+
   - 5s timeout；timeout / 5xx ⇒ `403 CAPTCHA_INVALID`（fail-closed，避免被用作绕过手段）。
   - `remoteip` 取自 `request.headers.get("CF-Connecting-IP")`，缺失则省略字段。
   - 不缓存 token：每次 request 一次性核销；同 token 复用由 Turnstile 侧拒绝。
@@ -338,6 +339,7 @@ Behavior:
 - HMAC 重算 `<userId>:<KV pendingEmailNormalized>:<body.code>`；constant-time 与 KV `codeHmac` 比较。
 - `attempts` 校验同 rev2（5 次后 KV 删除 + `403 CODE_LOCKED`）。
 - 成功后 conditional UPDATE：
+
   ```sql
   UPDATE users
   SET email = ?,
@@ -345,6 +347,7 @@ Behavior:
       email_verified_at = ?
   WHERE id = ? AND email_verified_at = 0
   ```
+
   其中：
   - `email` 用 KV `pendingEmail`（display form）。
   - `email_normalized` 用 KV `pendingEmailNormalized`。
@@ -412,24 +415,23 @@ Body: { "template": "<slug>", "to": "<email>", "idempotency_key": "<uuid>", "var
 ```ts
 const idempotencyKey = `${userId}:${codeHmacFirst16}`; // stable per (user, code)
 await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${env.DOVE_WEBHOOK_TOKEN}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    template: env.DOVE_TEMPLATE_SLUG || "verify-email",
-    to: pendingEmail,              // KV pendingEmail (display form). NOT user.email — see note below.
-    idempotency_key: idempotencyKey,
-    variables: {
-      code: plaintextCode,
-    },
-  }),
+	method: "POST",
+	headers: {
+		Authorization: `Bearer ${env.DOVE_WEBHOOK_TOKEN}`,
+		"Content-Type": "application/json",
+	},
+	body: JSON.stringify({
+		template: env.DOVE_TEMPLATE_SLUG || "verify-email",
+		to: pendingEmail, // KV pendingEmail (display form). NOT user.email — see note below.
+		idempotency_key: idempotencyKey,
+		variables: {
+			code: plaintextCode,
+		},
+	}),
 });
 ```
 
 > **Rev4 note**：`to` 必须取 §7.2 request-code 写入 KV 的 `pendingEmail`（display form），**不是** `users.email`。rev3/4 clean state 下 `users.email = ''` 直到 §7.3 verify 成功才被一次性 UPDATE 写入；若 dove 调用里读 `user.email`，prod 上验证码邮件会发到空字符串、被 dove 拒收。
-
 - Timeout: 5s (`AbortSignal.timeout(5000)`). On timeout → `502 EMAIL_PROVIDER_FAILED`.
 - Plaintext code is **only** held in memory for the duration of this request. Never logged.
 - Idempotency: same code → same key → dove dedupes if we accidentally retry.
@@ -437,7 +439,6 @@ await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
 ## 9. Frontend Changes (`apps/web`) (Rev4)
 
 > **Rev4 change**: 主入口改为「用户页 → 邮箱卡片」（`/me#email`）。`/verify-email` 仍实现，但仅作为 deep link / 邮件直链使用；写按钮 dialog 与 banner 的 CTA **永远** `redirect_to: "/me#email"`。
-
 - 用户页 `apps/web/src/app/me/page.tsx`（或现有 settings 路由）新增 `<EmailVerificationCard>`：
   - `me.email_verified_at == 0` 时展开为「填邮箱 + 发送验证码 + 输入 code + 验证」单卡片。
   - `email_verified_at > 0` 时折叠为只读 badge（rev4 不提供改邮箱入口；将来由独立 RFC 加）。
@@ -461,6 +462,7 @@ Rev3 用一次性 ops 清空替代 rev2 的多步 backfill / dedup gate。
 
 1. extractor (`packages/migrate/src/extract/extractors.ts:391`) 已在上游 `87d790e` 把 legacy contact email 丢弃。新导入的 user `email = ''`。
 2. 对现存 prod `tongjinet-db` 执行**一次性 ops SQL**（dry-run + apply + verify 三段；同一个 predicate）：
+
    ```sql
    -- (a) dry-run count，记录到 ops 日志
    SELECT COUNT(*) FROM users
@@ -534,7 +536,6 @@ WHERE id = ? AND email_verified_at = 0
 > **Rev4 supersedes Rev3 §11.3.** 入口路径从 `/verify-email` 改为「登录后访问 `/me` 邮箱卡片」（同一 `<EmailVerificationCard>` 组件；`/verify-email` 仍可走 deep link，但 E2E 的「正常用户路径」必须验证 `/me#email` 入口 + 写按钮 dialog 拦截）。Turnstile widget 在 E2E 用 always-pass test site key（`1x00000000000000000000AA`）。
 >
 > **Rev5 supersede**：E2E 现使用 Cap.js widget，不再使用 Turnstile test site key。
-
 - Login as 邮箱已清空的 seed user → banner 可见 → 点击「发帖」按钮触发 `<EmailNotVerifiedDialog>` → CTA 跳到 `/me#email` → 卡片输入 email + Turnstile auto-pass + 「发送验证码」 → 输入 code + 提交 → 解锁 → 后续 POST /threads 成功。
   > **Rev5 supersede**：「Turnstile auto-pass」一步替换为 Cap.js widget 的客户端挑战；其余流程一致。
 - 邮箱冲突路径：seed 用户 A 已验证 `a@x.io`；seed 用户 B 走 `/me#email` 流程到 verify 时输入同一 email → 收到 `EMAIL_ALREADY_IN_USE`，重输不同 email 后成功。
@@ -555,19 +556,19 @@ WHERE id = ? AND email_verified_at = 0
 
 > **Rev5 status (v1.2.0, shipped `07e467e`)**: All Phase 1–7 work has shipped. Phase 3c (Turnstile on Worker) was **not shipped as designed** — it was replaced by reusing the existing Cap.js client integration. Phases 5b / 6 / 7 shipped without any Turnstile dependency. Treat the table below as historical: read it for context, don't use it as a deploy plan. Live deploy artifacts are in `CHANGELOG.md` v1.2.0 and the v1.2.0 release commit.
 
-| Phase | Commit subject | Status / Notes |
-|---|---|---|
-| 1 | `feat(db): add email verification columns (migration 0028)` | ✅ shipped (`0a6641e`). 见 §12.1。 |
-| 2 | `feat(worker): requireVerifiedEmail middleware + withVerifiedEmail wrapper (no routes wired)` | ✅ shipped (`59fa4a3`). |
-| 3a | `feat(worker): email request-code + verify endpoints (no email-change yet)` + `fix(worker): hide dove upstream code + add per-user in-flight send lock` | ✅ shipped (`064589c`, `3f479a6`). |
-| 3b | `feat(worker): request email verification for pending address` | ✅ shipped (`35639ac`). request-code/verify 已接收 `body.email`，pending 走 KV，conditional UPDATE 落库；唯一索引 catch ⇒ `409 EMAIL_ALREADY_IN_USE`。|
-| 4 | `feat(db): unique partial index on email_normalized (migration 0029)` | ✅ shipped (`73be123`). |
-| 5a | (ops) clear `email / email_normalized / email_verified_at / email_changed_at` on prod tongjinet-db | ✅ **shipped 2026-05-02** (zheng-li authorized → SD-SDE-A apply). dry-run/apply/verify 三段全部为 0；1,141,587 行 zero-row audit；`changed_db=false`。详见对话线程 / ops audit。|
-| **5b-docs** | `docs(17): rev4 — Turnstile + EMAIL_NOT_VERIFIED dialog payload + user-page primary entry` | ✅ **shipped** as part of rev4 doc commit; **Rev5 shipped** in this revision (v1.2.0 docs update). |
-| 3c | `feat(worker): turnstile captcha on email request-code` | ⛔ **Rev5: not shipped (replaced)** — Turnstile integration was abandoned in favor of reusing Cap.js (the same client widget used by login/register). No Worker-side `siteverify`, no `TURNSTILE_*` config. |
-| 5b | `feat(worker): enforce verification on write routes` | ✅ **Rev5 shipped in v1.2.0**: §5.2 写路由 enforce `requireVerifiedEmail` / `withVerifiedEmail`，统一返回 §5.4 payload。User-visible cutover 已发生。Rev4 原文里的 "3c 必须先于 5b" 前置条件已作废（无 3c）。|
-| 6 | `feat(web): EmailVerificationCard on /me + /verify-email page + proxy routes` | ✅ **Rev5 shipped in v1.2.0**: §9 单组件 + Cap.js widget（**client-only gate, not** Turnstile, not server-verified）+ proxy 仅投影 `{ email }`。`/me#email` 为主入口；`/verify-email` 仅 deep link。|
-| 7 | `feat(web): write-affordance dialog (EMAIL_NOT_VERIFIED) + banner` | ✅ **Rev5 shipped in v1.2.0**: §5.4 dialog payload 双保险（写按钮 preflight + api-client 403 兜底）；统一 CTA → `/me#email`；server-rendered banner 也已上。|
+| Phase       | Commit subject                                                                                                                                          | Status / Notes                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1           | `feat(db): add email verification columns (migration 0028)`                                                                                             | ✅ shipped (`0a6641e`). 见 §12.1。                                                                                                                                                                            |
+| 2           | `feat(worker): requireVerifiedEmail middleware + withVerifiedEmail wrapper (no routes wired)`                                                           | ✅ shipped (`59fa4a3`).                                                                                                                                                                                       |
+| 3a          | `feat(worker): email request-code + verify endpoints (no email-change yet)` + `fix(worker): hide dove upstream code + add per-user in-flight send lock` | ✅ shipped (`064589c`, `3f479a6`).                                                                                                                                                                            |
+| 3b          | `feat(worker): request email verification for pending address`                                                                                          | ✅ shipped (`35639ac`). request-code/verify 已接收 `body.email`，pending 走 KV，conditional UPDATE 落库；唯一索引 catch ⇒ `409 EMAIL_ALREADY_IN_USE`。                                                        |
+| 4           | `feat(db): unique partial index on email_normalized (migration 0029)`                                                                                   | ✅ shipped (`73be123`).                                                                                                                                                                                       |
+| 5a          | (ops) clear `email / email_normalized / email_verified_at / email_changed_at` on prod tongjinet-db                                                      | ✅ **shipped 2026-05-02** (zheng-li authorized → SD-SDE-A apply). dry-run/apply/verify 三段全部为 0；1,141,587 行 zero-row audit；`changed_db=false`。详见对话线程 / ops audit。                              |
+| **5b-docs** | `docs(17): rev4 — Turnstile + EMAIL_NOT_VERIFIED dialog payload + user-page primary entry`                                                              | ✅ **shipped** as part of rev4 doc commit; **Rev5 shipped** in this revision (v1.2.0 docs update).                                                                                                            |
+| 3c          | `feat(worker): turnstile captcha on email request-code`                                                                                                 | ⛔ **Rev5: not shipped (replaced)** — Turnstile integration was abandoned in favor of reusing Cap.js (the same client widget used by login/register). No Worker-side `siteverify`, no `TURNSTILE_*` config.   |
+| 5b          | `feat(worker): enforce verification on write routes`                                                                                                    | ✅ **Rev5 shipped in v1.2.0**: §5.2 写路由 enforce `requireVerifiedEmail` / `withVerifiedEmail`，统一返回 §5.4 payload。User-visible cutover 已发生。Rev4 原文里的 "3c 必须先于 5b" 前置条件已作废（无 3c）。 |
+| 6           | `feat(web): EmailVerificationCard on /me + /verify-email page + proxy routes`                                                                           | ✅ **Rev5 shipped in v1.2.0**: §9 单组件 + Cap.js widget（**client-only gate, not** Turnstile, not server-verified）+ proxy 仅投影 `{ email }`。`/me#email` 为主入口；`/verify-email` 仅 deep link。          |
+| 7           | `feat(web): write-affordance dialog (EMAIL_NOT_VERIFIED) + banner`                                                                                      | ✅ **Rev5 shipped in v1.2.0**: §5.4 dialog payload 双保险（写按钮 preflight + api-client 403 兜底）；统一 CTA → `/me#email`；server-rendered banner 也已上。                                                  |
 
 **Removed in rev4：** rev2 §12 中的 4b backfill scripts、原 Phase 5 `feat(worker): email-change endpoint (7.1)`、§6 quota（rev3 已删）。
 
@@ -575,17 +576,17 @@ WHERE id = ? AND email_verified_at = 0
 
 Codex-02 flagged that "Phase 1 = migration only" leaves the local DB and the TS layer drifting. Phase 1 must touch every place that knows the `users` shape:
 
-| File | Change |
-|---|---|
-| `apps/worker/migrations/0028_email_verification_columns.sql` | NEW. The three `ALTER TABLE` statements from §6.1. |
-| `packages/db/src/schema.ts` | Add `email_verified_at`, `email_normalized`, `email_changed_at` to the base schema definition so fresh local DBs match production. |
-| `packages/types/src/user.ts` (or wherever `User` lives) | Extend the shared `User` type with the three new fields (numbers / string). |
-| `packages/repositories/src/users/*.ts` | Extend the user repo's read mappers and any insert/update helpers to round-trip the new fields. |
-| `apps/worker/src/handlers/auth.ts` — `USER_COLUMNS` | Add `email_verified_at, email_normalized, email_changed_at`. |
-| `apps/worker/src/handlers/me.ts` — `USER_COLUMNS` | Same. (`PUBLIC_USER_COLUMNS` in `user.ts` is **not** modified — public view does not expose verification state.) |
-| `apps/worker/src/handlers/admin/user.ts` — `USER_COLUMNS` | Same — admin views the field for support. |
-| Any test factory / fixture for `User` (search: `tests/**/factories/user*`, `scripts/seed-test-db.sql`) | Add defaults (`email_verified_at: 0`, `email_normalized: ''`, `email_changed_at: 0`) so existing tests still compile. |
-| `scripts/seed-test-db.sql` | Add the three columns to the seed `INSERT`s with default values. |
+| File                                                                                                   | Change                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/worker/migrations/0028_email_verification_columns.sql`                                           | NEW. The three `ALTER TABLE` statements from §6.1.                                                                                 |
+| `packages/db/src/schema.ts`                                                                            | Add `email_verified_at`, `email_normalized`, `email_changed_at` to the base schema definition so fresh local DBs match production. |
+| `packages/types/src/user.ts` (or wherever `User` lives)                                                | Extend the shared `User` type with the three new fields (numbers / string).                                                        |
+| `packages/repositories/src/users/*.ts`                                                                 | Extend the user repo's read mappers and any insert/update helpers to round-trip the new fields.                                    |
+| `apps/worker/src/handlers/auth.ts` — `USER_COLUMNS`                                                    | Add `email_verified_at, email_normalized, email_changed_at`.                                                                       |
+| `apps/worker/src/handlers/me.ts` — `USER_COLUMNS`                                                      | Same. (`PUBLIC_USER_COLUMNS` in `user.ts` is **not** modified — public view does not expose verification state.)                   |
+| `apps/worker/src/handlers/admin/user.ts` — `USER_COLUMNS`                                              | Same — admin views the field for support.                                                                                          |
+| Any test factory / fixture for `User` (search: `tests/**/factories/user*`, `scripts/seed-test-db.sql`) | Add defaults (`email_verified_at: 0`, `email_normalized: ''`, `email_changed_at: 0`) so existing tests still compile.              |
+| `scripts/seed-test-db.sql`                                                                             | Add the three columns to the seed `INSERT`s with default values.                                                                   |
 
 Auth/me handler returns the new `email_verified_at` so the frontend can render the banner without an extra round trip — that wiring is in phase 7, but the field must be exposed in phase 1 so the frontend has something to read once we get there.
 
@@ -600,7 +601,7 @@ No behavioral code changes in phase 1. Phase 1 is reviewable as "schema + type +
 **Production cutover order**（user-visible 启用，必须串行并满足前置条件）：
 
 1. ~~Phase 3c worker 部署到 prod（Turnstile secret/var 已配齐）。~~ **Rev5**: dropped — no Turnstile deploy needed.
-2. Phase 6 web 部署到 prod（`/me#email` 卡片 + Cap widget + proxy 已上）。  _(Rev4 原文写 Turnstile widget；Rev5 改为 Cap.js)_
+2. Phase 6 web 部署到 prod（`/me#email` 卡片 + Cap widget + proxy 已上）。 _(Rev4 原文写 Turnstile widget；Rev5 改为 Cap.js)_
 3. Phase 7 web 部署到 prod（dialog + banner + fetch 包装层 403 兜底已上）。
 4. Dove ops 前置条件全部满足：Ellie project `allow_unknown_recipients = 1`、`§11.4` controlled smoke 已 record evidence。
 5. **最后**才启用 Phase 5b：worker 把写路由切到 `requireVerifiedEmail` / `withVerifiedEmail`。

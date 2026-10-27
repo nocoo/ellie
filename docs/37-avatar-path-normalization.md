@@ -35,19 +35,19 @@ cache-hit calculation. Referer access returned 403.
 
 Relevant code paths:
 
-| Location | Current problem / required change |
-| --- | --- |
-| `apps/web/src/lib/avatar.ts`, `avatar-proxy.ts` | Empty paths generate a guessed legacy key; remove that interpretation. |
-| `apps/web/src/app/api/avatar/[uid]/route.ts` | Unknown paths invoke Worker, probe CDN, then fetch a default image on failure. Remove this image-proxy route after callers receive explicit paths. |
-| `apps/web/src/contexts/avatar-context.tsx`, `components/forum/user-avatar.tsx` | Propagate explicit paths; preserve immediate upload updates without UID probing. |
-| `apps/admin/src/lib/cdn.ts`, `components/admin/user-avatar.tsx` | Admin repeats the same legacy fallback; use the same path-only contract. |
-| `apps/worker/src/lib/cache/user-read.ts`, `user-cache.ts`, `mappers.ts` | Public/private/mini users and avatar-only payloads need consistent semantics; remove the avatar-only route/cache when unused. |
-| `apps/worker/src/handlers/thread.ts` | Some intermediate fast-path mappings deliberately blank avatar fields. Trace final hydration; unknown values must not silently become authoritative empty paths. |
-| `apps/worker/src/lib/postingPermission.ts` | Remove `has_avatar` reads and OR conditions. |
-| `apps/worker/src/handlers/admin/user.ts` | Replace compound presence filters and unrestricted avatar-path text mutation. |
-| `apps/worker/src/lib/upload.ts`, `userTombstone.ts` | Upload writes only `avatar_path`; tombstones clear it without restoring historical objects. |
-| `packages/migrate/src`, `scripts/migrate` | Historical importers emit avatar flags/guessed paths and must not reintroduce them. |
-| `packages/types/src`, `packages/cli-rs`, legacy TS CLI | Remove obsolete avatar fields and update actual consumers, fixtures, and generated declarations. |
+| Location                                                                       | Current problem / required change                                                                                                                                |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/lib/avatar.ts`, `avatar-proxy.ts`                                | Empty paths generate a guessed legacy key; remove that interpretation.                                                                                           |
+| `apps/web/src/app/api/avatar/[uid]/route.ts`                                   | Unknown paths invoke Worker, probe CDN, then fetch a default image on failure. Remove this image-proxy route after callers receive explicit paths.               |
+| `apps/web/src/contexts/avatar-context.tsx`, `components/forum/user-avatar.tsx` | Propagate explicit paths; preserve immediate upload updates without UID probing.                                                                                 |
+| `apps/admin/src/lib/cdn.ts`, `components/admin/user-avatar.tsx`                | Admin repeats the same legacy fallback; use the same path-only contract.                                                                                         |
+| `apps/worker/src/lib/cache/user-read.ts`, `user-cache.ts`, `mappers.ts`        | Public/private/mini users and avatar-only payloads need consistent semantics; remove the avatar-only route/cache when unused.                                    |
+| `apps/worker/src/handlers/thread.ts`                                           | Some intermediate fast-path mappings deliberately blank avatar fields. Trace final hydration; unknown values must not silently become authoritative empty paths. |
+| `apps/worker/src/lib/postingPermission.ts`                                     | Remove `has_avatar` reads and OR conditions.                                                                                                                     |
+| `apps/worker/src/handlers/admin/user.ts`                                       | Replace compound presence filters and unrestricted avatar-path text mutation.                                                                                    |
+| `apps/worker/src/lib/upload.ts`, `userTombstone.ts`                            | Upload writes only `avatar_path`; tombstones clear it without restoring historical objects.                                                                      |
+| `packages/migrate/src`, `scripts/migrate`                                      | Historical importers emit avatar flags/guessed paths and must not reintroduce them.                                                                              |
+| `packages/types/src`, `packages/cli-rs`, legacy TS CLI                         | Remove obsolete avatar fields and update actual consumers, fixtures, and generated declarations.                                                                 |
 
 An empty GUID path is not proof of an absent legacy object. Conversely,
 `has_avatar = 1` is not proof that the object exists. Neither is authoritative for
@@ -101,14 +101,14 @@ Each manifest record includes user ID, expected old path, resolved new path,
 classification, and matching object evidence (key, size, ETag where available).
 Keep provenance of each historical ownership mapping in the run artifact.
 
-| Input state | Resolution |
-| --- | --- |
-| Tombstoned user | Empty; never rediscover and expose a deleted user's old image. |
-| Existing nonempty path with a valid matching object | Preserve the exact key. |
-| Existing nonempty path absent from a complete inventory | Report as broken current mapping; resolve to empty, not an older avatar. |
-| Empty path with one unambiguous, valid user-owned historical object | Store its actual key, regardless of the old flag. |
-| Empty path without a matching object | Empty, regardless of the old flag. |
-| Multiple candidate identities, unsupported layouts, invalid keys, or conflicting ownership | Unresolved; block application until explicitly resolved. |
+| Input state                                                                                | Resolution                                                               |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Tombstoned user                                                                            | Empty; never rediscover and expose a deleted user's old image.           |
+| Existing nonempty path with a valid matching object                                        | Preserve the exact key.                                                  |
+| Existing nonempty path absent from a complete inventory                                    | Report as broken current mapping; resolve to empty, not an older avatar. |
+| Empty path with one unambiguous, valid user-owned historical object                        | Store its actual key, regardless of the old flag.                        |
+| Empty path without a matching object                                                       | Empty, regardless of the old flag.                                       |
+| Multiple candidate identities, unsupported layouts, invalid keys, or conflicting ownership | Unresolved; block application until explicitly resolved.                 |
 
 Multiple size variants are not multiple identities: choose the documented full-size
 variant only when the actual key layout proves the same ownership. Per the owner,

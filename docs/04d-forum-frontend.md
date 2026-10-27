@@ -115,22 +115,20 @@ src/components/layout/
 ```typescript
 // viewmodels/useForumListViewModel.ts
 export function useForumListViewModel() {
-  const forums = useForumRepository();
+	const forums = useForumRepository();
 
-  const tree = useMemo(() => buildForumTree(allForums), [allForums]);
+	const tree = useMemo(() => buildForumTree(allForums), [allForums]);
 
-  // 过滤隐藏版块（status=0）
-  // 注：D1 中初始无 status=0 的版块（迁移时已过滤），
-  // 但管理员可手动将版块 status 设为 0 进行隐藏
-  const visibleTree = useMemo(
-    () => tree.filter(group => filterVisibleForums(group)),
-    [tree],
-  );
+	// 过滤隐藏版块（status=0）
+	// 注：D1 中初始无 status=0 的版块（迁移时已过滤），
+	// 但管理员可手动将版块 status 设为 0 进行隐藏
+	const visibleTree = useMemo(() => tree.filter((group) => filterVisibleForums(group)), [tree]);
 
-  return {
-    tree: visibleTree,
-    loading, error,
-  };
+	return {
+		tree: visibleTree,
+		loading,
+		error,
+	};
 }
 ```
 
@@ -181,25 +179,30 @@ export function useForumListViewModel() {
 ```typescript
 // viewmodels/useThreadListViewModel.ts
 export function useThreadListViewModel(forumId: number) {
-  const forums = useForumRepository();
-  const threads = useThreadRepository();
-  const [sort, setSort] = useState<"latest" | "newest" | "hot">("latest");
-  const [digestOnly, setDigestOnly] = useState(false);
+	const forums = useForumRepository();
+	const threads = useThreadRepository();
+	const [sort, setSort] = useState<"latest" | "newest" | "hot">("latest");
+	const [digestOnly, setDigestOnly] = useState(false);
 
-  // ... 调用 threads.list() 并处理分页
+	// ... 调用 threads.list() 并处理分页
 
-  return {
-    forum: { /* 版块信息 */ },
-    items: threads.map(t => ({
-      ...t,
-      badges: getThreadBadges(t),           // model 函数：计算标签列表
-      highlightStyle: decodeHighlight(t.highlight), // model 函数：解码标题样式
-    })),
-    loading, error,
-    sort, setSort,
-    digestOnly, setDigestOnly,
-    pagination: { hasMore, hasPrev, loadMore, loadPrev },
-  };
+	return {
+		forum: {
+			/* 版块信息 */
+		},
+		items: threads.map((t) => ({
+			...t,
+			badges: getThreadBadges(t), // model 函数：计算标签列表
+			highlightStyle: decodeHighlight(t.highlight), // model 函数：解码标题样式
+		})),
+		loading,
+		error,
+		sort,
+		setSort,
+		digestOnly,
+		setDigestOnly,
+		pagination: { hasMore, hasPrev, loadMore, loadPrev },
+	};
 }
 ```
 
@@ -265,49 +268,52 @@ export function useThreadListViewModel(forumId: number) {
 
 仅当 `canModerate(user, forumId)` 为 true 时展示。Admin (1) / SuperMod (2) / Mod (3) 均可使用。这些操作走 Key A + 论坛用户 JWT + `/api/v1/moderation/*` 端点，与 Admin Console（Key B + Google OAuth）无关：
 
-| 操作 | 调用 | 说明 |
-|------|------|------|
-| 置顶 | `ThreadRepository.setSticky(id, level)` | 可选择版块/全局/分类置顶 |
-| 加精 | `ThreadRepository.setDigest(id, level)` | 1~3 级精华 |
-| 锁定 | `ThreadRepository.setClosed(id, true)` | 锁定后不可回复 |
-| 移动 | `ThreadRepository.move(id, targetForumId)` | 移动到其他版块 |
-| 删除 | `ThreadRepository.delete(id)` | 物理删除（D1 DELETE，不可恢复） |
+| 操作 | 调用                                       | 说明                            |
+| ---- | ------------------------------------------ | ------------------------------- |
+| 置顶 | `ThreadRepository.setSticky(id, level)`    | 可选择版块/全局/分类置顶        |
+| 加精 | `ThreadRepository.setDigest(id, level)`    | 1~3 级精华                      |
+| 锁定 | `ThreadRepository.setClosed(id, true)`     | 锁定后不可回复                  |
+| 移动 | `ThreadRepository.move(id, targetForumId)` | 移动到其他版块                  |
+| 删除 | `ThreadRepository.delete(id)`              | 物理删除（D1 DELETE，不可恢复） |
 
 **ViewModel：**
 
 ```typescript
 // viewmodels/useThreadDetailViewModel.ts
 export function useThreadDetailViewModel(threadId: number) {
-  const threads = useThreadRepository();
-  const posts = usePostRepository();
-  const attachments = useAttachmentRepository();
+	const threads = useThreadRepository();
+	const posts = usePostRepository();
+	const attachments = useAttachmentRepository();
 
-  // ... 加载帖子 + 回复 + 附件
+	// ... 加载帖子 + 回复 + 附件
 
-  // 将附件按 postId 分组
-  const attachmentsByPost = useMemo(
-    () => groupBy(allAttachments, a => a.postId),
-    [allAttachments],
-  );
+	// 将附件按 postId 分组
+	const attachmentsByPost = useMemo(
+		() => groupBy(allAttachments, (a) => a.postId),
+		[allAttachments],
+	);
 
-  return {
-    thread: { /* 帖子元信息 + badges */ },
-    posts: postItems.map(p => ({
-      ...p,
-      attachments: attachmentsByPost[p.id] ?? [],
-      canDelete: canDeletePost(currentUser, p, thread.forumId),
-    })),
-    loading, error,
-    pagination: { hasMore, hasPrev, loadMore, loadPrev },
-    modActions: {
-      setSticky: (level) => threads.setSticky(threadId, level),
-      setDigest: (level) => threads.setDigest(threadId, level),
-      setClosed: (closed) => threads.setClosed(threadId, closed),
-      move: (targetForumId) => threads.move(threadId, targetForumId),
-      deleteThread: () => threads.delete(threadId),
-      deletePost: (postId) => posts.delete(postId),
-    },
-  };
+	return {
+		thread: {
+			/* 帖子元信息 + badges */
+		},
+		posts: postItems.map((p) => ({
+			...p,
+			attachments: attachmentsByPost[p.id] ?? [],
+			canDelete: canDeletePost(currentUser, p, thread.forumId),
+		})),
+		loading,
+		error,
+		pagination: { hasMore, hasPrev, loadMore, loadPrev },
+		modActions: {
+			setSticky: (level) => threads.setSticky(threadId, level),
+			setDigest: (level) => threads.setDigest(threadId, level),
+			setClosed: (closed) => threads.setClosed(threadId, closed),
+			move: (targetForumId) => threads.move(threadId, targetForumId),
+			deleteThread: () => threads.delete(threadId),
+			deletePost: (postId) => posts.delete(postId),
+		},
+	};
 }
 ```
 
@@ -349,19 +355,22 @@ Tab: [发帖历史] [回帖历史]
 ```typescript
 // viewmodels/useUserProfileViewModel.ts
 export function useUserProfileViewModel(userId: number) {
-  const users = useUserRepository();
-  const threads = useThreadRepository();
-  const posts = usePostRepository();
-  const [tab, setTab] = useState<"threads" | "posts">("threads");
+	const users = useUserRepository();
+	const threads = useThreadRepository();
+	const posts = usePostRepository();
+	const [tab, setTab] = useState<"threads" | "posts">("threads");
 
-  // ... 加载用户资料 + 按 tab 加载发帖/回帖历史
+	// ... 加载用户资料 + 按 tab 加载发帖/回帖历史
 
-  return {
-    user: { /* 用户资料 + 格式化字段 */ },
-    tab, setTab,
-    threads: { items, loading, pagination },     // tab === "threads"
-    replies: { items, loading, pagination },     // tab === "posts"
-  };
+	return {
+		user: {
+			/* 用户资料 + 格式化字段 */
+		},
+		tab,
+		setTab,
+		threads: { items, loading, pagination }, // tab === "threads"
+		replies: { items, loading, pagination }, // tab === "posts"
+	};
 }
 ```
 
@@ -381,9 +390,9 @@ export function useUserProfileViewModel(userId: number) {
 ```typescript
 // viewmodels/useDigestListViewModel.ts
 export function useDigestListViewModel() {
-  const threads = useThreadRepository();
-  // ... 调用 threads.list({ digest: true })
-  return { items, loading, error, pagination };
+	const threads = useThreadRepository();
+	// ... 调用 threads.list({ digest: true })
+	return { items, loading, error, pagination };
 }
 ```
 
@@ -418,21 +427,23 @@ Tab: [按标题搜索] [按作者搜索]
 ```typescript
 // viewmodels/useSearchViewModel.ts
 export function useSearchViewModel() {
-  const threads = useThreadRepository();
-  const [query, setQuery] = useState("");
-  const [searchType, setSearchType] = useState<"title" | "author">("title");
-  const debouncedQuery = useDebounce(query, 300);
+	const threads = useThreadRepository();
+	const [query, setQuery] = useState("");
+	const [searchType, setSearchType] = useState<"title" | "author">("title");
+	const debouncedQuery = useDebounce(query, 300);
 
-  // 调用 ThreadRepository.search()
-  // searchType === "title" → { titlePrefix: debouncedQuery }
-  // searchType === "author" → { authorName: debouncedQuery }
+	// 调用 ThreadRepository.search()
+	// searchType === "title" → { titlePrefix: debouncedQuery }
+	// searchType === "author" → { authorName: debouncedQuery }
 
-  return {
-    query, setQuery,
-    searchType, setSearchType,
-    results: { items, total, loading, error },
-    pagination: { hasMore, hasPrev, loadMore, loadPrev },
-  };
+	return {
+		query,
+		setQuery,
+		searchType,
+		setSearchType,
+		results: { items, total, loading, error },
+		pagination: { hasMore, hasPrev, loadMore, loadPrev },
+	};
 }
 ```
 
@@ -476,20 +487,26 @@ LIMIT 20;
 ```typescript
 // viewmodels/shared/usePagination.ts
 export function usePagination<T>(
-  fetchFn: (params: PaginationParams) => Promise<PaginatedResult<T>>,
-  initialLimit: number = 20,
+	fetchFn: (params: PaginationParams) => Promise<PaginatedResult<T>>,
+	initialLimit: number = 20,
 ) {
-  const [items, setItems] = useState<T[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [prevCursor, setPrevCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [hasPrev, setHasPrev] = useState(false);
+	const [items, setItems] = useState<T[]>([]);
+	const [nextCursor, setNextCursor] = useState<string | null>(null);
+	const [prevCursor, setPrevCursor] = useState<string | null>(null);
+	const [hasMore, setHasMore] = useState(true);
+	const [hasPrev, setHasPrev] = useState(false);
 
-  const loadMore = async () => { /* direction: "forward" */ };
-  const loadPrev = async () => { /* direction: "backward" */ };
-  const reset = () => { /* ... */ };
+	const loadMore = async () => {
+		/* direction: "forward" */
+	};
+	const loadPrev = async () => {
+		/* direction: "backward" */
+	};
+	const reset = () => {
+		/* ... */
+	};
 
-  return { items, hasMore, hasPrev, loadMore, loadPrev, reset, loading, error };
+	return { items, hasMore, hasPrev, loadMore, loadPrev, reset, loading, error };
 }
 ```
 
@@ -546,41 +563,44 @@ ForumNavbar [发帖按钮] 或 版块页 [发新帖]
 ```typescript
 // viewmodels/usePostEditorViewModel.ts
 export function usePostEditorViewModel(
-  mode: "thread" | "reply",
-  targetId: number,  // forumId (thread mode) 或 threadId (reply mode)
+	mode: "thread" | "reply",
+	targetId: number, // forumId (thread mode) 或 threadId (reply mode)
 ) {
-  const threads = useThreadRepository();
-  const posts = usePostRepository();
-  const [content, setContent] = useState("");
-  const [subject, setSubject] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+	const threads = useThreadRepository();
+	const posts = usePostRepository();
+	const [content, setContent] = useState("");
+	const [subject, setSubject] = useState("");
+	const [submitting, setSubmitting] = useState(false);
 
-  const submit = async () => {
-    setSubmitting(true);
-    try {
-      if (mode === "thread") {
-        const thread = await threads.create({ forumId: targetId, subject, content });
-        return { success: true, threadId: thread.id };
-      } else {
-        await posts.create({ threadId: targetId, content });
-        return { success: true };
-      }
-    } catch (err) {
-      return { success: false, error: (err as Error).message };
-    } finally {
-      setSubmitting(false);
-    }
-  };
+	const submit = async () => {
+		setSubmitting(true);
+		try {
+			if (mode === "thread") {
+				const thread = await threads.create({ forumId: targetId, subject, content });
+				return { success: true, threadId: thread.id };
+			} else {
+				await posts.create({ threadId: targetId, content });
+				return { success: true };
+			}
+		} catch (err) {
+			return { success: false, error: (err as Error).message };
+		} finally {
+			setSubmitting(false);
+		}
+	};
 
-  return {
-    content, setContent,
-    subject, setSubject,       // 仅 thread mode
-    submitting,
-    submit,
-    canSubmit: mode === "thread"
-      ? subject.trim().length > 0 && content.trim().length > 0
-      : content.trim().length > 0,
-  };
+	return {
+		content,
+		setContent,
+		subject,
+		setSubject, // 仅 thread mode
+		submitting,
+		submit,
+		canSubmit:
+			mode === "thread"
+				? subject.trim().length > 0 && content.trim().length > 0
+				: content.trim().length > 0,
+	};
 }
 ```
 
@@ -592,38 +612,46 @@ export function usePostEditorViewModel(
 
 每个帖子可同时拥有多个标签，按以下优先级排列：
 
-| 标签 | 条件 | 样式 | 说明 |
-|------|------|------|------|
-| 全局置顶 | `sticky === 2` | 红色 | 全站醒目 |
-| 分类置顶 | `sticky === 3` | 橙色 | 分类级别 |
-| 版块置顶 | `sticky === 1` | 蓝色 | 版块级别 |
-| 精华 I/II/III | `digest > 0` | 绿色 | 精华等级 |
-| 🔒 锁定 | `closed === 1` | 灰色 | 不可回复 |
-| 🗳️ 投票 | `special === 1` | 紫色 | 特殊类型标签 |
-| 💰 交易 | `special === 2` | 橙色 | |
-| 🏆 悬赏 | `special === 3` | 金色 | |
-| 📅 活动 | `special === 4` | 青色 | |
-| ⚖️ 辩论 | `special === 5` | 靛色 | |
+| 标签          | 条件            | 样式 | 说明         |
+| ------------- | --------------- | ---- | ------------ |
+| 全局置顶      | `sticky === 2`  | 红色 | 全站醒目     |
+| 分类置顶      | `sticky === 3`  | 橙色 | 分类级别     |
+| 版块置顶      | `sticky === 1`  | 蓝色 | 版块级别     |
+| 精华 I/II/III | `digest > 0`    | 绿色 | 精华等级     |
+| 🔒 锁定       | `closed === 1`  | 灰色 | 不可回复     |
+| 🗳️ 投票       | `special === 1` | 紫色 | 特殊类型标签 |
+| 💰 交易       | `special === 2` | 橙色 |              |
+| 🏆 悬赏       | `special === 3` | 金色 |              |
+| 📅 活动       | `special === 4` | 青色 |              |
+| ⚖️ 辩论       | `special === 5` | 靛色 |              |
 
 **Model 纯函数：**
 
 ```typescript
 // models/thread.ts
 export interface ThreadBadge {
-  type: string;
-  label: string;
-  variant: "destructive" | "warning" | "default" | "success" | "secondary";
+	type: string;
+	label: string;
+	variant: "destructive" | "warning" | "default" | "success" | "secondary";
 }
 
 export function getThreadBadges(thread: Thread): ThreadBadge[] {
-  const badges: ThreadBadge[] = [];
-  if (thread.sticky === StickyLevel.Global) badges.push({ type: "sticky", label: "全局置顶", variant: "destructive" });
-  if (thread.sticky === StickyLevel.Category) badges.push({ type: "sticky", label: "分类置顶", variant: "warning" });
-  if (thread.sticky === StickyLevel.Forum) badges.push({ type: "sticky", label: "置顶", variant: "default" });
-  if (thread.digest > 0) badges.push({ type: "digest", label: `精华${thread.digest > 1 ? " " + "I".repeat(thread.digest) : ""}`, variant: "success" });
-  if (thread.closed === 1) badges.push({ type: "closed", label: "锁定", variant: "secondary" });
-  // special type badges — 详见 04e
-  return badges;
+	const badges: ThreadBadge[] = [];
+	if (thread.sticky === StickyLevel.Global)
+		badges.push({ type: "sticky", label: "全局置顶", variant: "destructive" });
+	if (thread.sticky === StickyLevel.Category)
+		badges.push({ type: "sticky", label: "分类置顶", variant: "warning" });
+	if (thread.sticky === StickyLevel.Forum)
+		badges.push({ type: "sticky", label: "置顶", variant: "default" });
+	if (thread.digest > 0)
+		badges.push({
+			type: "digest",
+			label: `精华${thread.digest > 1 ? " " + "I".repeat(thread.digest) : ""}`,
+			variant: "success",
+		});
+	if (thread.closed === 1) badges.push({ type: "closed", label: "锁定", variant: "secondary" });
+	// special type badges — 详见 04e
+	return badges;
 }
 ```
 
@@ -634,19 +662,19 @@ DZ 的 `highlight` 字段是编码后的样式信息：
 ```typescript
 // models/thread.ts
 export interface HighlightStyle {
-  color: string | null;   // 十六进制颜色
-  bold: boolean;
-  italic: boolean;
-  underline: boolean;
+	color: string | null; // 十六进制颜色
+	bold: boolean;
+	italic: boolean;
+	underline: boolean;
 }
 
 /** 解码 DZ highlight 字段为样式对象 */
 export function decodeHighlight(highlight: number): HighlightStyle | null {
-  if (highlight === 0) return null;
-  // DZ highlight 编码规则：低 24 位为颜色 RGB，高位标记粗体/斜体/下划线
-  // 具体解码逻辑基于 DZ source/function/function_forum.php
-  // ...
-  return { color, bold, italic, underline };
+	if (highlight === 0) return null;
+	// DZ highlight 编码规则：低 24 位为颜色 RGB，高位标记粗体/斜体/下划线
+	// 具体解码逻辑基于 DZ source/function/function_forum.php
+	// ...
+	return { color, bold, italic, underline };
 }
 ```
 
@@ -663,10 +691,7 @@ export function decodeHighlight(highlight: number): HighlightStyle | null {
 // 3. 替换为实际的图片 <img> 或下载链接
 // 4. 将处理后的 HTML 通过 dangerouslySetInnerHTML 渲染
 
-<div
-  className="prose prose-sm max-w-none"
-  dangerouslySetInnerHTML={{ __html: resolvedHtml }}
-/>
+<div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: resolvedHtml }} />;
 ```
 
 **安全保障**：
@@ -780,35 +805,41 @@ Mobile 下折叠为汉堡菜单。
 ```typescript
 // viewmodels/useAuthViewModel.ts
 export function useAuthViewModel() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+	const [username, setUsername] = useState("");
+	const [password, setPassword] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(false);
 
-  const login = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await signIn("credentials", {
-        username, password, redirect: false,
-      });
-      if (result?.error) setError("用户名或密码错误");
-      return result;
-    } finally {
-      setLoading(false);
-    }
-  };
+	const login = async () => {
+		setLoading(true);
+		setError(null);
+		try {
+			const result = await signIn("credentials", {
+				username,
+				password,
+				redirect: false,
+			});
+			if (result?.error) setError("用户名或密码错误");
+			return result;
+		} finally {
+			setLoading(false);
+		}
+	};
 
-  const logout = async () => {
-    await signOut({ redirect: true, callbackUrl: "/" });
-  };
+	const logout = async () => {
+		await signOut({ redirect: true, callbackUrl: "/" });
+	};
 
-  return {
-    username, setUsername,
-    password, setPassword,
-    error, loading,
-    login, logout,
-    canSubmit: username.trim().length > 0 && password.trim().length > 0,
-  };
+	return {
+		username,
+		setUsername,
+		password,
+		setPassword,
+		error,
+		loading,
+		login,
+		logout,
+		canSubmit: username.trim().length > 0 && password.trim().length > 0,
+	};
 }
 ```

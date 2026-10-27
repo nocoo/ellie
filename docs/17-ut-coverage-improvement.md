@@ -8,29 +8,29 @@
 
 ### 1.1 In-scope (coverage-gated)
 
-| Package | Source paths | Rationale |
-|---------|-------------|-----------|
-| `apps/worker` | `src/handlers/**`, `src/lib/**`, `src/middleware/**`, `src/index.ts` | Core API logic, already at 60–99% |
-| `apps/web` | `src/lib/**`, `src/viewmodels/**`, `src/hooks/**`, `src/auth.ts`, `src/proxy.ts` | Pure logic layer (MVVM viewmodels, utilities, auth) |
-| `apps/admin` | `src/lib/**`, `src/viewmodels/**`, `src/hooks/**`, `src/auth.ts` | Admin logic layer |
-| `packages/shared` | `src/**` | Shared utilities (formatting, pagination, params, api-error) |
-| `packages/test-mocks` | `src/**` | Already at 100%, maintain |
+| Package               | Source paths                                                                     | Rationale                                                    |
+| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `apps/worker`         | `src/handlers/**`, `src/lib/**`, `src/middleware/**`, `src/index.ts`             | Core API logic, already at 60–99%                            |
+| `apps/web`            | `src/lib/**`, `src/viewmodels/**`, `src/hooks/**`, `src/auth.ts`, `src/proxy.ts` | Pure logic layer (MVVM viewmodels, utilities, auth)          |
+| `apps/admin`          | `src/lib/**`, `src/viewmodels/**`, `src/hooks/**`, `src/auth.ts`                 | Admin logic layer                                            |
+| `packages/shared`     | `src/**`                                                                         | Shared utilities (formatting, pagination, params, api-error) |
+| `packages/test-mocks` | `src/**`                                                                         | Already at 100%, maintain                                    |
 
 ### 1.2 Excluded (remain outside gate)
 
-| Exclusion | Reason |
-|-----------|--------|
-| `apps/web/src/components/**` | UI components — covered by E2E / visual testing |
-| `apps/web/src/app/**` | Next.js pages/layouts — covered by E2E |
-| `apps/web/src/contexts/**` | React context providers — thin wiring |
-| `apps/web/src/actions/**` | Server actions — covered by integration tests |
-| `apps/admin/src/components/**` | UI components — covered by E2E |
-| `apps/admin/src/app/**` | Next.js pages/layouts |
-| `packages/ui/**` | shadcn/ui primitives — third-party wrappers |
-| `packages/types/**` | Type-only package, no runtime logic |
-| `packages/cli/**` | CLI tool — tested via integration |
-| `packages/db/**` | Schema definitions — tested via integration |
-| `packages/migrate/**` | One-shot migration scripts (Bun-specific: `bun:sqlite`) |
+| Exclusion                      | Reason                                                  |
+| ------------------------------ | ------------------------------------------------------- |
+| `apps/web/src/components/**`   | UI components — covered by E2E / visual testing         |
+| `apps/web/src/app/**`          | Next.js pages/layouts — covered by E2E                  |
+| `apps/web/src/contexts/**`     | React context providers — thin wiring                   |
+| `apps/web/src/actions/**`      | Server actions — covered by integration tests           |
+| `apps/admin/src/components/**` | UI components — covered by E2E                          |
+| `apps/admin/src/app/**`        | Next.js pages/layouts                                   |
+| `packages/ui/**`               | shadcn/ui primitives — third-party wrappers             |
+| `packages/types/**`            | Type-only package, no runtime logic                     |
+| `packages/cli/**`              | CLI tool — tested via integration                       |
+| `packages/db/**`               | Schema definitions — tested via integration             |
+| `packages/migrate/**`          | One-shot migration scripts (Bun-specific: `bun:sqlite`) |
 
 ---
 
@@ -38,42 +38,42 @@
 
 ### 2.1 Test framework
 
-| Layer | Runner | Config |
-|-------|--------|--------|
-| Unit (main) | Vitest v4.1.5 + v8 coverage | Root `vitest.config.ts` |
-| Unit (6 files) | Bun test runtime | `bun:test` imports |
-| Integration | Bun test + preload | `tests/integration/` |
-| E2E | Playwright | `playwright.config.ts` |
+| Layer          | Runner                      | Config                  |
+| -------------- | --------------------------- | ----------------------- |
+| Unit (main)    | Vitest v4.1.5 + v8 coverage | Root `vitest.config.ts` |
+| Unit (6 files) | Bun test runtime            | `bun:test` imports      |
+| Integration    | Bun test + preload          | `tests/integration/`    |
+| E2E            | Playwright                  | `playwright.config.ts`  |
 
 ### 2.2 Bun-test files requiring migration
 
-| File | Bun-specific APIs | Difficulty |
-|------|-------------------|------------|
-| `tests/unit/auth-callbacks.test.ts` | `mock()` → `vi.fn()` | Easy |
-| `tests/unit/proxy.test.ts` | None (pure logic) | Easy |
-| `tests/unit/loader.test.ts` | Source uses `bun:sqlite` | **Keep in Bun** |
-| `tests/unit/verify.test.ts` | Source uses `bun:sqlite` | **Keep in Bun** |
-| `tests/unit/hooks/use-is-mobile.test.ts` | `mock.module()` → `vi.mock()` | Medium |
-| `tests/unit/hooks/use-theme.test.ts` | `mock.module()` → `vi.mock()` | Medium |
+| File                                     | Bun-specific APIs             | Difficulty      |
+| ---------------------------------------- | ----------------------------- | --------------- |
+| `tests/unit/auth-callbacks.test.ts`      | `mock()` → `vi.fn()`          | Easy            |
+| `tests/unit/proxy.test.ts`               | None (pure logic)             | Easy            |
+| `tests/unit/loader.test.ts`              | Source uses `bun:sqlite`      | **Keep in Bun** |
+| `tests/unit/verify.test.ts`              | Source uses `bun:sqlite`      | **Keep in Bun** |
+| `tests/unit/hooks/use-is-mobile.test.ts` | `mock.module()` → `vi.mock()` | Medium          |
+| `tests/unit/hooks/use-theme.test.ts`     | `mock.module()` → `vi.mock()` | Medium          |
 
 **Decision:** Migrate 4 files to Vitest (auth-callbacks, proxy, use-is-mobile, use-theme). Keep 2 files (loader, verify) under Bun because they test `packages/migrate` scripts that depend on `bun:sqlite` — these are excluded from the coverage gate.
 
 ### 2.3 Coverage summary (current)
 
-| Scope | Stmts | Branches | Funcs | Lines |
-|-------|-------|----------|-------|-------|
-| **Overall** | 49.49% | 46.10% | 42.67% | 49.34% |
-| `apps/worker/src/lib` | 98.22% | 96.32% | 100% | 98.40% |
-| `apps/worker/src/middleware` | 99.31% | 98.85% | 100% | 99.30% |
-| `apps/worker/src/handlers` | 73.39% | 66.85% | 73.64% | 73.72% |
-| `apps/worker/src/handlers/admin` | 65.24% | 57.75% | 64.81% | 67.55% |
-| `apps/web/src/lib` | 71.60% | 60.22% | 73.73% | 73.58% |
-| `apps/web/src/viewmodels/forum` | 48.61% | 62.66% | 50.78% | 44.33% |
-| `apps/web/src/viewmodels/shared` | 98.52% | 97.77% | 100% | 100% |
-| `apps/web/src/hooks` | 1.72% | 0% | 0% | 1.92% |
-| `packages/shared/src` | 0% | 0% | 0% | 0% |
-| `packages/test-mocks/src` | 100% | 98.26% | 100% | 100% |
-| `apps/admin` (not measured) | — | — | — | — |
+| Scope                            | Stmts  | Branches | Funcs  | Lines  |
+| -------------------------------- | ------ | -------- | ------ | ------ |
+| **Overall**                      | 49.49% | 46.10%   | 42.67% | 49.34% |
+| `apps/worker/src/lib`            | 98.22% | 96.32%   | 100%   | 98.40% |
+| `apps/worker/src/middleware`     | 99.31% | 98.85%   | 100%   | 99.30% |
+| `apps/worker/src/handlers`       | 73.39% | 66.85%   | 73.64% | 73.72% |
+| `apps/worker/src/handlers/admin` | 65.24% | 57.75%   | 64.81% | 67.55% |
+| `apps/web/src/lib`               | 71.60% | 60.22%   | 73.73% | 73.58% |
+| `apps/web/src/viewmodels/forum`  | 48.61% | 62.66%   | 50.78% | 44.33% |
+| `apps/web/src/viewmodels/shared` | 98.52% | 97.77%   | 100%   | 100%   |
+| `apps/web/src/hooks`             | 1.72%  | 0%       | 0%     | 1.92%  |
+| `packages/shared/src`            | 0%     | 0%       | 0%     | 0%     |
+| `packages/test-mocks/src`        | 100%   | 98.26%   | 100%   | 100%   |
+| `apps/admin` (not measured)      | —      | —        | —      | —      |
 
 ---
 
@@ -131,26 +131,26 @@ packages/test-mocks/
 
 ### 3.3 Target thresholds (95% gate)
 
-| Package | Stmts | Lines | Funcs | Branches |
-|---------|-------|-------|-------|----------|
-| `apps/worker` | 95% | 95% | 95% | 90% |
-| `apps/web` | 95% | 95% | 95% | 90% |
-| `apps/admin` | 95% | 95% | 95% | 90% |
-| `packages/shared` | 95% | 95% | 95% | 90% |
-| `packages/test-mocks` | 98% | 98% | 98% | 95% |
+| Package               | Stmts | Lines | Funcs | Branches |
+| --------------------- | ----- | ----- | ----- | -------- |
+| `apps/worker`         | 95%   | 95%   | 95%   | 90%      |
+| `apps/web`            | 95%   | 95%   | 95%   | 90%      |
+| `apps/admin`          | 95%   | 95%   | 95%   | 90%      |
+| `packages/shared`     | 95%   | 95%   | 95%   | 90%      |
+| `packages/test-mocks` | 98%   | 98%   | 98%   | 95%      |
 
 ### 3.4 Root scripts (updated)
 
 ```json
 {
-  "test": "vitest run --workspace vitest.workspace.ts",
-  "test:worker": "vitest run --project worker",
-  "test:web": "vitest run --project web",
-  "test:admin": "vitest run --project admin",
-  "test:shared": "vitest run --project shared",
-  "test:test-mocks": "vitest run --project test-mocks",
-  "test:coverage": "vitest run --workspace vitest.workspace.ts --coverage",
-  "test:bun": "bun test tests/unit/loader.test.ts tests/unit/verify.test.ts"
+	"test": "vitest run --workspace vitest.workspace.ts",
+	"test:worker": "vitest run --project worker",
+	"test:web": "vitest run --project web",
+	"test:admin": "vitest run --project admin",
+	"test:shared": "vitest run --project shared",
+	"test:test-mocks": "vitest run --project test-mocks",
+	"test:coverage": "vitest run --workspace vitest.workspace.ts --coverage",
+	"test:bun": "bun test tests/unit/loader.test.ts tests/unit/verify.test.ts"
 }
 ```
 
@@ -377,13 +377,13 @@ coverage: {
 
 Before ratcheting a package to 95%, verify each included source file is worth unit testing:
 
-| Check | Question |
-|-------|----------|
-| **Has logic?** | Does the file contain branching, loops, or non-trivial transformations? (Barrel re-exports: exclude) |
-| **Not pure wiring?** | Is it more than just connecting A to B? (Thin route handlers that only proxy to a handler: may exclude) |
-| **Not a generated file?** | Auto-generated code should be excluded |
-| **Not a type-only file?** | `.d.ts` and type-only `.ts` files excluded |
-| **Testable in isolation?** | Can it be tested without a full server/browser environment? (If not: integration/E2E, not unit) |
+| Check                      | Question                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Has logic?**             | Does the file contain branching, loops, or non-trivial transformations? (Barrel re-exports: exclude)    |
+| **Not pure wiring?**       | Is it more than just connecting A to B? (Thin route handlers that only proxy to a handler: may exclude) |
+| **Not a generated file?**  | Auto-generated code should be excluded                                                                  |
+| **Not a type-only file?**  | `.d.ts` and type-only `.ts` files excluded                                                              |
+| **Testable in isolation?** | Can it be tested without a full server/browser environment? (If not: integration/E2E, not unit)         |
 
 Run this audit at the start of each package wave. Document any files moved to `exclude` with rationale.
 
@@ -391,18 +391,18 @@ Run this audit at the start of each package wave. Document any files moved to `e
 
 ## 7. Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Vitest workspace mode | Native monorepo support; each project runs isolated with its own config, coverage, and environment |
-| Per-package thresholds | Avoids averaging effect — each package must independently pass |
-| 90% branch threshold (vs 95%) | V8 branch counting is generous (counts `??`, `&&`, `\|\|` as branches); 90% is pragmatic |
-| Keep loader/verify in Bun | `bun:sqlite` has no Node equivalent without adding `better-sqlite3` dep |
-| Exclude UI components | UI correctness validated by E2E/visual; unit testing shadcn wrappers adds noise not signal |
-| Admin component tests non-gated | Existing admin component tests are smoke tests for rendering; not meaningful for logic coverage |
-| `*.server.ts` files included | Server-side viewmodels contain real logic (data fetching, transformation) |
-| Migrate test file locations | Colocating tests with their package makes ownership clear and enables independent CI |
-| Scope audit before ratchet | Each included file must justify its unit-testability; avoids forcing tests on pure wiring code |
-| `packages/test-mocks` gated independently | Already high coverage; dedicated commit satisfies per-package atomicity requirement |
+| Decision                                  | Rationale                                                                                          |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Vitest workspace mode                     | Native monorepo support; each project runs isolated with its own config, coverage, and environment |
+| Per-package thresholds                    | Avoids averaging effect — each package must independently pass                                     |
+| 90% branch threshold (vs 95%)             | V8 branch counting is generous (counts `??`, `&&`, `\|\|` as branches); 90% is pragmatic           |
+| Keep loader/verify in Bun                 | `bun:sqlite` has no Node equivalent without adding `better-sqlite3` dep                            |
+| Exclude UI components                     | UI correctness validated by E2E/visual; unit testing shadcn wrappers adds noise not signal         |
+| Admin component tests non-gated           | Existing admin component tests are smoke tests for rendering; not meaningful for logic coverage    |
+| `*.server.ts` files included              | Server-side viewmodels contain real logic (data fetching, transformation)                          |
+| Migrate test file locations               | Colocating tests with their package makes ownership clear and enables independent CI               |
+| Scope audit before ratchet                | Each included file must justify its unit-testability; avoids forcing tests on pure wiring code     |
+| `packages/test-mocks` gated independently | Already high coverage; dedicated commit satisfies per-package atomicity requirement                |
 
 ---
 

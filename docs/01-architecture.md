@@ -35,31 +35,31 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台并重建
 
 ### 前端项目（共三个）
 
-| 项目 | 技术栈 | 说明 | 部署 |
-|------|--------|------|------|
-| **CLI 客户端** | Rust / ratatui | 只读 TUI 工具，通过 Key A 读取数据，登录可选，可独立发布 | 独立二进制 |
-| **Admin 管理后台** | Next.js | 论坛完整管理功能（用户/内容/版块管理），Key B + Google OAuth | 同一 Next.js 项目 |
-| **Web 论坛前端** | Next.js | 基于网页的论坛浏览、发帖、回帖，Key A + 论坛用户 JWT | 同一 Next.js 项目 |
+| 项目               | 技术栈         | 说明                                                         | 部署              |
+| ------------------ | -------------- | ------------------------------------------------------------ | ----------------- |
+| **CLI 客户端**     | Rust / ratatui | 只读 TUI 工具，通过 Key A 读取数据，登录可选，可独立发布     | 独立二进制        |
+| **Admin 管理后台** | Next.js        | 论坛完整管理功能（用户/内容/版块管理），Key B + Google OAuth | 同一 Next.js 项目 |
+| **Web 论坛前端**   | Next.js        | 基于网页的论坛浏览、发帖、回帖，Key A + 论坛用户 JWT         | 同一 Next.js 项目 |
 
 > Admin 和论坛前端在同一个 Next.js 项目中（`apps/web/`），通过路由分区（`/admin/*` vs `/`）。
 
 ## 技术选型
 
-| 层次 | 技术 | 说明 |
-|------|------|------|
-| 运行时 | Bun | 原生 TypeScript 支持，内置测试框架 |
-| 语言（Web/Worker） | TypeScript (strict) | 类型安全，重构友好 |
-| 语言（CLI） | Rust (2024 edition) | 高性能 TUI，独立分发 |
-| 数据库 | Cloudflare D1 | SQLite 兼容，全球分布式读副本 |
-| 文件存储 | Cloudflare R2 | S3 兼容，无出口费用 |
-| 缓存 | Workers KV；静态资源使用 HTTP/CDN 缓存 | 业务缓存目标见 [统一缓存模块设计](20-worker-kv-reference.md) |
-| Web 框架 | Next.js 16 | App Router, Server Components |
-| API 层 | Cloudflare Workers | D1 中间层，手动路由 |
-| CLI TUI | ratatui + crossterm | 全屏交互式终端 |
-| CLI HTTP | ureq | 同步 HTTP 客户端 |
-| 包管理 | pnpm | Workspace monorepo |
-| 代码质量 | Biome (TS) + Clippy (Rust) | Lint + Format |
-| 测试 | bun test (TS) + cargo test (Rust) | 各自生态内置 |
+| 层次               | 技术                                   | 说明                                                         |
+| ------------------ | -------------------------------------- | ------------------------------------------------------------ |
+| 运行时             | Bun                                    | 原生 TypeScript 支持，内置测试框架                           |
+| 语言（Web/Worker） | TypeScript (strict)                    | 类型安全，重构友好                                           |
+| 语言（CLI）        | Rust (2024 edition)                    | 高性能 TUI，独立分发                                         |
+| 数据库             | Cloudflare D1                          | SQLite 兼容，全球分布式读副本                                |
+| 文件存储           | Cloudflare R2                          | S3 兼容，无出口费用                                          |
+| 缓存               | Workers KV；静态资源使用 HTTP/CDN 缓存 | 业务缓存目标见 [统一缓存模块设计](20-worker-kv-reference.md) |
+| Web 框架           | Next.js 16                             | App Router, Server Components                                |
+| API 层             | Cloudflare Workers                     | D1 中间层，手动路由                                          |
+| CLI TUI            | ratatui + crossterm                    | 全屏交互式终端                                               |
+| CLI HTTP           | ureq                                   | 同步 HTTP 客户端                                             |
+| 包管理             | pnpm                                   | Workspace monorepo                                           |
+| 代码质量           | Biome (TS) + Clippy (Rust)             | Lint + Format                                                |
+| 测试               | bun test (TS) + cargo test (Rust)      | 各自生态内置                                                 |
 
 ## Monorepo 结构
 
@@ -107,6 +107,7 @@ ellie/
 ## 实施路线图
 
 ### Phase 1：数据迁移（已完成）
+
 - 从 MySQL dump 解析数据
 - 转换编码、BBCode、密码格式
 - 写入本地 SQLite 验证
@@ -114,16 +115,19 @@ ellie/
 - 验证数据完整性
 
 ### Phase 2：Worker API 层（已完成）
+
 - Cloudflare Worker API（路由、中间件、认证）
 - API Key 认证机制
 - 部署到 `ellie.worker.hexly.ai`
 - 详见：[05-worker-api.md](./05-worker-api.md)
 
 ### Phase 3：Web 前端（设计完成，待实现）
+
 - Next.js 论坛界面 + Admin 管理后台
 - 详见：[04-application.md](./04-application.md)
 
 ### Phase 4：CLI 客户端（设计完成，待实现）
+
 - Rust TUI 客户端
 - 详见：[06-cli-design.md](./06-cli-design.md)
 
@@ -133,29 +137,29 @@ ellie/
 
 ### TypeScript 项目（Worker + Web）
 
-| 维度 | 工具 | 配置 | 运行时机 |
-|------|------|------|---------|
-| L1 单元测试 | bun test | ≥95% 覆盖率 | pre-commit |
-| L2 集成测试 | bun test | 真 HTTP 端点 | pre-push |
-| L3 端到端测试 | Playwright | E2E 场景 | CI |
-| G1 静态分析 | Biome strict | 0 error, 0 warning | pre-commit |
-| G2 安全门控 | osv-scanner + gitleaks | 依赖漏洞 + 密钥泄露 | pre-push |
-| D1 测试隔离 | local SQLite | 独立本地 SQLite/Miniflare 状态 | L2/L3 连接 |
+| 维度          | 工具                   | 配置                           | 运行时机   |
+| ------------- | ---------------------- | ------------------------------ | ---------- |
+| L1 单元测试   | bun test               | ≥95% 覆盖率                    | pre-commit |
+| L2 集成测试   | bun test               | 真 HTTP 端点                   | pre-push   |
+| L3 端到端测试 | Playwright             | E2E 场景                       | CI         |
+| G1 静态分析   | Biome strict           | 0 error, 0 warning             | pre-commit |
+| G2 安全门控   | osv-scanner + gitleaks | 依赖漏洞 + 密钥泄露            | pre-push   |
+| D1 测试隔离   | local SQLite           | 独立本地 SQLite/Miniflare 状态 | L2/L3 连接 |
 
 ### Rust 项目（CLI）
 
-| 维度 | 工具 | 配置 | 运行时机 |
-|------|------|------|---------|
-| L1 单元测试 | cargo test | ≥90% 覆盖率 | pre-commit |
-| L2 集成测试 | cargo test --test integration | 真 HTTP 端点 | pre-push |
-| L3 端到端测试 | 手动 smoke test | TUI 交互验证 | 按需 |
-| G1 静态分析 | cargo clippy + cargo fmt | -D warnings | pre-commit |
-| G2 安全门控 | osv-scanner + gitleaks | Cargo.lock 漏洞扫描 | pre-push |
-| D1 测试隔离 | N/A | CLI 只读，无数据库直连 | — |
+| 维度          | 工具                          | 配置                   | 运行时机   |
+| ------------- | ----------------------------- | ---------------------- | ---------- |
+| L1 单元测试   | cargo test                    | ≥90% 覆盖率            | pre-commit |
+| L2 集成测试   | cargo test --test integration | 真 HTTP 端点           | pre-push   |
+| L3 端到端测试 | 手动 smoke test               | TUI 交互验证           | 按需       |
+| G1 静态分析   | cargo clippy + cargo fmt      | -D warnings            | pre-commit |
+| G2 安全门控   | osv-scanner + gitleaks        | Cargo.lock 漏洞扫描    | pre-push   |
+| D1 测试隔离   | N/A                           | CLI 只读，无数据库直连 | —          |
 
 ### Hook 映射
 
-| Hook | TypeScript | Rust |
-|------|-----------|------|
+| Hook       | TypeScript                            | Rust                                          |
+| ---------- | ------------------------------------- | --------------------------------------------- |
 | pre-commit | biome check + tsc --noEmit + bun test | cargo fmt --check + cargo clippy + cargo test |
-| pre-push | L2 tests + osv-scanner + gitleaks | cargo test --test integration + osv-scanner |
+| pre-push   | L2 tests + osv-scanner + gitleaks     | cargo test --test integration + osv-scanner   |

@@ -20,16 +20,15 @@ mandatory throughout.
 Investigated on 2026-09-23 against Worker v1.14.0 and Git v1.14.0. The following
 are Cloudflare adaptive analytics for complete UTC days, not final invoice data.
 
-| UTC date | Production KV reads | KV writes | Worker requests |
-| --- | ---: | ---: | ---: |
-| 2026-09-16 | 116,719 | 9,052 | 62,740 |
-| 2026-09-17 | 5,228,834 | 170,008 | 140,568 |
-| 2026-09-18 | 5,985,908 | 200,143 | 96,055 |
-| 2026-09-19 | 314,914 | 37,623 | 58,119 |
-| 2026-09-20 | 358,496 | 38,411 | 74,498 |
-| 2026-09-21 | 407,736 | 40,614 | 68,579 |
-| 2026-09-22 | 523,214 | 48,613 | 82,289 |
-
+| UTC date   | Production KV reads | KV writes | Worker requests |
+| ---------- | ------------------: | --------: | --------------: |
+| 2026-09-16 |             116,719 |     9,052 |          62,740 |
+| 2026-09-17 |           5,228,834 |   170,008 |         140,568 |
+| 2026-09-18 |           5,985,908 |   200,143 |          96,055 |
+| 2026-09-19 |             314,914 |    37,623 |          58,119 |
+| 2026-09-20 |             358,496 |    38,411 |          74,498 |
+| 2026-09-21 |             407,736 |    40,614 |          68,579 |
+| 2026-09-22 |             523,214 |    48,613 |          82,289 |
 - The unified cache change `4c49b7e0` introduced membership/entity/stat/generation
   fan-out. Forum summaries also expanded the latest thread of each forum.
 - `38703ac8` removed that summary expansion. The deployment on September 19
@@ -146,13 +145,13 @@ outer entrypoint validates the trusted caller and user; an internal cached
 entrypoint supplies reusable data. Native tiering, request collapsing, expiry,
 and purge should replace application orchestration where possible.
 
-| Data | Initial proposal |
-| --- | --- |
-| Home forum/digest/stat displays | Shared response, 30–60 seconds |
-| Forum lists | Per normalized forum/page/type response, 30–60 seconds |
-| Thread pages | Per thread/page content and attachment response, 30–60 seconds |
-| Expensive totals/digest aggregates | Retain KV only when measured reuse justifies it |
-| Sessions, email verification, rate limits, private messages | Separate; never shared response cache |
+| Data                                                        | Initial proposal                                               |
+| ----------------------------------------------------------- | -------------------------------------------------------------- |
+| Home forum/digest/stat displays                             | Shared response, 30–60 seconds                                 |
+| Forum lists                                                 | Per normalized forum/page/type response, 30–60 seconds         |
+| Thread pages                                                | Per thread/page content and attachment response, 30–60 seconds |
+| Expensive totals/digest aggregates                          | Retain KV only when measured reuse justifies it                |
+| Sessions, email verification, rate limits, private messages | Separate; never shared response cache                          |
 
 Define mutation-driven purge, bounded freshness, and failure behavior before
 implementation. Deletion, hiding, anonymity, and current authorization must

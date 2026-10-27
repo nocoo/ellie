@@ -186,8 +186,7 @@ async function loadSources(): Promise<SourceData> {
 	const cm = new Map<number, CommonMember>(cmList.map((u) => [u.uid, u]));
 	const st = new Map<number, MemberStatus>(stList.map((u) => [u.uid, u]));
 
-	const reduceMax = (arr: { uid: number }[]): number =>
-		arr.reduce((m, u) => (u.uid > m ? u.uid : m), 0);
+	const reduceMax = (arr: { uid: number }[]): number => arr.reduce((m, u) => Math.max(u.uid, m), 0);
 	const maxUid = Math.max(reduceMax(ucList), reduceMax(cmList));
 	console.log(`> source max uid = ${maxUid}`);
 	return { ucList, cmList, stList, maps: { uc, cm, st }, maxUid };
@@ -448,9 +447,9 @@ async function main() {
 			uc_members: src.ucList.length,
 			pre_common_member: src.cmList.length,
 			pre_common_member_status: src.stList.length,
-			max_uid_uc: src.ucList.reduce((m, u) => (u.uid > m ? u.uid : m), 0),
-			max_uid_member: src.cmList.reduce((m, u) => (u.uid > m ? u.uid : m), 0),
-			max_uid_status: src.stList.reduce((m, u) => (u.uid > m ? u.uid : m), 0),
+			max_uid_uc: src.ucList.reduce((m, u) => Math.max(u.uid, m), 0),
+			max_uid_member: src.cmList.reduce((m, u) => Math.max(u.uid, m), 0),
+			max_uid_status: src.stList.reduce((m, u) => Math.max(u.uid, m), 0),
 		},
 		d1: {
 			users_seen: scan.totalSeen,

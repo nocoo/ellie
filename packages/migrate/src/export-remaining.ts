@@ -41,7 +41,7 @@ for (let minId = startId; minId <= maxId; minId += STEP) {
 	if (existsSync(filepath)) unlinkSync(filepath);
 
 	console.log(
-		`${filename}: id ${minId}-${nextId > maxId ? maxId : nextId}, ${count.toLocaleString()} rows...`,
+		`${filename}: id ${minId}-${Math.min(nextId, maxId)}, ${count.toLocaleString()} rows...`,
 	);
 
 	const file = Bun.file(filepath);

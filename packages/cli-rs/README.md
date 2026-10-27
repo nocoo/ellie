@@ -47,22 +47,22 @@ packages/cli-rs/
 
 ## Keybindings
 
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Move down |
-| `k` / `↑` | Move up |
-| `g` | Jump to top |
-| `G` | Jump to bottom |
-| `Enter` | Open selected item |
-| `Esc` / `Backspace` | Go back |
-| `n` | Load next page |
-| `r` | Refresh current view |
-| `/` | Search / filter |
-| `u` | View author profile |
-| `L` | Login |
-| `t` | Cycle theme |
-| `?` | Toggle help |
-| `q` / `Ctrl+C` | Quit |
+| Key                 | Action               |
+| ------------------- | -------------------- |
+| `j` / `↓`           | Move down            |
+| `k` / `↑`           | Move up              |
+| `g`                 | Jump to top          |
+| `G`                 | Jump to bottom       |
+| `Enter`             | Open selected item   |
+| `Esc` / `Backspace` | Go back              |
+| `n`                 | Load next page       |
+| `r`                 | Refresh current view |
+| `/`                 | Search / filter      |
+| `u`                 | View author profile  |
+| `L`                 | Login                |
+| `t`                 | Cycle theme          |
+| `?`                 | Toggle help          |
+| `q` / `Ctrl+C`      | Quit                 |
 
 ## Setup
 
@@ -111,10 +111,10 @@ cargo fmt --all --check
 
 ## Quality Dimensions
 
-| Dimension | Tool | Threshold |
-|-----------|------|-----------|
-| L1 Unit | `cargo test` + `cargo-llvm-cov` | ≥ 90% line coverage |
-| L2 Integration | `cargo test --test integration -- --ignored` | All pass |
-| G1 Lint | `cargo clippy -- -D warnings` + `cargo fmt --check` | Zero warnings |
-| G2 Security | `osv-scanner` + `gitleaks` | Zero findings |
-| D1 Isolation | HTTP loopback IP origin + `GET /api/live` attestation | Must be "test"; proxies and redirects disabled |
+| Dimension      | Tool                                                  | Threshold                                      |
+| -------------- | ----------------------------------------------------- | ---------------------------------------------- |
+| L1 Unit        | `cargo test` + `cargo-llvm-cov`                       | ≥ 90% line coverage                            |
+| L2 Integration | `cargo test --test integration -- --ignored`          | All pass                                       |
+| G1 Lint        | `cargo clippy -- -D warnings` + `cargo fmt --check`   | Zero warnings                                  |
+| G2 Security    | `osv-scanner` + `gitleaks`                            | Zero findings                                  |
+| D1 Isolation   | HTTP loopback IP origin + `GET /api/live` attestation | Must be "test"; proxies and redirects disabled |

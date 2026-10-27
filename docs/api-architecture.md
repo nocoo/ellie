@@ -93,11 +93,11 @@ Browser (Client Components)
 
 The Worker is the **single source of truth** for all data operations.
 
-| Prefix | Key | Auth | Description |
-|--------|-----|------|-------------|
-| `/api/v1/*` | Key A (`API_KEY`) | Optional JWT | Public forum API |
-| `/api/admin/*` | Key B (`ADMIN_API_KEY`) | Admin session enforced by Next.js proxy | Admin-only API |
-| `/api/live` | None | None | Health check |
+| Prefix         | Key                     | Auth                                    | Description      |
+| -------------- | ----------------------- | --------------------------------------- | ---------------- |
+| `/api/v1/*`    | Key A (`API_KEY`)       | Optional JWT                            | Public forum API |
+| `/api/admin/*` | Key B (`ADMIN_API_KEY`) | Admin session enforced by Next.js proxy | Admin-only API   |
+| `/api/live`    | None                    | None                                    | Health check     |
 
 **Key endpoints:**
 - `GET /api/v1/forums` - List forums; optional `view=names` returns only visible `{ id, name }` entries without thread summaries
@@ -120,13 +120,13 @@ Next.js routes act as **proxies** that:
 
 **Critical rule:** Every endpoint that the browser calls MUST have a corresponding Next.js route.
 
-| Browser calls | Next.js route | Proxies to Worker |
-|---------------|---------------|-------------------|
+| Browser calls      | Next.js route                  | Proxies to Worker  |
+| ------------------ | ------------------------------ | ------------------ |
 | `/api/v1/settings` | `app/api/v1/settings/route.ts` | `/api/v1/settings` |
 | `/api/v1/users/me` | `app/api/v1/users/me/route.ts` | `/api/v1/users/me` |
-| `/api/v1/upload` | `app/api/v1/upload/route.ts` | `/api/v1/upload` |
-| `/api/admin/*` | `app/api/admin/*/route.ts` | `/api/admin/*` |
-| `/api/auth/*` | NextAuth handlers | N/A (NextAuth) |
+| `/api/v1/upload`   | `app/api/v1/upload/route.ts`   | `/api/v1/upload`   |
+| `/api/admin/*`     | `app/api/admin/*/route.ts`     | `/api/admin/*`     |
+| `/api/auth/*`      | NextAuth handlers              | N/A (NextAuth)     |
 
 Avatar uploads from the forum accept JPG/PNG originals up to 5 MB. Before forwarding to the Worker, the Next.js upload route decodes the image, applies EXIF orientation, fits it inside 360×360 without upscaling or cropping, flattens transparency onto white, and encodes JPEG at quality 80. The Worker validates the resulting file against its 200 KB limit, stores it in R2 under a unique `.jpg` path with `image/jpeg`, updates only `avatar_path`, and invalidates the user cache. Post images retain their original bytes; existing stored avatars are unchanged.
 
@@ -138,10 +138,10 @@ Avatar-bearing responses carry explicit avatar paths. A nonempty path resolves d
 
 Server Components and Server Actions can call the Worker directly using:
 
-| Client | File | Key | Use Case |
-|--------|------|-----|----------|
-| `forumApi` | `lib/forum-api.ts` | Key A | SSR forum pages |
-| `adminApi` | `lib/admin-api.ts` | Key B | Admin console SSR |
+| Client      | File                | Key         | Use Case                     |
+| ----------- | ------------------- | ----------- | ---------------------------- |
+| `forumApi`  | `lib/forum-api.ts`  | Key A       | SSR forum pages              |
+| `adminApi`  | `lib/admin-api.ts`  | Key B       | Admin console SSR            |
 | `authFetch` | `lib/forum-auth.ts` | Key A + JWT | Authenticated server actions |
 
 ## API Clients
@@ -178,10 +178,10 @@ await authPatch("/api/v1/users/me", data); // Injects JWT from session
 
 ### Dual Auth System
 
-| Provider | Use Case | Token Storage |
-|----------|----------|---------------|
-| Google OAuth | Admin Console | NextAuth session (cookie) |
-| Credentials | Forum users | NextAuth session + Worker JWT |
+| Provider     | Use Case      | Token Storage                 |
+| ------------ | ------------- | ----------------------------- |
+| Google OAuth | Admin Console | NextAuth session (cookie)     |
+| Credentials  | Forum users   | NextAuth session + Worker JWT |
 
 ### JWT Flow (Forum Users)
 
@@ -199,9 +199,9 @@ await authPatch("/api/v1/users/me", data); // Injects JWT from session
 ```typescript
 // Worker middleware/apiKey.ts
 if (path.startsWith("/api/admin/")) {
-  // Requires Key B (ADMIN_API_KEY)
+	// Requires Key B (ADMIN_API_KEY)
 } else {
-  // Requires Key A (API_KEY)
+	// Requires Key A (API_KEY)
 }
 ```
 
@@ -235,7 +235,7 @@ import { apiClient } from "@/lib/api-client"; // Browser-safe
 ```typescript
 // Browser trying to call Worker
 fetch("https://worker.example.com/api/v1/threads", {
-  headers: { "X-API-Key": "secret" } // Exposes key!
+	headers: { "X-API-Key": "secret" }, // Exposes key!
 });
 ```
 
@@ -247,15 +247,15 @@ fetch("/api/v1/threads"); // Next.js injects key server-side
 
 ## Environment Variables
 
-| Variable | Location | Purpose |
-|----------|----------|---------|
-| `API_KEY` | Worker | Key A - public API auth |
-| `ADMIN_API_KEY` | Worker | Key B - admin API auth |
-| `JWT_SECRET` | Worker | JWT signing |
-| `WORKER_API_URL` | Next.js | Worker base URL |
-| `FORUM_API_KEY` | Next.js | Key A for forum-api.ts |
-| `ADMIN_API_KEY` | Next.js | Key B for admin-api.ts |
-| `ADMIN_EMAILS` | Next.js | Google OAuth admin whitelist |
+| Variable         | Location | Purpose                      |
+| ---------------- | -------- | ---------------------------- |
+| `API_KEY`        | Worker   | Key A - public API auth      |
+| `ADMIN_API_KEY`  | Worker   | Key B - admin API auth       |
+| `JWT_SECRET`     | Worker   | JWT signing                  |
+| `WORKER_API_URL` | Next.js  | Worker base URL              |
+| `FORUM_API_KEY`  | Next.js  | Key A for forum-api.ts       |
+| `ADMIN_API_KEY`  | Next.js  | Key B for admin-api.ts       |
+| `ADMIN_EMAILS`   | Next.js  | Google OAuth admin whitelist |
 
 ## Adding New Endpoints
 
@@ -264,7 +264,7 @@ fetch("/api/v1/threads"); // Next.js injects key server-side
 ```typescript
 // apps/worker/src/handlers/example.ts
 export async function myHandler(request: Request, env: Env) {
-  // Implementation
+	// Implementation
 }
 ```
 
@@ -285,8 +285,8 @@ import { forumApi } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const result = await forumApi.get("/api/v1/example");
-  return NextResponse.json(result.data);
+	const result = await forumApi.get("/api/v1/example");
+	return NextResponse.json(result.data);
 }
 ```
 

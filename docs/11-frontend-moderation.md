@@ -7,12 +7,12 @@
 Frontend moderation provides in-context management capabilities directly within the forum UI, without requiring access to the admin console.
 
 **Role Hierarchy:**
-| Role | Code | Scope | Capabilities |
-|------|------|-------|--------------|
-| Admin | 1 | Global | All operations, can manage users |
-| Super Moderator | 2 | Global | All forum operations, can manage users |
-| Moderator | 3 | Assigned Forums | Thread/post operations within scope |
-| User | 0 | Own Content | Edit/delete own posts (within time limit) |
+| Role            | Code | Scope           | Capabilities                              |
+| --------------- | ---- | --------------- | ----------------------------------------- |
+| Admin           | 1    | Global          | All operations, can manage users          |
+| Super Moderator | 2    | Global          | All forum operations, can manage users    |
+| Moderator       | 3    | Assigned Forums | Thread/post operations within scope       |
+| User            | 0    | Own Content     | Edit/delete own posts (within time limit) |
 
 **⚠️ IMPORTANT - Current Implementation Gap:**
 
@@ -35,32 +35,32 @@ This means a Moderator can currently bypass the permission model defined in `@el
 
 ### Actual Endpoints (Current Implementation)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/moderation/threads/:id/sticky` | PATCH | Set sticky level: `{ level: "none" \| "forum" \| "global" }` |
-| `/api/v1/moderation/threads/:id/digest` | PATCH | Set digest level: `{ level: 0-3 }` |
-| `/api/v1/moderation/threads/:id/close` | PATCH | Lock/unlock: `{ closed: boolean }` |
-| `/api/v1/moderation/threads/:id/move` | PATCH | Move thread: `{ targetForumId: number }` |
-| `/api/v1/moderation/threads/:id/highlight` | PATCH | Set highlight: `{ color, bold, italic, underline }` |
-| `/api/v1/moderation/threads/:id` | DELETE | Delete thread and all posts |
-| `/api/v1/moderation/posts/:id` | DELETE | Delete post (non-first only) |
-| `/api/v1/moderation/posts/:id` | PATCH | Edit post content: `{ content: string }` |
+| Endpoint                                   | Method | Description                                                  |
+| ------------------------------------------ | ------ | ------------------------------------------------------------ |
+| `/api/v1/moderation/threads/:id/sticky`    | PATCH  | Set sticky level: `{ level: "none" \| "forum" \| "global" }` |
+| `/api/v1/moderation/threads/:id/digest`    | PATCH  | Set digest level: `{ level: 0-3 }`                           |
+| `/api/v1/moderation/threads/:id/close`     | PATCH  | Lock/unlock: `{ closed: boolean }`                           |
+| `/api/v1/moderation/threads/:id/move`      | PATCH  | Move thread: `{ targetForumId: number }`                     |
+| `/api/v1/moderation/threads/:id/highlight` | PATCH  | Set highlight: `{ color, bold, italic, underline }`          |
+| `/api/v1/moderation/threads/:id`           | DELETE | Delete thread and all posts                                  |
+| `/api/v1/moderation/posts/:id`             | DELETE | Delete post (non-first only)                                 |
+| `/api/v1/moderation/posts/:id`             | PATCH  | Edit post content: `{ content: string }`                     |
 
 ### User Self-Service Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/me/posts/:id` | DELETE | Delete own post |
-| `/api/v1/me/posts/:id` | PATCH | Edit own post |
+| Endpoint                 | Method | Description       |
+| ------------------------ | ------ | ----------------- |
+| `/api/v1/me/posts/:id`   | DELETE | Delete own post   |
+| `/api/v1/me/posts/:id`   | PATCH  | Edit own post     |
 | `/api/v1/me/threads/:id` | DELETE | Delete own thread |
 
 ### Sticky Levels
 
-| Level | Value | Description |
-|-------|-------|-------------|
-| `none` | 0 | No sticky |
-| `forum` | 1 | Sticky within forum |
-| `global` | 2 | Global sticky (all forums) |
+| Level    | Value | Description                |
+| -------- | ----- | -------------------------- |
+| `none`   | 0     | No sticky                  |
+| `forum`  | 1     | Sticky within forum        |
+| `global` | 2     | Global sticky (all forums) |
 
 **Note:** "category" sticky mentioned in some old docs does NOT exist in implementation.
 
@@ -75,14 +75,14 @@ This means a Moderator can currently bypass the permission model defined in `@el
 **Current Location:** Bottom of first post, in a separate "管理操作" bar  
 **Component:** `ThreadModMenu` in `components/forum/thread-mod-menu.tsx`
 
-| Feature | Status | API Endpoint |
-|---------|--------|--------------|
-| Sticky | ✅ | `PATCH /threads/:id/sticky` |
-| Highlight | ✅ | `PATCH /threads/:id/highlight` |
-| Digest | ✅ | `PATCH /threads/:id/digest` |
-| Lock/Unlock | ✅ | `PATCH /threads/:id/close` |
-| Move | ✅ | `PATCH /threads/:id/move` |
-| Delete | ✅ | `DELETE /threads/:id` |
+| Feature     | Status | API Endpoint                   |
+| ----------- | ------ | ------------------------------ |
+| Sticky      | ✅     | `PATCH /threads/:id/sticky`    |
+| Highlight   | ✅     | `PATCH /threads/:id/highlight` |
+| Digest      | ✅     | `PATCH /threads/:id/digest`    |
+| Lock/Unlock | ✅     | `PATCH /threads/:id/close`     |
+| Move        | ✅     | `PATCH /threads/:id/move`      |
+| Delete      | ✅     | `DELETE /threads/:id`          |
 
 **UI Relocation Consideration:**
 
@@ -107,11 +107,11 @@ Decision needed based on overall UX direction.
 **Current Location:** Bottom of each post  
 **Component:** `PostActionBar` in `components/forum/post-action-bar.tsx`
 
-| Feature | Status | Who Can Use |
-|---------|--------|-------------|
-| Reply | ✅ | All logged-in users |
-| Edit | ✅ | Author (within limit) or Mod+ |
-| Delete | ✅ | Author (non-first, within limit) or Mod+ |
+| Feature | Status | Who Can Use                              |
+| ------- | ------ | ---------------------------------------- |
+| Reply   | ✅     | All logged-in users                      |
+| Edit    | ✅     | Author (within limit) or Mod+            |
+| Delete  | ✅     | Author (non-first, within limit) or Mod+ |
 
 **Current Layout:**
 ```
@@ -142,29 +142,29 @@ User management by moderators/admins needs two entry points:
 **Current State:** Shows user info, admin-only section visible, "管理" button exists but non-functional  
 **Component:** `UserPopover` in `components/forum/user-popover.tsx`
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| View profile | ✅ | Link to user page |
-| Send message | ✅ | Link to PM compose |
-| Admin info section | ✅ | Shows QQ/site for admins |
+| Feature                | Status  | Description                    |
+| ---------------------- | ------- | ------------------------------ |
+| View profile           | ✅      | Link to user page              |
+| Send message           | ✅      | Link to PM compose             |
+| Admin info section     | ✅      | Shows QQ/site for admins       |
 | **Mod actions button** | 📋 TODO | Dropdown with ban/warn actions |
 
 **TODO - Mod Actions Dropdown:**
 ```tsx
 <DropdownMenu>
-  <DropdownMenuTrigger>
-    <Button variant="ghost" size="xs">
-      <Shield /> 管理
-    </Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent>
-    <DropdownMenuItem>查看 IP 记录</DropdownMenuItem>
-    <DropdownMenuItem>禁止发言</DropdownMenuItem>
-    <DropdownMenuSeparator />
-    <DropdownMenuItem variant="destructive">封禁用户</DropdownMenuItem>
-    <DropdownMenuItem variant="destructive">封禁并删除内容</DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
+	<DropdownMenuTrigger>
+		<Button variant="ghost" size="xs">
+			<Shield /> 管理
+		</Button>
+	</DropdownMenuTrigger>
+	<DropdownMenuContent>
+		<DropdownMenuItem>查看 IP 记录</DropdownMenuItem>
+		<DropdownMenuItem>禁止发言</DropdownMenuItem>
+		<DropdownMenuSeparator />
+		<DropdownMenuItem variant="destructive">封禁用户</DropdownMenuItem>
+		<DropdownMenuItem variant="destructive">封禁并删除内容</DropdownMenuItem>
+	</DropdownMenuContent>
+</DropdownMenu>;
 ```
 
 #### 3.2 User Profile Page 📋 Planned
@@ -172,10 +172,10 @@ User management by moderators/admins needs two entry points:
 **Path:** `/users/[id]`  
 **Current State:** Shows user profile, edit capability for own profile
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Profile display | ✅ | User info, stats, recent activity |
-| Edit own profile | ✅ | Update bio, avatar, etc. |
+| Feature            | Status  | Description                             |
+| ------------------ | ------- | --------------------------------------- |
+| Profile display    | ✅      | User info, stats, recent activity       |
+| Edit own profile   | ✅      | Update bio, avatar, etc.                |
 | **Mod action bar** | 📋 TODO | Management toolbar for admins/supermods |
 
 ---
@@ -186,46 +186,46 @@ All user moderation actions require **confirmation dialog** before API call.
 
 #### 4.1 View IP Records
 
-| Item | Detail |
-|------|--------|
-| Entry | User popover, User profile page |
-| Who can use | Admin, Super Moderator |
-| Action | Show modal with IP history |
-| API | `GET /api/v1/moderation/users/:id/ip-records` |
-| **Status** | ⚠️ API exists but returns empty array - database schema has no IP columns |
+| Item        | Detail                                                                    |
+| ----------- | ------------------------------------------------------------------------- |
+| Entry       | User popover, User profile page                                           |
+| Who can use | Admin, Super Moderator                                                    |
+| Action      | Show modal with IP history                                                |
+| API         | `GET /api/v1/moderation/users/:id/ip-records`                             |
+| **Status**  | ⚠️ API exists but returns empty array - database schema has no IP columns |
 
 **Note:** The current database schema does not include IP tracking columns in posts or users tables. The API endpoint exists and is properly permission-gated, but will return an empty array until IP tracking is implemented. UI entry points are disabled until the feature is complete.
 
 #### 4.2 Mute User (禁止发言)
 
-| Item | Detail |
-|------|--------|
-| Entry | User popover, User profile page |
-| Who can use | Admin, Super Moderator |
-| Action | Set user status to muted (can view, cannot post) |
+| Item         | Detail                                                     |
+| ------------ | ---------------------------------------------------------- |
+| Entry        | User popover, User profile page                            |
+| Who can use  | Admin, Super Moderator                                     |
+| Action       | Set user status to muted (can view, cannot post)           |
 | Confirmation | "确定禁止 {username} 发言？禁言后该用户将无法发帖和回复。" |
-| Duration | Permanent or timed (1d, 7d, 30d, custom) |
-| API needed | `POST /api/v1/moderation/users/:id/mute` |
+| Duration     | Permanent or timed (1d, 7d, 30d, custom)                   |
+| API needed   | `POST /api/v1/moderation/users/:id/mute`                   |
 
 #### 4.3 Ban User (封禁用户)
 
-| Item | Detail |
-|------|--------|
-| Entry | User popover, User profile page |
-| Who can use | Admin, Super Moderator |
-| Action | Set user status to banned (cannot access forum) |
+| Item         | Detail                                              |
+| ------------ | --------------------------------------------------- |
+| Entry        | User popover, User profile page                     |
+| Who can use  | Admin, Super Moderator                              |
+| Action       | Set user status to banned (cannot access forum)     |
 | Confirmation | "确定封禁 {username}？封禁后该用户将无法访问论坛。" |
-| API needed | `POST /api/v1/moderation/users/:id/ban` |
+| API needed   | `POST /api/v1/moderation/users/:id/ban`             |
 
 #### 4.4 Ban and Delete Content (封禁并删除内容)
 
-| Item | Detail |
-|------|--------|
-| Entry | User popover, User profile page |
-| Who can use | Admin, Super Moderator |
-| Action | Ban user + delete all their posts and threads |
+| Item         | Detail                                                   |
+| ------------ | -------------------------------------------------------- |
+| Entry        | User popover, User profile page                          |
+| Who can use  | Admin, Super Moderator                                   |
+| Action       | Ban user + delete all their posts and threads            |
 | Confirmation | "确定封禁 {username} 并删除其所有内容？此操作不可撤销。" |
-| API needed | `POST /api/v1/moderation/users/:id/nuke` |
+| API needed   | `POST /api/v1/moderation/users/:id/nuke`                 |
 
 **IMPORTANT: Deletion Cascade Order:**
 1. Delete all posts by user (update thread reply counts)
@@ -246,16 +246,16 @@ The `moderationMiddleware` only checked "is role > 0", allowing ANY mod to opera
 
 All moderation handlers now use the shared permission functions from `@ellie/types/permission.ts`:
 
-| Handler | Permission Function | Notes |
-|---------|-------------------|-------|
-| `setSticky` | `canModerate()` | Requires forum scope for Mods |
-| `setDigest` | `canModerate()` | Requires forum scope for Mods |
-| `setClose` | `canModerate()` | Requires forum scope for Mods |
-| `setHighlight` | `canModerate()` | Requires forum scope for Mods |
-| `moveThread` | `canMoveThread()` | Admin/SuperMod only |
-| `deleteThread` | `canDeleteThread()` | Author OR Admin/SuperMod |
-| `deletePost` | `canDeletePost()` | Author OR Admin/SuperMod |
-| `editPost` | `canEditPost()` | Author OR Mod in scope |
+| Handler        | Permission Function | Notes                         |
+| -------------- | ------------------- | ----------------------------- |
+| `setSticky`    | `canModerate()`     | Requires forum scope for Mods |
+| `setDigest`    | `canModerate()`     | Requires forum scope for Mods |
+| `setClose`     | `canModerate()`     | Requires forum scope for Mods |
+| `setHighlight` | `canModerate()`     | Requires forum scope for Mods |
+| `moveThread`   | `canMoveThread()`   | Admin/SuperMod only           |
+| `deleteThread` | `canDeleteThread()` | Author OR Admin/SuperMod      |
+| `deletePost`   | `canDeletePost()`   | Author OR Admin/SuperMod      |
+| `editPost`     | `canEditPost()`     | Author OR Mod in scope        |
 
 ### Helper Functions
 
@@ -280,13 +280,13 @@ The shared permission functions use this:
 ```typescript
 // packages/types/src/permission.ts
 export function canModerate(user: PermissionUser | null, forum: PermissionForum): boolean {
-  if (!user) return false;
-  if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
-  if (user.role === UserRole.Mod) {
-    const mods = parseModerators(forum.moderators);
-    return mods.includes(user.username);
-  }
-  return false;
+	if (!user) return false;
+	if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
+	if (user.role === UserRole.Mod) {
+		const mods = parseModerators(forum.moderators);
+		return mods.includes(user.username);
+	}
+	return false;
 }
 ```
 
@@ -296,12 +296,12 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 
 ### Phase 1: Backend Permission Enforcement ✅ Complete
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Update Worker handlers to import `@ellie/types` permission functions | ✅ Done | All handlers now use permission functions |
-| Add forum data fetch in moderation handlers | ✅ Done | `permissionHelpers.ts` provides helpers |
-| Add user data fetch in moderation handlers | ✅ Done | `getUserForPermission()`, `getForumForPermission()` |
-| L1 tests: permission boundary tests | ✅ Done | Tests cover Mod scope restrictions |
+| Task                                                                 | Status  | Notes                                               |
+| -------------------------------------------------------------------- | ------- | --------------------------------------------------- |
+| Update Worker handlers to import `@ellie/types` permission functions | ✅ Done | All handlers now use permission functions           |
+| Add forum data fetch in moderation handlers                          | ✅ Done | `permissionHelpers.ts` provides helpers             |
+| Add user data fetch in moderation handlers                           | ✅ Done | `getUserForPermission()`, `getForumForPermission()` |
+| L1 tests: permission boundary tests                                  | ✅ Done | Tests cover Mod scope restrictions                  |
 
 **Commit:** `feat(mod): enforce permission checks in moderation handlers`
 
@@ -313,13 +313,13 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 
 ### Phase 2: User Moderation (Medium Priority)
 
-| Task | Status |
-|------|--------|
-| Create mute/ban/nuke APIs | ✅ Done |
-| Implement user popover mod dropdown | ✅ Done |
+| Task                                 | Status  |
+| ------------------------------------ | ------- |
+| Create mute/ban/nuke APIs            | ✅ Done |
+| Implement user popover mod dropdown  | ✅ Done |
 | Create user ban confirmation dialogs | ✅ Done |
-| Add profile page mod panel | ✅ Done |
-| Implement IP record viewer page | 📋 TODO |
+| Add profile page mod panel           | ✅ Done |
+| Implement IP record viewer page      | 📋 TODO |
 
 **Phase 2.1 Commit:** `feat(mod): add user moderation APIs (mute/ban/nuke)`
 
@@ -349,10 +349,10 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 
 ### Phase 3: UI Polish (Low Priority)
 
-| Task | Status |
-|------|--------|
-| Post action bar left/right separation | ✅ Done |
-| Evaluate thread mod menu placement | 📋 Optional |
+| Task                                  | Status      |
+| ------------------------------------- | ----------- |
+| Post action bar left/right separation | ✅ Done     |
+| Evaluate thread mod menu placement    | 📋 Optional |
 
 **Phase 3 Commit:** `refactor(mod): PostActionBar left/right layout separation`
 
@@ -371,22 +371,22 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 
 This is the **authoritative** permission model defined in `packages/types/src/permission.ts`:
 
-| Action | Admin | SuperMod | Mod (in scope) | Mod (out of scope) | User |
-|--------|-------|----------|----------------|-------------------|------|
-| Sticky thread | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Highlight thread | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Digest thread | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Lock thread | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Move thread | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Delete thread | ✅ | ✅ | ❌ | ❌ | Own* |
-| Edit any post | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Delete any post | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Edit own post | ✅ | ✅ | ✅ | ✅ | ✅* |
-| Delete own post | ✅ | ✅ | ✅ | ✅ | ✅* |
-| View user IP | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Mute user | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Ban user | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Ban + delete | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Action           | Admin | SuperMod | Mod (in scope) | Mod (out of scope) | User |
+| ---------------- | ----- | -------- | -------------- | ------------------ | ---- |
+| Sticky thread    | ✅    | ✅       | ✅             | ❌                 | ❌   |
+| Highlight thread | ✅    | ✅       | ✅             | ❌                 | ❌   |
+| Digest thread    | ✅    | ✅       | ✅             | ❌                 | ❌   |
+| Lock thread      | ✅    | ✅       | ✅             | ❌                 | ❌   |
+| Move thread      | ✅    | ✅       | ❌             | ❌                 | ❌   |
+| Delete thread    | ✅    | ✅       | ❌             | ❌                 | Own* |
+| Edit any post    | ✅    | ✅       | ✅             | ❌                 | ❌   |
+| Delete any post  | ✅    | ✅       | ❌             | ❌                 | ❌   |
+| Edit own post    | ✅    | ✅       | ✅             | ✅                 | ✅*  |
+| Delete own post  | ✅    | ✅       | ✅             | ✅                 | ✅*  |
+| View user IP     | ✅    | ✅       | ❌             | ❌                 | ❌   |
+| Mute user        | ✅    | ✅       | ❌             | ❌                 | ❌   |
+| Ban user         | ✅    | ✅       | ❌             | ❌                 | ❌   |
+| Ban + delete     | ✅    | ✅       | ❌             | ❌                 | ❌   |
 
 \* Within time limit, if not locked
 
@@ -401,11 +401,11 @@ This is the **authoritative** permission model defined in `packages/types/src/pe
 
 ### Test Status
 
-| Level | Scope | Status | Notes |
-|-------|-------|--------|-------|
-| L1 Unit | Permission checks, UI rendering | ✅ Passing | 872 worker tests, permission boundary tests added |
-| L2 Integration | Moderation API flows | ⚠️ Stale | `tests/integration/moderation.test.ts` tests `POST /api/v1/moderation` which doesn't exist |
-| L3 E2E | Full moderation workflows | ❌ Not implemented | |
+| Level          | Scope                           | Status             | Notes                                                                                      |
+| -------------- | ------------------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| L1 Unit        | Permission checks, UI rendering | ✅ Passing         | 872 worker tests, permission boundary tests added                                          |
+| L2 Integration | Moderation API flows            | ⚠️ Stale           | `tests/integration/moderation.test.ts` tests `POST /api/v1/moderation` which doesn't exist |
+| L3 E2E         | Full moderation workflows       | ❌ Not implemented |                                                                                            |
 
 **Known Issues:**
 - `tests/integration/moderation.test.ts` tests a non-existent endpoint:
@@ -416,6 +416,7 @@ This is the **authoritative** permission model defined in `packages/types/src/pe
 ### Test Improvement Plan
 
 1. **Rewrite L2 tests** to match actual API:
+
    ```typescript
    // Example corrected test
    test("PATCH /api/v1/moderation/threads/:id/sticky", async () => {
@@ -434,6 +435,7 @@ This is the **authoritative** permission model defined in `packages/types/src/pe
    - User cannot access mod endpoints
 
 ### Commit Guidelines
+
 - Each feature as atomic commit
 - Prefix: `feat(mod):`, `fix(mod):`, `refactor(mod):`
 - Include permission edge cases in tests

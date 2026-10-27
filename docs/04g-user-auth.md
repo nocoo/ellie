@@ -10,41 +10,41 @@
 
 系统存在**两套独立的认证体系**，各自服务不同用户群体：
 
-| 维度 | 论坛用户（本文档范围） | Admin 后台（已实现） |
-|------|----------------------|---------------------|
-| 身份源 | 用户名/密码 → Worker JWT | Google OAuth → NextAuth JWT |
-| API 密钥 | Key A (`API_KEY`) | Key B (`ADMIN_API_KEY`) |
-| Worker 端点 | `/api/v1/*` | `/api/admin/*` |
-| 实现状态 | ⚠️ Worker 登录已有，前端未对接 | ✅ 完整 |
+| 维度        | 论坛用户（本文档范围）         | Admin 后台（已实现）        |
+| ----------- | ------------------------------ | --------------------------- |
+| 身份源      | 用户名/密码 → Worker JWT       | Google OAuth → NextAuth JWT |
+| API 密钥    | Key A (`API_KEY`)              | Key B (`ADMIN_API_KEY`)     |
+| Worker 端点 | `/api/v1/*`                    | `/api/admin/*`              |
+| 实现状态    | ⚠️ Worker 登录已有，前端未对接 | ✅ 完整                     |
 
 ### 现状分析
 
 **已实现的部分：**
 
-| 组件 | 状态 | 文件 |
-|------|------|------|
-| Worker `POST /api/v1/auth/login` | ✅ 完整 | `apps/worker/src/handlers/auth.ts` |
-| Worker `POST /api/v1/auth/refresh` | ✅ 完整 | 同上 |
-| Worker `DELETE /api/v1/auth/logout` | ✅ 完整 | 同上 |
-| Worker `GET /api/v1/auth/me` | ✅ 完整 | 同上 |
-| Worker `POST /api/v1/users/me/password` | ✅ 完整 | `apps/worker/src/handlers/me.ts` |
-| 密码体系（DZ 兼容 + PBKDF2 + 静默升级） | ✅ 完整 | `apps/worker/src/lib/password.ts` |
-| JWT 签发/验证 (HS256) | ✅ 完整 | `apps/worker/src/lib/jwt.ts` |
-| Refresh Token (KV 存储，30 天 TTL) | ✅ 完整 | auth handler 内嵌 |
-| 论坛登录页 UI | ✅ 完整 | `apps/web/src/app/(forum)/login/page.tsx` |
-| Auth viewmodel (验证 + 错误映射) | ✅ 完整 | `apps/web/src/viewmodels/forum/auth.ts` |
-| Route 保护 (`/threads/new` 需登录) | ✅ 完整 | `apps/web/src/proxy.ts` |
-| NextAuth SessionProvider | ✅ 完整 | `apps/web/src/components/providers.tsx` |
+| 组件                                    | 状态    | 文件                                      |
+| --------------------------------------- | ------- | ----------------------------------------- |
+| Worker `POST /api/v1/auth/login`        | ✅ 完整 | `apps/worker/src/handlers/auth.ts`        |
+| Worker `POST /api/v1/auth/refresh`      | ✅ 完整 | 同上                                      |
+| Worker `DELETE /api/v1/auth/logout`     | ✅ 完整 | 同上                                      |
+| Worker `GET /api/v1/auth/me`            | ✅ 完整 | 同上                                      |
+| Worker `POST /api/v1/users/me/password` | ✅ 完整 | `apps/worker/src/handlers/me.ts`          |
+| 密码体系（DZ 兼容 + PBKDF2 + 静默升级） | ✅ 完整 | `apps/worker/src/lib/password.ts`         |
+| JWT 签发/验证 (HS256)                   | ✅ 完整 | `apps/worker/src/lib/jwt.ts`              |
+| Refresh Token (KV 存储，30 天 TTL)      | ✅ 完整 | auth handler 内嵌                         |
+| 论坛登录页 UI                           | ✅ 完整 | `apps/web/src/app/(forum)/login/page.tsx` |
+| Auth viewmodel (验证 + 错误映射)        | ✅ 完整 | `apps/web/src/viewmodels/forum/auth.ts`   |
+| Route 保护 (`/threads/new` 需登录)      | ✅ 完整 | `apps/web/src/proxy.ts`                   |
+| NextAuth SessionProvider                | ✅ 完整 | `apps/web/src/components/providers.tsx`   |
 
 **缺失的部分：**
 
-| 组件 | 状态 | 说明 |
-|------|------|------|
-| NextAuth Credentials Provider | ✅ 已实现 | `auth.ts` 双 provider (Google + Credentials) |
-| NextAuth session 扩展 (论坛字段) | ✅ 已实现 | session.user 包含 provider/role/id/name |
-| Worker JWT 存储 & 透传 | ✅ 已实现 | getToken(cookie) + authFetch() 兜底刷新 |
-| 注册端点 | ✅ 已实现 | Worker `POST /api/v1/auth/register` |
-| 注册页面 | ✅ 已实现 | 前端 `/register` 路由 |
+| 组件                             | 状态      | 说明                                         |
+| -------------------------------- | --------- | -------------------------------------------- |
+| NextAuth Credentials Provider    | ✅ 已实现 | `auth.ts` 双 provider (Google + Credentials) |
+| NextAuth session 扩展 (论坛字段) | ✅ 已实现 | session.user 包含 provider/role/id/name      |
+| Worker JWT 存储 & 透传           | ✅ 已实现 | getToken(cookie) + authFetch() 兜底刷新      |
+| 注册端点                         | ✅ 已实现 | Worker `POST /api/v1/auth/register`          |
+| 注册页面                         | ✅ 已实现 | 前端 `/register` 路由                        |
 
 ---
 
@@ -64,22 +64,22 @@ Content-Type: application/json
 
 ```typescript
 interface RegisterInput {
-  username: string;     // 必填
-  password: string;     // 必填
-  email?: string;       // 选填
-  inviteCode?: string;  // 选填（预留，Phase 1 不实现）
+	username: string; // 必填
+	password: string; // 必填
+	email?: string; // 选填
+	inviteCode?: string; // 选填（预留，Phase 1 不实现）
 }
 ```
 
 ### §1.3 验证规则
 
-| 字段 | 规则 | 错误码 |
-|------|------|--------|
+| 字段       | 规则                                         | 错误码                   |
+| ---------- | -------------------------------------------- | ------------------------ |
 | `username` | 非空，2–15 字符，仅允许中文/英文/数字/下划线 | `INVALID_USERNAME` (400) |
-| `username` | 不在敏感词库中（复用 `censor_words` 表） | `USERNAME_BANNED` (400) |
-| `username` | 数据库唯一性约束 | `USERNAME_TAKEN` (409) |
-| `password` | 非空，≥6 字符 | `INVALID_PASSWORD` (400) |
-| `email` | 若提供，需符合 email 格式 | `INVALID_EMAIL` (400) |
+| `username` | 不在敏感词库中（复用 `censor_words` 表）     | `USERNAME_BANNED` (400)  |
+| `username` | 数据库唯一性约束                             | `USERNAME_TAKEN` (409)   |
+| `password` | 非空，≥6 字符                                | `INVALID_PASSWORD` (400) |
+| `email`    | 若提供，需符合 email 格式                    | `INVALID_EMAIL` (400)    |
 
 ### §1.4 注册流程
 
@@ -113,29 +113,29 @@ interface RegisterInput {
 
 ```json
 {
-  "data": {
-    "token": "<JWT>",
-    "refreshToken": "<UUID>",
-    "user": {
-      "userId": 1140001,
-      "username": "newuser",
-      "role": 0
-    }
-  },
-  "meta": { "timestamp": 1711900000000, "requestId": "<UUID>" }
+	"data": {
+		"token": "<JWT>",
+		"refreshToken": "<UUID>",
+		"user": {
+			"userId": 1140001,
+			"username": "newuser",
+			"role": 0
+		}
+	},
+	"meta": { "timestamp": 1711900000000, "requestId": "<UUID>" }
 }
 ```
 
 **错误:**
 
-| 状态码 | 错误码 | 场景 |
-|--------|--------|------|
-| 400 | `INVALID_USERNAME` | 用户名格式不合法 |
-| 400 | `INVALID_PASSWORD` | 密码太短 |
-| 400 | `INVALID_EMAIL` | 邮箱格式不合法 |
-| 400 | `USERNAME_BANNED` | 用户名含敏感词 |
-| 409 | `USERNAME_TAKEN` | 用户名已被注册（SELECT 预检 或 INSERT UNIQUE 约束） |
-| 429 | `RATE_LIMITED` | IP 注册频率超限 |
+| 状态码 | 错误码             | 场景                                                |
+| ------ | ------------------ | --------------------------------------------------- |
+| 400    | `INVALID_USERNAME` | 用户名格式不合法                                    |
+| 400    | `INVALID_PASSWORD` | 密码太短                                            |
+| 400    | `INVALID_EMAIL`    | 邮箱格式不合法                                      |
+| 400    | `USERNAME_BANNED`  | 用户名含敏感词                                      |
+| 409    | `USERNAME_TAKEN`   | 用户名已被注册（SELECT 预检 或 INSERT UNIQUE 约束） |
+| 429    | `RATE_LIMITED`     | IP 注册频率超限                                     |
 
 ### §1.6 ID 分配策略
 
@@ -145,11 +145,11 @@ interface RegisterInput {
 
 ### §1.7 反滥用（Phase 1 基础版）
 
-| 措施 | 实现 |
-|------|------|
-| IP 频率限制 | 同一 IP 每小时最多注册 3 个账号，使用 KV 计数：`reg-ip:{ip}` → TTL 1h |
-| 用户名敏感词 | 复用 censor_words 表 |
-| 密码最低长度 | ≥6 字符 |
+| 措施         | 实现                                                                  |
+| ------------ | --------------------------------------------------------------------- |
+| IP 频率限制  | 同一 IP 每小时最多注册 3 个账号，使用 KV 计数：`reg-ip:{ip}` → TTL 1h |
+| 用户名敏感词 | 复用 censor_words 表                                                  |
+| 密码最低长度 | ≥6 字符                                                               |
 
 **暂不实现（后续按需）：**
 - CAPTCHA / 验证码
@@ -170,48 +170,48 @@ import Credentials from "next-auth/providers/credentials";
 
 // Credentials provider — 论坛用户登录
 Credentials({
-  credentials: {
-    username: { label: "Username", type: "text" },
-    password: { label: "Password", type: "password" },
-  },
-  async authorize(credentials) {
-    // 调用 Worker login API（服务端执行，Key A 不暴露）
-    const res = await fetch(`${WORKER_URL}/api/v1/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": FORUM_API_KEY,
-      },
-      body: JSON.stringify({
-        username: credentials.username,
-        password: credentials.password,
-      }),
-    });
+	credentials: {
+		username: { label: "Username", type: "text" },
+		password: { label: "Password", type: "password" },
+	},
+	async authorize(credentials) {
+		// 调用 Worker login API（服务端执行，Key A 不暴露）
+		const res = await fetch(`${WORKER_URL}/api/v1/auth/login`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-API-Key": FORUM_API_KEY,
+			},
+			body: JSON.stringify({
+				username: credentials.username,
+				password: credentials.password,
+			}),
+		});
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      const code = body?.error?.code;
-      if (code === "USER_BANNED") {
-        // 在 user 对象上标记 banned 状态，由 signIn callback 处理（见 §2.5）
-        // 不能在 authorize 中 throw — NextAuth 会包成 CallbackRouteError，
-        // 前端只能看到通用错误而不是 AccessDenied
-        return { id: "banned", name: "", banned: true } as any;
-      }
-      // INVALID_CREDENTIALS 或其他 → return null → NextAuth 抛 CredentialsSignin
-      return null;
-    }
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({}));
+			const code = body?.error?.code;
+			if (code === "USER_BANNED") {
+				// 在 user 对象上标记 banned 状态，由 signIn callback 处理（见 §2.5）
+				// 不能在 authorize 中 throw — NextAuth 会包成 CallbackRouteError，
+				// 前端只能看到通用错误而不是 AccessDenied
+				return { id: "banned", name: "", banned: true } as any;
+			}
+			// INVALID_CREDENTIALS 或其他 → return null → NextAuth 抛 CredentialsSignin
+			return null;
+		}
 
-    const { data } = await res.json();
-    // 返回 NextAuth User 对象（这些字段会进入 JWT callback 的 user 参数）
-    return {
-      id: String(data.user.userId),
-      name: data.user.username,
-      workerJwt: data.token,
-      workerRefreshToken: data.refreshToken,
-      role: data.user.role,
-    };
-  },
-})
+		const { data } = await res.json();
+		// 返回 NextAuth User 对象（这些字段会进入 JWT callback 的 user 参数）
+		return {
+			id: String(data.user.userId),
+			name: data.user.username,
+			workerJwt: data.token,
+			workerRefreshToken: data.refreshToken,
+			role: data.user.role,
+		};
+	},
+});
 ```
 
 ### §2.2 JWT Callback 扩展
@@ -329,33 +329,33 @@ session({ session, token }) {
 ```typescript
 // types/next-auth.d.ts
 declare module "next-auth" {
-  interface User {
-    workerJwt?: string;
-    workerRefreshToken?: string;
-    role?: number;
-  }
-  interface Session {
-    user: {
-      id: string;
-      name: string;
-      email?: string;
-      image?: string;
-      provider: "credentials" | "google";
-      role?: number;       // UserRole enum
-    };
-    error?: string;        // "RefreshTokenExpired" 等
-  }
+	interface User {
+		workerJwt?: string;
+		workerRefreshToken?: string;
+		role?: number;
+	}
+	interface Session {
+		user: {
+			id: string;
+			name: string;
+			email?: string;
+			image?: string;
+			provider: "credentials" | "google";
+			role?: number; // UserRole enum
+		};
+		error?: string; // "RefreshTokenExpired" 等
+	}
 }
 
 declare module "next-auth/jwt" {
-  interface JWT {
-    provider?: "credentials" | "google";
-    workerJwt?: string;
-    workerRefreshToken?: string;
-    workerJwtExp?: number;
-    role?: number;
-    error?: string;
-  }
+	interface JWT {
+		provider?: "credentials" | "google";
+		workerJwt?: string;
+		workerRefreshToken?: string;
+		workerJwtExp?: number;
+		role?: number;
+		error?: string;
+	}
 }
 ```
 
@@ -470,51 +470,51 @@ const AUTH_SECRET = process.env.AUTH_SECRET!;
  * 不触发 jwt/session callback，不写 cookie。
  */
 async function getSessionToken() {
-  const headerStore = await headers();
-  const isSecure = process.env.NODE_ENV === "production"
-    || process.env.NEXTAUTH_URL?.startsWith("https://");
-  return getToken({
-    req: { headers: headerStore },
-    secret: AUTH_SECRET,
-    secureCookie: isSecure,
-  });
+	const headerStore = await headers();
+	const isSecure =
+		process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.startsWith("https://");
+	return getToken({
+		req: { headers: headerStore },
+		secret: AUTH_SECRET,
+		secureCookie: isSecure,
+	});
 }
 
 /** 获取当前论坛用户的 Worker JWT，未登录返回 null */
 export async function getWorkerJwt(): Promise<string | null> {
-  const token = await getSessionToken();
-  if (!token) return null;
-  if (token.provider !== "credentials") return null;
-  if (token.error === "RefreshTokenExpired") return null;
-  return (token.workerJwt as string) ?? null;
+	const token = await getSessionToken();
+	if (!token) return null;
+	if (token.provider !== "credentials") return null;
+	if (token.error === "RefreshTokenExpired") return null;
+	return (token.workerJwt as string) ?? null;
 }
 
 /** 获取当前论坛用户信息，未登录返回 null */
 export async function getCurrentForumUser(): Promise<{
-  userId: number;
-  username: string;
-  role: number;
+	userId: number;
+	username: string;
+	role: number;
 } | null> {
-  const token = await getSessionToken();
-  if (!token) return null;
-  if (token.provider !== "credentials") return null;
-  return {
-    userId: Number(token.sub),
-    username: (token.name as string) ?? "",
-    role: (token.role as number) ?? 0,
-  };
+	const token = await getSessionToken();
+	if (!token) return null;
+	if (token.provider !== "credentials") return null;
+	return {
+		userId: Number(token.sub),
+		username: (token.name as string) ?? "",
+		role: (token.role as number) ?? 0,
+	};
 }
 ```
 
 #### 为什么这是安全的？
 
-| 关注点 | 说明 |
-|--------|------|
-| workerJwt 不到达浏览器 | cookie 是 httpOnly JWE（加密），浏览器 JS 无法解密；`getToken()` 仅在服务端执行 |
-| refresh 链路完整 | proxy 层在每次页面请求时已通过 jwt callback 刷新并回写 cookie |
-| 分片 cookie 兼容 | `getToken()` 内部 `SessionStore` 自动拼装 `.0`, `.1` ... 分片 |
-| 无竞态风险 | `getToken()` 是只读操作，不写 cookie，不触发副作用 |
-| cookie name / salt 匹配 | `secureCookie` 参数让 `getToken()` 内部选择正确的 cookie name 前缀 |
+| 关注点                  | 说明                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| workerJwt 不到达浏览器  | cookie 是 httpOnly JWE（加密），浏览器 JS 无法解密；`getToken()` 仅在服务端执行 |
+| refresh 链路完整        | proxy 层在每次页面请求时已通过 jwt callback 刷新并回写 cookie                   |
+| 分片 cookie 兼容        | `getToken()` 内部 `SessionStore` 自动拼装 `.0`, `.1` ... 分片                   |
+| 无竞态风险              | `getToken()` 是只读操作，不写 cookie，不触发副作用                              |
+| cookie name / salt 匹配 | `secureCookie` 参数让 `getToken()` 内部选择正确的 cookie name 前缀              |
 
 #### ⚠️ 边界场景：长时间停留后直接提交
 
@@ -541,40 +541,40 @@ import { forumApi, ForumApiError } from "@/lib/forum-api";
  * 4. 如果 refresh 也失败 → 返回 NOT_AUTHENTICATED，前端引导重登
  */
 export async function authFetch<T>(
-  path: string,
-  body: unknown,
+	path: string,
+	body: unknown,
 ): Promise<{ data: T; meta: any } | { error: string }> {
-  const token = await getSessionToken();
-  if (!token || token.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
-  if (token.error === "RefreshTokenExpired") return { error: "NOT_AUTHENTICATED" };
+	const token = await getSessionToken();
+	if (!token || token.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
+	if (token.error === "RefreshTokenExpired") return { error: "NOT_AUTHENTICATED" };
 
-  const workerJwt = token.workerJwt as string;
-  if (!workerJwt) return { error: "NOT_AUTHENTICATED" };
+	const workerJwt = token.workerJwt as string;
+	if (!workerJwt) return { error: "NOT_AUTHENTICATED" };
 
-  try {
-    return await forumApi.postAuth<T>(path, body, workerJwt);
-  } catch (error) {
-    if (!(error instanceof ForumApiError) || error.code !== "TOKEN_EXPIRED") {
-      return { error: error instanceof ForumApiError ? error.code : "INTERNAL_ERROR" };
-    }
+	try {
+		return await forumApi.postAuth<T>(path, body, workerJwt);
+	} catch (error) {
+		if (!(error instanceof ForumApiError) || error.code !== "TOKEN_EXPIRED") {
+			return { error: error instanceof ForumApiError ? error.code : "INTERNAL_ERROR" };
+		}
 
-    // TOKEN_EXPIRED → 尝试 refresh
-    const refreshToken = token.workerRefreshToken as string;
-    if (!refreshToken) return { error: "NOT_AUTHENTICATED" };
+		// TOKEN_EXPIRED → 尝试 refresh
+		const refreshToken = token.workerRefreshToken as string;
+		if (!refreshToken) return { error: "NOT_AUTHENTICATED" };
 
-    try {
-      const refreshResult = await forumApi.post<{
-        token: string;
-        refreshToken: string;
-      }>("/api/v1/auth/refresh", { refreshToken });
+		try {
+			const refreshResult = await forumApi.post<{
+				token: string;
+				refreshToken: string;
+			}>("/api/v1/auth/refresh", { refreshToken });
 
-      // 用新 token 重试
-      return await forumApi.postAuth<T>(path, body, refreshResult.data.token);
-    } catch {
-      // refresh 也失败 → 需要重新登录
-      return { error: "NOT_AUTHENTICATED" };
-    }
-  }
+			// 用新 token 重试
+			return await forumApi.postAuth<T>(path, body, refreshResult.data.token);
+		} catch {
+			// refresh 也失败 → 需要重新登录
+			return { error: "NOT_AUTHENTICATED" };
+		}
+	}
 }
 ```
 
@@ -582,11 +582,11 @@ export async function authFetch<T>(
 
 `authFetch` 中 refresh 获得的新 token **无法写回 NextAuth cookie**（Server Action 中无法安全地写 httpOnly cookie）。cookie 中仍然保留**旧的**过期 workerJwt 和旧的 workerRefreshToken。后果：
 
-| 场景 | 结果 |
-|------|------|
-| 第 1 次写操作 | ✅ authFetch 用旧 JWT → TOKEN_EXPIRED → refresh 成功 → 重试成功 |
+| 场景                    | 结果                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 第 1 次写操作           | ✅ authFetch 用旧 JWT → TOKEN_EXPIRED → refresh 成功 → 重试成功                                                                                               |
 | **同页面第 2 次写操作** | ❌ authFetch 再次读到旧 cookie → 旧 JWT 仍过期 → TOKEN_EXPIRED → 用旧 refreshToken refresh → **失败**（rotation 已使旧 token 失效）→ 返回 `NOT_AUTHENTICATED` |
-| 下次页面导航 | ❌ proxy 层 jwt callback 用旧 refreshToken refresh → 失败 → `session.error = "RefreshTokenExpired"` → SessionGuard 登出 |
+| 下次页面导航            | ❌ proxy 层 jwt callback 用旧 refreshToken refresh → 失败 → `session.error = "RefreshTokenExpired"` → SessionGuard 登出                                       |
 
 **前端处理**：当 Server Action 返回 `NOT_AUTHENTICATED` 时，前端应提示用户"登录已过期，请重新登录"并 redirect 到 `/login`（或调用 `signOut()`）。这是**预期行为**，不是 bug——长开页面超过 7 天是极端场景，提示重登是合理的 UX。
 
@@ -655,17 +655,19 @@ import { forumApi, ForumApiError } from "@/lib/forum-api";
 
 /** 注册新用户 — 不需要 JWT，但需要 Key A（由 forumApi 注入） */
 export async function registerUser(username: string, password: string, email?: string) {
-  try {
-    // forumApi.post 已注入 Key A，注册端点不需要 Bearer token
-    return await forumApi.post("/api/v1/auth/register", { username, password, email });
-  } catch (error) {
-    if (error instanceof ForumApiError) {
-      return { error: error.code };
-    }
-    return { error: "INTERNAL_ERROR" };
-  }
+	try {
+		// forumApi.post 已注入 Key A，注册端点不需要 Bearer token
+		return await forumApi.post("/api/v1/auth/register", { username, password, email });
+	} catch (error) {
+		if (error instanceof ForumApiError) {
+			return { error: error.code };
+		}
+		return { error: "INTERNAL_ERROR" };
+	}
 }
+```
 
+```typescript
 // actions/thread.ts
 "use server";
 
@@ -673,11 +675,11 @@ import { authFetch } from "@/lib/forum-auth";
 
 /** 发新帖 — 需要 Worker JWT，内置 TOKEN_EXPIRED 兜底 */
 export async function createThread(forumId: number, subject: string, content: string) {
-  // authFetch() 内部：
-  // 1. getToken() 解密 cookie 获取 workerJwt（含分片拼装）
-  // 2. 调用 Worker API
-  // 3. 如果 TOKEN_EXPIRED → 自动 refresh + 重试
-  return authFetch<{ threadId: number }>("/api/v1/threads", { forumId, subject, content });
+	// authFetch() 内部：
+	// 1. getToken() 解密 cookie 获取 workerJwt（含分片拼装）
+	// 2. 调用 Worker API
+	// 3. 如果 TOKEN_EXPIRED → 自动 refresh + 重试
+	return authFetch<{ threadId: number }>("/api/v1/threads", { forumId, subject, content });
 }
 ```
 
@@ -693,21 +695,21 @@ import { forumApi } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const username = url.searchParams.get("username");
-  if (!username) {
-    return NextResponse.json({ available: false, reason: "invalid" });
-  }
+	const url = new URL(request.url);
+	const username = url.searchParams.get("username");
+	if (!username) {
+		return NextResponse.json({ available: false, reason: "invalid" });
+	}
 
-  try {
-    const result = await forumApi.get<{ available: boolean; reason?: string }>(
-      "/api/v1/auth/check-username",
-      { username },
-    );
-    return NextResponse.json(result.data);
-  } catch {
-    return NextResponse.json({ available: false, reason: "error" }, { status: 500 });
-  }
+	try {
+		const result = await forumApi.get<{ available: boolean; reason?: string }>(
+			"/api/v1/auth/check-username",
+			{ username },
+		);
+		return NextResponse.json(result.data);
+	} catch {
+		return NextResponse.json({ available: false, reason: "error" }, { status: 500 });
+	}
 }
 ```
 
@@ -769,28 +771,28 @@ export async function GET(request: Request) {
 
 ### §4.3 交互规格
 
-| 交互 | 说明 |
-|------|------|
+| 交互           | 说明                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | 用户名实时校验 | 输入停止 500ms 后 debounce 调用 `GET /api/auth/check-username?username=xxx`（Next.js 代理路由，§3.5），返回可用/已占用 |
-| 密码强度指示器 | 纯前端计算：<6 无效，6–7 弱，8–11 中，≥12 或含大小写+数字+符号为强 |
-| 确认密码匹配 | 实时比对，不匹配时显示红色提示 |
-| 提交 | Server Action `registerUser()` → 成功后调用 `signIn("credentials")` 自动登录 → redirect 到首页或 `?redirect=` 指定页 |
-| 已登录用户 | 访问 `/register` 时 redirect 到首页 |
+| 密码强度指示器 | 纯前端计算：<6 无效，6–7 弱，8–11 中，≥12 或含大小写+数字+符号为强                                                     |
+| 确认密码匹配   | 实时比对，不匹配时显示红色提示                                                                                         |
+| 提交           | Server Action `registerUser()` → 成功后调用 `signIn("credentials")` 自动登录 → redirect 到首页或 `?redirect=` 指定页   |
+| 已登录用户     | 访问 `/register` 时 redirect 到首页                                                                                    |
 
 ### §4.4 ViewModel
 
 ```typescript
 // viewmodels/forum/register.ts
 interface RegisterFormState {
-  username: string;
-  password: string;
-  confirmPassword: string;
-  email: string;
+	username: string;
+	password: string;
+	confirmPassword: string;
+	email: string;
 }
 
 function canSubmitRegister(state: RegisterFormState): boolean;
 function passwordStrength(password: string): "none" | "weak" | "medium" | "strong";
-function validateUsername(username: string): string | null;  // 返回错误消息或 null
+function validateUsername(username: string): string | null; // 返回错误消息或 null
 function registerErrorMessage(errorCode: string | null): string | null;
 ```
 
@@ -806,10 +808,10 @@ function registerErrorMessage(errorCode: string | null): string | null;
 
 完成 §2 后，现有登录页面的 `signIn("credentials", ...)` 调用即可正常工作。需要以下增强：
 
-| 变更 | 说明 |
-|------|------|
-| 注册入口 | 将底部 "没有账号？联系管理员" 改为 "没有账号？[注册](/register)" 链接 |
-| banned 用户提示优化 | 拦截 `AccessDenied` 错误时展示 "账号已被禁用，请联系管理员" |
+| 变更                | 说明                                                                  |
+| ------------------- | --------------------------------------------------------------------- |
+| 注册入口            | 将底部 "没有账号？联系管理员" 改为 "没有账号？[注册](/register)" 链接 |
+| banned 用户提示优化 | 拦截 `AccessDenied` 错误时展示 "账号已被禁用，请联系管理员"           |
 
 ### §5.3 RefreshTokenExpired 处理
 
@@ -836,16 +838,16 @@ import { signOut, useSession } from "next-auth/react";
 import { useEffect } from "react";
 
 export function SessionGuard() {
-  const { data: session } = useSession();
+	const { data: session } = useSession();
 
-  useEffect(() => {
-    if (session?.error === "RefreshTokenExpired") {
-      // 服务端已无法刷新 JWT → 强制登出，清除无效 session cookie
-      signOut({ callbackUrl: "/login" });
-    }
-  }, [session?.error]);
+	useEffect(() => {
+		if (session?.error === "RefreshTokenExpired") {
+			// 服务端已无法刷新 JWT → 强制登出，清除无效 session cookie
+			signOut({ callbackUrl: "/login" });
+		}
+	}, [session?.error]);
 
-  return null;
+	return null;
 }
 ```
 
@@ -983,9 +985,9 @@ NextAuth session maxAge 设为 30 天（与 refresh token TTL 对齐）
 
 ```typescript
 export function isPublicRoute(pathname: string): boolean {
-  // ...existing checks...
-  if (pathname === "/register") return true;  // 新增
-  // ...
+	// ...existing checks...
+	if (pathname === "/register") return true; // 新增
+	// ...
 }
 ```
 
@@ -997,21 +999,21 @@ export function isPublicRoute(pathname: string): boolean {
 
 ```typescript
 export function resolveProxyAction(
-  pathname: string,
-  isLoggedIn: boolean,
-  email?: string | null,
-  provider?: string | null,  // 新增参数
+	pathname: string,
+	isLoggedIn: boolean,
+	email?: string | null,
+	provider?: string | null, // 新增参数
 ): "next" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
-  // ...
+	// ...
 
-  // Forum auth routes: 要求 credentials session（论坛用户），不接受 Google OAuth session
-  if (isForumAuthRoute(pathname)) {
-    if (!isLoggedIn) return "redirect:/login";
-    if (provider !== "credentials") return "redirect:/login"; // Google 用户无法发帖
-    return "next";
-  }
+	// Forum auth routes: 要求 credentials session（论坛用户），不接受 Google OAuth session
+	if (isForumAuthRoute(pathname)) {
+		if (!isLoggedIn) return "redirect:/login";
+		if (provider !== "credentials") return "redirect:/login"; // Google 用户无法发帖
+		return "next";
+	}
 
-  // ...
+	// ...
 }
 ```
 
@@ -1019,16 +1021,16 @@ export function resolveProxyAction(
 
 ```typescript
 export async function proxy(request: NextRequest) {
-  const authHandler = await auth((req) => {
-    const action = resolveProxyAction(
-      req.nextUrl.pathname,
-      !!req.auth,
-      req.auth?.user?.email,
-      (req.auth?.user as any)?.provider,  // NextAuth session 中的 provider 字段
-    );
-    // ...
-  });
-  // ...
+	const authHandler = await auth((req) => {
+		const action = resolveProxyAction(
+			req.nextUrl.pathname,
+			!!req.auth,
+			req.auth?.user?.email,
+			(req.auth?.user as any)?.provider, // NextAuth session 中的 provider 字段
+		);
+		// ...
+	});
+	// ...
 }
 ```
 
@@ -1042,35 +1044,35 @@ export async function proxy(request: NextRequest) {
 
 ### Phase 1 — 登录打通
 
-| 步骤 | 内容 | 预估 | 状态 |
-|------|------|------|------|
-| 1.1 | NextAuth Credentials Provider + signIn/JWT/Session callback 扩展（§2） | 中 | ✅ C1+C2 |
-| 1.2 | 类型声明 `next-auth.d.ts`（§2.4） | 小 | ✅ C1 |
-| 1.3 | `getToken()` 方式获取 Worker JWT 工具函数 + authFetch 兜底（§3.2） | 中 | ✅ C3 |
-| 1.4 | `forum-api.ts` 扩展 `postAuth` 方法（§3.3） | 小 | ✅ C3 |
-| 1.5 | `SessionGuard` 组件 + forum layout 挂载（§5.3） | 小 | ✅ C4 |
-| 1.6 | 登录页底部注册链接（§5.2） | 小 | ✅ C4 |
-| 1.7 | proxy.ts provider 判定修复（§8.1 变更 2） | 小 | ✅ C5 |
-| 1.8 | 端到端验证：登录 → session → 发帖调用 | 测试 | ⏭️ 需 Playwright |
+| 步骤 | 内容                                                                   | 预估 | 状态             |
+| ---- | ---------------------------------------------------------------------- | ---- | ---------------- |
+| 1.1  | NextAuth Credentials Provider + signIn/JWT/Session callback 扩展（§2） | 中   | ✅ C1+C2         |
+| 1.2  | 类型声明 `next-auth.d.ts`（§2.4）                                      | 小   | ✅ C1            |
+| 1.3  | `getToken()` 方式获取 Worker JWT 工具函数 + authFetch 兜底（§3.2）     | 中   | ✅ C3            |
+| 1.4  | `forum-api.ts` 扩展 `postAuth` 方法（§3.3）                            | 小   | ✅ C3            |
+| 1.5  | `SessionGuard` 组件 + forum layout 挂载（§5.3）                        | 小   | ✅ C4            |
+| 1.6  | 登录页底部注册链接（§5.2）                                             | 小   | ✅ C4            |
+| 1.7  | proxy.ts provider 判定修复（§8.1 变更 2）                              | 小   | ✅ C5            |
+| 1.8  | 端到端验证：登录 → session → 发帖调用                                  | 测试 | ⏭️ 需 Playwright |
 
 ### Phase 2 — 注册
 
-| 步骤 | 内容 | 预估 | 状态 |
-|------|------|------|------|
-| 2.1 | Worker `POST /api/v1/auth/register` 端点 + UNIQUE 约束兜底（§1） | 中 | ✅ C7 |
-| 2.2 | Worker `GET /api/v1/auth/check-username` 端点（§6） | 小 | ✅ C7 |
-| 2.3 | Next.js API Route 代理 `/api/auth/check-username`（§3.5） | 小 | ✅ C8 |
-| 2.4 | 注册 ViewModel（§4.4） | 小 | ✅ C8 |
-| 2.5 | 注册页面 `/register`（§4） | 中 | ✅ C9 |
-| 2.6 | proxy.ts 新增 `/register` 公开路由（§8.1 变更 1） | 小 | ✅ C9 |
-| 2.7 | IP 频率限制（§1.7） | 小 | ✅ C7 |
+| 步骤 | 内容                                                             | 预估 | 状态  |
+| ---- | ---------------------------------------------------------------- | ---- | ----- |
+| 2.1  | Worker `POST /api/v1/auth/register` 端点 + UNIQUE 约束兜底（§1） | 中   | ✅ C7 |
+| 2.2  | Worker `GET /api/v1/auth/check-username` 端点（§6）              | 小   | ✅ C7 |
+| 2.3  | Next.js API Route 代理 `/api/auth/check-username`（§3.5）        | 小   | ✅ C8 |
+| 2.4  | 注册 ViewModel（§4.4）                                           | 小   | ✅ C8 |
+| 2.5  | 注册页面`/register`（§4）                                        | 中   | ✅ C9 |
+| 2.6  | proxy.ts 新增 `/register` 公开路由（§8.1 变更 1）                | 小   | ✅ C9 |
+| 2.7  | IP 频率限制（§1.7）                                              | 小   | ✅ C7 |
 
 ### Phase 3 — 健壮性
 
-| 步骤 | 内容 | 预估 | 状态 |
-|------|------|------|------|
-| 3.1 | Worker JWT 自动刷新完整测试（§2.2 refresh 逻辑） | 中 | ✅ C10 |
-| 3.2 | 长时间未访问 → refresh 失败 → 自动登出 E2E 测试 | 测试 | ⏭️ 需 Playwright |
+| 步骤 | 内容                                             | 预估 | 状态             |
+| ---- | ------------------------------------------------ | ---- | ---------------- |
+| 3.1  | Worker JWT 自动刷新完整测试（§2.2 refresh 逻辑） | 中   | ✅ C10           |
+| 3.2  | 长时间未访问 → refresh 失败 → 自动登出 E2E 测试  | 测试 | ⏭️ 需 Playwright |
 
 ---
 
@@ -1078,51 +1080,51 @@ export async function proxy(request: NextRequest) {
 
 ### 新建文件
 
-| 文件 | 用途 |
-|------|------|
-| `apps/web/src/types/next-auth.d.ts` | NextAuth 类型扩展 |
-| `apps/web/src/lib/forum-auth.ts` | Server-only：getWorkerJwt() + getCurrentForumUser() + authFetch()（基于 getToken()） |
-| `apps/web/src/components/forum/session-guard.tsx` | 客户端 RefreshTokenExpired 检测 + 自动登出 |
-| `apps/web/src/app/api/auth/check-username/route.ts` | 用户名检查代理路由 |
-| `apps/web/src/app/(forum)/register/page.tsx` | 注册页面 |
-| `apps/web/src/viewmodels/forum/register.ts` | 注册表单 ViewModel |
-| `apps/web/src/actions/auth.ts` | Server Action: registerUser() |
+| 文件                                                | 用途                                                                                 |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `apps/web/src/types/next-auth.d.ts`                 | NextAuth 类型扩展                                                                    |
+| `apps/web/src/lib/forum-auth.ts`                    | Server-only：getWorkerJwt() + getCurrentForumUser() + authFetch()（基于 getToken()） |
+| `apps/web/src/components/forum/session-guard.tsx`   | 客户端 RefreshTokenExpired 检测 + 自动登出                                           |
+| `apps/web/src/app/api/auth/check-username/route.ts` | 用户名检查代理路由                                                                   |
+| `apps/web/src/app/(forum)/register/page.tsx`        | 注册页面                                                                             |
+| `apps/web/src/viewmodels/forum/register.ts`         | 注册表单 ViewModel                                                                   |
+| `apps/web/src/actions/auth.ts`                      | Server Action: registerUser()                                                        |
 
 ### 修改文件
 
-| 文件 | 变更 |
-|------|------|
-| `apps/web/src/auth.ts` | 添加 Credentials Provider，扩展 JWT/Session/signIn callback，双 provider 分流 |
-| `apps/web/src/lib/forum-api.ts` | 核心 `request()` 支持 `bearerToken` 参数，新增 `postAuth()` 方法 |
-| `apps/web/src/proxy.ts` | `/register` 公开路由 + forum auth 路由 provider 判定 |
-| `apps/web/src/app/(forum)/login/page.tsx` | 底部 "联系管理员" → "注册" 链接 |
-| `apps/web/src/app/(forum)/layout.tsx` | 挂载 `<SessionGuard />` |
-| `apps/worker/src/handlers/auth.ts` | 新增 `register` + `checkUsername` handler |
-| `apps/worker/src/index.ts` | 注册新路由：`POST register`、`GET check-username` |
+| 文件                                      | 变更                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------- |
+| `apps/web/src/auth.ts`                    | 添加 Credentials Provider，扩展 JWT/Session/signIn callback，双 provider 分流 |
+| `apps/web/src/lib/forum-api.ts`           | 核心 `request()` 支持 `bearerToken` 参数，新增 `postAuth()` 方法              |
+| `apps/web/src/proxy.ts`                   | `/register` 公开路由 + forum auth 路由 provider 判定                          |
+| `apps/web/src/app/(forum)/login/page.tsx` | 底部 "联系管理员" → "注册" 链接                                               |
+| `apps/web/src/app/(forum)/layout.tsx`     | 挂载 `<SessionGuard />`                                                       |
+| `apps/worker/src/handlers/auth.ts`        | 新增 `register` + `checkUsername` handler                                     |
+| `apps/worker/src/index.ts`                | 注册新路由：`POST register`、`GET check-username`                             |
 
 ### 不变的文件
 
-| 文件 | 理由 |
-|------|------|
-| `apps/worker/src/handlers/auth.ts` (login/refresh/logout/me) | 已有逻辑完整，不需修改 |
-| `apps/worker/src/lib/password.ts` | 注册复用 `hashPassword()`，无需改动 |
-| `apps/worker/src/lib/jwt.ts` | 注册复用 `createJwt()`，无需改动 |
-| `apps/worker/src/middleware/auth.ts` | 认证中间件不变 |
-| `apps/web/src/viewmodels/forum/auth.ts` | 登录验证逻辑不变 |
+| 文件                                                         | 理由                                |
+| ------------------------------------------------------------ | ----------------------------------- |
+| `apps/worker/src/handlers/auth.ts` (login/refresh/logout/me) | 已有逻辑完整，不需修改              |
+| `apps/worker/src/lib/password.ts`                            | 注册复用 `hashPassword()`，无需改动 |
+| `apps/worker/src/lib/jwt.ts`                                 | 注册复用 `createJwt()`，无需改动    |
+| `apps/worker/src/middleware/auth.ts`                         | 认证中间件不变                      |
+| `apps/web/src/viewmodels/forum/auth.ts`                      | 登录验证逻辑不变                    |
 
 ---
 
 ## 安全备注
 
-| 关注点 | 处理方式 |
-|--------|----------|
-| Key A 不暴露给浏览器 | 所有 Worker 调用走 Server Action 或 Next.js API Route 代理 |
-| Worker JWT 不暴露给浏览器 | 存在 NextAuth JWT（httpOnly JWE cookie），session callback 不输出，服务端通过 `getToken(cookie)` 获取 |
-| 密码存储 | PBKDF2-SHA256，100k iterations，16 bytes salt |
-| 注册并发安全 | SELECT 预检 + INSERT UNIQUE 约束双重保障 |
-| 注册滥用 | IP 频率限制（3 次/小时）+ 用户名敏感词过滤 |
-| CSRF | NextAuth 内置 CSRF token 保护 |
-| Timing attack | 密码验证使用 constant-time 比较 |
-| Session 劫持 | NextAuth JWT 签名 + httpOnly cookie |
-| Refresh token 泄露 | Token rotation — 每次 refresh 后旧 token 失效 |
-| Google OAuth 用户误入论坛路由 | proxy.ts 检查 provider 类型，Google session 不能通过论坛 auth 路由 |
+| 关注点                        | 处理方式                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Key A 不暴露给浏览器          | 所有 Worker 调用走 Server Action 或 Next.js API Route 代理                                            |
+| Worker JWT 不暴露给浏览器     | 存在 NextAuth JWT（httpOnly JWE cookie），session callback 不输出，服务端通过 `getToken(cookie)` 获取 |
+| 密码存储                      | PBKDF2-SHA256，100k iterations，16 bytes salt                                                         |
+| 注册并发安全                  | SELECT 预检 + INSERT UNIQUE 约束双重保障                                                              |
+| 注册滥用                      | IP 频率限制（3 次/小时）+ 用户名敏感词过滤                                                            |
+| CSRF                          | NextAuth 内置 CSRF token 保护                                                                         |
+| Timing attack                 | 密码验证使用 constant-time 比较                                                                       |
+| Session 劫持                  | NextAuth JWT 签名 + httpOnly cookie                                                                   |
+| Refresh token 泄露            | Token rotation — 每次 refresh 后旧 token 失效                                                         |
+| Google OAuth 用户误入论坛路由 | proxy.ts 检查 provider 类型，Google session 不能通过论坛 auth 路由                                    |

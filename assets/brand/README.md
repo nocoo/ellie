@@ -4,15 +4,15 @@ A mineral-gray elephant raises its trunk toward one small folded paper airplane.
 
 ## Use by surface
 
-| Surface | Asset | Treatment |
-| --- | --- | --- |
-| README header / large gallery | `assets/brand/icon-rounded.png` | Selected rounded presentation, shown at 128 px in README |
-| Admin sidebar, both states | `apps/admin/public/logo-24.png` | Transparent foreground with no additional mask. |
-| Other small admin marks | `apps/admin/public/logo-80.png` | Transparent foreground. |
-| Admin login | `apps/admin/public/logo-192.png` | Transparent UI mark shown at 96 px; the old circular wrapper is removed. This is not a PWA icon. |
-| Admin browser | `apps/admin/src/app/icon.png`, `favicon.ico` | Transparent 32 px PNG and complete 16/32 px ICO through Next.js file metadata. |
-| Admin Apple touch | `apps/admin/src/app/apple-icon.png` | Opaque square presentation at 180 px. |
-| Admin social | `apps/admin/src/app/opengraph-image.png` | Rounded presentation on the existing 1200 × 630 dark canvas. |
+| Surface                         | Asset                                                                                                | Treatment                                                                                                                      |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| README header / large gallery   | `assets/brand/icon-rounded.png`                                                                      | Selected rounded presentation, shown at 128 px in README                                                                       |
+| Admin sidebar, both states      | `apps/admin/public/logo-24.png`                                                                      | Transparent foreground with no additional mask.                                                                                |
+| Other small admin marks         | `apps/admin/public/logo-80.png`                                                                      | Transparent foreground.                                                                                                        |
+| Admin login                     | `apps/admin/public/logo-192.png`                                                                     | Transparent UI mark shown at 96 px; the old circular wrapper is removed. This is not a PWA icon.                               |
+| Admin browser                   | `apps/admin/src/app/icon.png`, `favicon.ico`                                                         | Transparent 32 px PNG and complete 16/32 px ICO through Next.js file metadata.                                                 |
+| Admin Apple touch               | `apps/admin/src/app/apple-icon.png`                                                                  | Opaque square presentation at 180 px.                                                                                          |
+| Admin social                    | `apps/admin/src/app/opengraph-image.png`                                                             | Rounded presentation on the existing 1200 × 630 dark canvas.                                                                   |
 | Independent forum site identity | `ForumLogo`, `general.site.logo_light`, `general.site.logo_dark`, and `apps/web/src/app/favicon.ico` | The deployed forum has its own configured wordmark/favicon. These are not the elephant application identity and are preserved. |
 
 Root `logo.png` is the canonical 2048 × 2048 transparent foreground. `assets/brand/icon.png` and `icon-rounded.png` are separate square and rounded presentation masters. Small application and browser marks use the transparent foreground without a baked-in background, glow, color filter, or extra circular mask. Larger README, native-install, and social surfaces may use the designed background according to their platform contract.

@@ -39,10 +39,10 @@ Three stages:
 
 ## CI / CD
 
-| Workflow | File | Trigger | Purpose |
-|----------|------|---------|---------|
-| CI | `.github/workflows/ci.yml` | push / PR | Lint + unit + L2 + L3 |
-| Release | `.github/workflows/release.yml` | CI succeeds on `main`, or `workflow_dispatch` | Build → push GHCR → deploy to jp2 |
+| Workflow | File                            | Trigger                                       | Purpose                           |
+| -------- | ------------------------------- | --------------------------------------------- | --------------------------------- |
+| CI       | `.github/workflows/ci.yml`      | push / PR                                     | Lint + unit + L2 + L3             |
+| Release  | `.github/workflows/release.yml` | CI succeeds on `main`, or `workflow_dispatch` | Build → push GHCR → deploy to jp2 |
 
 Release steps:
 1. Build & push two images to GHCR: `ellie-web:latest` + `:sha`, `ellie-admin:latest` + `:sha`
@@ -147,12 +147,12 @@ Add two A records pointing to your server's public IP (proxied):
 
 ## GitHub Actions Secrets
 
-| Name | Purpose |
-|------|---------|
-| `VPS_HOST` | Deploy server hostname / IP |
-| `VPS_USER` | SSH user |
-| `VPS_SSH_KEY` | SSH deploy private key |
-| `GHCR_PULL_USER` | GHCR pull account |
+| Name              | Purpose                        |
+| ----------------- | ------------------------------ |
+| `VPS_HOST`        | Deploy server hostname / IP    |
+| `VPS_USER`        | SSH user                       |
+| `VPS_SSH_KEY`     | SSH deploy private key         |
+| `GHCR_PULL_USER`  | GHCR pull account              |
 | `GHCR_PULL_TOKEN` | PAT with `read:packages` scope |
 
 Image push uses the workflow's built-in `GITHUB_TOKEN` — no extra config needed.
@@ -184,11 +184,11 @@ docker run --rm -p 7031:7031 --env-file apps/web/.env.local ellie-web:local
 Implementation and validation are tracked in [29](29-nextjs-memory-statistics.md).
 These instructions describe a future authorized deployment, not deployment evidence.
 
-| Runtime | Variable | Purpose |
-| --- | --- | --- |
-| Web + Worker | `WEB_STATISTICS_WRITE_KEY` | Dedicated bounded statistical batch writes; never distributed to CLI or browsers |
-| Web + Admin | `MEMORY_CACHE_ADMIN_KEY` | Admin server access to the Web memory management route |
-| Admin | `WEB_MEMORY_ADMIN_URL` | Explicit internal Web service origin, normally `http://web:7031` in the documented Docker network |
+| Runtime      | Variable                   | Purpose                                                                                           |
+| ------------ | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| Web + Worker | `WEB_STATISTICS_WRITE_KEY` | Dedicated bounded statistical batch writes; never distributed to CLI or browsers                  |
+| Web + Admin  | `MEMORY_CACHE_ADMIN_KEY`   | Admin server access to the Web memory management route                                            |
+| Admin        | `WEB_MEMORY_ADMIN_URL`     | Explicit internal Web service origin, normally `http://web:7031` in the documented Docker network |
 
 Use distinct generated secrets for the two capabilities. Configure runtime secrets
 without printing them or baking them into an image. Do not reuse API Key A/B or

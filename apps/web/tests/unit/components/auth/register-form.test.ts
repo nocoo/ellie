@@ -79,17 +79,23 @@ vi.mock("@/components/ui/textarea", () => ({
 	Textarea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
 }));
 
+function InertCapWidget() {
+	return createElement("div", { "data-testid": "cap-widget" });
+}
+
+function AutoSolveCapWidget({ onSolve }: { onSolve: (t: string) => void }) {
+	useEffect(() => {
+		onSolve("test-token");
+	}, [onSolve]);
+	return createElement("div", { "data-testid": "cap-widget" });
+}
+
 const inertCapMock = () => ({
-	CapWidget: () => createElement("div", { "data-testid": "cap-widget" }),
+	CapWidget: InertCapWidget,
 });
 
 const autoSolveCapMock = () => ({
-	CapWidget: ({ onSolve }: { onSolve: (t: string) => void }) => {
-		useEffect(() => {
-			onSolve("test-token");
-		}, [onSolve]);
-		return createElement("div", { "data-testid": "cap-widget" });
-	},
+	CapWidget: AutoSolveCapWidget,
 });
 
 async function loadForm() {

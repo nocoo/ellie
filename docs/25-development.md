@@ -4,11 +4,11 @@
 
 Ellie 的三个服务各自运行：论坛 `apps/web`（7031）、管理后台 `apps/admin`（7032）、Worker `apps/worker`（本地示例为 8787）。浏览器调用 Next.js 路由，Next.js 在服务端附带 API Key 请求 Worker。Rust TUI 直接调用 Worker，也需要论坛 API Key。
 
-| 配置 | 消费方 | 用途 |
-| --- | --- | --- |
-| 根 `.dev.vars`，通过 `apps/worker/.dev.vars` 符号链接共享 | Wrangler、本地 TUI 启动脚本 | Worker API Key、JWT 与可选服务密钥 |
-| `apps/web/.env.local` | Next.js 论坛 | 论坛 API Key、会话、站点地址与 Cap 端点 |
-| `apps/admin/.env.local` | Next.js 后台 | 后台 API Key、会话、Google OAuth 与邮箱白名单 |
+| 配置                                                      | 消费方                      | 用途                                          |
+| --------------------------------------------------------- | --------------------------- | --------------------------------------------- |
+| 根 `.dev.vars`，通过 `apps/worker/.dev.vars` 符号链接共享 | Wrangler、本地 TUI 启动脚本 | Worker API Key、JWT 与可选服务密钥            |
+| `apps/web/.env.local`                                     | Next.js 论坛                | 论坛 API Key、会话、站点地址与 Cap 端点       |
+| `apps/admin/.env.local`                                   | Next.js 后台                | 后台 API Key、会话、Google OAuth 与邮箱白名单 |
 
 模板分别是 `apps/worker/.dev.vars.example`、`apps/web/.env.local.example`、`apps/admin/.env.local.example`。首次复制与启动命令见[中文 README](../README.md)和 [English README](README.en.md)。已有配置不要重复覆盖；如果 Worker 路径已有文件，先检查它是否为指向 `../../.dev.vars` 的链接。
 
@@ -53,9 +53,9 @@ packages/cli-rs/target/release/ellie-tui --help
 
 ```json
 {
-  "apiUrl": "http://127.0.0.1:8787",
-  "apiKey": "LOCAL_FORUM_KEY",
-  "theme": "default"
+	"apiUrl": "http://127.0.0.1:8787",
+	"apiKey": "LOCAL_FORUM_KEY",
+	"theme": "default"
 }
 ```
 
@@ -69,14 +69,14 @@ packages/cli-rs/target/release/ellie-tui --help
 
 常用命令见 README。当前自动化入口的资源分配如下：
 
-| 命令 | 运行范围与资源 |
-| --- | --- |
-| `bun run test` | TypeScript 各包单元测试及 Bun 专用用例 |
-| `bun run test:l2:fast` | 进程内 Worker + 内存 SQLite |
-| `bun run test:e2e:api` | 本地 Worker；默认 17031，可自动选空闲端口；重建 `.wrangler/state/e2e` |
-| `bun run test:e2e:browser` | 论坛 Next.js 27031 + 本地 Worker 8788；重建 `.wrangler/state/l3` |
-| `bun run test:e2e:admin` | 后台 Next.js 7032 + 同一 Worker 端口 / 状态目录 |
-| `bun run test:e2e:bdd` | 顺序运行上述论坛、后台浏览器测试 |
+| 命令                       | 运行范围与资源                                                        |
+| -------------------------- | --------------------------------------------------------------------- |
+| `bun run test`             | TypeScript 各包单元测试及 Bun 专用用例                                |
+| `bun run test:l2:fast`     | 进程内 Worker + 内存 SQLite                                           |
+| `bun run test:e2e:api`     | 本地 Worker；默认 17031，可自动选空闲端口；重建 `.wrangler/state/e2e` |
+| `bun run test:e2e:browser` | 论坛 Next.js 27031 + 本地 Worker 8788；重建 `.wrangler/state/l3`      |
+| `bun run test:e2e:admin`   | 后台 Next.js 7032 + 同一 Worker 端口 / 状态目录                       |
+| `bun run test:e2e:bdd`     | 顺序运行上述论坛、后台浏览器测试                                      |
 
 浏览器测试使用本地数据；论坛会话来自 Credentials 回调，后台由测试辅助函数生成签名会话。真实 Cap 操作场景被跳过，Google OAuth 与邮箱真实投递也未由此验证。测试前保持 8788、27031、7032 空闲；不要同时运行论坛和后台浏览器 runner。
 

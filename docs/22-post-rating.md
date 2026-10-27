@@ -25,15 +25,15 @@
 
 ## 1. 决策记录（@zheng-li 2026-05-18）
 
-| # | 决策 | 取值 |
-|---|------|------|
-| 1 | 额度策略 | **硬编码常量**，二期再做 settings |
-| 1a | 积分每日上限（按 role） | Mod=100 / SuperMod=200 / Admin=200 |
-| 1b | 同钱每日上限（所有用户统一） | **5200 / 滚动 24h，不分角色** |
-| 2 | `posts.rate / rate_times` 冗余列 | **不加**，实时聚合 |
-| 3 | "通知作者" PM 的发件人 | 真人评分者，正文**自动生成**（不含自定义 BBCode） |
-| 4 | 撤销时是否给被撤销者发 PM | **不发**；用 `post_ratings.revoked_at / revoked_by` + 结构化日志，不接 audit_logs |
-| 5 | 历史 ratelog uid/pid 映射失败 | **丢弃** + warn 日志 |
+| #   | 决策                             | 取值                                                                              |
+| --- | -------------------------------- | --------------------------------------------------------------------------------- |
+| 1   | 额度策略                         | **硬编码常量**，二期再做 settings                                                 |
+| 1a  | 积分每日上限（按 role）          | Mod=100 / SuperMod=200 / Admin=200                                                |
+| 1b  | 同钱每日上限（所有用户统一）     | **5200 / 滚动 24h，不分角色**                                                     |
+| 2   | `posts.rate / rate_times` 冗余列 | **不加**，实时聚合                                                                |
+| 3   | "通知作者" PM 的发件人           | 真人评分者，正文**自动生成**（不含自定义 BBCode）                                 |
+| 4   | 撤销时是否给被撤销者发 PM        | **不发**；用 `post_ratings.revoked_at / revoked_by` + 结构化日志，不接 audit_logs |
+| 5   | 历史 ratelog uid/pid 映射失败    | **丢弃** + warn 日志                                                              |
 
 ---
 
@@ -43,7 +43,7 @@
 ✅ Mod / SuperMod / Admin 对**他人帖子**打"积分"（dimension=1）。
 ✅ 评分理由：从**预设列表**选 + 允许**手动输入**一条（max 40 字符，对齐旧站）。
 ✅ "通知作者" 复选框 → 自动生成 PM 内容并写入 `messages`。
-✅ 帖子下方汇总展示：参与人数 + 各维度合计 +  "展开" → 浮层显示明细（评分者 / 维度 / 分值 / 理由 / 时间）。
+✅ 帖子下方汇总展示：参与人数 + 各维度合计 + "展开" → 浮层显示明细（评分者 / 维度 / 分值 / 理由 / 时间）。
 ✅ 历史数据 ETL → `post_ratings`；丢弃映射失败行。
 ✅ 撤销评分：仅 Admin / SuperMod，单条撤销。
 
@@ -57,12 +57,12 @@
 
 ## 3. 权限矩阵
 
-| role | 名称 | 同钱评分 | 积分评分 | 撤销 |
-|------|------|----------|----------|------|
-| 0 | User | ✅ | ❌ | ❌ |
-| 3 | Mod | ✅ | ✅ | ❌ |
-| 2 | SuperMod | ✅ | ✅ | ✅ |
-| 1 | Admin | ✅ | ✅ | ✅ |
+| role | 名称     | 同钱评分 | 积分评分 | 撤销 |
+| ---- | -------- | -------- | -------- | ---- |
+| 0    | User     | ✅       | ❌       | ❌   |
+| 3    | Mod      | ✅       | ✅       | ❌   |
+| 2    | SuperMod | ✅       | ✅       | ✅   |
+| 1    | Admin    | ✅       | ✅       | ✅   |
 
 公共门槛（与旧站等价）：
 - 必须登录、`status = Active(0)`、email 已验证（沿用现有写操作 gate）。
@@ -78,20 +78,21 @@
 ```ts
 // apps/worker/src/lib/rating-limits.ts
 export const RATING_LIMITS = {
-  coins: {
-    perDay: 5200,        // sum(|score|) 滚动 24h, 所有 role 统一
-    perVoteMax: 100,     // 单次 |score| 上限（防一击拉满）
-    perVoteMin: 1,       // 单次 |score| 下限
-  },
-  credits: {
-    perVoteMax: 50,      // 单次 |score| 上限
-    perVoteMin: 1,
-    perDay: {            // 滚动 24h
-      [UserRole.Mod]: 100,
-      [UserRole.SuperMod]: 200,
-      [UserRole.Admin]: 200,
-    },
-  },
+	coins: {
+		perDay: 5200, // sum(|score|) 滚动 24h, 所有 role 统一
+		perVoteMax: 100, // 单次 |score| 上限（防一击拉满）
+		perVoteMin: 1, // 单次 |score| 下限
+	},
+	credits: {
+		perVoteMax: 50, // 单次 |score| 上限
+		perVoteMin: 1,
+		perDay: {
+			// 滚动 24h
+			[UserRole.Mod]: 100,
+			[UserRole.SuperMod]: 200,
+			[UserRole.Admin]: 200,
+		},
+	},
 } as const;
 ```
 
@@ -153,6 +154,7 @@ WHERE post_id = ? AND revoked_at = 0;
 
 1. 先拿到当前页 post ids（已有 `SELECT * FROM posts ... LIMIT ?`）。
 2. 紧接着一次 GROUP BY 查询批量聚合：
+
    ```sql
    SELECT post_id,
           SUM(CASE WHEN dimension=1 THEN score ELSE 0 END) AS credits_sum,
@@ -175,11 +177,11 @@ popover 明细仍走独立 `GET /api/v1/posts/:postId/ratings`，懒加载，避
 
 ### 6.1 端点
 
-| Method | Path | Auth | 说明 |
-|--------|------|------|------|
-| `POST` | `/api/v1/posts/:postId/rate` | JWT 必需 | 创建一条评分 |
-| `GET`  | `/api/v1/posts/:postId/ratings` | optional | 列表（聚合 + 明细），用于 popover 懒加载 |
-| `POST` | `/api/v1/posts/:postId/ratings/:ratingId/revoke` | JWT + role∈{1,2} | 撤销一条评分 |
+| Method | Path                                             | Auth             | 说明                                     |
+| ------ | ------------------------------------------------ | ---------------- | ---------------------------------------- |
+| `POST` | `/api/v1/posts/:postId/rate`                     | JWT 必需         | 创建一条评分                             |
+| `GET`  | `/api/v1/posts/:postId/ratings`                  | optional         | 列表（聚合 + 明细），用于 popover 懒加载 |
+| `POST` | `/api/v1/posts/:postId/ratings/:ratingId/revoke` | JWT + role∈{1,2} | 撤销一条评分                             |
 
 ### 6.2 `POST /api/v1/posts/:postId/rate` 请求/响应
 
@@ -201,6 +203,7 @@ D1 batch 顺序：
 1. 拉取 post + author + thread 状态 → 公共门槛校验（§3）。
 2. 权限矩阵 + `|score|` 范围校验（纯应用层）。
 3. **条件 INSERT 守护额度**（避免先读后写竞态）：
+
    ```sql
    INSERT INTO post_ratings
      (post_id, thread_id, rater_id, rater_name, dimension, score, reason, created_at, revoked_at, revoked_by)
@@ -214,9 +217,11 @@ D1 batch 顺序：
        AND created_at >= ?  -- now - 86400
    ) + ABS(?) <= ?;  -- limit
    ```
+
    - `WHERE revoked_at = 0` 关键：撤销后额度自动返还（与旧站删除 ratelog 语义一致）。
    - 该语句的 `INSERT ... SELECT ...` 在不满足条件时返回 `changes()=0`，不抛错。
 4. **作者积分 update（用 `WHERE EXISTS` 守护，防止第 3 步未生效时仍打钱）**：
+
    ```sql
    UPDATE users
    SET coins/credits = coins/credits + ?
@@ -228,8 +233,10 @@ D1 batch 顺序：
          AND revoked_at = 0
      );
    ```
+
    - 用一条窄子查询确认刚才那条 rating 真的落库（同 rater+post+dim+created_at+revoked_at=0 唯一可定位），避免依赖跨 statement 的 `changes()` 状态。`revoked_at = 0` 关键：避免极端情况下同秒存在历史 revoked rating 时被旧行误命中 guard。
 5. **PM insert 同样守护**（若 `notifyAuthor=true`）：
+
    ```sql
    INSERT INTO messages
      (sender_id, sender_name, receiver_id, receiver_name,
@@ -242,6 +249,7 @@ D1 batch 顺序：
        AND revoked_at = 0
    );
    ```
+
    - 这样额度不足时（第 3 步未插入）PM 也不会被写入。
 6. Batch 跑完后，handler 检查**首条 INSERT 的 `meta.changes`**：
    - `= 0` → 额度耗尽 → 返回 `429 RATING_DAILY_LIMIT`（不需要 rollback，因为后续语句已经全是 no-op）。
@@ -253,6 +261,7 @@ D1 batch 顺序：
 - `receiver_*` 取自 post 作者行。
 - `subject` = `您收到一条评分`。
 - `content` = 服务端拼接的纯文本模板：
+
   ```
   @{rater_name} 在《{thread_subject}》对您的回帖评分：
   [积分|同钱] {+N|-N}
@@ -264,7 +273,7 @@ D1 batch 顺序：
   2. 调用现有 `censor()` 敏感词替换。
   3. 调用现有 `escapeHtml()` / 纯文本化（去 BBCode/HTML 标记），不留富文本。
   4. 长度二次校验（trim 后 > 40 字符 → 400）。
-  最终入库的 `post_ratings.reason` 也是这份 `reason_plain`，保证公开列表与 PM 一致。
+     最终入库的 `post_ratings.reason` 也是这份 `reason_plain`，保证公开列表与 PM 一致。
 
 错误码：
 - `403 RATING_PERMISSION_DENIED` 角色无此 dimension 权限。
@@ -279,24 +288,30 @@ D1 batch 顺序：
 
 ```ts
 {
-  postId: number;
-  threadId: number;
-  aggregate: {
-    total: number;
-    credits: { count: number; sum: number };
-    coins:   { count: number; sum: number };
-  };
-  items: Array<{
-    id: number;
-    raterId: number;
-    raterName: string;
-    dimension: "credits" | "coins";
-    score: number;
-    reason: string;
-    createdAt: number;
-    revokedAt: number;
-    canRevoke: boolean;  // 当前用户是否可撤销该条
-  }>;
+	postId: number;
+	threadId: number;
+	aggregate: {
+		total: number;
+		credits: {
+			count: number;
+			sum: number;
+		}
+		coins: {
+			count: number;
+			sum: number;
+		}
+	}
+	items: Array<{
+		id: number;
+		raterId: number;
+		raterName: string;
+		dimension: "credits" | "coins";
+		score: number;
+		reason: string;
+		createdAt: number;
+		revokedAt: number;
+		canRevoke: boolean; // 当前用户是否可撤销该条
+	}>;
 }
 ```
 
@@ -315,6 +330,7 @@ D1 batch 顺序：
   1. 先单 SELECT 拿 `(post_id, rater_id, dimension, score, revoked_at, author_id)`。`revoked_at != 0` 或行不存在 → 404（不区分两种情况，避免泄露）。
   2. `UPDATE post_ratings SET revoked_at = ?, revoked_by = ? WHERE id = ? AND post_id = ? AND revoked_at = 0`。
   3. **作者积分反向 update（load-bearing 的 `changes() > 0` guard，Phase 3 amend blocker）**：
+
      ```sql
      UPDATE users
      SET coins/credits = coins/credits - ?
@@ -325,14 +341,17 @@ D1 batch 顺序：
          WHERE id = ? AND revoked_at = ? AND revoked_by = ?
        );
      ```
+
      - `changes() > 0` 不能省：D1 batch 在同一连接顺序执行，`changes()` 反映上一条 `UPDATE post_ratings`。如果省掉，**同秒双击撤销**场景下输家的 `UPDATE post_ratings` 是 0 行变更，但它的 `EXISTS` 仍会命中赢家刚写入的 `(revoked_at, revoked_by)` 元组，从而**重复扣作者积分**。该 guard 是 Phase 3 amend (`a8328...` 系列) 的修复结果。
   4. Batch 跑完后 handler 读首条 update 的 `meta.changes`：`= 0` → 404（已被别人撤销）；`= 1` → 走结构化日志 + 204。
   5. **结构化日志**（不接 audit_logs 基础设施）：
+
      ```
      console.warn('post_rating.revoke', JSON.stringify({
        actorId, ratingId, postId, dimension, score, raterId, authorId, at: now
      }));
      ```
+
      `post_ratings.revoked_at / revoked_by` 已经是审计快照；后续若上线 audit_logs，再补一份写入即可。
 - 不发 PM。
 - 返回 204（**空 body**，proxy route 同样保持 204 + empty body）。
@@ -345,10 +364,10 @@ D1 batch 顺序：
 
 `post-action-bar.tsx` 左侧 user-actions 区域新增两个 ForumActionButton：
 
-| Button | 图标 | label | 显示条件 |
-|--------|------|-------|----------|
-| 同钱 | `Coins` (lucide) | "同钱" | 已登录、`authorId > 0`（非匿名 / 非已删）、非自评 |
-| 积分 | `Award` (lucide) | "积分" | 同上 + `role ∈ {Mod, SuperMod, Admin}` |
+| Button | 图标             | label  | 显示条件                                          |
+| ------ | ---------------- | ------ | ------------------------------------------------- |
+| 同钱   | `Coins` (lucide) | "同钱" | 已登录、`authorId > 0`（非匿名 / 非已删）、非自评 |
+| 积分   | `Award` (lucide) | "积分" | 同上 + `role ∈ {Mod, SuperMod, Admin}`            |
 
 实现说明（与 `post-card.tsx` 一致）：
 
@@ -389,6 +408,7 @@ D1 batch 顺序：
 - toggle 按钮可键盘聚焦（`focus-visible:underline`），按 Enter / Space 同样展开；可用 ESC 关闭，符合 a11y 最佳实践。
 - **明细列表懒加载**：popover 首次打开才发起 `GET /api/v1/posts/:postId/ratings`，后续打开复用缓存（除非提交/撤销触发 invalidate）。`post-rating-flow.test.ts` 集成测试断言：toggle 之前 `fetchPostRatings` 调用 0 次，toggle 后恰好 1 次。
 - 每条明细行：
+
   ```
   [avatar] @alice  积分 +5  「优秀文章」   2 分钟前  [撤销]
   ```
@@ -415,7 +435,7 @@ D1 batch 顺序：
    - 唯一索引 `UNIQUE(rater_id, post_id, dimension) WHERE revoked_at=0` 会拒绝重复，所以**必须在 ETL 阶段处理**，否则导入失败或静默丢数据。
    - 策略：**合并同 key 重复行**：保留 `MIN(dateline)` 那条作为代表，`score = SUM(score)`，`reason = MAX(LENGTH(reason)) 那条的 reason`（最长理由信息量最大），其他行丢弃。
    - 输出统计文件 `output/post-ratings-import-YYYY-MM-DD/SUMMARY.md`：总数 / 成功 / 因 uid 映射失败丢弃 / 因 pid 映射失败丢弃 / 因合并丢弃，附 dropped 与 merged 明细 CSV。
-3a. **reason 清洗**（Phase 5 二审 blocker — msg=74219a93 解除）：`normalizeRatelogRow()` 必须先调用 `stripMarkup()`（与 Worker `processReason` 同一份正则）再做长度截断，否则历史 `[quote]…[/quote]` / `<script>` / `[color=red]…[/color]` 会原样泄漏到公共评分列表。ETL **跳过 censor**（历史内容已在线上多年），其它步骤（trim → stripMarkup → trim → cap）与新写入路径一致。Phase 5 重跑 dry-run 后 `rg '\[\w+\]'` 在生成 SQL 中零 BBCode 命中。
+     3a. **reason 清洗**（Phase 5 二审 blocker — msg=74219a93 解除）：`normalizeRatelogRow()` 必须先调用 `stripMarkup()`（与 Worker `processReason` 同一份正则）再做长度截断，否则历史 `[quote]…[/quote]` / `<script>` / `[color=red]…[/color]` 会原样泄漏到公共评分列表。ETL **跳过 censor**（历史内容已在线上多年），其它步骤（trim → stripMarkup → trim → cap）与新写入路径一致。Phase 5 重跑 dry-run 后 `rg '\[\w+\]'` 在生成 SQL 中零 BBCode 命中。
 4. 拉取 `posts.thread_id` 填充 `thread_id` 冗余字段。
 5. `extcredits` 直接复用为 `dimension`（1=credits, 2=coins）。
 6. 输出 `output/post-ratings-import-YYYY-MM-DD/`：
@@ -442,10 +462,12 @@ D1 batch 顺序：
 ## 10. 测试矩阵
 
 ### 10.1 D1 migration tests (bun:sqlite)
+
 - `tests/unit/migration-0040-schema.test.ts`：表/索引/唯一约束。
 - 唯一索引在 `revoked_at=0` 生效，撤销后允许同 (uid,pid,dim) 再评。
 
 ### 10.2 Worker handler unit tests (vitest)
+
 - 创建：
   - User → 同钱 ✔
   - User → 积分 ✘ (403 PERMISSION_DENIED)
@@ -494,21 +516,21 @@ Playwright 多用户 / role 切换 seed 成本高（需要至少 2 个独立 ses
 
 ## 11. 实施步骤（原子化提交计划）
 
-| # | Commit | 内容 |
-|---|--------|------|
-| 1 | `feat(db): add post_ratings table (0040)` | 新建 migration + schema test |
-| 2 | `feat(types): post rating types & limits constants` | `packages/types/src/rating.ts` + 导出 |
-| 3 | `feat(worker): POST /api/v1/posts/:id/rate handler + unit tests` | handler + lib/rating-limits + 条件 INSERT 守护额度 + unit tests |
-| 4 | `feat(worker): GET /api/v1/posts/:id/ratings handler + unit tests` | 包含 visibility 复用 + canRevoke 下发 |
-| 5 | `feat(worker): revoke endpoint + structured log + unit tests` | 结构化日志（不接 audit_logs） |
-| 6 | `feat(worker): batch rating aggregate in posts list handler` | 在 `apps/worker/src/handlers/post.ts:list` 批量聚合，扩展 `Post/EnrichedPost` 类型；单帖 GET 同步带上 |
-| 7 | `feat(web): Next.js proxy routes for rating endpoints` | `app/api/v1/posts/[id]/rate/route.ts` 等 |
-| 8 | `feat(web): PostRatingDialog component + tests` | 含权限矩阵、表单校验 |
-| 9 | `feat(web): PostRatingSummary component + tests` | click/键盘 popover + 懒加载明细 + 撤销按钮 |
-| 10 | `feat(web): hook up rating buttons in post-action-bar` | 入口接入 |
-| 11 | `feat(migrate): ratelog ETL script + dry-run output` | `packages/migrate/src/transform/ratelog.ts` + `packages/migrate/src/ratelog-etl.ts` + `output/post-ratings-import-*`，含去重合并、stripMarkup 与 SUMMARY.md |
-| 12 | `feat(web,docs): post-rating phase 6 — proxy/integration tests + final docs` | route-level proxy tests（含 204 revoke + 错误透传）+ dialog↔summary RTL 集成测试（aggregate 提升 + 懒加载明细）+ docs/22 定版 + docs/21 SUPERSEDED + README 索引 |
-| 13 | _Playwright e2e_ | 本期不做（多用户 + role 切换 seed 成本），转为 §13 浏览器手验项 |
+| #   | Commit                                                                       | 内容                                                                                                                                                             |
+| --- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `feat(db): add post_ratings table (0040)`                                    | 新建 migration + schema test                                                                                                                                     |
+| 2   | `feat(types): post rating types & limits constants`                          | `packages/types/src/rating.ts` + 导出                                                                                                                            |
+| 3   | `feat(worker): POST /api/v1/posts/:id/rate handler + unit tests`             | handler + lib/rating-limits + 条件 INSERT 守护额度 + unit tests                                                                                                  |
+| 4   | `feat(worker): GET /api/v1/posts/:id/ratings handler + unit tests`           | 包含 visibility 复用 + canRevoke 下发                                                                                                                            |
+| 5   | `feat(worker): revoke endpoint + structured log + unit tests`                | 结构化日志（不接 audit_logs）                                                                                                                                    |
+| 6   | `feat(worker): batch rating aggregate in posts list handler`                 | 在 `apps/worker/src/handlers/post.ts:list` 批量聚合，扩展 `Post/EnrichedPost` 类型；单帖 GET 同步带上                                                            |
+| 7   | `feat(web): Next.js proxy routes for rating endpoints`                       | `app/api/v1/posts/[id]/rate/route.ts` 等                                                                                                                         |
+| 8   | `feat(web): PostRatingDialog component + tests`                              | 含权限矩阵、表单校验                                                                                                                                             |
+| 9   | `feat(web): PostRatingSummary component + tests`                             | click/键盘 popover + 懒加载明细 + 撤销按钮                                                                                                                       |
+| 10  | `feat(web): hook up rating buttons in post-action-bar`                       | 入口接入                                                                                                                                                         |
+| 11  | `feat(migrate): ratelog ETL script + dry-run output`                         | `packages/migrate/src/transform/ratelog.ts` + `packages/migrate/src/ratelog-etl.ts` + `output/post-ratings-import-*`，含去重合并、stripMarkup 与 SUMMARY.md      |
+| 12  | `feat(web,docs): post-rating phase 6 — proxy/integration tests + final docs` | route-level proxy tests（含 204 revoke + 错误透传）+ dialog↔summary RTL 集成测试（aggregate 提升 + 懒加载明细）+ docs/22 定版 + docs/21 SUPERSEDED + README 索引 |
+| 13  | _Playwright e2e_                                                             | 本期不做（多用户 + role 切换 seed 成本），转为 §13 浏览器手验项                                                                                                  |
 
 每步本地 atomic commit，不主动 push（按 SDE 角色约定）。
 
@@ -527,6 +549,7 @@ Playwright 多用户 / role 切换 seed 成本高（需要至少 2 个独立 ses
 ## 13. 验收 Checklist（开发完毕后逐项核对）
 
 ### 自动化（已通过，本地）
+
 - [x] D1 migration / Worker handlers 单测（`apps/worker/.../post-rating.test.ts`）45/45 pass。
 - [x] Web proxy route + dialog + summary + flow 集成测试（`apps/web/tests/unit/...`）34/34 pass。
 - [x] `packages/migrate/tests/ratelog.test.ts` 26/26 pass，输出 SQL `rg '\[\w+\]'` 零 BBCode 命中。
@@ -534,6 +557,7 @@ Playwright 多用户 / role 切换 seed 成本高（需要至少 2 个独立 ses
 - [x] `bunx biome check` 变更文件 clean。
 
 ### 浏览器手验（待哥 / Reviewer 在真实环境逐项 ✓）
+
 - [ ] User 登录 → 帖子 action-bar 仅渲染"同钱"入口；Mod/SuperMod/Admin 渲染同钱+积分两个入口；自己帖子 / 匿名作者帖 / RecycleBin → 入口不渲染。
 - [ ] email 未验证用户能看到入口；点击后弹出验证邮箱提示（与回复 / 点评同一份 §5.4 文案），Worker 拒绝并透传 EMAIL_NOT_VERIFIED。
 - [ ] 评分 dialog：预设分值/理由可选可改、单次绝对值越界禁用提交、单日额度耗尽 → 429 提示。
@@ -548,5 +572,6 @@ Playwright 多用户 / role 切换 seed 成本高（需要至少 2 个独立 ses
 - [ ] 历史 ETL：勾选后跑 `bun run packages/migrate/src/ratelog-etl.ts` dry-run → SUMMARY.md 行数计算正确、merged.csv 含 69 个 key / 95 条 source，生成 SQL 无 `[quote]` / `<script>`。prod 应用由哥决策。
 
 ### 不在本期范围
+
 - Playwright e2e（成本/收益不划算，列入后续可选增强）。
 - audit_logs 基础设施 / settings 表化的额度调整（二期）。

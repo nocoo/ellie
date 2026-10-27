@@ -11,16 +11,16 @@ The dependency graph now resolves one version of each ProseMirror runtime packag
 
 ## Editing contract
 
-| Action | Behavior |
-| --- | --- |
-| Enter | Insert a paragraph or a newline in a plain-text message/comment. |
-| Ctrl+Enter | Submit on Windows and macOS, preserving the document and caret content. |
-| Cmd+Enter | An additional macOS submission shortcut. |
-| IME confirmation / held shortcut | Composition never submits; a held key cannot repeatedly submit. |
-| Formatting | Paragraphs/headings, bold, italic, underline, strike, lists, quotes, code, links, emoji, undo/redo, and clear formatting. |
-| Preview | Render the title, quoted context, and body with the same sanitizer and typography as published content. |
-| Images | Select multiple files, paste, or drop JPG/PNG/WebP/GIF images up to 5 MB each. Show progress, retain failed files for retry, and preserve the insertion position while typing continues. |
-| Pending request | Block duplicate submission and dialog dismissal; retain input on failure. Image upload blocks publication while allowing continued writing. |
+| Action                           | Behavior                                                                                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter                            | Insert a paragraph or a newline in a plain-text message/comment.                                                                                                                         |
+| Ctrl+Enter                       | Submit on Windows and macOS, preserving the document and caret content.                                                                                                                  |
+| Cmd+Enter                        | An additional macOS submission shortcut.                                                                                                                                                 |
+| IME confirmation / held shortcut | Composition never submits; a held key cannot repeatedly submit.                                                                                                                          |
+| Formatting                       | Paragraphs/headings, bold, italic, underline, strike, lists, quotes, code, links, emoji, undo/redo, and clear formatting.                                                                |
+| Preview                          | Render the title, quoted context, and body with the same sanitizer and typography as published content.                                                                                  |
+| Images                           | Select multiple files, paste, or drop JPG/PNG/WebP/GIF images up to 5 MB each. Show progress, retain failed files for retry, and preserve the insertion position while typing continues. |
+| Pending request                  | Block duplicate submission and dialog dismissal; retain input on failure. Image upload blocks publication while allowing continued writing.                                              |
 
 The forum's existing Base UI controls provide tabs, menus, popovers, tooltips, recipient selection, and toast behavior. Colors and spacing use the current design tokens. Compact headers and responsive toolbars preserve writing space, including short landscape viewports. Motion honors `prefers-reduced-motion`.
 
@@ -32,17 +32,17 @@ This is tab-local recovery, not a cross-device or server-side draft service. Fie
 
 ## Interaction audit
 
-| Surface | Result |
-| --- | --- |
-| New thread, reply, edit, quoted reply | Shared rich editor, preview, isolated drafts, validation, pending guards, retained failed input, and success/error feedback. Quote author, date, and snippet are escaped in both preview and submission. |
-| Post action bars and comments | One responsive content/action tree prevents duplicate portaled dialogs. Comments support multiline input, the shared submit shortcut, load retry, write gates, and submission guards. |
-| Private messages | Base UI recipient combobox with keyboard selection and retry; stale searches cannot replace newer results. Compose, conversation loading, sending, reading, and deletion show pending/error states and preserve failed input. |
-| Ratings and revocation | Retain score and reason on failure, reject fractional scores, guard repeated writes, and offer detail-load retry. Revocation follows the server's `canRevoke` permission. |
-| Reports | Preserve CAPTCHA and email gates, show accessible validation/errors, and block duplicate or already-completed submissions. |
-| Profile, avatar, email verification | Guard uploads, saves, and verification requests synchronously. Profile save/close waits for avatar upload; failed requests remain actionable. |
-| User moderation | Retain the confirmation after failure, prevent duplicate execution, show status-load retry, and reject stale status results after changing users. |
-| Thread moderation, move, title edit, check-in, announcements | Reviewed existing pending guards and visible error handling; retain the established confirmation, refresh, and feedback flows. |
-| Navigation and reading | Browser regressions cover forums, threads, pagination, profile tabs, messages, search, themes, mobile overflow, and short dialogs. |
+| Surface                                                      | Result                                                                                                                                                                                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New thread, reply, edit, quoted reply                        | Shared rich editor, preview, isolated drafts, validation, pending guards, retained failed input, and success/error feedback. Quote author, date, and snippet are escaped in both preview and submission.                      |
+| Post action bars and comments                                | One responsive content/action tree prevents duplicate portaled dialogs. Comments support multiline input, the shared submit shortcut, load retry, write gates, and submission guards.                                         |
+| Private messages                                             | Base UI recipient combobox with keyboard selection and retry; stale searches cannot replace newer results. Compose, conversation loading, sending, reading, and deletion show pending/error states and preserve failed input. |
+| Ratings and revocation                                       | Retain score and reason on failure, reject fractional scores, guard repeated writes, and offer detail-load retry. Revocation follows the server's `canRevoke` permission.                                                     |
+| Reports                                                      | Preserve CAPTCHA and email gates, show accessible validation/errors, and block duplicate or already-completed submissions.                                                                                                    |
+| Profile, avatar, email verification                          | Guard uploads, saves, and verification requests synchronously. Profile save/close waits for avatar upload; failed requests remain actionable.                                                                                 |
+| User moderation                                              | Retain the confirmation after failure, prevent duplicate execution, show status-load retry, and reject stale status results after changing users.                                                                             |
+| Thread moderation, move, title edit, check-in, announcements | Reviewed existing pending guards and visible error handling; retain the established confirmation, refresh, and feedback flows.                                                                                                |
+| Navigation and reading                                       | Browser regressions cover forums, threads, pagination, profile tabs, messages, search, themes, mobile overflow, and short dialogs.                                                                                            |
 
 Toast messages use Base UI's queue, dismissal, hover/focus pause, and swipe behavior. Errors remain visible longer than success messages, and critical form failures also remain inline.
 

@@ -12,7 +12,7 @@ Proposed minimal design:
 6. Web context dedupes via React cache in forum-cache.ts across metadata/layout/page using sanitized trusted proxy header containing thread selection, parallel settings/session. No per-user promises across requests. Existing enrichPosts/breadcrumb/UI stays; counted views recorded once on successful non-prefetch render with existing 5min buffer.
 7. Extend existing Web invalidation and Admin notification families. Thread writes/replies/edit/delete/hide/move/anonymity/ratings/attachments and affected author/profile changes invalidate thread-detail; bounded full clear acceptable initially for broad/unknown scope, no new framework. Preserve existing KV invalidation ownership. Admin operations remain direct.
 8. No migration assumed unless demonstrated necessary. Validate privacy, warm no-KV paths, pagination, mutation fences, 100-thread cap/bytes/timer/restart with meaningful tests; normal hooks, production builds, L3 as relevant; independent final review, migration-first Worker deploy, exact CI/Docker receipts.
-Independent design review approved these resolutions. Implementation uses disjoint file ownership and serial heavy validation.
+   Independent design review approved these resolutions. Implementation uses disjoint file ownership and serial heavy validation.
 
 ## Production acceptance
 
