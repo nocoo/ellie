@@ -1,6 +1,6 @@
 [package]
 name = "ellie-tui"
-version = "1.14.29"
+version = "1.14.30"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -15,7 +15,12 @@ anyhow = "1.0.104"
 chrono = "0.4"
 clap = { version = "4.6.7", features = ["derive"] }
 crossterm = "0.29"
-ratatui = "0.30.2"
+ratatui = { version = "0.30.2", default-features = false, features = [
+	"all-widgets",
+	"crossterm",
+	"layout-cache",
+	"macros",
+] }
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
