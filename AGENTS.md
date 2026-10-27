@@ -10,14 +10,14 @@ Maintain this root `AGENTS.md` as the only project handbook; do not create legac
 
 This file is the quality contract; hooks, CI and config are enforcement. Close implementation gaps without lowering the contract. Historical test results are not evidence of a current passing run.
 
-| Fact | Where |
-|---|---|
-| Product / setup | [README.md](README.md), [development](docs/25-development.md) |
+| Fact              | Where                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| Product / setup   | [README.md](README.md), [development](docs/25-development.md)                               |
 | API / credentials | [API architecture](docs/api-architecture.md), [agent details](docs/26-agent-development.md) |
-| Test lifecycle | [local stack](docs/23-local-test-stack.md), `scripts/run-l2.ts`, `scripts/lib/local-d1.ts` |
-| Versions / gates | root `package.json`, package Vitest configs, `.husky`, CI |
-| Accidents | [Retrospective.md](Retrospective.md) |
-| Machine workflow | global `AGENTS.md` and Git rules |
+| Test lifecycle    | [local stack](docs/23-local-test-stack.md), `scripts/run-l2.ts`, `scripts/lib/local-d1.ts`  |
+| Versions / gates  | root `package.json`, package Vitest configs, `.husky`, CI                                   |
+| Accidents         | [Retrospective.md](Retrospective.md)                                                        |
+| Machine workflow  | global `AGENTS.md` and Git rules                                                            |
 
 ## Project Invariants
 
@@ -29,11 +29,11 @@ This file is the quality contract; hooks, CI and config are enforcement. Close i
 
 ## Stack / Layout
 
-| Component | Path / choice |
-|---|---|
-| Forum / admin | `apps/web`, `apps/admin`; Next.js/Auth.js |
-| API / schema | `apps/worker`, `packages/db`, `packages/repositories`, `packages/types` |
-| CLI / migration | `packages/cli-rs` (core + TUI), `packages/migrate` |
+| Component       | Path / choice                                                           |
+| --------------- | ----------------------------------------------------------------------- |
+| Forum / admin   | `apps/web`, `apps/admin`; Next.js/Auth.js                               |
+| API / schema    | `apps/worker`, `packages/db`, `packages/repositories`, `packages/types` |
+| CLI / migration | `packages/cli-rs` (core + TUI), `packages/migrate`                      |
 
 ## Commands
 
@@ -57,15 +57,15 @@ cargo test --locked --workspace --manifest-path packages/cli-rs/Cargo.toml
 L1 requires statements, branches, functions and lines each ≥95%, with no skipped/focused tests; preserve any stricter package threshold. Native tools must identify unmeasured metrics as gaps.
 L1 also requires check-only strict analysis/formatting with zero errors/warnings, installed index-snapshot hooks and proven rejection. G2 requires dependency and secret scans, with missing required scanners failing.
 
-| Dimension | Status | Required proof and current evidence/gap |
-|---|---|---|
-| L1 TypeScript | planned | Coverage runs in hooks/CI; web/admin/Worker currently require branches 90%, other metrics 95%. The declared coverage exclusions remain by design; 90% branch floors do not meet the required 95% bar. |
-| L1 Rust | planned | `cargo test --workspace` exercises core/TUI; no all-four coverage gate. Ignored external API cases are not unit-test proof. |
-| L2 API / Rust | planned | `test:l2` uses real local Worker HTTP; require 100% routes including auth/error paths. `gate:l2` adds strict audit, but hooks use only `test:l2`; Rust external integration is conditional. |
-| L3 web / TUI | planned | CI runs local forum/admin BDD; require all pages and real CLI workflows. Cap scenarios are skipped; real OAuth/mail and full TUI interactions remain explicit manual lanes. |
-| Complete L1 TS / Rust | planned | Biome/typecheck are wired; Rust fmt/clippy (`-D warnings`)/tests run on staged Rust changes. Coverage gaps above, index isolation, full failure-rejection evidence and <30s timing remain incomplete. |
-| G2 | enforced | Hooks/CI run gitleaks and OSV for Bun/Cargo locks; scanners must be available. |
-| D1 | planned | Runners force local mode and test vars, but use fixed lane directories and unguarded recursive cleanup without a checked marker; admin L3 shares dev port 7032. |
+| Dimension             | Status   | Required proof and current evidence/gap                                                                                                                                                               |
+| --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1 TypeScript         | planned  | Coverage runs in hooks/CI; web/admin/Worker currently require branches 90%, other metrics 95%. The declared coverage exclusions remain by design; 90% branch floors do not meet the required 95% bar. |
+| L1 Rust               | planned  | `cargo test --workspace` exercises core/TUI; no all-four coverage gate. Ignored external API cases are not unit-test proof.                                                                           |
+| L2 API / Rust         | planned  | `test:l2` uses real local Worker HTTP; require 100% routes including auth/error paths. `gate:l2` adds strict audit, but hooks use only `test:l2`; Rust external integration is conditional.           |
+| L3 web / TUI          | planned  | CI runs local forum/admin BDD; require all pages and real CLI workflows. Cap scenarios are skipped; real OAuth/mail and full TUI interactions remain explicit manual lanes.                           |
+| Complete L1 TS / Rust | planned  | Biome/typecheck are wired; Rust fmt/clippy (`-D warnings`)/tests run on staged Rust changes. Coverage gaps above, index isolation, full failure-rejection evidence and <30s timing remain incomplete. |
+| G2                    | enforced | Hooks/CI run gitleaks and OSV for Bun/Cargo locks; scanners must be available.                                                                                                                        |
+| D1                    | planned  | Runners force local mode and test vars, but use fixed lane directories and unguarded recursive cleanup without a checked marker; admin L3 shares dev port 7032.                                       |
 
 Pre-commit runs lint-staged, coverage, local L2 and staged gitleaks in parallel, adding TS/Rust checks when relevant. Pre-push runs full TS checks, then L2 and security; Rust HTTP tests run only when `ELLIE_API_URL` and `ELLIE_API_KEY` are set. Point those only at a disposable local fixture. Existing hooks inspect the working tree, not a push-ref snapshot.
 

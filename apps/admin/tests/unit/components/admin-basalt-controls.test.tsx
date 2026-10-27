@@ -40,21 +40,22 @@ it("requires the exact confirmation text and locks dismissal during a mutation",
 	);
 });
 
+function SelectionSyncTable() {
+	const [selectedIds, setSelectedIds] = useState(new Set<string | number>());
+	return (
+		<AdminDataTable
+			columns={[{ key: "id", header: "用户", cell: (row) => row.id }]}
+			data={[{ id: 1 }, { id: 2 }]}
+			getRowId={(row) => row.id}
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			selectable
+		/>
+	);
+}
+
 it("keeps row selection and the mixed all-selection state in sync", () => {
-	function Table() {
-		const [selectedIds, setSelectedIds] = useState(new Set<string | number>());
-		return (
-			<AdminDataTable
-				columns={[{ key: "id", header: "用户", cell: (row) => row.id }]}
-				data={[{ id: 1 }, { id: 2 }]}
-				getRowId={(row) => row.id}
-				selectedIds={selectedIds}
-				onSelectionChange={setSelectedIds}
-				selectable
-			/>
-		);
-	}
-	render(<Table />);
+	render(<SelectionSyncTable />);
 	const region = screen.getByRole("region", { name: "数据列表滚动区域" });
 	expect(region.className).toContain("overflow-x-auto");
 	expect(region.className).not.toMatch(/max-h-|overflow-auto|overscroll-contain/);

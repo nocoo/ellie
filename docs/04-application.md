@@ -4,13 +4,13 @@
 
 ## 1. 文档结构
 
-| 文档 | 主题 | 说明 |
-|------|------|------|
-| [04a-data-model](./04a-data-model.md) | MVVM 与数据结构 | 类型定义、权限模型、Repository 接口、内容格式规约 |
-| [04b-frontend-architecture](./04b-frontend-architecture.md) | 前端架构选型 | 技术栈、项目结构、MVVM 分层、设计系统、认证方案、质量体系 |
-| [04c-admin-console](./04c-admin-console.md) | 管理后台 | Admin 布局、仪表盘/用户管理/内容审核/版块管理 |
-| [04d-forum-frontend](./04d-forum-frontend.md) | 论坛前端 | 论坛布局、核心页面、分页策略、搜索、发帖回帖 |
-| [04e-advanced-features](./04e-advanced-features.md) | 高级功能 | 特殊帖子类型、富文本编辑器、表情系统、全文搜索、私信 |
+| 文档                                                        | 主题            | 说明                                                      |
+| ----------------------------------------------------------- | --------------- | --------------------------------------------------------- |
+| [04a-data-model](./04a-data-model.md)                       | MVVM 与数据结构 | 类型定义、权限模型、Repository 接口、内容格式规约         |
+| [04b-frontend-architecture](./04b-frontend-architecture.md) | 前端架构选型    | 技术栈、项目结构、MVVM 分层、设计系统、认证方案、质量体系 |
+| [04c-admin-console](./04c-admin-console.md)                 | 管理后台        | Admin 布局、仪表盘/用户管理/内容审核/版块管理             |
+| [04d-forum-frontend](./04d-forum-frontend.md)               | 论坛前端        | 论坛布局、核心页面、分页策略、搜索、发帖回帖              |
+| [04e-advanced-features](./04e-advanced-features.md)         | 高级功能        | 特殊帖子类型、富文本编辑器、表情系统、全文搜索、私信      |
 
 ### 文档间依赖
 
@@ -34,12 +34,12 @@
 
 **工具链（与 Doc01 一致）**：
 
-| 层 | 工具 | 说明 |
-|---|---|---|
+| 层            | 工具               | 说明                                 |
+| ------------- | ------------------ | ------------------------------------ |
 | Lint + Format | **Biome** (strict) | 仓库已有 `biome.json`，不引入 ESLint |
-| 测试 | **bun test** | L1 + L2 均用 bun test |
-| E2E | Playwright | L3 端到端测试 |
-| 包管理 | Bun | 单包结构，代码放 `src/` |
+| 测试          | **bun test**       | L1 + L2 均用 bun test                |
+| E2E           | Playwright         | L3 端到端测试                        |
+| 包管理        | Bun                | 单包结构，代码放 `src/`              |
 
 ---
 
@@ -47,45 +47,45 @@
 
 ### 3.1 维度定义
 
-| 维度 | 工具 | 触发时机 | 说明 |
-|------|------|---------|------|
-| **L1 Unit** | bun test | pre-commit | Model 纯函数 + ViewModel hooks + 组件渲染 |
-| **L2 Integration** | bun test (真 HTTP) | pre-push | API 端点测试，自动启停 dev server |
-| **L3 E2E** | Playwright | CI | 关键路径：登录→浏览→发帖→回帖→管理 |
-| **G1 Static** | Biome strict | pre-commit | `--max-warnings=0` |
-| **G2 Security** | osv-scanner + gitleaks | pre-push | 依赖漏洞 + 密钥泄露扫描 |
-| **D1 Isolation** | N/A（Mock 阶段） | — | 当前无真实数据库隔离，D1 缺失导致 **Tier 封顶 B**；Phase 2 接入后补齐 |
+| 维度               | 工具                   | 触发时机   | 说明                                                                  |
+| ------------------ | ---------------------- | ---------- | --------------------------------------------------------------------- |
+| **L1 Unit**        | bun test               | pre-commit | Model 纯函数 + ViewModel hooks + 组件渲染                             |
+| **L2 Integration** | bun test (真 HTTP)     | pre-push   | API 端点测试，自动启停 dev server                                     |
+| **L3 E2E**         | Playwright             | CI         | 关键路径：登录→浏览→发帖→回帖→管理                                    |
+| **G1 Static**      | Biome strict           | pre-commit | `--max-warnings=0`                                                    |
+| **G2 Security**    | osv-scanner + gitleaks | pre-push   | 依赖漏洞 + 密钥泄露扫描                                               |
+| **D1 Isolation**   | N/A（Mock 阶段）       | —          | 当前无真实数据库隔离，D1 缺失导致 **Tier 封顶 B**；Phase 2 接入后补齐 |
 
 ### 3.2 分层覆盖率目标
 
-| 目录 | 目标 | 理由 |
-|------|------|------|
-| `models/` | ≥95% | 纯函数，0 依赖，行为必须精确 |
-| `data/repositories/` | ≥95% | 数据层 contract 必须可信 |
-| `lib/` | ≥95% | 工具函数（attachmentUrl, sanitize 等） |
-| `viewmodels/` | ≥90% | 组合 model + repo，需覆盖状态变换 |
-| 业务组件（`components/forum/`, `components/admin/`） | ≥80% | 关键交互和条件渲染 |
-| UI 壳层（`page.tsx`, `layout.tsx`, `components/ui/`） | 豁免 | shadcn 已验证，壳层无逻辑 |
+| 目录                                                  | 目标 | 理由                                   |
+| ----------------------------------------------------- | ---- | -------------------------------------- |
+| `models/`                                             | ≥95% | 纯函数，0 依赖，行为必须精确           |
+| `data/repositories/`                                  | ≥95% | 数据层 contract 必须可信               |
+| `lib/`                                                | ≥95% | 工具函数（attachmentUrl, sanitize 等） |
+| `viewmodels/`                                         | ≥90% | 组合 model + repo，需覆盖状态变换      |
+| 业务组件（`components/forum/`, `components/admin/`）  | ≥80% | 关键交互和条件渲染                     |
+| UI 壳层（`page.tsx`, `layout.tsx`, `components/ui/`） | 豁免 | shadcn 已验证，壳层无逻辑              |
 
 > **与 Doc01 的覆盖率差异**：Doc01 给 Phase 1 ETL 定 ≥95%，因为迁移工具是纯数据转换。前端 ViewModel/组件层包含大量 UI 状态交互，≥90%/≥80% 是实际可维护的目标。
 
 ### 3.3 Tier 判定
 
-| Tier | 条件 |
-|------|------|
-| **S** | 六维全绿（含 D1） |
-| **A** | L1 + L2 + G1 + D1 + 至少一项（L3/G2） |
+| Tier  | 条件                                         |
+| ----- | -------------------------------------------- |
+| **S** | 六维全绿（含 D1）                            |
+| **A** | L1 + L2 + G1 + D1 + 至少一项（L3/G2）        |
 | **B** | L1 + G1（+ 可选 L2/L3/G2，但无 D1 封顶于此） |
-| **C** | L1 或 G1 任一不达标 |
+| **C** | L1 或 G1 任一不达标                          |
 
 > **Mock 阶段上限**：D1 是 Tier A 的必要条件（见 04b §10）。当前阶段无真实数据库隔离，D1=N/A，因此 **Mock 阶段最高 Tier B**。Phase 2 接入 D1 后方可升级。
 
 ### 3.4 Hook 映射
 
-| Hook | 执行内容 | 时间限制 |
-|------|---------|---------|
-| pre-commit | Biome check (G1) + bun test (L1) | <30s |
-| pre-push | L1 + L2 + osv-scanner + gitleaks (G2) | <3min |
+| Hook       | 执行内容                              | 时间限制 |
+| ---------- | ------------------------------------- | -------- |
+| pre-commit | Biome check (G1) + bun test (L1)      | <30s     |
+| pre-push   | L1 + L2 + osv-scanner + gitleaks (G2) | <3min    |
 
 ---
 
@@ -120,25 +120,25 @@
 
 **产出**：可运行的空壳项目 + 六维质量体系骨架（G1 + L1 + G2 三维立即生效）
 
-| 编号 | 提交信息 | 内容 | 质量状态 |
-|------|---------|------|---------|
-| 4.1.1 | `feat: init next.js 16 project with bun` | Next.js 16 + TypeScript strict + Bun | ✅ |
-| 4.1.2 | `feat: add tailwind v4 + design tokens` | Tailwind CSS v4 + `tailwind.css` 设计 token + 暗黑模式变量 | ✅ |
-| 4.1.3 | `feat: add shadcn/ui base components` | shadcn/ui init + Button/Card/Badge 等基础组件 | ✅ |
-| 4.1.4 | `chore: setup husky + lint-staged + biome strict` | Husky pre-commit (G1: biome check) + pre-push 骨架 | ✅ **G1 生效** |
-| 4.1.5 | `chore: setup bun test + coverage config` | bun test 配置 + coverage 排除规则 + pre-commit 加入 L1 | ✅ **L1 管道生效** |
-| 4.1.6 | `chore: setup g2 security scanning` | pre-push 加入 osv-scanner + gitleaks | ✅ **G2 生效** |
+| 编号  | 提交信息                                          | 内容                                                       | 质量状态          |
+| ----- | ------------------------------------------------- | ---------------------------------------------------------- | ----------------- |
+| 4.1.1 | `feat: init next.js 16 project with bun`          | Next.js 16 + TypeScript strict + Bun                       | ✅                |
+| 4.1.2 | `feat: add tailwind v4 + design tokens`           | Tailwind CSS v4 + `tailwind.css` 设计 token + 暗黑模式变量 | ✅                |
+| 4.1.3 | `feat: add shadcn/ui base components`             | shadcn/ui init + Button/Card/Badge 等基础组件              | ✅                |
+| 4.1.4 | `chore: setup husky + lint-staged + biome strict` | Husky pre-commit (G1: biome check) + pre-push 骨架         | ✅**G1 生效**     |
+| 4.1.5 | `chore: setup bun test + coverage config`         | bun test 配置 + coverage 排除规则 + pre-commit 加入 L1     | ✅**L1 管道生效** |
+| 4.1.6 | `chore: setup g2 security scanning`               | pre-push 加入 osv-scanner + gitleaks                       | ✅**G2 生效**     |
 
 > **4.1 结束时**：pre-commit = G1 + L1，pre-push = G2。**Tier B 门控骨架就位**（L1 管道空跑，4.2 起产生实际覆盖率）。
 >
 > **依赖引入时点**（供执行参考）：
-> | 依赖 | 引入步骤 | 说明 |
-> |------|---------|------|
-> | NextAuth | 4.3.8 | auth mock（forum: credentials provider, admin: google provider） |
-> | Tiptap | 4.6.5 | 富文本编辑器 |
-> | Recharts / Chart 库 | 4.5.2 | Admin 仪表盘趋势图 |
-> | Playwright | 4.9.1 | E2E 测试 |
-> | Smiley assets | 4.9.6 | 表情兼容渲染 |
+> | 依赖                | 引入步骤 | 说明                                                             |
+> | ------------------- | -------- | ---------------------------------------------------------------- |
+> | NextAuth            | 4.3.8    | auth mock（forum: credentials provider, admin: google provider） |
+> | Tiptap              | 4.6.5    | 富文本编辑器                                                     |
+> | Recharts / Chart 库 | 4.5.2    | Admin 仪表盘趋势图                                               |
+> | Playwright          | 4.9.1    | E2E 测试                                                         |
+> | Smiley assets       | 4.9.6    | 表情兼容渲染                                                     |
 
 ---
 
@@ -150,15 +150,15 @@
 
 **前置**：4.1
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.2.1 | `feat: add core type definitions` | `models/types.ts` — 所有 enum + interface | ✅ 编译验证 |
-| 4.2.2 | `feat: add permission model + tests` | `models/permission.ts` + tests | ✅ L1 100%: 全量 role × status × action 组合 |
-| 4.2.3 | `feat: add thread model functions + tests` | `models/thread.ts` (getThreadBadges, decodeHighlight) + tests | ✅ L1 100%: 所有 special/sticky/digest 组合 |
-| 4.2.4 | `feat: add forum model functions + tests` | `models/forum.ts` (buildForumTree, filterVisibleForums) + tests | ✅ L1 100%: 空数组/单层/三层嵌套 |
-| 4.2.5 | `feat: add pagination utilities + tests` | `models/pagination.ts` (cursor encode/decode) + tests | ✅ L1 100% |
-| 4.2.6 | `feat: add shared lib utilities + tests` | `lib/utils.ts`, `lib/attachment.ts` (attachmentUrl, thumbnailUrl, sanitize) + tests | ✅ L1 100% |
-| 4.2.7 | `feat: add repository interfaces` | `data/repositories/types.ts` — 全部 Repository 接口 | ✅ 编译验证 |
+| 编号  | 提交信息                                   | 内容                                                                                | 测试                                         |
+| ----- | ------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------- |
+| 4.2.1 | `feat: add core type definitions`          | `models/types.ts` — 所有 enum + interface                                           | ✅ 编译验证                                  |
+| 4.2.2 | `feat: add permission model + tests`       | `models/permission.ts` + tests                                                      | ✅ L1 100%: 全量 role × status × action 组合 |
+| 4.2.3 | `feat: add thread model functions + tests` | `models/thread.ts` (getThreadBadges, decodeHighlight) + tests                       | ✅ L1 100%: 所有 special/sticky/digest 组合  |
+| 4.2.4 | `feat: add forum model functions + tests`  | `models/forum.ts` (buildForumTree, filterVisibleForums) + tests                     | ✅ L1 100%: 空数组/单层/三层嵌套             |
+| 4.2.5 | `feat: add pagination utilities + tests`   | `models/pagination.ts` (cursor encode/decode) + tests                               | ✅ L1 100%                                   |
+| 4.2.6 | `feat: add shared lib utilities + tests`   | `lib/utils.ts`, `lib/attachment.ts` (attachmentUrl, thumbnailUrl, sanitize) + tests | ✅ L1 100%                                   |
+| 4.2.7 | `feat: add repository interfaces`          | `data/repositories/types.ts` — 全部 Repository 接口                                 | ✅ 编译验证                                  |
 
 > **4.2 结束时**：`models/` + `lib/` 覆盖率 ≥95%，Contract 通过 L1 锁定。
 
@@ -172,17 +172,17 @@
 
 **前置**：4.2
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.3.1 | `feat: add mock data sets` | `data/mock/users.ts`, `forums.ts`, `threads.ts`, `posts.ts`, `attachments.ts` | ✅ |
-| 4.3.2 | `feat: add mock forum repository + tests` | `data/repositories/forum.repository.ts` + tests | ✅ L1 100%: listAll/getById/update |
-| 4.3.3 | `feat: add mock thread repository + tests` | `data/repositories/thread.repository.ts` + tests | ✅ L1 100%: list/search/create/delete/mod 操作 |
-| 4.3.4 | `feat: add mock post repository + tests` | `data/repositories/post.repository.ts` + tests | ✅ L1 100%: list by threadId/authorId |
-| 4.3.5 | `feat: add mock user repository + tests` | `data/repositories/user.repository.ts` + tests | ✅ L1 100%: list/search/filter/setStatus/setRole |
-| 4.3.6 | `feat: add mock attachment repository + tests` | `data/repositories/attachment.repository.ts` + tests | ✅ L1 100% |
-| 4.3.7 | `feat: add repository factory` | `data/index.ts` — createRepositories() | ✅ |
-| 4.3.8 | `feat: add auth mock (nextauth credentials)` | `auth.ts` + mock user 验证 | ✅ L1: login success/failure |
-| 4.3.R | `fix: shared state model` | MockDataStore 单一数据源 + 真实游标分页 + 作者字段 + auth 同源 + 质量门禁 | ✅ Review fix: 489 tests, tsc gate |
+| 编号  | 提交信息                                       | 内容                                                                          | 测试                                             |
+| ----- | ---------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| 4.3.1 | `feat: add mock data sets`                     | `data/mock/users.ts`, `forums.ts`, `threads.ts`, `posts.ts`, `attachments.ts` | ✅                                               |
+| 4.3.2 | `feat: add mock forum repository + tests`      | `data/repositories/forum.repository.ts` + tests                               | ✅ L1 100%: listAll/getById/update               |
+| 4.3.3 | `feat: add mock thread repository + tests`     | `data/repositories/thread.repository.ts` + tests                              | ✅ L1 100%: list/search/create/delete/mod 操作   |
+| 4.3.4 | `feat: add mock post repository + tests`       | `data/repositories/post.repository.ts` + tests                                | ✅ L1 100%: list by threadId/authorId            |
+| 4.3.5 | `feat: add mock user repository + tests`       | `data/repositories/user.repository.ts` + tests                                | ✅ L1 100%: list/search/filter/setStatus/setRole |
+| 4.3.6 | `feat: add mock attachment repository + tests` | `data/repositories/attachment.repository.ts` + tests                          | ✅ L1 100%                                       |
+| 4.3.7 | `feat: add repository factory`                 | `data/index.ts` — createRepositories()                                        | ✅                                               |
+| 4.3.8 | `feat: add auth mock (nextauth credentials)`   | `auth.ts` + mock user 验证                                                    | ✅ L1: login success/failure                     |
+| 4.3.R | `fix: shared state model`                      | MockDataStore 单一数据源 + 真实游标分页 + 作者字段 + auth 同源 + 质量门禁     | ✅ Review fix: 489 tests, tsc gate               |
 
 > **4.3 结束时**：`data/` 覆盖率 ≥95%，Repository Contract 完全可验证。Review 修复：共享状态模型、游标分页、作者输入、auth 同源、typecheck+coverage 门禁。
 
@@ -196,13 +196,13 @@
 
 **前置**：4.1
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
+| 编号  | 提交信息                                     | 内容                                           | 测试                                   |
+| ----- | -------------------------------------------- | ---------------------------------------------- | -------------------------------------- |
 | 4.4.1 | `feat: add theme toggle (light/dark/system)` | ThemeToggle + useTheme hook + FOUC 防闪 script | ✅ L1: init script structure + exports |
-| 4.4.2 | `feat: add breadcrumbs component` | Breadcrumbs 通用组件 | ✅ L1: data contract + exports |
-| 4.4.3 | `feat: add keyset pagination component` | ForumPagination + usePagination hook | ✅ L1: state contract + exports |
-| 4.4.4 | `feat: add user avatar component` | UserAvatar (R2 path → img) | ✅ L1: getInitials + exports |
-| 4.4.5 | `feat: add responsive hooks` | useIsMobile + useDebounce | ✅ L1: constants + exports |
+| 4.4.2 | `feat: add breadcrumbs component`            | Breadcrumbs 通用组件                           | ✅ L1: data contract + exports         |
+| 4.4.3 | `feat: add keyset pagination component`      | ForumPagination + usePagination hook           | ✅ L1: state contract + exports        |
+| 4.4.4 | `feat: add user avatar component`            | UserAvatar (R2 path → img)                     | ✅ L1: getInitials + exports           |
+| 4.4.5 | `feat: add responsive hooks`                 | useIsMobile + useDebounce                      | ✅ L1: constants + exports             |
 
 > **4.4 结束时**：共享组件就绪，4.5 和 4.6 可并行开展。
 
@@ -216,14 +216,14 @@
 
 **前置**：4.3 + 4.4
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.5.1 | `feat: add admin layout (sidebar + header)` | AdminLayout + AdminSidebar | ✅ L1: nav items + exports |
-| 4.5.2 | `feat: add dashboard viewmodel + page` | useDashboardViewModel + StatCard + ChartWidgets + admin/page.tsx | ✅ L1 ≥90%: todayStart/daysAgo/aggregateTrend + fetchDashboardData |
-| 4.5.3 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | ✅ L1 ≥90%: filter/search/ban/unban/roleChange |
-| 4.5.4 | `feat: add thread management viewmodel + page` | useThreadManagementViewModel + ThreadTable + admin/threads/page.tsx | ✅ L1 ≥90%: filter/delete/move/sticky/digest |
-| 4.5.5 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | ✅ L1 ≥90%: tree/edit/hide/order |
-| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin(session)（验证 Google OAuth session + ADMIN_EMAILS 白名单） | ✅ L1: 有效 session/无效 session/不在白名单 |
+| 编号  | 提交信息                                       | 内容                                                                                                   | 测试                                                               |
+| ----- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 4.5.1 | `feat: add admin layout (sidebar + header)`    | AdminLayout + AdminSidebar                                                                             | ✅ L1: nav items + exports                                         |
+| 4.5.2 | `feat: add dashboard viewmodel + page`         | useDashboardViewModel + StatCard + ChartWidgets + admin/page.tsx                                       | ✅ L1 ≥90%: todayStart/daysAgo/aggregateTrend + fetchDashboardData |
+| 4.5.3 | `feat: add user management viewmodel + page`   | useUserManagementViewModel + UserTable + admin/users/page.tsx                                          | ✅ L1 ≥90%: filter/search/ban/unban/roleChange                     |
+| 4.5.4 | `feat: add thread management viewmodel + page` | useThreadManagementViewModel + ThreadTable + admin/threads/page.tsx                                    | ✅ L1 ≥90%: filter/delete/move/sticky/digest                       |
+| 4.5.5 | `feat: add forum management viewmodel + page`  | useForumManagementViewModel + ForumTree + admin/forums/page.tsx                                        | ✅ L1 ≥90%: tree/edit/hide/order                                   |
+| 4.5.6 | `feat: add admin auth guard`                   | (admin)/layout.tsx 权限检查 + resolveAdmin(session)（验证 Google OAuth session + ADMIN_EMAILS 白名单） | ✅ L1: 有效 session/无效 session/不在白名单                        |
 
 > **4.5 结束时**：Admin 后台功能完整，ViewModel L1 ≥90%。
 >
@@ -239,18 +239,18 @@
 
 **前置**：4.3 + 4.4
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.6.1 | `feat: add forum layout (topbar + navbar + footer)` | ForumLayout + TopBar + ForumNavbar + SiteFooter | ✅ L1: 导航渲染 |
-| 4.6.2 | `feat: add forum list page` | useForumListViewModel + ForumGroup + ForumCard + (forum)/page.tsx | ✅ L1 ≥90%: 树过滤/隐藏版块 |
-| 4.6.3 | `feat: add thread list page` | useThreadListViewModel + ThreadList + ThreadItem + ThreadBadge + forums/[id]/page.tsx | ✅ L1 ≥90%: 排序/筛选/分页/badge |
-| 4.6.4 | `feat: add thread detail page` | useThreadDetailViewModel + PostCard + UserCard + AttachmentResolver + threads/[id]/page.tsx | ✅ L1 ≥90%: 附件分组/权限判断/mod actions |
-| 4.6.5 | `feat: add post editor (tiptap)` | usePostEditorViewModel + PostEditor + EmojiPicker | ✅ L1 ≥90%: submit/canSubmit/validation |
-| 4.6.6 | `feat: add user profile page` | useUserProfileViewModel + users/[id]/page.tsx | ✅ L1 ≥90%: tab 切换/分页 |
-| 4.6.7 | `feat: add search page` | useSearchViewModel + search/page.tsx | ✅ L1 ≥90%: titlePrefix/authorName 切换 |
-| 4.6.8 | `feat: add digest page` | useDigestListViewModel + digest/page.tsx | ✅ L1: 列表加载 |
-| 4.6.9 | `feat: add login page` | useAuthViewModel + login/page.tsx | ✅ L1: login/logout/error states |
-| 4.6.10 | `feat: add proxy route guard` | proxy.ts — 公开/认证/管理路由分类 | ✅ L1: 路由匹配逻辑 |
+| 编号   | 提交信息                                            | 内容                                                                                        | 测试                                      |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 4.6.1  | `feat: add forum layout (topbar + navbar + footer)` | ForumLayout + TopBar + ForumNavbar + SiteFooter                                             | ✅ L1: 导航渲染                           |
+| 4.6.2  | `feat: add forum list page`                         | useForumListViewModel + ForumGroup + ForumCard + (forum)/page.tsx                           | ✅ L1 ≥90%: 树过滤/隐藏版块               |
+| 4.6.3  | `feat: add thread list page`                        | useThreadListViewModel + ThreadList + ThreadItem + ThreadBadge + forums/[id]/page.tsx       | ✅ L1 ≥90%: 排序/筛选/分页/badge          |
+| 4.6.4  | `feat: add thread detail page`                      | useThreadDetailViewModel + PostCard + UserCard + AttachmentResolver + threads/[id]/page.tsx | ✅ L1 ≥90%: 附件分组/权限判断/mod actions |
+| 4.6.5  | `feat: add post editor (tiptap)`                    | usePostEditorViewModel + PostEditor + EmojiPicker                                           | ✅ L1 ≥90%: submit/canSubmit/validation   |
+| 4.6.6  | `feat: add user profile page`                       | useUserProfileViewModel + users/[id]/page.tsx                                               | ✅ L1 ≥90%: tab 切换/分页                 |
+| 4.6.7  | `feat: add search page`                             | useSearchViewModel + search/page.tsx                                                        | ✅ L1 ≥90%: titlePrefix/authorName 切换   |
+| 4.6.8  | `feat: add digest page`                             | useDigestListViewModel + digest/page.tsx                                                    | ✅ L1: 列表加载                           |
+| 4.6.9  | `feat: add login page`                              | useAuthViewModel + login/page.tsx                                                           | ✅ L1: login/logout/error states          |
+| 4.6.10 | `feat: add proxy route guard`                       | proxy.ts — 公开/认证/管理路由分类                                                           | ✅ L1: 路由匹配逻辑                       |
 
 > **4.6 结束时**：论坛前端功能完整，ViewModel L1 ≥90%，业务组件 L1 ≥80%。
 >
@@ -260,7 +260,7 @@
 
 ### 4.7 API Routes 实现
 
-**参考文档**：04b §API 路由边界（/api/v1/*、/api/admin/*、/api/auth/[...nextauth]）
+**参考文档**：04b §API 路由边界（/api/v1/_、/api/admin/_、/api/auth/[...nextauth]）
 
 **产出**：所有 API Route Handler，调用 Repository 返回 JSON
 
@@ -268,15 +268,15 @@
 
 > **为什么单独一步**：04b 将 API Routes 列为正式交付物（04b:64-67），Route Handler 是 L2 集成测试的被测对象。页面组件（4.5/4.6）通过 ViewModel → Repository 获取数据，不经过 API Route；但外部消费者和 L2 测试需要真实 HTTP 端点。
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.7.1 | `feat: add nextauth route handler` | `app/api/auth/[...nextauth]/route.ts` — NextAuth catch-all（Google OAuth provider） | ✅ L1: config 验证 |
-| 4.7.2 | `feat: add forum api routes` | `app/api/v1/forums/route.ts` + `app/api/v1/forums/[id]/route.ts` | ✅ L1: handler 调用 repo |
-| 4.7.3 | `feat: add thread api routes` | `app/api/v1/threads/route.ts` + `app/api/v1/threads/[id]/route.ts` — GET/POST/DELETE | ✅ L1: CRUD 路由 |
-| 4.7.4 | `feat: add post api routes` | `app/api/v1/posts/route.ts` + `app/api/v1/posts/[id]/route.ts` — GET/POST/DELETE | ✅ L1: 分页 + 权限守卫 |
-| 4.7.5 | `feat: add user profile api route` | `app/api/v1/users/route.ts` + `app/api/v1/users/[id]/route.ts` — 公开资料 | ✅ L1: 搜索/筛选 |
-| 4.7.6 | `feat: add moderation api routes` | `app/api/v1/moderation/route.ts` — 版主操作 | ✅ L1: role ∈ {1,2,3} 守卫 |
-| 4.7.7 | `feat: add admin api routes` | `app/api/admin/users/route.ts`, `app/api/admin/threads/route.ts`, `app/api/admin/posts/route.ts`, `app/api/admin/forums/route.ts` 等 — 代理到 Worker | ✅ L1: Key B 守卫 + Google OAuth session 验证 |
+| 编号  | 提交信息                           | 内容                                                                                                                                                 | 测试                                          |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 4.7.1 | `feat: add nextauth route handler` | `app/api/auth/[...nextauth]/route.ts` — NextAuth catch-all（Google OAuth provider）                                                                  | ✅ L1: config 验证                            |
+| 4.7.2 | `feat: add forum api routes`       | `app/api/v1/forums/route.ts` + `app/api/v1/forums/[id]/route.ts`                                                                                     | ✅ L1: handler 调用 repo                      |
+| 4.7.3 | `feat: add thread api routes`      | `app/api/v1/threads/route.ts` + `app/api/v1/threads/[id]/route.ts` — GET/POST/DELETE                                                                 | ✅ L1: CRUD 路由                              |
+| 4.7.4 | `feat: add post api routes`        | `app/api/v1/posts/route.ts` + `app/api/v1/posts/[id]/route.ts` — GET/POST/DELETE                                                                     | ✅ L1: 分页 + 权限守卫                        |
+| 4.7.5 | `feat: add user profile api route` | `app/api/v1/users/route.ts` + `app/api/v1/users/[id]/route.ts` — 公开资料                                                                            | ✅ L1: 搜索/筛选                              |
+| 4.7.6 | `feat: add moderation api routes`  | `app/api/v1/moderation/route.ts` — 版主操作                                                                                                          | ✅ L1: role ∈ {1,2,3} 守卫                    |
+| 4.7.7 | `feat: add admin api routes`       | `app/api/admin/users/route.ts`, `app/api/admin/threads/route.ts`, `app/api/admin/posts/route.ts`, `app/api/admin/forums/route.ts` 等 — 代理到 Worker | ✅ L1: Key B 守卫 + Google OAuth session 验证 |
 
 > **4.7 结束时**：所有 API 端点实现完毕，L2 集成测试有真实被测对象。
 
@@ -290,16 +290,16 @@
 
 **前置**：4.7
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.8.1 | `test: add api test infrastructure` | `tests/integration/setup.ts` — 自动启停 dev server（端口 13000） | ✅ — |
-| 4.8.2 | `test: add forum api integration tests` | GET /api/v1/forums 全量 + getById | ✅ L2: 真 HTTP，断言 JSON 结构 |
-| 4.8.3 | `test: add thread api integration tests` | GET/POST/DELETE /api/v1/threads + search | ✅ L2: CRUD + 权限拒绝 |
-| 4.8.4 | `test: add post api integration tests` | GET/POST/DELETE /api/v1/posts | ✅ L2: 分页 + 权限 |
-| 4.8.5 | `test: add user profile api tests` | GET /api/v1/users + GET /api/v1/users/:id | ✅ L2: 公开资料搜索 + 筛选 |
-| 4.8.6 | `test: add moderation api integration tests` | /api/v1/moderation 端点 | ✅ L2: 版主操作 + 权限拒绝 |
-| 4.8.7 | `test: add admin api integration tests` | /api/admin/* 端点 | ✅ L2: 管理操作 + 权限守卫 403 |
-| 4.8.8 | `test: add nextauth integration tests` | GET /api/auth/session + Google OAuth callback mock + signout | ✅ L2: session 有效/无效/白名单拒绝 |
+| 编号  | 提交信息                                     | 内容                                                             | 测试                                |
+| ----- | -------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------- |
+| 4.8.1 | `test: add api test infrastructure`          | `tests/integration/setup.ts` — 自动启停 dev server（端口 13000） | ✅ —                                |
+| 4.8.2 | `test: add forum api integration tests`      | GET /api/v1/forums 全量 + getById                                | ✅ L2: 真 HTTP，断言 JSON 结构      |
+| 4.8.3 | `test: add thread api integration tests`     | GET/POST/DELETE /api/v1/threads + search                         | ✅ L2: CRUD + 权限拒绝              |
+| 4.8.4 | `test: add post api integration tests`       | GET/POST/DELETE /api/v1/posts                                    | ✅ L2: 分页 + 权限                  |
+| 4.8.5 | `test: add user profile api tests`           | GET /api/v1/users + GET /api/v1/users/:id                        | ✅ L2: 公开资料搜索 + 筛选          |
+| 4.8.6 | `test: add moderation api integration tests` | /api/v1/moderation 端点                                          | ✅ L2: 版主操作 + 权限拒绝          |
+| 4.8.7 | `test: add admin api integration tests`      | /api/admin/* 端点                                                | ✅ L2: 管理操作 + 权限守卫 403      |
+| 4.8.8 | `test: add nextauth integration tests`       | GET /api/auth/session + Google OAuth callback mock + signout     | ✅ L2: session 有效/无效/白名单拒绝 |
 
 > **4.8 结束时**：L1 + L2 + G1 + G2 全部达标。D1=N/A，**Tier B（Mock 阶段上限）**。
 
@@ -313,14 +313,14 @@
 
 **前置**：4.8
 
-| 编号 | 提交信息 | 内容 | 测试 |
-|------|---------|------|------|
-| 4.9.1 | `test: add playwright e2e setup` | Playwright 配置 + 端口 23000 | — | ✅ |
-| 4.9.2 | `test: add e2e critical path` | 登录 → 浏览版块 → 查看帖子 → 发帖 → 回帖 | L3 | ✅ |
-| 4.9.3 | `test: add e2e admin path` | 登录 Admin → 仪表盘 → 用户管理 → 封禁 | L3 | ✅ |
-| 4.9.4 | `test: add e2e theme + responsive` | 暗黑模式切换 + mobile 导航 | L3 | ✅ |
-| 4.9.5 | `feat: add vote poll mock ui (04e)` | VotePoll mock 交互 UI（投票/查看结果） | L1: 投票状态切换 | ✅ |
-| 4.9.6 | `feat: add smiley renderer (04e)` | /smileys/ 图片兼容渲染 | L1 | ✅ |
+| 编号  | 提交信息                            | 内容                                     | 测试             |
+| ----- | ----------------------------------- | ---------------------------------------- | ---------------- |
+| 4.9.1 | `test: add playwright e2e setup`    | Playwright 配置 + 端口 23000             | —                | ✅  |
+| 4.9.2 | `test: add e2e critical path`       | 登录 → 浏览版块 → 查看帖子 → 发帖 → 回帖 | L3               | ✅  |
+| 4.9.3 | `test: add e2e admin path`          | 登录 Admin → 仪表盘 → 用户管理 → 封禁    | L3               | ✅  |
+| 4.9.4 | `test: add e2e theme + responsive`  | 暗黑模式切换 + mobile 导航               | L3               | ✅  |
+| 4.9.5 | `feat: add vote poll mock ui (04e)` | VotePoll mock 交互 UI（投票/查看结果）   | L1: 投票状态切换 | ✅  |
+| 4.9.6 | `feat: add smiley renderer (04e)`   | /smileys/ 图片兼容渲染                   | L1               | ✅  |
 
 > **注意**：ThreadBadge special types 已在 4.2.3（model 层 getThreadBadges）和 4.6.3（组件层 ThreadBadge）中完成，此处不再重复。
 >
@@ -346,17 +346,17 @@
 
 ## 6. 提交统计
 
-| Step | 主题 | 提交数 | 累计 |
-|------|------|--------|------|
-| 4.1 | 脚手架 + 质量基础 | 6 | 6 |
-| 4.2 | Contract 层 | 7 | 13 |
-| 4.3 | Mock 数据层 | 8 | 21 |
-| 4.4 | 共享布局 | 5 | 26 |
-| 4.5 | Admin 后台 | 6 | 32 |
-| 4.6 | 论坛前端 | 10 | 42 |
-| 4.7 | API Routes | 7 | 49 |
-| 4.8 | L2 集成测试 | 8 | 57 |
-| 4.9 | L3 E2E + 高级功能 | 6 | **63** |
+| Step | 主题              | 提交数 | 累计   |
+| ---- | ----------------- | ------ | ------ |
+| 4.1  | 脚手架 + 质量基础 | 6      | 6      |
+| 4.2  | Contract 层       | 7      | 13     |
+| 4.3  | Mock 数据层       | 8      | 21     |
+| 4.4  | 共享布局          | 5      | 26     |
+| 4.5  | Admin 后台        | 6      | 32     |
+| 4.6  | 论坛前端          | 10     | 42     |
+| 4.7  | API Routes        | 7      | 49     |
+| 4.8  | L2 集成测试       | 8      | 57     |
+| 4.9  | L3 E2E + 高级功能 | 6      | **63** |
 
 ## 7. 端到端验证清单
 

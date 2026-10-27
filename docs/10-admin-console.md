@@ -57,15 +57,15 @@ Browser → Next.js Admin Layout
 
 ### Key Files
 
-| Layer | Files |
-|-------|-------|
-| Auth Check | `apps/web/src/lib/admin.ts` - `isAdmin()`, `resolveAdmin()` |
-| Layout Guard | `apps/web/src/app/(admin)/layout.tsx` - redirects non-admins |
-| API Proxy | `apps/web/src/lib/admin-proxy.ts` - session validation |
-| Admin Pages | `apps/web/src/app/(admin)/admin/**/*.tsx` |
-| Admin API Routes | `apps/web/src/app/api/admin/**/*.ts` |
-| Worker Handlers | `apps/worker/src/handlers/admin/*.ts` |
-| Viewmodels | `apps/web/src/viewmodels/admin/*.ts` |
+| Layer            | Files                                                        |
+| ---------------- | ------------------------------------------------------------ |
+| Auth Check       | `apps/web/src/lib/admin.ts` - `isAdmin()`, `resolveAdmin()`  |
+| Layout Guard     | `apps/web/src/app/(admin)/layout.tsx` - redirects non-admins |
+| API Proxy        | `apps/web/src/lib/admin-proxy.ts` - session validation       |
+| Admin Pages      | `apps/web/src/app/(admin)/admin/**/*.tsx`                    |
+| Admin API Routes | `apps/web/src/app/api/admin/**/*.ts`                         |
+| Worker Handlers  | `apps/worker/src/handlers/admin/*.ts`                        |
+| Viewmodels       | `apps/web/src/viewmodels/admin/*.ts`                         |
 
 ---
 
@@ -73,9 +73,9 @@ Browser → Next.js Admin Layout
 
 ### 1. Overview Module ✅ Complete
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **Dashboard** | `/admin` | ✅ | User/thread/post statistics, quick links, activity summary |
+| Page          | Path     | Status | Features                                                   |
+| ------------- | -------- | ------ | ---------------------------------------------------------- |
+| **Dashboard** | `/admin` | ✅     | User/thread/post statistics, quick links, activity summary |
 
 ### 2. Content Management Module ✅ Complete
 
@@ -86,41 +86,41 @@ Content display is shared with the public forum through `@ellie/shared/content`:
 - Both apps import `@ellie/shared/content.css` for legacy quotes, font sizes, smileys and notices. Admin theme colors are mapped inside `.forum-content`.
 - Cleaning is display-only. Edit dialogs and save requests retain the original subject and post content.
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **Users** | `/admin/users` | ✅ | List/search/filter (status/role), edit, ban/unban, ban+delete content, nuke, batch ban/activate |
-| **Threads** | `/admin/threads` | ✅ | List/search/filter (sticky/closed), edit, lock/unlock, delete, batch delete |
-| **Thread Detail** | `/admin/threads/[id]` | ✅ | View thread with all posts, edit thread properties, edit/delete individual posts |
-| **Forums** | `/admin/forums` | ✅ | Tree structure (group/forum/sub), create/edit/delete, show/hide, merge forums, reorder |
-| **Attachments** | `/admin/attachments` | ✅ | Grid/list view toggle, image preview (lightbox), filter by type, delete, batch delete |
+| Page              | Path                  | Status | Features                                                                                        |
+| ----------------- | --------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| **Users**         | `/admin/users`        | ✅     | List/search/filter (status/role), edit, ban/unban, ban+delete content, nuke, batch ban/activate |
+| **Threads**       | `/admin/threads`      | ✅     | List/search/filter (sticky/closed), edit, lock/unlock, delete, batch delete                     |
+| **Thread Detail** | `/admin/threads/[id]` | ✅     | View thread with all posts, edit thread properties, edit/delete individual posts                |
+| **Forums**        | `/admin/forums`       | ✅     | Tree structure (group/forum/sub), create/edit/delete, show/hide, merge forums, reorder          |
+| **Attachments**   | `/admin/attachments`  | ✅     | Grid/list view toggle, image preview (lightbox), filter by type, delete, batch delete           |
 
 ### 3. Data & Statistics Module ✅ Complete
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **Statistics** | `/admin/statistics` | ✅ | Recalculate forum stats, thread stats, user stats |
+| Page           | Path                | Status | Features                                          |
+| -------------- | ------------------- | ------ | ------------------------------------------------- |
+| **Statistics** | `/admin/statistics` | ✅     | Recalculate forum stats, thread stats, user stats |
 
 ### 4. Security Module ✅ Complete
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **IP Bans** | `/admin/ip-bans` | ✅ | Add/edit/delete bans, IP check tool, permanent/temporary, batch delete |
-| **Censor Words** | `/admin/censor-words` | ✅ | Add/edit/delete words, replace/block/ban actions, content test tool, batch delete |
+| Page             | Path                  | Status | Features                                                                          |
+| ---------------- | --------------------- | ------ | --------------------------------------------------------------------------------- |
+| **IP Bans**      | `/admin/ip-bans`      | ✅     | Add/edit/delete bans, IP check tool, permanent/temporary, batch delete            |
+| **Censor Words** | `/admin/censor-words` | ✅     | Add/edit/delete words, replace/block/ban actions, content test tool, batch delete |
 
 ### 5. Settings Module ✅ Complete
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **General** | `/admin/settings/general` | ✅ | Site name, description, global parameters |
-| **Features** | `/admin/settings/features` | ✅ | Feature toggles (registration, posting permissions, etc.) |
-| **Nav Links** | `/admin/settings/nav-links` | ✅ | Header navigation bar, drag-to-reorder |
-| **Friend Links** | `/admin/settings/friend-links` | ✅ | Footer friend links, drag-to-reorder |
+| Page             | Path                           | Status | Features                                                  |
+| ---------------- | ------------------------------ | ------ | --------------------------------------------------------- |
+| **General**      | `/admin/settings/general`      | ✅     | Site name, description, global parameters                 |
+| **Features**     | `/admin/settings/features`     | ✅     | Feature toggles (registration, posting permissions, etc.) |
+| **Nav Links**    | `/admin/settings/nav-links`    | ✅     | Header navigation bar, drag-to-reorder                    |
+| **Friend Links** | `/admin/settings/friend-links` | ✅     | Footer friend links, drag-to-reorder                      |
 
 ### 6. Reports Management ✅ Complete
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **Reports** | `/admin/reports` | ✅ | Type-aware list (thread/post/user) with per-type target metadata, status & type filters, detail dialog, resolve/dismiss/revert + batch delete |
+| Page        | Path             | Status | Features                                                                                                                                      |
+| ----------- | ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reports** | `/admin/reports` | ✅     | Type-aware list (thread/post/user) with per-type target metadata, status & type filters, detail dialog, resolve/dismiss/revert + batch delete |
 
 **Scope (E batch):**
 - Worker `POST /api/v1/reports` accepts `type ∈ {thread, post, user}` with uniform self-report / duplicate / visibility guards.
@@ -130,9 +130,9 @@ Content display is shared with the public forum through `@ellie/shared/content`:
 
 ### 7. Audit Logs ✅ Complete (F batch)
 
-| Page | Path | Status | Features |
-|------|------|--------|----------|
-| **Operation Logs** | `/admin/logs/operations` | ✅ | Read-only admin action history. Filters: action (exact), targetType, adminId, targetId, date range. Detail dialog renders pretty-printed JSON or falls back to raw text on parse failure. Target column whitelist-links to `user`/`thread`/`report`/`forum`. |
+| Page               | Path                     | Status | Features                                                                                                                                                                                                                                                     |
+| ------------------ | ------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Operation Logs** | `/admin/logs/operations` | ✅     | Read-only admin action history. Filters: action (exact), targetType, adminId, targetId, date range. Detail dialog renders pretty-printed JSON or falls back to raw text on parse failure. Target column whitelist-links to `user`/`thread`/`report`/`forum`. |
 
 **Scope (F batch):**
 - F1 (write helper): `apps/worker/src/lib/adminLog.ts` provides `resolveActor(request)` (reads `X-Admin-Actor-Email` / `X-Admin-Actor-Name` injected by `adminApiAs`; falls back to `system`/`id=0`), `sanitizeAdminLogDetails(input)` (deny-list redaction at every depth, depth cap 4, 4 KB UTF-8 cap with `{truncated:true,head:"…"}` envelope), and `writeAdminLog(env, actor, params)` (best-effort INSERT — never throws back to the caller; failures go to `console.error`).
@@ -155,9 +155,9 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 
 ### 8. Staff Management 📋 Planned
 
-| Page | Path | Priority | Features |
-|------|------|----------|----------|
-| **Staff** | `/admin/staff` | Medium | Assign/revoke admin/supermod/mod roles, per-forum moderator assignment |
+| Page      | Path           | Priority | Features                                                               |
+| --------- | -------------- | -------- | ---------------------------------------------------------------------- |
+| **Staff** | `/admin/staff` | Medium   | Assign/revoke admin/supermod/mod roles, per-forum moderator assignment |
 
 **Implementation Plan:**
 1. Create staff management UI showing all users with role > 0
@@ -170,9 +170,9 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 
 ### 9. Announcements 📋 Planned
 
-| Page | Path | Priority | Features |
-|------|------|----------|----------|
-| **Announcements** | `/admin/announcements` | Low | Create/edit/delete announcements, schedule, target forums, display priority |
+| Page              | Path                   | Priority | Features                                                                    |
+| ----------------- | ---------------------- | -------- | --------------------------------------------------------------------------- |
+| **Announcements** | `/admin/announcements` | Low      | Create/edit/delete announcements, schedule, target forums, display priority |
 
 **Implementation Plan:**
 1. Add `announcements` table: `id`, `title`, `content`, `forum_ids` (JSON), `sticky`, `start_at`, `end_at`, `status`, `created_at`
@@ -186,14 +186,14 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 
 ## Shared Components
 
-| Component | Purpose |
-|-----------|---------|
-| `AdminDataTable` | Generic data table with selection, sorting, loading states |
-| `AdminFilters` | Filter bar with search input, select dropdowns |
-| `AdminPagination` | Pagination controls |
-| `AdminBatchBar` | Floating batch action toolbar |
+| Component            | Purpose                                                                  |
+| -------------------- | ------------------------------------------------------------------------ |
+| `AdminDataTable`     | Generic data table with selection, sorting, loading states               |
+| `AdminFilters`       | Filter bar with search input, select dropdowns                           |
+| `AdminPagination`    | Pagination controls                                                      |
+| `AdminBatchBar`      | Floating batch action toolbar                                            |
 | `AdminConfirmDialog` | Confirmation dialog for dangerous actions (supports required text input) |
-| `StatCard` | Dashboard statistics card |
+| `StatCard`           | Dashboard statistics card                                                |
 
 ---
 
@@ -201,11 +201,11 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 
 ### Test Status
 
-| Level | Scope | Status | Notes |
-|-------|-------|--------|-------|
-| L1 Unit | Handler logic, viewmodel functions | ✅ Passing | ~900 tests in `apps/worker/tests/` and `tests/unit/` |
-| L2 Integration | API route → Worker → D1 | ✅ Rewritten | `tests/integration/worker/admin.test.ts` updated to match actual endpoints |
-| L3 E2E | Full admin workflows | ✅ Partial / Active | Playwright `admin` project covers auth, forums, threads, users, reports, and operation logs. Run via `bun run test:e2e:admin` (boots admin app on :7032 with `NODE_ENV=test` + `.env.test`). Direct `bunx playwright …` requires the same env loaded manually. |
+| Level          | Scope                              | Status              | Notes                                                                                                                                                                                                                                                          |
+| -------------- | ---------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1 Unit        | Handler logic, viewmodel functions | ✅ Passing          | ~900 tests in `apps/worker/tests/` and `tests/unit/`                                                                                                                                                                                                           |
+| L2 Integration | API route → Worker → D1            | ✅ Rewritten        | `tests/integration/worker/admin.test.ts` updated to match actual endpoints                                                                                                                                                                                     |
+| L3 E2E         | Full admin workflows               | ✅ Partial / Active | Playwright `admin` project covers auth, forums, threads, users, reports, and operation logs. Run via `bun run test:e2e:admin` (boots admin app on :7032 with `NODE_ENV=test` + `.env.test`). Direct `bunx playwright …` requires the same env loaded manually. |
 
 **Known Issues:**
 - Admin L3 specs require `.env.test` + a `-test` Worker URL via the `bun run test:e2e:admin` runner; running raw `bunx playwright …` without that setup will fail in `loginAsAdmin`.
@@ -231,6 +231,7 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
    - Forum management
 
 ### Commit Guidelines
+
 - Each feature as atomic commit
 - Prefix: `feat(admin):`, `fix(admin):`, `refactor(admin):`
 - Include test updates in same commit
@@ -240,7 +241,7 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 
 ## Security Considerations
 
-1. **Access Control**: 
+1. **Access Control**:
    - Admin status via `ADMIN_EMAILS` environment variable (Next.js side)
    - Layout-level redirect for non-admins
    - API route session validation before proxying to Worker

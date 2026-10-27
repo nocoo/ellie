@@ -14,30 +14,30 @@ for threads/posts/attachments.
 
 All dumps are in `reference/db/2026-05-09/`:
 
-| File | Discuz Tables | D1 Target | Strategy |
-|------|--------------|-----------|----------|
-| ucenter_members.sql.gz | uc_members | users (password, salt, email, last_login) | upsert |
-| members.sql.gz | pre_common_member + archive | users (status, groupid, credits, avatar) | upsert |
-| member_count.sql.gz | pre_common_member_count + archive | users (threads, posts, digest_posts, ol_time, coins) | upsert |
-| member_profile.sql.gz | pre_common_member_profile + archive | users (gender, birth, reside, graduate, bio, interest, qq, site) | upsert |
-| member_status.sql.gz | pre_common_member_status + archive | users (reg_ip, last_ip, last_activity) | upsert |
-| member_field_forum.sql.gz | pre_common_member_field_forum + archive | users (custom_title, signature) | upsert |
-| usergroup.sql.gz | pre_common_usergroup | users (group_title, group_stars, group_color) via groupid lookup | upsert |
-| forums.sql.gz | pre_forum_forum + pre_forum_forumfield | forums | upsert |
-| threads.sql.gz | pre_forum_thread + shards 1-7 | threads | incremental |
-| posts.sql.gz | pre_forum_post + shards 1-4 | posts | incremental |
-| attachments.sql.gz | pre_forum_attachment + shards 0-9 | attachments | incremental |
-| checkins.sql.gz | pre_dsu_paulsign + pre_dsu_paulsign2 | user_checkins | upsert |
-| postcomment.sql.gz | pre_forum_postcomment | (future) | deferred |
+| File                      | Discuz Tables                           | D1 Target                                                        | Strategy    |
+| ------------------------- | --------------------------------------- | ---------------------------------------------------------------- | ----------- |
+| ucenter_members.sql.gz    | uc_members                              | users (password, salt, email, last_login)                        | upsert      |
+| members.sql.gz            | pre_common_member + archive             | users (status, groupid, credits, avatar)                         | upsert      |
+| member_count.sql.gz       | pre_common_member_count + archive       | users (threads, posts, digest_posts, ol_time, coins)             | upsert      |
+| member_profile.sql.gz     | pre_common_member_profile + archive     | users (gender, birth, reside, graduate, bio, interest, qq, site) | upsert      |
+| member_status.sql.gz      | pre_common_member_status + archive      | users (reg_ip, last_ip, last_activity)                           | upsert      |
+| member_field_forum.sql.gz | pre_common_member_field_forum + archive | users (custom_title, signature)                                  | upsert      |
+| usergroup.sql.gz          | pre_common_usergroup                    | users (group_title, group_stars, group_color) via groupid lookup | upsert      |
+| forums.sql.gz             | pre_forum_forum + pre_forum_forumfield  | forums                                                           | upsert      |
+| threads.sql.gz            | pre_forum_thread + shards 1-7           | threads                                                          | incremental |
+| posts.sql.gz              | pre_forum_post + shards 1-4             | posts                                                            | incremental |
+| attachments.sql.gz        | pre_forum_attachment + shards 0-9       | attachments                                                      | incremental |
+| checkins.sql.gz           | pre_dsu_paulsign + pre_dsu_paulsign2    | user_checkins                                                    | upsert      |
+| postcomment.sql.gz        | pre_forum_postcomment                   | (future)                                                         | deferred    |
 
 ## Migration Code — Two Directories
 
 There are two independent migration codebases:
 
-| Directory | Entry point | Status |
-|-----------|------------|--------|
+| Directory           | Entry point                                          | Status                                                                                                                                   |
+| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/migrate/` | `bun run migrate` → `bun run --filter migrate start` | **Canonical.** 36 user columns (incl. campus from profile.field1), coins, usergroup, post_comments, forum moderators. Full ETL pipeline. |
-| `scripts/migrate/` | `bun run scripts/migrate/index.ts` (manual) | **Frozen legacy.** 13 user columns, no profile/campus/coins. Reference only — do not modify. |
+| `scripts/migrate/`  | `bun run scripts/migrate/index.ts` (manual)          | **Frozen legacy.** 13 user columns, no profile/campus/coins. Reference only — do not modify.                                             |
 
 **All code changes in this plan target `packages/migrate/`.**
 
@@ -52,22 +52,22 @@ D1's Discuz-owned columns. The remaining D1 columns fall into two categories:
 
 #### To add in this import cycle (source-derived)
 
-| D1 Column | Migration | Source | Action |
-|-----------|----------|--------|--------|
-| has_avatar | 0026 | Derived: `1` if `pre_common_member.avatarstatus > 0`, else `0` | Add to `packages/migrate` TABLE_DDL, TABLE_COLUMNS, extractUser(). Does NOT affect `avatar_path` (separate app-owned column). |
+| D1 Column  | Migration | Source                                                         | Action                                                                                                                        |
+| ---------- | --------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| has_avatar | 0026      | Derived: `1` if `pre_common_member.avatarstatus > 0`, else `0` | Add to `packages/migrate` TABLE_DDL, TABLE_COLUMNS, extractUser(). Does NOT affect `avatar_path` (separate app-owned column). |
 
 This brings the user column count to **37** after implementation.
 
 #### Intentionally excluded (app-owned, no Discuz source)
 
-| D1 Column | Migration | Why excluded |
-|-----------|----------|-------------|
-| avatar_path | 0027 | App-owned (R2 path, set by app upload flow) |
-| purged_at | 0030 | App-owned (admin purge timestamp) |
-| purged_by | 0030 | App-owned (admin who purged) |
-| visibility | 0000 (forums) | App-owned (admin sets per-forum) |
-| moderator_ids | 0000 (forums) | App-derived (populated by populate-moderator-ids.ts) |
-| last_poster_id | 0000 (forums/threads) | App-derived (computed post-import) |
+| D1 Column      | Migration             | Why excluded                                         |
+| -------------- | --------------------- | ---------------------------------------------------- |
+| avatar_path    | 0027                  | App-owned (R2 path, set by app upload flow)          |
+| purged_at      | 0030                  | App-owned (admin purge timestamp)                    |
+| purged_by      | 0030                  | App-owned (admin who purged)                         |
+| visibility     | 0000 (forums)         | App-owned (admin sets per-forum)                     |
+| moderator_ids  | 0000 (forums)         | App-derived (populated by populate-moderator-ids.ts) |
+| last_poster_id | 0000 (forums/threads) | App-derived (computed post-import)                   |
 
 These columns use SQLite DEFAULTs on INSERT and are PRESERVED on upsert
 (not in DO UPDATE SET).
@@ -76,16 +76,16 @@ These columns use SQLite DEFAULTs on INSERT and are PRESERVED on upsert
 
 `packages/migrate/src/extract/extractors.ts` already maps all Discuz sources:
 
-| D1 Column | Discuz Source | Discuz Table |
-|-----------|-------------|--------------|
-| username, password_hash, password_salt, last_login | uc_members | db_tongji_ucenter.uc_members |
-| status, role(adminid), reg_date, credits, avatar | pre_common_member | members.sql.gz |
-| threads, posts, digest_posts, ol_time, coins(extcredits2) | pre_common_member_count | member_count.sql.gz |
-| gender, birth_year/month/day, reside_province/city, graduate_school, bio, interest, qq, site, **campus(field1)** | pre_common_member_profile | member_profile.sql.gz |
-| reg_ip, last_ip, last_activity | pre_common_member_status | member_status.sql.gz |
-| signature(sightml), custom_title(customstatus) | pre_common_member_field_forum | member_field_forum.sql.gz |
-| group_title, group_stars, group_color | pre_common_usergroup (via member.groupid) | usergroup.sql.gz |
-| has_avatar | derived from avatarstatus | members.sql.gz |
+| D1 Column                                                                                                        | Discuz Source                             | Discuz Table                 |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------- |
+| username, password_hash, password_salt, last_login                                                               | uc_members                                | db_tongji_ucenter.uc_members |
+| status, role(adminid), reg_date, credits, avatar                                                                 | pre_common_member                         | members.sql.gz               |
+| threads, posts, digest_posts, ol_time, coins(extcredits2)                                                        | pre_common_member_count                   | member_count.sql.gz          |
+| gender, birth_year/month/day, reside_province/city, graduate_school, bio, interest, qq, site, **campus(field1)** | pre_common_member_profile                 | member_profile.sql.gz        |
+| reg_ip, last_ip, last_activity                                                                                   | pre_common_member_status                  | member_status.sql.gz         |
+| signature(sightml), custom_title(customstatus)                                                                   | pre_common_member_field_forum             | member_field_forum.sql.gz    |
+| group_title, group_stars, group_color                                                                            | pre_common_usergroup (via member.groupid) | usergroup.sql.gz             |
+| has_avatar                                                                                                       | derived from avatarstatus                 | members.sql.gz               |
 
 **campus** has a confirmed Discuz source: `pre_common_member_profile.field1`
 (values: 四平路校区, 嘉定校区, 校外人士, etc. per `0024_add_campus_field.sql`).
@@ -153,10 +153,10 @@ ON CONFLICT(id) DO UPDATE SET
 
 #### Users column ownership
 
-| Owner | Columns | Behavior on import |
-|-------|---------|-------------------|
-| **Discuz-owned** (DO UPDATE) | username, password_hash, password_salt, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip, coins, has_avatar, campus | Overwritten from source |
-| **App-owned** (PRESERVED) | avatar_path, email, email_verified_at, email_normalized, email_changed_at, purged_at, purged_by | Never touched by import — keeps existing app values |
+| Owner                        | Columns                                                                                                                                                                                                                                                                                                                                                                           | Behavior on import                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Discuz-owned** (DO UPDATE) | username, password_hash, password_salt, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip, coins, has_avatar, campus | Overwritten from source                             |
+| **App-owned** (PRESERVED)    | avatar_path, email, email_verified_at, email_normalized, email_changed_at, purged_at, purged_by                                                                                                                                                                                                                                                                                   | Never touched by import — keeps existing app values |
 
 Note: `email` is set to `''` on initial INSERT (Discuz emails are unverified
 legacy data), but preserved on UPDATE (user may have re-added via app).
@@ -191,10 +191,10 @@ ON CONFLICT(id) DO UPDATE SET
 
 #### Forums column ownership
 
-| Owner | Columns | Behavior on import |
-|-------|---------|-------------------|
-| **Discuz-owned** (DO UPDATE) | parent_id, name, description, icon, display_order, threads, posts, type, status, last_thread_id, last_post_at, last_poster, last_thread_subject, moderators | Overwritten from source |
-| **App-owned** (PRESERVED) | visibility, moderator_ids, last_poster_id | Never touched — visibility is manually set by admin, moderator_ids is populated by `populate-moderator-ids.ts`, last_poster_id is derived post-import |
+| Owner                        | Columns                                                                                                                                                     | Behavior on import                                                                                                                                    |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Discuz-owned** (DO UPDATE) | parent_id, name, description, icon, display_order, threads, posts, type, status, last_thread_id, last_post_at, last_poster, last_thread_subject, moderators | Overwritten from source                                                                                                                               |
+| **App-owned** (PRESERVED)    | visibility, moderator_ids, last_poster_id                                                                                                                   | Never touched — visibility is manually set by admin, moderator_ids is populated by `populate-moderator-ids.ts`, last_poster_id is derived post-import |
 
 ### 3. Threads/Posts/Attachments — Incremental INSERT
 

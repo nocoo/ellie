@@ -6,16 +6,16 @@ Detailed project constraints and procedures. The root [AGENTS.md](../AGENTS.md) 
 
 Monorepo with Bun (TypeScript) + Rust:
 
-| Package | Description |
-|---------|-------------|
-| `apps/web` | Next.js frontend |
-| `apps/worker` | Cloudflare Worker API (D1 + KV) |
-| `packages/cli-rs` | Rust TUI client (ratatui) — workspace: `ellie-core` (lib) + `ellie-tui` (bin) |
-| `packages/db` | D1 schema & migrations |
-| `packages/repositories` | Data access layer (`@ellie/repositories`) |
-| `packages/types` | Shared TypeScript types (`@ellie/types`) |
-| `packages/cli` | Legacy TS CLI (deprecated) |
-| `packages/migrate` | Migration tooling |
+| Package                 | Description                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `apps/web`              | Next.js frontend                                                              |
+| `apps/worker`           | Cloudflare Worker API (D1 + KV)                                               |
+| `packages/cli-rs`       | Rust TUI client (ratatui) — workspace: `ellie-core` (lib) + `ellie-tui` (bin) |
+| `packages/db`           | D1 schema & migrations                                                        |
+| `packages/repositories` | Data access layer (`@ellie/repositories`)                                     |
+| `packages/types`        | Shared TypeScript types (`@ellie/types`)                                      |
+| `packages/cli`          | Legacy TS CLI (deprecated)                                                    |
+| `packages/migrate`      | Migration tooling                                                             |
 
 ## API Architecture (IMPORTANT)
 
@@ -36,11 +36,11 @@ Browser → Next.js API Routes → Cloudflare Worker → D1/KV
 
 ### API Clients
 
-| Client | Location | Use Case |
-|--------|----------|----------|
-| `apiClient` | `lib/api-client.ts` | Browser → Next.js routes |
-| `forumApi` | `lib/forum-api.ts` | Server → Worker (Key A) |
-| `adminApi` | `lib/admin-api.ts` | Server → Worker (Key B) |
+| Client                | Location            | Use Case                      |
+| --------------------- | ------------------- | ----------------------------- |
+| `apiClient`           | `lib/api-client.ts` | Browser → Next.js routes      |
+| `forumApi`            | `lib/forum-api.ts`  | Server → Worker (Key A)       |
+| `adminApi`            | `lib/admin-api.ts`  | Server → Worker (Key B)       |
 | `authFetch/authPatch` | `lib/forum-auth.ts` | Server → Worker (Key A + JWT) |
 
 ### Adding New Endpoints
@@ -54,36 +54,36 @@ Browser → Next.js API Routes → Cloudflare Worker → D1/KV
 
 ### Common Mistakes
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `Unexpected token '<'` | Missing Next.js proxy route | Create `/api/v1/*/route.ts` |
-| `404` on new API | Worker not deployed | Run `bun run worker:deploy` |
-| `404` on browser API call | Missing Next.js proxy | Add proxy route for the endpoint |
-| `UNAUTHORIZED` | Wrong API key | Check Key A vs Key B routing |
-| `import error` | Using server-only client in browser | Use `apiClient` instead |
+| Symptom                   | Cause                               | Fix                              |
+| ------------------------- | ----------------------------------- | -------------------------------- |
+| `Unexpected token '<'`    | Missing Next.js proxy route         | Create `/api/v1/*/route.ts`      |
+| `404` on new API          | Worker not deployed                 | Run `bun run worker:deploy`      |
+| `404` on browser API call | Missing Next.js proxy               | Add proxy route for the endpoint |
+| `UNAUTHORIZED`            | Wrong API key                       | Check Key A vs Key B routing     |
+| `import error`            | Using server-only client in browser | Use `apiClient` instead          |
 
 ## Secrets & Environment
 
 Three env files, one per app. Each has a tracked `.example` sibling — copy
 those to the real names below (all gitignored) and fill in values.
 
-| Real path | Example file | Consumed by |
-|---|---|---|
-| `/.dev.vars` (root) | `apps/worker/.dev.vars.example` | `wrangler dev` — `apps/worker/.dev.vars` MUST be a symlink → `../../.dev.vars` so worker + CLI dev builds read one file |
-| `apps/web/.env.local` | `apps/web/.env.local.example` | Next.js forum (port 7031) |
-| `apps/admin/.env.local` | `apps/admin/.env.local.example` | Next.js admin console (port 7032) |
+| Real path               | Example file                    | Consumed by                                                                                                             |
+| ----------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `/.dev.vars` (root)     | `apps/worker/.dev.vars.example` | `wrangler dev` — `apps/worker/.dev.vars` MUST be a symlink → `../../.dev.vars` so worker + CLI dev builds read one file |
+| `apps/web/.env.local`   | `apps/web/.env.local.example`   | Next.js forum (port 7031)                                                                                               |
+| `apps/admin/.env.local` | `apps/admin/.env.local.example` | Next.js admin console (port 7032)                                                                                       |
 
 ### Worker secrets (in `/.dev.vars`)
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `API_KEY` | ✓ | Forum API key (Key A). Must match `apps/web/.env.local:FORUM_API_KEY` |
-| `ADMIN_API_KEY` | ✓ | Admin API key (Key B). Must match `apps/admin/.env.local:ADMIN_API_KEY` |
-| `JWT_SECRET` | ✓ | JWT signing secret for forum user tokens |
-| `EMAIL_VERIFY_HMAC_KEY` | optional | HMAC for 6-digit email codes (docs/17). Without it `/auth/email/*` → 503 |
-| `DOVE_WEBHOOK_TOKEN` | optional | Dove mail relay bearer. Non-secret Dove config lives in `wrangler.toml [vars]` |
-| `IP_LOOKUP_API_KEY` | optional | Upstream IP-lookup key for admin panel. Without it → 503 |
-| `WEB_STATISTICS_WRITE_KEY` | for statistics writes | Shared with Web only; independent statistics batch secret |
+| Variable                   | Required              | Purpose                                                                        |
+| -------------------------- | --------------------- | ------------------------------------------------------------------------------ |
+| `API_KEY`                  | ✓                     | Forum API key (Key A). Must match `apps/web/.env.local:FORUM_API_KEY`          |
+| `ADMIN_API_KEY`            | ✓                     | Admin API key (Key B). Must match `apps/admin/.env.local:ADMIN_API_KEY`        |
+| `JWT_SECRET`               | ✓                     | JWT signing secret for forum user tokens                                       |
+| `EMAIL_VERIFY_HMAC_KEY`    | optional              | HMAC for 6-digit email codes (docs/17). Without it `/auth/email/*` → 503       |
+| `DOVE_WEBHOOK_TOKEN`       | optional              | Dove mail relay bearer. Non-secret Dove config lives in `wrangler.toml [vars]` |
+| `IP_LOOKUP_API_KEY`        | optional              | Upstream IP-lookup key for admin panel. Without it → 503                       |
+| `WEB_STATISTICS_WRITE_KEY` | for statistics writes | Shared with Web only; independent statistics batch secret                      |
 
 ### Web (`apps/web/.env.local`)
 
@@ -128,12 +128,12 @@ npx wrangler dev -c apps/worker/wrangler.toml
 
 ## Versions
 
-| Script | Description |
-|--------|-------------|
-| `bun run release` | Bump patch version (Z+1) |
-| `bun run release -- minor` | Bump minor version (Y+1) |
-| `bun run release -- major` | Bump major version (X+1) |
-| `bun run release -- 2.0.0` | Set specific version |
+| Script                         | Description                       |
+| ------------------------------ | --------------------------------- |
+| `bun run release`              | Bump patch version (Z+1)          |
+| `bun run release -- minor`     | Bump minor version (Y+1)          |
+| `bun run release -- major`     | Bump major version (X+1)          |
+| `bun run release -- 2.0.0`     | Set specific version              |
 | `bun run release -- --dry-run` | Preview changes without modifying |
 
 **Version locations (all updated by release script):**

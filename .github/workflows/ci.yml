@@ -1,5 +1,5 @@
 name: CI
-'on':
+"on":
   push:
     branches:
       - main
@@ -13,7 +13,7 @@ jobs:
     with:
       runtime-version: 1.4.4
       install-policy: project
-      coverage-path: ''
+      coverage-path: ""
       test-command: bun run test
       typecheck-command: bun run typecheck
       lint-command: bun run lint

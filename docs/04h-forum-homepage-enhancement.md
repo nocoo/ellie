@@ -10,12 +10,12 @@
 
 本文档覆盖 4 个功能领域，按优先级排列：
 
-| 领域 | 功能 | 影响范围 |
-|------|------|----------|
-| §1 | 用户面板/弹出菜单 | Navbar `AuthControls` |
-| §2 | 面包屑增强 | 全站面包屑 |
-| §3 | 帖子列表页增强 | `/forums/[id]` 页面 + Worker API |
-| §4 | 发帖/回帖系统 | 新建页面 + 帖子详情页 + Auth + Worker API |
+| 领域 | 功能              | 影响范围                                  |
+| ---- | ----------------- | ----------------------------------------- |
+| §1   | 用户面板/弹出菜单 | Navbar `AuthControls`                     |
+| §2   | 面包屑增强        | 全站面包屑                                |
+| §3   | 帖子列表页增强    | `/forums/[id]` 页面 + Worker API          |
+| §4   | 发帖/回帖系统     | 新建页面 + 帖子详情页 + Auth + Worker API |
 
 ---
 
@@ -56,11 +56,11 @@ Navbar 右侧仅显示 `session.user.name`（截断 100px）+ 登出图标。登
 
 ### 文件变更
 
-| 文件 | 变更 |
-|------|------|
-| `apps/web/src/auth.ts` | 添加 Credentials provider，扩展 jwt/session callback |
-| `apps/web/src/components/forum/user-popover.tsx` | **新建** — 用户弹出面板组件 |
-| `apps/web/src/components/forum/forum-navbar.tsx` | `AuthControls` 替换为 `<UserPopover>` |
+| 文件                                             | 变更                                                 |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| `apps/web/src/auth.ts`                           | 添加 Credentials provider，扩展 jwt/session callback |
+| `apps/web/src/components/forum/user-popover.tsx` | **新建** — 用户弹出面板组件                          |
+| `apps/web/src/components/forum/forum-navbar.tsx` | `AuthControls` 替换为 `<UserPopover>`                |
 
 ### 组件规格
 
@@ -96,18 +96,18 @@ Navbar 右侧仅显示 `session.user.name`（截断 100px）+ 登出图标。登
 
 ### 设计
 
-| 层级 | 内容 | 链接 | 说明 |
-|------|------|------|------|
-| 0 | `Home` 图标（Lucide `House`，14×14） | `/` | 替代原来的"首页"文字 |
-| 1 | 站名（"同济网"） | `/` | 站名可配置，通过 env `NEXT_PUBLIC_SITE_NAME` 或 fallback 硬编码 |
-| 2+ | 原有层级 | 不变 | 版块祖先链 → 当前页 |
+| 层级 | 内容                                 | 链接 | 说明                                                            |
+| ---- | ------------------------------------ | ---- | --------------------------------------------------------------- |
+| 0    | `Home` 图标（Lucide `House`，14×14） | `/`  | 替代原来的"首页"文字                                            |
+| 1    | 站名（"同济网"）                     | `/`  | 站名可配置，通过 env `NEXT_PUBLIC_SITE_NAME` 或 fallback 硬编码 |
+| 2+   | 原有层级                             | 不变 | 版块祖先链 → 当前页                                             |
 
 ### 文件变更
 
-| 文件 | 变更 |
-|------|------|
-| `apps/web/src/lib/forum-breadcrumbs.ts` | 修改三个 builder 函数，第 0 项改为 `{ label: "🏠", href: "/" }`（icon 占位符），插入第 1 项 `{ label: siteName, href: "/" }` |
-| `apps/web/src/components/layout/breadcrumbs.tsx` | 识别第 0 项 icon 占位符，渲染 Lucide `House` 图标代替文字 |
+| 文件                                             | 变更                                                                                                                         |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/lib/forum-breadcrumbs.ts`          | 修改三个 builder 函数，第 0 项改为 `{ label: "🏠", href: "/" }`（icon 占位符），插入第 1 项 `{ label: siteName, href: "/" }` |
+| `apps/web/src/components/layout/breadcrumbs.tsx` | 识别第 0 项 icon 占位符，渲染 Lucide `House` 图标代替文字                                                                    |
 
 ### 具体改动
 
@@ -118,8 +118,8 @@ const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "同济网";
 
 // 统一前缀
 const HOME_PREFIX: BreadcrumbItem[] = [
-  { label: "__home_icon__", href: "/" },  // 特殊标记，组件中渲染为图标
-  { label: SITE_NAME, href: "/" },
+	{ label: "__home_icon__", href: "/" }, // 特殊标记，组件中渲染为图标
+	{ label: SITE_NAME, href: "/" },
 ];
 ```
 
@@ -192,12 +192,12 @@ Forum 表当前无 `rules` 字段。方案：
 
 `GET /api/v1/threads` 增加查询参数：
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `typeName` | string | 精确匹配 `type_name` 字段 |
-| `digest` | `0 \| 1 \| 2 \| 3` | 精确匹配 `digest` 字段；传 `1+` 表示任意精华 |
-| `sticky` | `0 \| 1 \| 2 \| 3` | 精确匹配 `sticky` 字段 |
-| `closed` | `0 \| 1` | 精确匹配 `closed` 字段 |
+| 参数       | 类型               | 说明                                         |
+| ---------- | ------------------ | -------------------------------------------- |
+| `typeName` | string             | 精确匹配 `type_name` 字段                    |
+| `digest`   | `0 \| 1 \| 2 \| 3` | 精确匹配 `digest` 字段；传 `1+` 表示任意精华 |
+| `sticky`   | `0 \| 1 \| 2 \| 3` | 精确匹配 `sticky` 字段                       |
+| `closed`   | `0 \| 1`           | 精确匹配 `closed` 字段                       |
 
 SQL 拼接为 `WHERE forum_id = ? AND type_name = ? AND ...` 按需追加条件。
 
@@ -242,12 +242,12 @@ SQL 拼接为 `WHERE forum_id = ? AND type_name = ? AND ...` 按需追加条件�
 
 `GET /api/v1/threads` 增加 `sort` 参数：
 
-| sort 值 | SQL ORDER BY | 说明 |
-|---------|-------------|------|
+| sort 值          | SQL ORDER BY                              | 说明     |
+| ---------------- | ----------------------------------------- | -------- |
 | `latest`（默认） | `sticky DESC, last_post_at DESC, id DESC` | 最新回复 |
-| `newest` | `sticky DESC, created_at DESC, id DESC` | 最新发帖 |
-| `hot` | `sticky DESC, replies DESC, id DESC` | 最多回复 |
-| `views` | `sticky DESC, views DESC, id DESC` | 最多查看 |
+| `newest`         | `sticky DESC, created_at DESC, id DESC`   | 最新发帖 |
+| `hot`            | `sticky DESC, replies DESC, id DESC`      | 最多回复 |
+| `views`          | `sticky DESC, views DESC, id DESC`        | 最多查看 |
 
 **注意**：所有排序均保留 `sticky DESC` 前缀，确保置顶帖始终在顶部。
 
@@ -324,16 +324,16 @@ ORDER BY sticky DESC, last_post_at DESC, id DESC
 
 ### 文件变更汇总
 
-| 文件 | 变更 |
-|------|------|
-| `apps/worker/src/handlers/thread.ts` | `list` 增加 `typeName`/`digest`/`sort`/`sticky`/`closed` 参数处理，修改全局置顶查询 |
-| `apps/worker/src/handlers/forum.ts` | 新增 `getTypeNames` handler |
-| `apps/worker/src/index.ts` | 注册 `GET /api/v1/forums/:id/type-names` 路由 |
-| `apps/web/src/lib/forum-api.ts` | 新增 `fetchTypeNames()`，`fetchThreads()` 增加筛选/排序参数 |
-| `apps/web/src/viewmodels/forum/thread-list.server.ts` | 数据加载增加 `typeName`/`digest`/`sort` 参数透传 |
-| `apps/web/src/components/forum/thread-list-toolbar.tsx` | **新建** — 筛选/排序/发帖工具栏 |
-| `apps/web/src/components/forum/forum-rules-panel.tsx` | **新建** — 版规展示折叠面板 |
-| `apps/web/src/app/(forum)/forums/[id]/page.tsx` | 集成工具栏和版规面板 |
+| 文件                                                    | 变更                                                                                |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `apps/worker/src/handlers/thread.ts`                    | `list` 增加 `typeName`/`digest`/`sort`/`sticky`/`closed` 参数处理，修改全局置顶查询 |
+| `apps/worker/src/handlers/forum.ts`                     | 新增 `getTypeNames` handler                                                         |
+| `apps/worker/src/index.ts`                              | 注册 `GET /api/v1/forums/:id/type-names` 路由                                       |
+| `apps/web/src/lib/forum-api.ts`                         | 新增 `fetchTypeNames()`，`fetchThreads()` 增加筛选/排序参数                         |
+| `apps/web/src/viewmodels/forum/thread-list.server.ts`   | 数据加载增加 `typeName`/`digest`/`sort` 参数透传                                    |
+| `apps/web/src/components/forum/thread-list-toolbar.tsx` | **新建** — 筛选/排序/发帖工具栏                                                     |
+| `apps/web/src/components/forum/forum-rules-panel.tsx`   | **新建** — 版规展示折叠面板                                                         |
+| `apps/web/src/app/(forum)/forums/[id]/page.tsx`         | 集成工具栏和版规面板                                                                |
 
 ---
 
@@ -442,12 +442,12 @@ Client → 直接携带 workerJwt 调用 Worker API
 
 #### 条件显示
 
-| 条件 | 行为 |
-|------|------|
-| 未登录 | 显示提示："请[登录](/login?redirect=当前URL)后回复" |
-| 已登录 + 帖子未关闭 | 显示编辑器 |
-| 已登录 + 帖子已关闭 | 显示灰色提示："此帖已关闭，无法回复" |
-| 被封禁用户 | 显示提示："您的账号已被禁言" |
+| 条件                | 行为                                                |
+| ------------------- | --------------------------------------------------- |
+| 未登录              | 显示提示："请[登录](/login?redirect=当前URL)后回复" |
+| 已登录 + 帖子未关闭 | 显示编辑器                                          |
+| 已登录 + 帖子已关闭 | 显示灰色提示："此帖已关闭，无法回复"                |
+| 被封禁用户          | 显示提示："您的账号已被禁言"                        |
 
 #### 数据流
 
@@ -482,18 +482,18 @@ Client → 直接携带 workerJwt 调用 Worker API
 
 ### 文件变更汇总
 
-| 文件 | 变更 |
-|------|------|
-| `apps/web/src/auth.ts` | 添加 Credentials provider（§1 前置） |
-| `apps/web/src/app/(forum)/threads/new/page.tsx` | **新建** — 发帖页面（RSC） |
-| `apps/web/src/app/(forum)/threads/new/new-thread-form.tsx` | **新建** — 发帖表单（客户端组件） |
-| `apps/web/src/actions/thread.ts` | **新建** — `createThread` Server Action |
-| `apps/web/src/actions/post.ts` | **新建** — `createPost` Server Action |
-| `apps/web/src/app/(forum)/threads/[id]/page.tsx` | 集成快速回复框 |
-| `apps/web/src/components/forum/quick-reply.tsx` | **新建** — 快速回复组件 |
-| `apps/web/src/components/forum/post-action-bar.tsx` | "回复"按钮实现引用回复逻辑 |
-| `apps/web/src/lib/forum-api.ts` | 新增 `createThread()`, `createPost()` 服务端调用 |
-| `apps/web/proxy.ts` | 确认 `/threads/new` 路由保护正确 |
+| 文件                                                       | 变更                                             |
+| ---------------------------------------------------------- | ------------------------------------------------ |
+| `apps/web/src/auth.ts`                                     | 添加 Credentials provider（§1 前置）             |
+| `apps/web/src/app/(forum)/threads/new/page.tsx`            | **新建** — 发帖页面（RSC）                       |
+| `apps/web/src/app/(forum)/threads/new/new-thread-form.tsx` | **新建** — 发帖表单（客户端组件）                |
+| `apps/web/src/actions/thread.ts`                           | **新建** — `createThread` Server Action          |
+| `apps/web/src/actions/post.ts`                             | **新建** — `createPost` Server Action            |
+| `apps/web/src/app/(forum)/threads/[id]/page.tsx`           | 集成快速回复框                                   |
+| `apps/web/src/components/forum/quick-reply.tsx`            | **新建** — 快速回复组件                          |
+| `apps/web/src/components/forum/post-action-bar.tsx`        | "回复"按钮实现引用回复逻辑                       |
+| `apps/web/src/lib/forum-api.ts`                            | 新增 `createThread()`, `createPost()` 服务端调用 |
+| `apps/web/proxy.ts`                                        | 确认 `/threads/new` 路由保护正确                 |
 
 ---
 
@@ -501,36 +501,36 @@ Client → 直接携带 workerJwt 调用 Worker API
 
 ### Phase 1 — 基础设施（前置）
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 1.1 | ~~NextAuth Credentials Provider + session 扩展~~ → **已移至 04g** | — |
-| 1.2 | 面包屑增强（§2） | 小 |
+| 步骤 | 内容                                                              | 预估 |
+| ---- | ----------------------------------------------------------------- | ---- |
+| 1.1  | ~~NextAuth Credentials Provider + session 扩展~~ → **已移至 04g** | —    |
+| 1.2  | 面包屑增强（§2）                                                  | 小   |
 
 ### Phase 2 — 帖子列表增强
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 2.1 | Worker API: `sort` 参数 | 小 |
-| 2.2 | Worker API: `typeName`/`digest`/`closed` 筛选 + `type-names` 端点 | 中 |
-| 2.3 | Worker API: 全局置顶查询逻辑 | 小 |
-| 2.4 | 前端: `ThreadListToolbar` 组件（筛选 + 排序 + 发帖按钮） | 中 |
-| 2.5 | 前端: `ForumRulesPanel` 版规折叠面板 | 小 |
+| 步骤 | 内容                                                              | 预估 |
+| ---- | ----------------------------------------------------------------- | ---- |
+| 2.1  | Worker API: `sort` 参数                                           | 小   |
+| 2.2  | Worker API: `typeName`/`digest`/`closed` 筛选 + `type-names` 端点 | 中   |
+| 2.3  | Worker API: 全局置顶查询逻辑                                      | 小   |
+| 2.4  | 前端: `ThreadListToolbar` 组件（筛选 + 排序 + 发帖按钮）          | 中   |
+| 2.5  | 前端: `ForumRulesPanel` 版规折叠面板                              | 小   |
 
 ### Phase 3 — 发帖与回帖
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 3.1 | Server Actions: `createThread` + `createPost` | 中 |
-| 3.2 | 发帖页面 `/threads/new` | 中 |
-| 3.3 | 帖子详情页快速回复框 | 中 |
-| 3.4 | 引用回复功能 | 小 |
+| 步骤 | 内容                                          | 预估 |
+| ---- | --------------------------------------------- | ---- |
+| 3.1  | Server Actions: `createThread` + `createPost` | 中   |
+| 3.2  | 发帖页面 `/threads/new`                       | 中   |
+| 3.3  | 帖子详情页快速回复框                          | 中   |
+| 3.4  | 引用回复功能                                  | 小   |
 
 ### Phase 4 — 用户面板
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 4.1 | `UserPopover` 组件 | 小 |
-| 4.2 | Navbar 集成 | 小 |
+| 步骤 | 内容               | 预估 |
+| ---- | ------------------ | ---- |
+| 4.1  | `UserPopover` 组件 | 小   |
+| 4.2  | Navbar 集成        | 小   |
 
 > **依赖链**：Phase 1.1 → Phase 3（全部）→ Phase 4.1
 > **可并行**：Phase 1.2、Phase 2（全部）可独立进行
@@ -539,30 +539,30 @@ Client → 直接携带 workerJwt 调用 Worker API
 
 ## 新建文件清单
 
-| 文件 | 用途 |
-|------|------|
-| `apps/web/src/components/forum/user-popover.tsx` | 用户弹出面板 |
-| `apps/web/src/components/forum/thread-list-toolbar.tsx` | 帖子列表工具栏 |
-| `apps/web/src/components/forum/forum-rules-panel.tsx` | 版规折叠面板 |
-| `apps/web/src/components/forum/quick-reply.tsx` | 快速回复组件 |
-| `apps/web/src/app/(forum)/threads/new/page.tsx` | 发帖页面 |
-| `apps/web/src/app/(forum)/threads/new/new-thread-form.tsx` | 发帖表单 |
-| `apps/web/src/actions/thread.ts` | 发帖 Server Action |
-| `apps/web/src/actions/post.ts` | 回帖 Server Action |
+| 文件                                                       | 用途               |
+| ---------------------------------------------------------- | ------------------ |
+| `apps/web/src/components/forum/user-popover.tsx`           | 用户弹出面板       |
+| `apps/web/src/components/forum/thread-list-toolbar.tsx`    | 帖子列表工具栏     |
+| `apps/web/src/components/forum/forum-rules-panel.tsx`      | 版规折叠面板       |
+| `apps/web/src/components/forum/quick-reply.tsx`            | 快速回复组件       |
+| `apps/web/src/app/(forum)/threads/new/page.tsx`            | 发帖页面           |
+| `apps/web/src/app/(forum)/threads/new/new-thread-form.tsx` | 发帖表单           |
+| `apps/web/src/actions/thread.ts`                           | 发帖 Server Action |
+| `apps/web/src/actions/post.ts`                             | 回帖 Server Action |
 
 ## 修改文件清单
 
-| 文件 | 变更 |
-|------|------|
-| `apps/web/src/auth.ts` | ~~Credentials provider + session 扩展~~ → **已移至 04g** |
-| `apps/web/src/lib/forum-breadcrumbs.ts` | Home icon + 站名 |
-| `apps/web/src/components/layout/breadcrumbs.tsx` | Icon 渲染支持 |
-| `apps/web/src/lib/forum-api.ts` | 新增 API 调用函数 |
-| `apps/web/src/viewmodels/forum/thread-list.server.ts` | 筛选/排序参数透传 |
-| `apps/web/src/components/forum/forum-navbar.tsx` | 集成 UserPopover |
-| `apps/web/src/components/forum/post-action-bar.tsx` | 回复按钮功能实现 |
-| `apps/web/src/app/(forum)/forums/[id]/page.tsx` | 集成工具栏 + 版规面板 |
-| `apps/web/src/app/(forum)/threads/[id]/page.tsx` | 集成快速回复 |
-| `apps/worker/src/handlers/thread.ts` | 筛选/排序/全局置顶 |
-| `apps/worker/src/handlers/forum.ts` | type-names 端点 |
-| `apps/worker/src/index.ts` | 新路由注册 |
+| 文件                                                  | 变更                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| `apps/web/src/auth.ts`                                | ~~Credentials provider + session 扩展~~ → **已移至 04g** |
+| `apps/web/src/lib/forum-breadcrumbs.ts`               | Home icon + 站名                                         |
+| `apps/web/src/components/layout/breadcrumbs.tsx`      | Icon 渲染支持                                            |
+| `apps/web/src/lib/forum-api.ts`                       | 新增 API 调用函数                                        |
+| `apps/web/src/viewmodels/forum/thread-list.server.ts` | 筛选/排序参数透传                                        |
+| `apps/web/src/components/forum/forum-navbar.tsx`      | 集成 UserPopover                                         |
+| `apps/web/src/components/forum/post-action-bar.tsx`   | 回复按钮功能实现                                         |
+| `apps/web/src/app/(forum)/forums/[id]/page.tsx`       | 集成工具栏 + 版规面板                                    |
+| `apps/web/src/app/(forum)/threads/[id]/page.tsx`      | 集成快速回复                                             |
+| `apps/worker/src/handlers/thread.ts`                  | 筛选/排序/全局置顶                                       |
+| `apps/worker/src/handlers/forum.ts`                   | type-names 端点                                          |
+| `apps/worker/src/index.ts`                            | 新路由注册                                               |

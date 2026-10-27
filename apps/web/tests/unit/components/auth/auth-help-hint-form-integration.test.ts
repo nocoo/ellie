@@ -124,20 +124,24 @@ vi.mock("@/app/(auth)/register/register-form", async () => {
 
 // ─── Inert CAP mock (default for "pre-solve" tests) ────────────────────────
 
+function InertCapWidget() {
+	return createElement("div", { "data-testid": "cap-widget" });
+}
+
+function AutoSolveCapWidget({ onSolve }: { onSolve: (t: string) => void }) {
+	// Simulate Cap.js firing the solve callback after CAPTCHA passes.
+	useEffect(() => {
+		onSolve("test-token");
+	}, [onSolve]);
+	return createElement("div", { "data-testid": "cap-widget" });
+}
+
 const inertCapMock = () => ({
-	CapWidget: () => createElement("div", { "data-testid": "cap-widget" }),
+	CapWidget: InertCapWidget,
 });
 
-// ─── Auto-solve CAP mock (immediately calls onSolve on mount) ──────────────
-
 const autoSolveCapMock = () => ({
-	CapWidget: ({ onSolve }: { onSolve: (t: string) => void }) => {
-		// Simulate Cap.js firing the solve callback after CAPTCHA passes.
-		useEffect(() => {
-			onSolve("test-token");
-		}, [onSolve]);
-		return createElement("div", { "data-testid": "cap-widget" });
-	},
+	CapWidget: AutoSolveCapWidget,
 });
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

@@ -62,6 +62,7 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 
 
 ### 2026-05-10: Checkin Streak Bug from Pre-Fix Deployment
+
 - **Issue:** 3 users who checked in on May 9 have `streak_days=1` instead of 2, despite checking in on consecutive days (import from May 8 → new checkin May 9).
 - **Cause:** The initial Worker deployment included commit `3c36b33` which used `toLocaleString("en-US", { timeZone: "Asia/Shanghai" })` → `new Date()` for timezone conversion. In Cloudflare Workers (UTC runtime), this re-parses the Shanghai-formatted string as UTC, shifting `todayStart` by +8 hours. The fix in `bb4523c` (using `Intl.DateTimeFormat.formatToParts()` + `Date.UTC - 8h`) was committed locally but not deployed until later.
 - **Fix:** `bb4523c` is now in production (Worker `8e8a6d7d`). Future streak calculations are correct. Optional D1 repair for 3 affected users.
@@ -70,6 +71,7 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
   2. **Timezone logic in Workers must use `formatToParts()` + explicit UTC arithmetic**, never `toLocaleString → new Date()` round-trip.
 
 ### 2026-05-07: Worker Deploy Without Migration Apply
+
 - **Issue:** Deployed worker `f1d00be` to production; admin `/api/admin/users` immediately broke with 500 ("无法加载 users 列表")
 - **Cause:** Migration `0030_user_tombstone.sql` (adds `purged_at`/`purged_by` to `users`) was never applied to prod D1. Deployed worker's `USER_COLUMNS` SELECT references those columns → SQLite "no such column" → 500.
 - **Fix:**
@@ -81,6 +83,7 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
   3. **Pre-deploy verification:** `bun x wrangler d1 migrations list tongjinet-db --remote` should print `✅ No migrations to apply!` once `worker:deploy` completes.
 
 ### 2026-04-06: D1 Test Isolation Setup
+
 - **Issue:** L2 tests were failing because they couldn't connect to production D1 or used empty local D1
 - **Solution:** Created isolated test environment with separate D1 and KV instances
 - **Configuration:**
@@ -97,6 +100,7 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
   - `apps/worker/migrations/0000_init_schema.sql` — base schema for test DB
 
 ### 2026-04-03: Worker + Next.js Proxy Sync Issues
+
 - **Issue:** User moderation actions (mute/ban/nuke) returned 404 errors
 - **Cause:** Worker API endpoints existed but Next.js proxy routes were missing; also Worker wasn't deployed
 - **Fix:** Created all missing proxy routes in `apps/web/src/app/api/v1/moderation/`
@@ -107,18 +111,21 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
   4. **Keep docs in sync** — update relevant docs when adding new API endpoints
 
 ### 2026-04-03: API Proxy Routes Missing
+
 - **Issue:** `/api/v1/settings` called by `useFeatureFlags` hook returned HTML 404 instead of JSON
 - **Cause:** Next.js proxy route didn't exist; browser received HTML error page
 - **Fix:** Created `apps/web/src/app/api/v1/settings/route.ts` to proxy to Worker
 - **Lesson:** Every browser API endpoint must have a corresponding Next.js route
 
 ### 2026-04-03: SQL Syntax Error in Offset Pagination
+
 - **Issue:** `LIMIT  OFFSET ?` (missing LIMIT parameter) caused SQLite syntax error
 - **Cause:** `getThreadListQueryWithOffset` used `.slice(0, -1)` incorrectly
 - **Fix:** Changed to append ` OFFSET ?` without slicing
 - **Lesson:** Always test SQL query string generation
 
 ### 2026-04-05: D1 Schema Not Deployed
+
 - **Issue:** 站内信页面报 "Internal server error"，实际是 `D1_ERROR: no such table: messages`
 - **Cause:** Worker handler 引用了 `messages` 表，但没有创建对应的 migration
 - **Fix:** 创建 `0022_create_messages.sql` 并运行 `wrangler d1 migrations apply`

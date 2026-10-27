@@ -22,18 +22,18 @@ inspection confirmed no pending migrations before release.
 
 Cloudflare adaptive estimates, start-inclusive/end-exclusive UTC windows:
 
-| Metric | 2026-09-23 23:00 to 2026-09-24 01:00 | 2026-09-24 00:45 to 01:00 |
-| --- | ---: | ---: |
-| Worker requests | 7,676 | 666 |
-| Worker execution errors | 0 | 0 |
-| KV reads | 64,282 | 3,679 |
-| KV writes | 2,616 | 69 |
-| KV reads / Worker request | 8.374 | 5.524 |
-| KV writes / Worker request | 0.341 | 0.104 |
-| D1 read queries | 4,773 | 248 |
-| D1 write queries | 140 | 11 |
-| D1 rows read | 372,671 | 23,369 |
-| D1 rows written | 256 | 22 |
+| Metric                     | 2026-09-23 23:00 to 2026-09-24 01:00 | 2026-09-24 00:45 to 01:00 |
+| -------------------------- | -----------------------------------: | ------------------------: |
+| Worker requests            |                                7,676 |                       666 |
+| Worker execution errors    |                                    0 |                         0 |
+| KV reads                   |                               64,282 |                     3,679 |
+| KV writes                  |                                2,616 |                        69 |
+| KV reads / Worker request  |                                8.374 |                     5.524 |
+| KV writes / Worker request |                                0.341 |                     0.104 |
+| D1 read queries            |                                4,773 |                       248 |
+| D1 write queries           |                                  140 |                        11 |
+| D1 rows read               |                              372,671 |                    23,369 |
+| D1 rows written            |                                  256 |                        22 |
 
 The two-hour forum-zone sample contains 17,336 HTTP requests, zero HTTP 5xx and
 5,410 edge hits (31.21% of all requests, including dynamic and non-cacheable

@@ -6,19 +6,19 @@
 
 ## 功能优先级总览
 
-| 功能 | 优先级 | 当前阶段实现方式 | 完整实现依赖 |
-|------|--------|-----------------|-------------|
-| 特殊帖子类型标签展示 | P0 | 只读标签 + 数据展示 | — |
-| 投票帖交互 | P1 | Mock 投票数据展示 | Phase 2 poll 表 |
-| 富文本编辑器 | P0 | Tiptap v2 基础功能 | — |
-| Emoji（新帖） | P0 | emoji-mart Unicode 输入 | — |
-| Smiley 渲染（旧帖） | P0 | 表情代码 → `<img>` 映射 | — |
-| 悬赏帖交互 | P2 | 只读展示 | Phase 2 bounty 表 |
-| 交易帖交互 | P2 | 只读展示 | Phase 2 trade 表 |
-| 活动帖交互 | P2 | 只读展示 | Phase 2 activity 表 |
-| 辩论帖交互 | P2 | 只读展示 | Phase 2 debate 表 |
-| 全文搜索 | 后置 | 标题前缀匹配（04d） | Phase 4 Workers AI + Vectorize |
-| 站内私信 | 后置 | 不实现 | Phase 2 messages 表 |
+| 功能                 | 优先级 | 当前阶段实现方式        | 完整实现依赖                   |
+| -------------------- | ------ | ----------------------- | ------------------------------ |
+| 特殊帖子类型标签展示 | P0     | 只读标签 + 数据展示     | —                              |
+| 投票帖交互           | P1     | Mock 投票数据展示       | Phase 2 poll 表                |
+| 富文本编辑器         | P0     | Tiptap v2 基础功能      | —                              |
+| Emoji（新帖）        | P0     | emoji-mart Unicode 输入 | —                              |
+| Smiley 渲染（旧帖）  | P0     | 表情代码 → `<img>` 映射 | —                              |
+| 悬赏帖交互           | P2     | 只读展示                | Phase 2 bounty 表              |
+| 交易帖交互           | P2     | 只读展示                | Phase 2 trade 表               |
+| 活动帖交互           | P2     | 只读展示                | Phase 2 activity 表            |
+| 辩论帖交互           | P2     | 只读展示                | Phase 2 debate 表              |
+| 全文搜索             | 后置   | 标题前缀匹配（04d）     | Phase 4 Workers AI + Vectorize |
+| 站内私信             | 后置   | 不实现                  | Phase 2 messages 表            |
 
 ---
 
@@ -35,17 +35,17 @@ DZ 通过 `threads.special` 字段标记 6 种帖子类型（04a §Thread）。�
 ```typescript
 // models/thread.ts（扩展 04d 的 getThreadBadges）
 const SPECIAL_BADGES: Record<number, { label: string; variant: string }> = {
-  1: { label: "投票", variant: "default" },
-  2: { label: "交易", variant: "warning" },
-  3: { label: "悬赏", variant: "warning" },
-  4: { label: "活动", variant: "default" },
-  5: { label: "辩论", variant: "default" },
+	1: { label: "投票", variant: "default" },
+	2: { label: "交易", variant: "warning" },
+	3: { label: "悬赏", variant: "warning" },
+	4: { label: "活动", variant: "default" },
+	5: { label: "辩论", variant: "default" },
 };
 
 // 在 getThreadBadges() 中：
 if (thread.special > 0 && SPECIAL_BADGES[thread.special]) {
-  const badge = SPECIAL_BADGES[thread.special];
-  badges.push({ type: "special", label: badge.label, variant: badge.variant });
+	const badge = SPECIAL_BADGES[thread.special];
+	badges.push({ type: "special", label: badge.label, variant: badge.variant });
 }
 ```
 
@@ -73,9 +73,9 @@ if (thread.special > 0 && SPECIAL_BADGES[thread.special]) {
 ```typescript
 // components/forum/VotePoll.tsx
 interface VotePollProps {
-  poll: PollData;
-  hasVoted: boolean;
-  onVote: (optionIds: number[]) => void;
+	poll: PollData;
+	hasVoted: boolean;
+	onVote: (optionIds: number[]) => void;
 }
 ```
 
@@ -83,18 +83,18 @@ interface VotePollProps {
 
 ```typescript
 export const mockPolls: Record<number, PollData> = {
-  // threadId → PollData
-  1001: {
-    question: "食堂最佳窗口评选",
-    options: [
-      { id: 1, text: "一食堂 3 楼", votes: 156, percentage: 62 },
-      { id: 2, text: "二食堂 2 楼", votes: 70, percentage: 28 },
-      { id: 3, text: "学苑食堂", votes: 25, percentage: 10 },
-    ],
-    maxChoices: 1,
-    expiresAt: 1727740800,
-    voterCount: 251,
-  },
+	// threadId → PollData
+	1001: {
+		question: "食堂最佳窗口评选",
+		options: [
+			{ id: 1, text: "一食堂 3 楼", votes: 156, percentage: 62 },
+			{ id: 2, text: "二食堂 2 楼", votes: 70, percentage: 28 },
+			{ id: 3, text: "学苑食堂", votes: 25, percentage: 10 },
+		],
+		maxChoices: 1,
+		expiresAt: 1727740800,
+		voterCount: 251,
+	},
 };
 ```
 
@@ -148,11 +148,11 @@ export const mockPolls: Record<number, PollData> = {
 ```typescript
 // data/repositories/types.ts（扩展）
 export interface SpecialDataRepository {
-  getPollByThreadId(threadId: number): Promise<PollData | null>;
-  getBountyByThreadId(threadId: number): Promise<BountyData | null>;
-  getTradeByThreadId(threadId: number): Promise<TradeData | null>;
-  getActivityByThreadId(threadId: number): Promise<ActivityData | null>;
-  getDebateByThreadId(threadId: number): Promise<DebateData | null>;
+	getPollByThreadId(threadId: number): Promise<PollData | null>;
+	getBountyByThreadId(threadId: number): Promise<BountyData | null>;
+	getTradeByThreadId(threadId: number): Promise<TradeData | null>;
+	getActivityByThreadId(threadId: number): Promise<ActivityData | null>;
+	getDebateByThreadId(threadId: number): Promise<DebateData | null>;
 }
 ```
 
@@ -164,34 +164,34 @@ export interface SpecialDataRepository {
 
 ### 技术选型：Tiptap v2
 
-| 选项 | 优势 | 劣势 | 结论 |
-|------|------|------|------|
-| Tiptap v2 | ProseMirror 底层、可扩展、TypeScript 支持好 | 略重 | ✅ 选用 |
-| TinyMCE | 功能全 | 许可证、体积大 | ❌ |
-| 原生 textarea | 最轻量 | 无格式支持 | ❌ |
+| 选项          | 优势                                        | 劣势           | 结论    |
+| ------------- | ------------------------------------------- | -------------- | ------- |
+| Tiptap v2     | ProseMirror 底层、可扩展、TypeScript 支持好 | 略重           | ✅ 选用 |
+| TinyMCE       | 功能全                                      | 许可证、体积大 | ❌      |
+| 原生 textarea | 最轻量                                      | 无格式支持     | ❌      |
 
 ### 编辑器功能
 
 **基础功能（P0）：**
 
-| 功能 | Tiptap 扩展 | 说明 |
-|------|-------------|------|
-| 粗体/斜体/下划线 | StarterKit | 基础格式 |
-| 标题 (H2-H4) | StarterKit | 不提供 H1（页面标题占用） |
-| 无序/有序列表 | StarterKit | |
-| 引用 | StarterKit | blockquote |
-| 代码块 | StarterKit | 语法高亮（后置） |
-| 链接 | @tiptap/extension-link | 自动检测 URL |
-| 表情 | 自定义扩展 | 集成 emoji-mart |
-| Placeholder | @tiptap/extension-placeholder | "输入内容..." |
+| 功能             | Tiptap 扩展                   | 说明                      |
+| ---------------- | ----------------------------- | ------------------------- |
+| 粗体/斜体/下划线 | StarterKit                    | 基础格式                  |
+| 标题 (H2-H4)     | StarterKit                    | 不提供 H1（页面标题占用） |
+| 无序/有序列表    | StarterKit                    |                           |
+| 引用             | StarterKit                    | blockquote                |
+| 代码块           | StarterKit                    | 语法高亮（后置）          |
+| 链接             | @tiptap/extension-link        | 自动检测 URL              |
+| 表情             | 自定义扩展                    | 集成 emoji-mart           |
+| Placeholder      | @tiptap/extension-placeholder | "输入内容..."             |
 
 **增强功能（P1）：**
 
-| 功能 | 说明 |
-|------|------|
+| 功能     | 说明                                        |
+| -------- | ------------------------------------------- |
 | 图片上传 | 拖拽/粘贴上传到 R2（当前 Mock：生成占位图） |
-| @提及 | 输入 @ 弹出用户选择器（后置到 Phase 2） |
-| 字数统计 | @tiptap/extension-character-count |
+| @提及    | 输入 @ 弹出用户选择器（后置到 Phase 2）     |
+| 字数统计 | @tiptap/extension-character-count           |
 
 ### 编辑器工具栏
 
@@ -213,23 +213,23 @@ export interface SpecialDataRepository {
 ```typescript
 // components/forum/PostEditor.tsx
 interface PostEditorProps {
-  initialContent?: string;
-  onSubmit: (html: string) => void;
-  placeholder?: string;
-  maxLength?: number;
-  disabled?: boolean;
+	initialContent?: string;
+	onSubmit: (html: string) => void;
+	placeholder?: string;
+	maxLength?: number;
+	disabled?: boolean;
 }
 
 // 内部使用 Tiptap:
 const editor = useEditor({
-  extensions: [
-    StarterKit,
-    Link.configure({ openOnClick: false }),
-    Placeholder.configure({ placeholder: props.placeholder }),
-    CharacterCount.configure({ limit: props.maxLength ?? 50000 }),
-    // Emoji 自定义扩展
-  ],
-  content: props.initialContent ?? "",
+	extensions: [
+		StarterKit,
+		Link.configure({ openOnClick: false }),
+		Placeholder.configure({ placeholder: props.placeholder }),
+		CharacterCount.configure({ limit: props.maxLength ?? 50000 }),
+		// Emoji 自定义扩展
+	],
+	content: props.initialContent ?? "",
 });
 ```
 
@@ -253,10 +253,10 @@ Sanitize 规则复用 04a §Sanitize 规则（以 `bbcode.ts` 现有实现为 so
 
 ### 双轨方案
 
-| 场景 | 方案 | 说明 |
-|------|------|------|
+| 场景         | 方案                       | 说明                 |
+| ------------ | -------------------------- | -------------------- |
 | **新帖编辑** | emoji-mart → Unicode Emoji | 现代标准，跨平台一致 |
-| **旧帖渲染** | Smiley 映射 → `<img>` 标签 | 兼容 DZ 历史数据 |
+| **旧帖渲染** | Smiley 映射 → `<img>` 标签 | 兼容 DZ 历史数据     |
 
 ### 新帖 Emoji（emoji-mart）
 
@@ -321,11 +321,11 @@ public/smileys/
 ```typescript
 // lib/smiley-map.ts — 仅用于调试和测试，运行时不使用
 export const SMILEY_MAP: Record<string, string> = {
-  ":)": "/smileys/default/smile.gif",
-  ":(": "/smileys/default/sad.gif",
-  ":D": "/smileys/default/biggrin.gif",
-  "{:soso_e113:}": "/smileys/soso/e113.gif",
-  // ... 完整映射表基于 DZ 的 data/cache/cache_smiley.php
+	":)": "/smileys/default/smile.gif",
+	":(": "/smileys/default/sad.gif",
+	":D": "/smileys/default/biggrin.gif",
+	"{:soso_e113:}": "/smileys/soso/e113.gif",
+	// ... 完整映射表基于 DZ 的 data/cache/cache_smiley.php
 };
 ```
 
@@ -357,11 +357,11 @@ D1 (获取完整帖子数据)
 
 **关键组件：**
 
-| 组件 | 用途 |
-|------|------|
+| 组件       | 用途                    |
+| ---------- | ----------------------- |
 | Workers AI | 文本向量化（Embedding） |
-| Vectorize | 向量存储和 ANN 搜索 |
-| D1 | 元数据存储和精确查询 |
+| Vectorize  | 向量存储和 ANN 搜索     |
+| D1         | 元数据存储和精确查询    |
 
 **索引策略：**
 - 对 threads.subject + posts.content（首帖）建立向量索引
@@ -395,13 +395,13 @@ Doc02 未定义 messages 表，当前 D1 schema 不包含私信数据。**本阶
 ```typescript
 // Phase 2 新增到 models/types.ts
 export interface Message {
-  id: number;
-  fromUserId: number;
-  toUserId: number;
-  subject: string;
-  content: string;
-  createdAt: number;
-  readAt: number | null;   // null = 未读
+	id: number;
+	fromUserId: number;
+	toUserId: number;
+	subject: string;
+	content: string;
+	createdAt: number;
+	readAt: number | null; // null = 未读
 }
 ```
 
@@ -434,12 +434,12 @@ src/app/(forum)/messages/
 
 ```typescript
 export interface MessageRepository {
-  listInbox(params: PaginationParams): Promise<PaginatedResult<Message>>;
-  listSent(params: PaginationParams): Promise<PaginatedResult<Message>>;
-  getById(id: number): Promise<Message | null>;
-  send(input: { toUserId: number; subject: string; content: string }): Promise<Message>;
-  markRead(id: number): Promise<void>;
-  unreadCount(): Promise<number>;
+	listInbox(params: PaginationParams): Promise<PaginatedResult<Message>>;
+	listSent(params: PaginationParams): Promise<PaginatedResult<Message>>;
+	getById(id: number): Promise<Message | null>;
+	send(input: { toUserId: number; subject: string; content: string }): Promise<Message>;
+	markRead(id: number): Promise<void>;
+	unreadCount(): Promise<number>;
 }
 ```
 
@@ -492,17 +492,17 @@ export interface MessageRepository {
 
 ### 当前阶段工作范围
 
-| 组件 | 要做 | 不做 |
-|------|------|------|
-| 特殊帖子标签 | ✅ ThreadBadge 展示标签 | ❌ 交互功能 |
-| 投票帖 | ✅ VotePoll Mock UI | ❌ 真实投票 API |
-| 富文本编辑器 | ✅ Tiptap 基础功能 | ❌ 图片上传到 R2 |
-| Emoji | ✅ emoji-mart picker | ❌ 自定义表情包管理 |
-| Smiley | ✅ `<img>` 标签渲染 | ❌ 运行时 BBCode 解析 |
-| 搜索 | ✅ 标题前缀 + 作者精确 | ❌ 全文搜索 |
-| 私信 | ❌ 不实现 | — |
-| 注册 | ❌ 不实现 | — |
-| 通知 | ❌ 不实现 | — |
+| 组件         | 要做                    | 不做                  |
+| ------------ | ----------------------- | --------------------- |
+| 特殊帖子标签 | ✅ ThreadBadge 展示标签 | ❌ 交互功能           |
+| 投票帖       | ✅ VotePoll Mock UI     | ❌ 真实投票 API       |
+| 富文本编辑器 | ✅ Tiptap 基础功能      | ❌ 图片上传到 R2      |
+| Emoji        | ✅ emoji-mart picker    | ❌ 自定义表情包管理   |
+| Smiley       | ✅ `<img>` 标签渲染     | ❌ 运行时 BBCode 解析 |
+| 搜索         | ✅ 标题前缀 + 作者精确  | ❌ 全文搜索           |
+| 私信         | ❌ 不实现               | —                     |
+| 注册         | ❌ 不实现               | —                     |
+| 通知         | ❌ 不实现               | —                     |
 
 ### 依赖关系
 

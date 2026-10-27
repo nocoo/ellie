@@ -27,32 +27,32 @@ attachments            →   Attachment interface
 
 /** 用户角色 — 对应 Doc02 users.role (来自 DZ adminid) */
 export enum UserRole {
-  User = 0,      // 普通用户
-  Admin = 1,     // 管理员 — 全站权限
-  SuperMod = 2,  // 超级版主 — 论坛前端所有版块版主操作
-  Mod = 3,       // 版主 — 仅所辖版块（需 moderators 映射表）
+	User = 0, // 普通用户
+	Admin = 1, // 管理员 — 全站权限
+	SuperMod = 2, // 超级版主 — 论坛前端所有版块版主操作
+	Mod = 3, // 版主 — 仅所辖版块（需 moderators 映射表）
 }
 
 /** 用户状态 — 对应 Doc02 users.status */
 export enum UserStatus {
-  Active = 0,    // 正常
-  Banned = -1,   // 封禁/冻结 — 禁止登录
-  Archived = -2, // 归档 — DZ 自动归档长期不登录用户，禁止登录
+	Active = 0, // 正常
+	Banned = -1, // 封禁/冻结 — 禁止登录
+	Archived = -2, // 归档 — DZ 自动归档长期不登录用户，禁止登录
 }
 
 /** 置顶等级 — 对应 Doc02 threads.sticky (来自 DZ displayorder) */
 export enum StickyLevel {
-  None = 0,      // 普通
-  Forum = 1,     // 版块置顶
-  Global = 2,    // 全局置顶
-  Category = 3,  // 分类置顶
+	None = 0, // 普通
+	Forum = 1, // 版块置顶
+	Global = 2, // 全局置顶
+	Category = 3, // 分类置顶
 }
 
 /** 版块类型 — 对应 Doc02 forums.type */
 export enum ForumType {
-  Group = "group",  // 分类（顶级容器，不直接包含帖子）
-  Forum = "forum",  // 版块（包含帖子的主要单元）
-  Sub = "sub",      // 子版块
+	Group = "group", // 分类（顶级容器，不直接包含帖子）
+	Forum = "forum", // 版块（包含帖子的主要单元）
+	Sub = "sub", // 子版块
 }
 ```
 
@@ -67,17 +67,17 @@ export enum ForumType {
 ```typescript
 /** 对应 Doc02 §users — 114 万行 */
 export interface User {
-  id: number;          // PK — DZ uid
-  username: string;    // UNIQUE — 来自 uc_members
-  email: string;       // 迁移初始为空；用户在新系统验证后写入
-  avatar: string;      // R2 key: "avatars/{uid}.jpg" 或 ""（无头像）
-  status: UserStatus;  // 0=正常, -1=封禁, -2=归档
-  role: UserRole;      // 0=user, 1=admin, 2=super-mod, 3=mod
-  regDate: number;     // Unix timestamp — DZ regdate
-  lastLogin: number;   // Unix timestamp — DZ lastlogintime
-  threads: number;     // 发帖数 — 来自 pre_common_member_count
-  posts: number;       // 回帖数 — 来自 pre_common_member_count
-  credits: number;     // 积分
+	id: number; // PK — DZ uid
+	username: string; // UNIQUE — 来自 uc_members
+	email: string; // 迁移初始为空；用户在新系统验证后写入
+	avatar: string; // R2 key: "avatars/{uid}.jpg" 或 ""（无头像）
+	status: UserStatus; // 0=正常, -1=封禁, -2=归档
+	role: UserRole; // 0=user, 1=admin, 2=super-mod, 3=mod
+	regDate: number; // Unix timestamp — DZ regdate
+	lastLogin: number; // Unix timestamp — DZ lastlogintime
+	threads: number; // 发帖数 — 来自 pre_common_member_count
+	posts: number; // 回帖数 — 来自 pre_common_member_count
+	credits: number; // 积分
 }
 ```
 
@@ -88,19 +88,19 @@ export interface User {
 ```typescript
 /** 对应 Doc02 §forums — 213 行 */
 export interface Forum {
-  id: number;            // PK — DZ fid
-  parentId: number;      // 父版块 fid，0=顶级分类
-  name: string;
-  description: string;   // 来自 pre_forum_forumfield
-  icon: string;          // 版块图标路径
-  displayOrder: number;  // 排序权重
-  threads: number;       // 帖子数
-  posts: number;         // 回帖数
-  type: ForumType;       // "group" | "forum" | "sub"
-  status: number;        // 0=隐藏, 1=正常
-  lastThreadId: number;  // 最新帖子 tid
-  lastPostAt: number;    // 最后发帖时间（Unix timestamp）
-  lastPoster: string;    // 最后发帖人用户名
+	id: number; // PK — DZ fid
+	parentId: number; // 父版块 fid，0=顶级分类
+	name: string;
+	description: string; // 来自 pre_forum_forumfield
+	icon: string; // 版块图标路径
+	displayOrder: number; // 排序权重
+	threads: number; // 帖子数
+	posts: number; // 回帖数
+	type: ForumType; // "group" | "forum" | "sub"
+	status: number; // 0=隐藏, 1=正常
+	lastThreadId: number; // 最新帖子 tid
+	lastPostAt: number; // 最后发帖时间（Unix timestamp）
+	lastPoster: string; // 最后发帖人用户名
 }
 ```
 
@@ -111,22 +111,22 @@ export interface Forum {
 ```typescript
 /** 对应 Doc02 §threads — 79 万行 */
 export interface Thread {
-  id: number;            // PK — DZ tid
-  forumId: number;       // FK → forums.id
-  authorId: number;      // FK → users.id
-  authorName: string;    // 反范式化用户名（即使用户被删也能展示）
-  subject: string;       // 标题
-  createdAt: number;     // Unix timestamp
-  lastPostAt: number;    // 最后回复时间
-  lastPoster: string;    // 最后回复者用户名
-  replies: number;       // 回复数
-  views: number;         // 浏览数
-  closed: number;        // 0=开放, 1=锁定（>1 的合并帖已在迁移时过滤）
-  sticky: StickyLevel;   // 置顶等级
-  digest: number;        // 0=无, 1~3=精华等级
-  special: number;       // 0=普通, 1=投票, 2=交易, 3=悬赏, 4=活动, 5=辩论
-  highlight: number;     // 标题样式编码（颜色/粗体/斜体）
-  recommends: number;    // 净推荐数
+	id: number; // PK — DZ tid
+	forumId: number; // FK → forums.id
+	authorId: number; // FK → users.id
+	authorName: string; // 反范式化用户名（即使用户被删也能展示）
+	subject: string; // 标题
+	createdAt: number; // Unix timestamp
+	lastPostAt: number; // 最后回复时间
+	lastPoster: string; // 最后回复者用户名
+	replies: number; // 回复数
+	views: number; // 浏览数
+	closed: number; // 0=开放, 1=锁定（>1 的合并帖已在迁移时过滤）
+	sticky: StickyLevel; // 置顶等级
+	digest: number; // 0=无, 1~3=精华等级
+	special: number; // 0=普通, 1=投票, 2=交易, 3=悬赏, 4=活动, 5=辩论
+	highlight: number; // 标题样式编码（颜色/粗体/斜体）
+	recommends: number; // 净推荐数
 }
 ```
 
@@ -137,15 +137,15 @@ export interface Thread {
 ```typescript
 /** 对应 Doc02 §posts — 940 万行 */
 export interface Post {
-  id: number;            // PK — DZ pid
-  threadId: number;      // FK → threads.id
-  forumId: number;       // FK → forums.id
-  authorId: number;      // FK → users.id
-  authorName: string;    // 反范式化用户名
-  content: string;       // **sanitized HTML**（见下方内容格式规约）
-  createdAt: number;     // Unix timestamp
-  isFirst: boolean;      // true=主题首帖, false=回复
-  position: number;      // 楼层号（从 1 开始）
+	id: number; // PK — DZ pid
+	threadId: number; // FK → threads.id
+	forumId: number; // FK → forums.id
+	authorId: number; // FK → users.id
+	authorName: string; // 反范式化用户名
+	content: string; // **sanitized HTML**（见下方内容格式规约）
+	createdAt: number; // Unix timestamp
+	isFirst: boolean; // true=主题首帖, false=回复
+	position: number; // 楼层号（从 1 开始）
 }
 ```
 
@@ -154,30 +154,30 @@ export interface Post {
 ```typescript
 /** 对应 Doc02 §attachments — 7.8 万行 */
 export interface Attachment {
-  id: number;            // PK — DZ aid
-  threadId: number;      // FK → threads.id
-  postId: number;        // FK → posts.id
-  authorId: number;      // FK → users.id
-  filename: string;      // 原始上传文件名
-  filePath: string;      // R2 object key
-  fileSize: number;      // 字节数
-  isImage: boolean;      // 是否图片
-  width: number;         // 图片宽度 px（非图片为 0）
-  hasThumb: boolean;     // 是否有缩略图
-  downloads: number;     // 下载次数（来自 DZ 索引表）
-  createdAt: number;     // Unix timestamp
+	id: number; // PK — DZ aid
+	threadId: number; // FK → threads.id
+	postId: number; // FK → posts.id
+	authorId: number; // FK → users.id
+	filename: string; // 原始上传文件名
+	filePath: string; // R2 object key
+	fileSize: number; // 字节数
+	isImage: boolean; // 是否图片
+	width: number; // 图片宽度 px（非图片为 0）
+	hasThumb: boolean; // 是否有缩略图
+	downloads: number; // 下载次数（来自 DZ 索引表）
+	createdAt: number; // Unix timestamp
 }
 ```
 
 ### 已知字段缺失（Doc02 辅助字段未迁移）
 
-| Doc02 标记为"不存储" | 原始 DZ 字段 | 影响 |
-|---------------------|-------------|------|
-| `groupid` | pre_common_member.groupid | 无用户组权限分层 — 用 role 简化处理 |
-| `readperm` | pre_forum_attachment_N.readperm | 无权限附件 — 所有附件视为公开 |
-| `price` | pre_forum_attachment_N.price | 无付费附件 |
-| `description` | pre_forum_attachment_N.description | 附件无备注文本 — 只展示文件名 |
-| `invisible` (≠0) | pre_forum_post.invisible | 无被删除/待审核帖子数据 — 删除操作为物理删除（D1 DELETE），不可恢复 |
+| Doc02 标记为"不存储" | 原始 DZ 字段                       | 影响                                                                |
+| -------------------- | ---------------------------------- | ------------------------------------------------------------------- |
+| `groupid`            | pre_common_member.groupid          | 无用户组权限分层 — 用 role 简化处理                                 |
+| `readperm`           | pre_forum_attachment_N.readperm    | 无权限附件 — 所有附件视为公开                                       |
+| `price`              | pre_forum_attachment_N.price       | 无付费附件                                                          |
+| `description`        | pre_forum_attachment_N.description | 附件无备注文本 — 只展示文件名                                       |
+| `invisible` (≠0)     | pre_forum_post.invisible           | 无被删除/待审核帖子数据 — 删除操作为物理删除（D1 DELETE），不可恢复 |
 
 ---
 
@@ -185,13 +185,13 @@ export interface Attachment {
 
 ### 角色与权限矩阵
 
-| 操作 | User(0) | Mod(3) | SuperMod(2) | Admin(1) |
-|------|---------|--------|-------------|----------|
-| 浏览公开版块 | ✅ | ✅ | ✅ | ✅ |
-| 发帖/回帖 | ✅ | ✅ | ✅ | ✅ |
-| 删除自己的帖子 | ✅ | ✅ | ✅ | ✅ |
-| 版主操作（置顶/加精/关闭/移动/删除） | ❌ | ✅ 所辖版块 | ✅ 所有版块 | ✅ |
-| 访问管理后台 `/admin` | ❌ | ❌ | ❌ | ❌ |
+| 操作                                 | User(0) | Mod(3)      | SuperMod(2) | Admin(1) |
+| ------------------------------------ | ------- | ----------- | ----------- | -------- |
+| 浏览公开版块                         | ✅      | ✅          | ✅          | ✅       |
+| 发帖/回帖                            | ✅      | ✅          | ✅          | ✅       |
+| 删除自己的帖子                       | ✅      | ✅          | ✅          | ✅       |
+| 版主操作（置顶/加精/关闭/移动/删除） | ❌      | ✅ 所辖版块 | ✅ 所有版块 | ✅       |
+| 访问管理后台 `/admin`                | ❌      | ❌          | ❌          | ❌       |
 
 > **Admin Console 独立于论坛用户体系**：管理后台通过 Google OAuth + `ADMIN_EMAILS` 白名单认证，与论坛用户角色无关。上表中"版主操作"指论坛前端 `/api/v1/moderation/*` 端点，走 Key A + 论坛 JWT。
 
@@ -201,18 +201,18 @@ export interface Attachment {
 // models/permission.ts — 0 依赖纯函数，L1 测试覆盖
 
 export function canViewForum(user: User | null, forum: Forum): boolean {
-  return forum.status !== 0; // status=0 的版块不可见（管理员手动隐藏，D1 初始无此数据）
+	return forum.status !== 0; // status=0 的版块不可见（管理员手动隐藏，D1 初始无此数据）
 }
 
 export function canCreateThread(user: User | null, _forum: Forum): boolean {
-  if (!user) return false;
-  return user.status === UserStatus.Active;
+	if (!user) return false;
+	return user.status === UserStatus.Active;
 }
 
 export function canReplyToThread(user: User | null, thread: Thread): boolean {
-  if (!user) return false;
-  if (user.status !== UserStatus.Active) return false;
-  return thread.closed === 0; // 锁定帖不可回复
+	if (!user) return false;
+	if (user.status !== UserStatus.Active) return false;
+	return thread.closed === 0; // 锁定帖不可回复
 }
 
 /**
@@ -223,10 +223,10 @@ export function canReplyToThread(user: User | null, thread: Thread): boolean {
  * 注意：此函数与 Admin Console 无关。Admin Console 通过 Google OAuth 认证。
  */
 export function canModerate(user: User | null, _forumId: number): boolean {
-  if (!user) return false;
-  if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
-  if (user.role === UserRole.Mod) return true; // 简化：当前阶段无 moderators 表
-  return false;
+	if (!user) return false;
+	if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
+	if (user.role === UserRole.Mod) return true; // 简化：当前阶段无 moderators 表
+	return false;
 }
 
 /**
@@ -234,31 +234,29 @@ export function canModerate(user: User | null, _forumId: number): boolean {
  * 此函数仅用于论坛前端的历史兼容（如显示版主标识等），不用于 Admin Console 准入判断。
  */
 export function canAccessAdmin(user: User | null): boolean {
-  if (!user) return false;
-  return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
+	if (!user) return false;
+	return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
 }
 
 export function canManageUsers(user: User | null): boolean {
-  if (!user) return false;
-  return user.role === UserRole.Admin;
+	if (!user) return false;
+	return user.role === UserRole.Admin;
 }
 
-export function canDeletePost(
-  user: User | null, post: Post, forumId: number,
-): boolean {
-  if (!user) return false;
-  if (user.id === post.authorId) return true; // 作者可删自己
-  return canModerate(user, forumId);
+export function canDeletePost(user: User | null, post: Post, forumId: number): boolean {
+	if (!user) return false;
+	if (user.id === post.authorId) return true; // 作者可删自己
+	return canModerate(user, forumId);
 }
 ```
 
 ### 已知简化与未来扩展
 
-| 简化 | 当前行为 | 未来需补充 |
-|------|---------|-----------|
-| 版主-版块映射 | Mod 拥有**所有**版块管理权限 | 新增 `moderators` 表（user_id + forum_id），`canModerate` 查询此表 |
-| 用户组 | 不区分用户组 | 如需精细分层（如 VIP），新增 `user_groups` 表 |
-| 发帖权限 | 所有 Active 用户可在所有版块发帖 | 如需版块级发帖限制，查询版块权限配置 |
+| 简化          | 当前行为                         | 未来需补充                                                         |
+| ------------- | -------------------------------- | ------------------------------------------------------------------ |
+| 版主-版块映射 | Mod 拥有**所有**版块管理权限     | 新增 `moderators` 表（user_id + forum_id），`canModerate` 查询此表 |
+| 用户组        | 不区分用户组                     | 如需精细分层（如 VIP），新增 `user_groups` 表                      |
+| 发帖权限      | 所有 Active 用户可在所有版块发帖 | 如需版块级发帖限制，查询版块权限配置                               |
 
 ---
 
@@ -273,22 +271,22 @@ export function canDeletePost(
 
 /** Keyset 分页结果 — 对应 Doc02 §分页策略 */
 export interface PaginatedResult<T> {
-  items: T[];
-  nextCursor: string | null;  // null = 没有下一页
-  prevCursor: string | null;  // null = 没有上一页（第一页）
-  total: number;              // 近似总数（COUNT 查询，展示"共约 N 条"）
+	items: T[];
+	nextCursor: string | null; // null = 没有下一页
+	prevCursor: string | null; // null = 没有上一页（第一页）
+	total: number; // 近似总数（COUNT 查询，展示"共约 N 条"）
 }
 
 /** 通用分页参数 */
 export interface PaginationParams {
-  cursor?: string;            // 省略 = 第一页
-  direction?: "forward" | "backward";  // 默认 "forward"
-  limit?: number;             // 默认 20，上限 50
+	cursor?: string; // 省略 = 第一页
+	direction?: "forward" | "backward"; // 默认 "forward"
+	limit?: number; // 默认 20，上限 50
 }
 ```
 
 **Cursor 结构**：cursor 是 opaque string，内部编码为 `base64(JSON({ sortValue, id }))`。不同排序方式使用不同的 sortValue：
-- `latest` 排序 → `{ sticky, lastPostAt, id }`  ← 注意：含 sticky，处理置顶帖
+- `latest` 排序 → `{ sticky, lastPostAt, id }` ← 注意：含 sticky，处理置顶帖
 - `newest` 排序 → `{ createdAt, id }`
 - `hot` 排序 → `{ replies, id }`
 
@@ -298,22 +296,22 @@ export interface PaginationParams {
 
 ```typescript
 export interface UpdateForumInput {
-  name?: string;
-  description?: string;
-  icon?: string;
-  status?: number;          // 0=隐藏, 1=正常
-  displayOrder?: number;
+	name?: string;
+	description?: string;
+	icon?: string;
+	status?: number; // 0=隐藏, 1=正常
+	displayOrder?: number;
 }
 
 export interface ForumRepository {
-  /** 获取所有版块（213 行，全量返回，不分页） */
-  listAll(): Promise<Forum[]>;
+	/** 获取所有版块（213 行，全量返回，不分页） */
+	listAll(): Promise<Forum[]>;
 
-  /** 按 ID 获取版块 */
-  getById(id: number): Promise<Forum | null>;
+	/** 按 ID 获取版块 */
+	getById(id: number): Promise<Forum | null>;
 
-  /** 更新版块信息（管理后台 04c 使用） */
-  update(id: number, input: UpdateForumInput): Promise<void>;
+	/** 更新版块信息（管理后台 04c 使用） */
+	update(id: number, input: UpdateForumInput): Promise<void>;
 }
 ```
 
@@ -321,40 +319,40 @@ export interface ForumRepository {
 
 ```typescript
 export interface ThreadListParams extends PaginationParams {
-  forumId?: number;          // 按版块筛选
-  authorId?: number;         // 按作者筛选
-  digest?: boolean;          // true = 只看精华
-  createdAfter?: number;     // Unix timestamp — 仪表盘"今日新帖"
-  sort?: "latest" | "newest" | "hot";
-  // latest = 按 lastPostAt 降序（默认）
-  // newest = 按 createdAt 降序
-  // hot = 按 replies 降序
+	forumId?: number; // 按版块筛选
+	authorId?: number; // 按作者筛选
+	digest?: boolean; // true = 只看精华
+	createdAfter?: number; // Unix timestamp — 仪表盘"今日新帖"
+	sort?: "latest" | "newest" | "hot";
+	// latest = 按 lastPostAt 降序（默认）
+	// newest = 按 createdAt 降序
+	// hot = 按 replies 降序
 }
 
 export interface ThreadSearchParams extends PaginationParams {
-  /** 标题前缀匹配（LIKE 'query%'，pattern ≤50 bytes） */
-  titlePrefix?: string;
-  /** 作者精确匹配（WHERE author_name = 'xxx'） */
-  authorName?: string;
+	/** 标题前缀匹配（LIKE 'query%'，pattern ≤50 bytes） */
+	titlePrefix?: string;
+	/** 作者精确匹配（WHERE author_name = 'xxx'） */
+	authorName?: string;
 }
 
 export interface CreateThreadInput {
-  forumId: number;
-  subject: string;
-  content: string;           // sanitized HTML
+	forumId: number;
+	subject: string;
+	content: string; // sanitized HTML
 }
 
 export interface ThreadRepository {
-  list(params: ThreadListParams): Promise<PaginatedResult<Thread>>;
-  search(params: ThreadSearchParams): Promise<PaginatedResult<Thread>>;
-  getById(id: number): Promise<Thread | null>;
-  create(input: CreateThreadInput): Promise<Thread>;
-  delete(id: number): Promise<void>;
-  /** 版主操作 */
-  setSticky(id: number, level: StickyLevel): Promise<void>;
-  setDigest(id: number, level: number): Promise<void>;
-  setClosed(id: number, closed: boolean): Promise<void>;
-  move(id: number, targetForumId: number): Promise<void>;
+	list(params: ThreadListParams): Promise<PaginatedResult<Thread>>;
+	search(params: ThreadSearchParams): Promise<PaginatedResult<Thread>>;
+	getById(id: number): Promise<Thread | null>;
+	create(input: CreateThreadInput): Promise<Thread>;
+	delete(id: number): Promise<void>;
+	/** 版主操作 */
+	setSticky(id: number, level: StickyLevel): Promise<void>;
+	setDigest(id: number, level: number): Promise<void>;
+	setClosed(id: number, closed: boolean): Promise<void>;
+	move(id: number, targetForumId: number): Promise<void>;
 }
 ```
 
@@ -364,19 +362,19 @@ export interface ThreadRepository {
 
 ```typescript
 export interface PostListParams extends PaginationParams {
-  threadId?: number;         // 按帖子筛选（帖子详情页）
-  authorId?: number;         // 按作者筛选（用户主页回帖历史）
+	threadId?: number; // 按帖子筛选（帖子详情页）
+	authorId?: number; // 按作者筛选（用户主页回帖历史）
 }
 
 export interface CreatePostInput {
-  threadId: number;
-  content: string;           // sanitized HTML
+	threadId: number;
+	content: string; // sanitized HTML
 }
 
 export interface PostRepository {
-  list(params: PostListParams): Promise<PaginatedResult<Post>>;
-  create(input: CreatePostInput): Promise<Post>;
-  delete(id: number): Promise<void>;
+	list(params: PostListParams): Promise<PaginatedResult<Post>>;
+	create(input: CreatePostInput): Promise<Post>;
+	delete(id: number): Promise<void>;
 }
 ```
 
@@ -386,21 +384,21 @@ export interface PostRepository {
 
 ```typescript
 export interface UserListParams extends PaginationParams {
-  search?: string;           // 按用户名模糊搜索（LIKE '%query%'）
-  role?: UserRole;           // 按角色筛选
-  status?: UserStatus;       // 按状态筛选
-  lastLoginAfter?: number;   // Unix timestamp — 仪表盘"今日活跃用户"
-  sort?: "newest" | "lastLogin";
-  // newest = 按 regDate 降序（默认）
-  // lastLogin = 按 lastLogin 降序
+	search?: string; // 按用户名模糊搜索（LIKE '%query%'）
+	role?: UserRole; // 按角色筛选
+	status?: UserStatus; // 按状态筛选
+	lastLoginAfter?: number; // Unix timestamp — 仪表盘"今日活跃用户"
+	sort?: "newest" | "lastLogin";
+	// newest = 按 regDate 降序（默认）
+	// lastLogin = 按 lastLogin 降序
 }
 
 export interface UserRepository {
-  list(params: UserListParams): Promise<PaginatedResult<User>>;
-  getById(id: number): Promise<User | null>;
-  /** 管理操作 */
-  setStatus(id: number, status: UserStatus): Promise<void>;
-  setRole(id: number, role: UserRole): Promise<void>;
+	list(params: UserListParams): Promise<PaginatedResult<User>>;
+	getById(id: number): Promise<User | null>;
+	/** 管理操作 */
+	setStatus(id: number, status: UserStatus): Promise<void>;
+	setRole(id: number, role: UserRole): Promise<void>;
 }
 ```
 
@@ -408,10 +406,10 @@ export interface UserRepository {
 
 ```typescript
 export interface AttachmentRepository {
-  /** 获取帖子的附件列表 */
-  listByPostId(postId: number): Promise<Attachment[]>;
-  /** 获取主题的附件列表 */
-  listByThreadId(threadId: number): Promise<Attachment[]>;
+	/** 获取帖子的附件列表 */
+	listByPostId(postId: number): Promise<Attachment[]>;
+	/** 获取主题的附件列表 */
+	listByThreadId(threadId: number): Promise<Attachment[]>;
 }
 ```
 
@@ -420,20 +418,23 @@ export interface AttachmentRepository {
 ```typescript
 // data/index.ts
 import type {
-  ForumRepository, ThreadRepository, PostRepository,
-  UserRepository, AttachmentRepository,
+	ForumRepository,
+	ThreadRepository,
+	PostRepository,
+	UserRepository,
+	AttachmentRepository,
 } from "./repositories/types";
 
 // 当前阶段返回 Mock 实现
 // Phase 2 Worker 就绪后切换为 API 实现
 export function createRepositories(): {
-  forums: ForumRepository;
-  threads: ThreadRepository;
-  posts: PostRepository;
-  users: UserRepository;
-  attachments: AttachmentRepository;
+	forums: ForumRepository;
+	threads: ThreadRepository;
+	posts: PostRepository;
+	users: UserRepository;
+	attachments: AttachmentRepository;
 } {
-  // ... 返回 Mock 或 API 实现
+	// ... 返回 Mock 或 API 实现
 }
 ```
 
@@ -443,11 +444,11 @@ export function createRepositories(): {
 
 ### 唯一格式：sanitized HTML
 
-| 阶段 | 流程 | 存储格式 |
-|------|------|---------|
-| 迁移（已完成） | DZ BBCode → `scripts/migrate/transform/bbcode.ts` → sanitized HTML | D1 posts.content |
-| 运行时（新帖） | Tiptap 编辑器 → HTML 输出 → sanitize | D1 posts.content |
-| 展示 | `posts.content` → AttachmentResolver → React `dangerouslySetInnerHTML` | — |
+| 阶段           | 流程                                                                   | 存储格式         |
+| -------------- | ---------------------------------------------------------------------- | ---------------- |
+| 迁移（已完成） | DZ BBCode → `scripts/migrate/transform/bbcode.ts` → sanitized HTML     | D1 posts.content |
+| 运行时（新帖） | Tiptap 编辑器 → HTML 输出 → sanitize                                   | D1 posts.content |
+| 展示           | `posts.content` → AttachmentResolver → React `dangerouslySetInnerHTML` | —                |
 
 **运行时不做 BBCode 转换。** 所有 BBCode→HTML 在迁移阶段一次性完成。
 
@@ -480,12 +481,12 @@ const R2_PUBLIC_BASE = process.env.NEXT_PUBLIC_R2_URL ?? "https://r2.example.com
 
 /** 将 Attachment.filePath (R2 object key) 转为公开访问 URL */
 export function attachmentUrl(filePath: string): string {
-  return `${R2_PUBLIC_BASE}/${filePath}`;
+	return `${R2_PUBLIC_BASE}/${filePath}`;
 }
 
 /** 缩略图 URL 规则：在 filePath 后追加 .thumb.jpg */
 export function thumbnailUrl(filePath: string): string {
-  return `${R2_PUBLIC_BASE}/${filePath}.thumb.jpg`;
+	return `${R2_PUBLIC_BASE}/${filePath}.thumb.jpg`;
 }
 ```
 
@@ -496,10 +497,10 @@ export function thumbnailUrl(filePath: string): string {
 
 ### 表情处理
 
-| 场景 | 处理方式 |
-|------|---------|
+| 场景        | 处理方式                                                                     |
+| ----------- | ---------------------------------------------------------------------------- |
 | 旧帖 Smiley | 迁移阶段 BBCode 转换器已将 `{:smiley_code:}` 转为 `<img src="/smileys/...">` |
-| 新帖 Emoji | Tiptap + emoji-mart 插入 Unicode Emoji，存为 HTML 文本节点 |
+| 新帖 Emoji  | Tiptap + emoji-mart 插入 Unicode Emoji，存为 HTML 文本节点                   |
 
 ### Sanitize 规则
 
@@ -527,12 +528,12 @@ Doc02/Doc03 迁移查询 `WHERE f.status = 1`，**隐藏版块（status=0）未�
 
 ## 已知数据缺口汇总
 
-| 功能 | 缺失内容 | 影响 | 处理方式 | 涉及文档 |
-|------|---------|------|---------|---------|
-| 版主映射 | 无 `moderators` 表 | Mod 无法绑定到具体版块 | 当前全局化，Phase 2 补表 | 04c |
-| 私信 | 无 PM schema | 站内私信不可用 | 后置到 04e | 04e |
-| 特殊帖子交互 | 无 poll/reward/trade 表 | 投票等交互不可用 | 只展示标签 | 04e |
-| 帖子恢复 | invisible≠0 未迁移 | 无历史被删数据 | 删除为物理删除，不可恢复 | 04c |
-| 权限/付费附件 | readperm/price 未迁移 | 所有附件公开 | 后置 | 04e |
-| 附件描述 | description 未迁移 | 附件无备注 | 只展示文件名 | 04d |
-| 全文搜索 | D1 不支持中文全文搜索 | 无内容级搜索 | MVP 仅标题前缀匹配 | 04e |
+| 功能          | 缺失内容                | 影响                   | 处理方式                 | 涉及文档 |
+| ------------- | ----------------------- | ---------------------- | ------------------------ | -------- |
+| 版主映射      | 无 `moderators` 表      | Mod 无法绑定到具体版块 | 当前全局化，Phase 2 补表 | 04c      |
+| 私信          | 无 PM schema            | 站内私信不可用         | 后置到 04e               | 04e      |
+| 特殊帖子交互  | 无 poll/reward/trade 表 | 投票等交互不可用       | 只展示标签               | 04e      |
+| 帖子恢复      | invisible≠0 未迁移      | 无历史被删数据         | 删除为物理删除，不可恢复 | 04c      |
+| 权限/付费附件 | readperm/price 未迁移   | 所有附件公开           | 后置                     | 04e      |
+| 附件描述      | description 未迁移      | 附件无备注             | 只展示文件名             | 04d      |
+| 全文搜索      | D1 不支持中文全文搜索   | 无内容级搜索           | MVP 仅标题前缀匹配       | 04e      |

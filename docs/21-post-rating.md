@@ -35,12 +35,12 @@
 
 旧站权限由 `usergroup_field.raterange` 承载；新系统只有 4 个 `UserRole`：
 
-| role | 名称 | 评同钱 | 评积分 | 撤销 |
-|------|------|--------|--------|------|
-| 0    | User      | ✅ | ❌ | ❌ |
-| 1    | Admin     | ✅ | ✅ | ✅ |
-| 2    | SuperMod  | ✅ | ✅ | ✅ |
-| 3    | Mod       | ✅ | ✅ | ❌ |
+| role | 名称     | 评同钱 | 评积分 | 撤销 |
+| ---- | -------- | ------ | ------ | ---- |
+| 0    | User     | ✅     | ❌     | ❌   |
+| 1    | Admin    | ✅     | ✅     | ✅   |
+| 2    | SuperMod | ✅     | ✅     | ✅   |
+| 3    | Mod      | ✅     | ✅     | ❌   |
 
 补充门槛（与旧站等价）：
 - 必须已登录（且 `status = Active = 0`）。
@@ -99,11 +99,11 @@ ALTER TABLE posts ADD COLUMN rate_times INTEGER NOT NULL DEFAULT 0;
 
 ### 4.1 端点
 
-| Method | Path | Auth | 说明 |
-|--------|------|------|------|
-| `POST` | `/api/v1/posts/:id/rate` | JWT | 创建一条评分（同钱 或 积分） |
-| `GET`  | `/api/v1/posts/:id/ratings` | optional | 返回该 post 的评分列表（聚合 + 明细，用于 hover） |
-| `POST` | `/api/v1/posts/:id/ratings/:ratingId/revoke` | JWT + Admin/SuperMod | 撤销一条评分 |
+| Method | Path                                         | Auth                 | 说明                                              |
+| ------ | -------------------------------------------- | -------------------- | ------------------------------------------------- |
+| `POST` | `/api/v1/posts/:id/rate`                     | JWT                  | 创建一条评分（同钱 或 积分）                      |
+| `GET`  | `/api/v1/posts/:id/ratings`                  | optional             | 返回该 post 的评分列表（聚合 + 明细，用于 hover） |
+| `POST` | `/api/v1/posts/:id/ratings/:ratingId/revoke` | JWT + Admin/SuperMod | 撤销一条评分                                      |
 
 ### 4.2 `POST /api/v1/posts/:id/rate` 请求
 
@@ -215,6 +215,7 @@ Hover 或点击"展开" → 浮层显示完整列表（`GET /api/v1/posts/:id/ra
 ## 7. 测试矩阵
 
 ### 7.1 Worker handler unit tests
+
 - 普通用户给同钱（正/负）— 成功/失败（自己/匿名/重复/超额度/超单次范围）。
 - 普通用户给积分 — 拒绝。
 - Mod 给积分 — 成功。
@@ -223,30 +224,33 @@ Hover 或点击"展开" → 浮层显示完整列表（`GET /api/v1/posts/:id/ra
 - `notifyAuthor=true` 写出一条 PM。
 
 ### 7.2 D1 schema migration tests
+
 - `migration-0040-schema.test.ts`、`migration-0041-schema.test.ts` 走 bun:sqlite。
 - 唯一索引在 revoked_at=0 时生效，撤销后允许同一 (uid,pid,dim) 再评。
 
 ### 7.3 Web component tests (vitest + RTL)
+
 - `PostRatingDialog` 表单：权限矩阵呈现、提交、错误展示。
 - `PostRatingSummary` 渲染 0 / 1 / N 条 ratings 状态。
 
 ### 7.4 e2e（playwright）
+
 - 普通用户 + mod + admin 各跑一次：登录 → 进入帖子 → 评分 → 看汇总 → （admin）撤销。
 
 ## 8. 实施步骤（每步原子 commit）
 
-| # | 内容 | 文件 / 路径 |
-|---|------|-------------|
-| 1 | Migrations 0040 + 0041 + schema test | `apps/worker/migrations/` `tests/unit/migration-0040-schema.test.ts` |
-| 2 | Worker types + handler `rate.ts` (POST + GET) + 单元测试 | `apps/worker/src/handlers/rate.ts` `tests/unit/rate-handler.test.ts` |
-| 3 | Worker 撤销端点 + audit log | 同上 |
-| 4 | Next.js 代理 routes | `apps/web/src/app/api/v1/posts/[id]/rate/route.ts` 等 |
-| 5 | `PostRatingDialog` 组件 + 单测 | `apps/web/src/components/forum/post-rating-dialog.tsx` |
-| 6 | `PostRatingSummary` 组件 + 接入 `post-card.tsx` | 同上 |
-| 7 | `post-action-bar.tsx` 增加两个按钮 + 撤销入口 | 同上 |
-| 8 | 历史数据 ETL + import SQL 生成 + dry-run | `scripts/migrate/transform/ratelog.ts` `output/post-ratings-import-*` |
-| 9 | e2e playwright case | `tests/e2e/post-rating.spec.ts` |
-| 10 | Docs README 索引更新 + retrospective | `docs/README.md` `CLAUDE.md` |
+| #   | 内容                                                     | 文件 / 路径                                                           |
+| --- | -------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1   | Migrations 0040 + 0041 + schema test                     | `apps/worker/migrations/` `tests/unit/migration-0040-schema.test.ts`  |
+| 2   | Worker types + handler `rate.ts` (POST + GET) + 单元测试 | `apps/worker/src/handlers/rate.ts` `tests/unit/rate-handler.test.ts`  |
+| 3   | Worker 撤销端点 + audit log                              | 同上                                                                  |
+| 4   | Next.js 代理 routes                                      | `apps/web/src/app/api/v1/posts/[id]/rate/route.ts` 等                 |
+| 5   | `PostRatingDialog` 组件 + 单测                           | `apps/web/src/components/forum/post-rating-dialog.tsx`                |
+| 6   | `PostRatingSummary` 组件 + 接入 `post-card.tsx`          | 同上                                                                  |
+| 7   | `post-action-bar.tsx` 增加两个按钮 + 撤销入口            | 同上                                                                  |
+| 8   | 历史数据 ETL + import SQL 生成 + dry-run                 | `scripts/migrate/transform/ratelog.ts` `output/post-ratings-import-*` |
+| 9   | e2e playwright case                                      | `tests/e2e/post-rating.spec.ts`                                       |
+| 10  | Docs README 索引更新 + retrospective                     | `docs/README.md` `CLAUDE.md`                                          |
 
 ## 9. 风险 / 待澄清
 

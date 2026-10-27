@@ -24,14 +24,14 @@ grep -cE '^\s*test\(' tests/e2e/*.spec.ts tests/e2e/admin/*.spec.ts | awk -F: '{
 # => 94
 ```
 
-| 指标 | 数值 |
-|------|------|
-| Spec 文件数 (Forum) | 23 |
-| Spec 文件数 (Admin) | 6 |
-| Spec 文件数合计 | **29** |
-| 测试用例总数 | **94** |
-| Forum 域 | 23 spec, 74 tests |
-| Admin 域 | 6 spec, 20 tests |
+| 指标                | 数值              |
+| ------------------- | ----------------- |
+| Spec 文件数 (Forum) | 23                |
+| Spec 文件数 (Admin) | 6                 |
+| Spec 文件数合计     | **29**            |
+| 测试用例总数        | **94**            |
+| Forum 域            | 23 spec, 74 tests |
+| Admin 域            | 6 spec, 20 tests  |
 
 ### 1.2 Spec 文件清单
 
@@ -40,65 +40,65 @@ Per-file counts (reproducible via
 
 #### Forum Specs (23 files, 74 tests)
 
-| Spec 文件 | 测试数 | 现有 Describe ID | 域 | 覆盖范围 |
-|-----------|--------|------------------|----|---------|
-| `already-logged-in` | 2 | E2E-AL | Auth | 已登录用户落地页 |
-| `auth` | 3 | E2E-AU | Auth | 登录/注册/登出流程 |
-| `redirect` | 3 | E2E-RD | Auth | 重定向安全（未登录守卫） |
-| `navigation` | 6 | E2E-NV | Navigation | 核心导航流程 |
-| `navigation-extra` | 4 | E2E-NX | Navigation | 扩展导航覆盖 |
-| `header-actions` | 4 | E2E-HA | Navigation | 页眉/页脚操作元素 |
-| `not-found` | 4 | E2E-NF | Navigation | 404 和无效参数路由 |
-| `search` | 1 | E2E-SE | Search | 搜索流程 |
-| `search-interaction` | 2 | E2E-SI | Search | 搜索交互 |
-| `thread` | 1 | E2E-TH | Content | 帖子查看流程 |
-| `thread-crud` | 2 | E2E-TC | Content | 帖子 CRUD（stateful） |
-| `post` | 1 | E2E-PO | Content | 回复查看流程 |
-| `post-crud` | 3 | E2E-PR | Content | 回复 CRUD（stateful） |
-| `post-comments` | 2 | E2E-PC | Content | 回复评论 |
-| `pagination` | 2 | E2E-PG | Content | 分页 |
-| `digest-filter` | 1 | E2E-DF | Content | 精华筛选 |
-| `message` | 2 | E2E-MS | Social | 私信流程 |
-| `user-actions` | 2 | E2E-UA | Social | 用户操作流程 |
-| `user-journey` | 3 | E2E-UJ | Social | 用户旅程 |
-| `system` | 5 | E2E-SY | System | 系统流程 + 响应式视口 |
-| `dialog-layout` | 2 | E2E-DL | UI | 对话框布局 |
-| `mobile-layout` | 15 | E2E-MOB | UI | 移动端布局（5 个子 describe） |
-| `misc-coverage` | 4 | E2E-MX | Misc | 杂项用户可见流程 |
-| **合计** | **74** | | | |
+| Spec 文件            | 测试数 | 现有 Describe ID | 域         | 覆盖范围                      |
+| -------------------- | ------ | ---------------- | ---------- | ----------------------------- |
+| `already-logged-in`  | 2      | E2E-AL           | Auth       | 已登录用户落地页              |
+| `auth`               | 3      | E2E-AU           | Auth       | 登录/注册/登出流程            |
+| `redirect`           | 3      | E2E-RD           | Auth       | 重定向安全（未登录守卫）      |
+| `navigation`         | 6      | E2E-NV           | Navigation | 核心导航流程                  |
+| `navigation-extra`   | 4      | E2E-NX           | Navigation | 扩展导航覆盖                  |
+| `header-actions`     | 4      | E2E-HA           | Navigation | 页眉/页脚操作元素             |
+| `not-found`          | 4      | E2E-NF           | Navigation | 404 和无效参数路由            |
+| `search`             | 1      | E2E-SE           | Search     | 搜索流程                      |
+| `search-interaction` | 2      | E2E-SI           | Search     | 搜索交互                      |
+| `thread`             | 1      | E2E-TH           | Content    | 帖子查看流程                  |
+| `thread-crud`        | 2      | E2E-TC           | Content    | 帖子 CRUD（stateful）         |
+| `post`               | 1      | E2E-PO           | Content    | 回复查看流程                  |
+| `post-crud`          | 3      | E2E-PR           | Content    | 回复 CRUD（stateful）         |
+| `post-comments`      | 2      | E2E-PC           | Content    | 回复评论                      |
+| `pagination`         | 2      | E2E-PG           | Content    | 分页                          |
+| `digest-filter`      | 1      | E2E-DF           | Content    | 精华筛选                      |
+| `message`            | 2      | E2E-MS           | Social     | 私信流程                      |
+| `user-actions`       | 2      | E2E-UA           | Social     | 用户操作流程                  |
+| `user-journey`       | 3      | E2E-UJ           | Social     | 用户旅程                      |
+| `system`             | 5      | E2E-SY           | System     | 系统流程 + 响应式视口         |
+| `dialog-layout`      | 2      | E2E-DL           | UI         | 对话框布局                    |
+| `mobile-layout`      | 15     | E2E-MOB          | UI         | 移动端布局（5 个子 describe） |
+| `misc-coverage`      | 4      | E2E-MX           | Misc       | 杂项用户可见流程              |
+| **合计**             | **74** |                  |            |                               |
 
 #### Admin Specs (6 files, 20 tests)
 
-| Spec 文件 | 测试数 | 域 | 覆盖范围 |
-|-----------|--------|-----|---------|
-| `admin-auth` | 3 | Admin Auth | 管理员认证守卫 |
-| `admin-users` | 9 | Admin CRUD | 用户管理（查看/搜索/编辑/封禁） |
-| `admin-logs` | 4 | Admin Read | 操作日志 |
-| `admin-reports` | 2 | Admin Read | 举报列表 |
-| `admin-forums` | 1 | Admin CRUD | 版块管理 |
-| `admin-threads` | 1 | Admin CRUD | 帖子/回复管理 |
-| **合计** | **20** | | |
+| Spec 文件       | 测试数 | 域         | 覆盖范围                        |
+| --------------- | ------ | ---------- | ------------------------------- |
+| `admin-auth`    | 3      | Admin Auth | 管理员认证守卫                  |
+| `admin-users`   | 9      | Admin CRUD | 用户管理（查看/搜索/编辑/封禁） |
+| `admin-logs`    | 4      | Admin Read | 操作日志                        |
+| `admin-reports` | 2      | Admin Read | 举报列表                        |
+| `admin-forums`  | 1      | Admin CRUD | 版块管理                        |
+| `admin-threads` | 1      | Admin CRUD | 帖子/回复管理                   |
+| **合计**        | **20** |            |                                 |
 
 域加总核对：74 + 20 = 94 ✅
 
 ### 1.3 技术栈现状
 
-| 维度 | 现状 |
-|------|------|
-| 框架 | Playwright ^1.60.0 (Chromium only) |
-| 配置 | `playwright.config.ts`（根目录） |
-| 测试目录 | `tests/e2e/` (forum) + `tests/e2e/admin/` (admin) |
-| 端口 | 27031 (dev=7031, L2=17031, L3=27031), admin=7032 |
-| 启动器 | `scripts/run-l3.ts`（forum）、`scripts/run-l3-admin.ts`（admin） |
-| 并行度 | 1 worker (sequential) |
-| 超时 | 90s per test, 15s expect, 30s navigation |
-| Locale | zh-CN, timezone: Asia/Shanghai |
-| 4 个 Projects | stateless (parallel), stateful (sequential), mobile (iPhone 14), admin (独立端口) |
-| Page Objects | 7 个：forum, home, login, message, search, thread, user |
-| 共享 Fixtures | `fixtures/base.ts`（navigateTo + loginAs）、`fixtures/selectors.ts`（集中选择器） |
-| Admin Fixtures | `admin/fixtures/admin-base.ts`（JWT minting 认证） |
-| CI 方式 | 自建 job（`browser-e2e`），需 D1 迁移 + seed + Worker deploy |
-| BDD 元素 | **零 Gherkin**，但 97 处 Given/When/Then 已存在于代码注释中 |
+| 维度           | 现状                                                                              |
+| -------------- | --------------------------------------------------------------------------------- |
+| 框架           | Playwright ^1.60.0 (Chromium only)                                                |
+| 配置           | `playwright.config.ts`（根目录）                                                  |
+| 测试目录       | `tests/e2e/` (forum) + `tests/e2e/admin/` (admin)                                 |
+| 端口           | 27031 (dev=7031, L2=17031, L3=27031), admin=7032                                  |
+| 启动器         | `scripts/run-l3.ts`（forum）、`scripts/run-l3-admin.ts`（admin）                  |
+| 并行度         | 1 worker (sequential)                                                             |
+| 超时           | 90s per test, 15s expect, 30s navigation                                          |
+| Locale         | zh-CN, timezone: Asia/Shanghai                                                    |
+| 4 个 Projects  | stateless (parallel), stateful (sequential), mobile (iPhone 14), admin (独立端口) |
+| Page Objects   | 7 个：forum, home, login, message, search, thread, user                           |
+| 共享 Fixtures  | `fixtures/base.ts`（navigateTo + loginAs）、`fixtures/selectors.ts`（集中选择器） |
+| Admin Fixtures | `admin/fixtures/admin-base.ts`（JWT minting 认证）                                |
+| CI 方式        | 自建 job（`browser-e2e`），需 D1 迁移 + seed + Worker deploy                      |
+| BDD 元素       | **零 Gherkin**，但 97 处 Given/When/Then 已存在于代码注释中                       |
 
 ### 1.4 测试风格分析
 
@@ -106,38 +106,38 @@ Per-file counts (reproducible via
 
 **Locator 策略**：
 
-| 定位方式 | 使用次数 | 占比 |
-|----------|---------|------|
-| `page.locator()` (CSS) | 107 | 35% |
-| `page.getByRole()` | 101 | 33% |
-| `page.getByText()` | 58 | 19% |
-| `page.getByTestId()` | 32 | 10% |
-| `page.getByLabel()` | 6 | 2% |
-| `page.getByPlaceholder()` | 4 | 1% |
+| 定位方式                  | 使用次数 | 占比 |
+| ------------------------- | -------- | ---- |
+| `page.locator()` (CSS)    | 107      | 35%  |
+| `page.getByRole()`        | 101      | 33%  |
+| `page.getByText()`        | 58       | 19%  |
+| `page.getByTestId()`      | 32       | 10%  |
+| `page.getByLabel()`       | 6        | 2%   |
+| `page.getByPlaceholder()` | 4        | 1%   |
 
 **断言模式**：
 
-| 断言 | 使用次数 |
-|------|---------|
-| `toBe()` | 339 |
-| `toBeVisible()` | 225 |
-| `toBeHidden()` | 21 |
-| `toHaveCount()` | 12 |
-| `toHaveURL()` | 11 |
-| `toContainText()` | 6 |
-| `toBeDisabled()` | 4 |
-| `toBeEnabled()` | 3 |
+| 断言              | 使用次数 |
+| ----------------- | -------- |
+| `toBe()`          | 339      |
+| `toBeVisible()`   | 225      |
+| `toBeHidden()`    | 21       |
+| `toHaveCount()`   | 12       |
+| `toHaveURL()`     | 11       |
+| `toContainText()` | 6        |
+| `toBeDisabled()`  | 4        |
+| `toBeEnabled()`   | 3        |
 
 **操作复杂度**：
 
-| 操作 | 使用次数 | 说明 |
-|------|---------|------|
-| `page.goto()` | 99 | 多数测试有多次导航 |
-| `.click()` | 87 | 大量交互操作 |
-| `waitForURL()` | 26 | 导航等待 |
-| `.fill()` | 16 | 表单填写 |
-| `page.route()` | 5 | API mock |
-| `waitForTimeout()` | 0 | ✅ 无硬编码等待 |
+| 操作               | 使用次数 | 说明               |
+| ------------------ | -------- | ------------------ |
+| `page.goto()`      | 99       | 多数测试有多次导航 |
+| `.click()`         | 87       | 大量交互操作       |
+| `waitForURL()`     | 26       | 导航等待           |
+| `.fill()`          | 16       | 表单填写           |
+| `page.route()`     | 5        | API mock           |
+| `waitForTimeout()` | 0        | ✅ 无硬编码等待    |
 
 **结论**：
 1. **交互复杂度高**：click(87) + fill(16) 远高于 firefly(35+2) 和 pew(18+6)，BDD 改写需更谨慎
@@ -235,9 +235,9 @@ export { expect } from "@playwright/test";
 
 /** Inspect count; caller must consume via `test.skip(result.skip, result.reason)`. */
 export function emptyDataGate(count: number, what: string): { skip: boolean; reason: string } {
-  return count === 0
-    ? { skip: true, reason: `Test DB has no ${what}; seed required.` }
-    : { skip: false, reason: "" };
+	return count === 0
+		? { skip: true, reason: `Test DB has no ${what}; seed required.` }
+		: { skip: false, reason: "" };
 }
 
 export { base as test };
@@ -272,7 +272,10 @@ export { base as test };
 
 ```typescript
 // ❌ 当前
-const hasContent = await page.locator(".post-list").isVisible().catch(() => false);
+const hasContent = await page
+	.locator(".post-list")
+	.isVisible()
+	.catch(() => false);
 
 // ✅ BDD
 const count = await page.locator(".post-list").count();
@@ -292,31 +295,31 @@ test.skip(gate.skip, gate.reason);
 
 ### Forum Specs (23 → 7)
 
-| 目标 BDD Spec | 合并来源 (旧 spec → 取用测试数) | 原测试数 | 新 BDD 测试数 |
-|---------------|-----------------------------|---------|----------------|
-| `auth.spec.ts` | already-logged-in(2) + auth(3) + redirect(3) | 8 | 8 |
-| `navigation.spec.ts` | navigation(6) + navigation-extra(4) + header-actions(4) + not-found(4) | 18 | 14 |
-| `search.spec.ts` | search(1) + search-interaction(2) | 3 | 3 |
-| `content.spec.ts` | thread(1) + thread-crud(2) + post(1) + post-crud(3) + post-comments(2) + pagination(2) + digest-filter(1) | 12 | 10 |
-| `social.spec.ts` | message(2) + user-actions(2) + user-journey(3) | 7 | 7 |
-| `system.spec.ts` | system(5) + dialog-layout(2) + misc-coverage(4) | 11 | 9 |
-| `mobile.spec.ts` | mobile-layout(15) | 15 | 12 |
-| **Forum 小计** | **23 → 7** | **74** | **63** |
+| 目标 BDD Spec        | 合并来源 (旧 spec → 取用测试数)                                                                           | 原测试数 | 新 BDD 测试数 |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `auth.spec.ts`       | already-logged-in(2) + auth(3) + redirect(3)                                                              | 8        | 8             |
+| `navigation.spec.ts` | navigation(6) + navigation-extra(4) + header-actions(4) + not-found(4)                                    | 18       | 14            |
+| `search.spec.ts`     | search(1) + search-interaction(2)                                                                         | 3        | 3             |
+| `content.spec.ts`    | thread(1) + thread-crud(2) + post(1) + post-crud(3) + post-comments(2) + pagination(2) + digest-filter(1) | 12       | 10            |
+| `social.spec.ts`     | message(2) + user-actions(2) + user-journey(3)                                                            | 7        | 7             |
+| `system.spec.ts`     | system(5) + dialog-layout(2) + misc-coverage(4)                                                           | 11       | 9             |
+| `mobile.spec.ts`     | mobile-layout(15)                                                                                         | 15       | 12            |
+| **Forum 小计**       | **23 → 7**                                                                                                | **74**   | **63**        |
 
 ### Admin Specs (6 → 2)
 
-| 目标 BDD Spec | 合并来源 (旧 spec → 取用测试数) | 原测试数 | 新 BDD 测试数 |
-|---------------|-----------------------------|---------|----------------|
-| `admin/admin-auth.spec.ts` | admin-auth(3) | 3 | 3 |
-| `admin/admin-crud.spec.ts` | admin-users(9) + admin-logs(4) + admin-reports(2) + admin-forums(1) + admin-threads(1) | 17 | 14 |
-| **Admin 小计** | **6 → 2** | **20** | **17** |
+| 目标 BDD Spec              | 合并来源 (旧 spec → 取用测试数)                                                        | 原测试数 | 新 BDD 测试数 |
+| -------------------------- | -------------------------------------------------------------------------------------- | -------- | ------------- |
+| `admin/admin-auth.spec.ts` | admin-auth(3)                                                                          | 3        | 3             |
+| `admin/admin-crud.spec.ts` | admin-users(9) + admin-logs(4) + admin-reports(2) + admin-forums(1) + admin-threads(1) | 17       | 14            |
+| **Admin 小计**             | **6 → 2**                                                                              | **20**   | **17**        |
 
 ### 合计
 
-| | 旧 | 新 |
-|-|----|----|
-| Spec 文件 | 29 | **9** |
-| 测试数 | 94 | **80** |
+|           | 旧  | 新     |
+| --------- | --- | ------ |
+| Spec 文件 | 29  | **9**  |
+| 测试数    | 94  | **80** |
 
 **合计来源核对**：8+18+3+12+7+11+15+3+17 = 94 ✅
 
@@ -336,12 +339,12 @@ test.skip(gate.skip, gate.reason);
 
 ellie 的 4 个 Playwright project 必须在 BDD 目录中保持等价分组：
 
-| Project | Stage 1 testMatch (旧/新并存) | Stage 2 testMatch (纯 BDD) |
-|---------|-------------------------------|----------------------------|
+| Project     | Stage 1 testMatch (旧/新并存)                                                                                                                                                                                                                                            | Stage 2 testMatch (纯 BDD)                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `stateless` | `navigation`, `navigation-extra`, `auth`, `search`, `system`, `redirect`, `pagination`, `message`, `user-journey`, `search-interaction`, `digest-filter`, `dialog-layout`, `not-found`, `user-actions`, `misc-coverage`, `already-logged-in`, `header-actions` (17 文件) | `bdd/auth.spec.ts`, `bdd/navigation.spec.ts`, `bdd/search.spec.ts`, `bdd/system.spec.ts` |
-| `stateful` | `thread`, `post`, `post-comments`, `thread-crud`, `post-crud`, `content`, `social` (Stage 1 兼容) | `bdd/content.spec.ts`, `bdd/social.spec.ts` |
-| `mobile` | `mobile-layout`, `mobile`（Stage 1 兼容） | `bdd/mobile.spec.ts` |
-| `admin` | `tests/e2e/admin/*.spec.ts` + `tests/e2e/bdd/admin/*.spec.ts`（Stage 1 broadened testDir） | `tests/e2e/bdd/admin/*.spec.ts`（testDir 收敛到 `tests/e2e/bdd/admin`） |
+| `stateful`  | `thread`, `post`, `post-comments`, `thread-crud`, `post-crud`, `content`, `social` (Stage 1 兼容)                                                                                                                                                                        | `bdd/content.spec.ts`, `bdd/social.spec.ts`                                              |
+| `mobile`    | `mobile-layout`, `mobile`（Stage 1 兼容）                                                                                                                                                                                                                                | `bdd/mobile.spec.ts`                                                                     |
+| `admin`     | `tests/e2e/admin/*.spec.ts` + `tests/e2e/bdd/admin/*.spec.ts`（Stage 1 broadened testDir）                                                                                                                                                                               | `tests/e2e/bdd/admin/*.spec.ts`（testDir 收敛到 `tests/e2e/bdd/admin`）                  |
 
 Stage 1 迁移期需同时匹配旧/新路径，Stage 2 收敛到纯 BDD 路径。
 
@@ -349,12 +352,12 @@ Stage 1 迁移期需同时匹配旧/新路径，Stage 2 收敛到纯 BDD 路径�
 
 下列 4 个 spec 当前在 `stateless`（`fullyParallel: true`），合并后落入 `content.spec.ts` / `social.spec.ts`，归属变为 `stateful`（`fullyParallel: false`）：
 
-| 原 spec | 原 project | 合并去向 | 新 project |
-|---------|-----------|---------|-----------|
-| `pagination` | stateless | `content.spec.ts` | stateful |
-| `digest-filter` | stateless | `content.spec.ts` | stateful |
-| `message` | stateless | `social.spec.ts` | stateful |
-| `user-journey` | stateless | `social.spec.ts` | stateful |
+| 原 spec         | 原 project | 合并去向          | 新 project |
+| --------------- | ---------- | ----------------- | ---------- |
+| `pagination`    | stateless  | `content.spec.ts` | stateful   |
+| `digest-filter` | stateless  | `content.spec.ts` | stateful   |
+| `message`       | stateless  | `social.spec.ts`  | stateful   |
+| `user-journey`  | stateless  | `social.spec.ts`  | stateful   |
 
 **取舍**：本次重构优先按"语义域"分组（content / social），接受这 4 个原本可并行的只读 spec 转串行带来的 L3 时长增加（预估 +10~15s，目前 L3 单 worker 顺序执行已无并行收益）。**不**为此引入第五个 `stateful-readonly` project，理由：
 - 现有 `playwright.config.ts` 顶层就是 `workers: 1`，stateless 的 `fullyParallel: true` 实际只在单 worker 内做文件内并行，收益有限
@@ -426,38 +429,38 @@ test.describe("Feature: Forum Content", () => {
 
 ### 5.2 Phase 0：基建准备
 
-| 批次 | 内容 | 工作量 |
-|------|------|--------|
-| 0.1 | 创建 `tests/e2e/bdd/fixtures.ts` + Stage 1 config commit | 0.5h |
+| 批次 | 内容                                                     | 工作量 |
+| ---- | -------------------------------------------------------- | ------ |
+| 0.1  | 创建 `tests/e2e/bdd/fixtures.ts` + Stage 1 config commit | 0.5h   |
 
 ### 5.3 Phase 1：只读页面（风险最低）
 
-| 批次 | Spec | 测试数 (旧→新) | 工作量 | 理由 |
-|------|------|--------|--------|------|
-| 1.1 | `navigation.spec.ts` | 18 → 14 | 中 | 合并 4 个 spec，纯导航 |
-| 1.2 | `search.spec.ts` | 3 → 3 | 小 | 合并 2 个 spec，只读 |
-| 1.3 | `system.spec.ts` | 11 → 9 | 中 | 合并 3 个 spec，混合断言 |
+| 批次 | Spec                 | 测试数 (旧→新) | 工作量 | 理由                     |
+| ---- | -------------------- | -------------- | ------ | ------------------------ |
+| 1.1  | `navigation.spec.ts` | 18 → 14        | 中     | 合并 4 个 spec，纯导航   |
+| 1.2  | `search.spec.ts`     | 3 → 3          | 小     | 合并 2 个 spec，只读     |
+| 1.3  | `system.spec.ts`     | 11 → 9         | 中     | 合并 3 个 spec，混合断言 |
 
 ### 5.4 Phase 2：认证 + 社交
 
-| 批次 | Spec | 测试数 (旧→新) | 工作量 | 理由 |
-|------|------|--------|--------|------|
-| 2.1 | `auth.spec.ts` | 8 → 8 | 小 | 合并 3 个 spec，有 loginAs fixture |
-| 2.2 | `social.spec.ts` | 7 → 7 | 中 | 合并 3 个 spec，有 message/user flows |
+| 批次 | Spec             | 测试数 (旧→新) | 工作量 | 理由                                  |
+| ---- | ---------------- | -------------- | ------ | ------------------------------------- |
+| 2.1  | `auth.spec.ts`   | 8 → 8          | 小     | 合并 3 个 spec，有 loginAs fixture    |
+| 2.2  | `social.spec.ts` | 7 → 7          | 中     | 合并 3 个 spec，有 message/user flows |
 
 ### 5.5 Phase 3：有状态内容 + 移动端
 
-| 批次 | Spec | 测试数 (旧→新) | 工作量 | 理由 |
-|------|------|--------|--------|------|
-| 3.1 | `content.spec.ts` | 12 → 10 | 大 | 合并 7 个 spec，含 CRUD serial mode |
-| 3.2 | `mobile.spec.ts` | 15 → 12 | 中 | 单文件重构，5 个子 describe |
+| 批次 | Spec              | 测试数 (旧→新) | 工作量 | 理由                                |
+| ---- | ----------------- | -------------- | ------ | ----------------------------------- |
+| 3.1  | `content.spec.ts` | 12 → 10        | 大     | 合并 7 个 spec，含 CRUD serial mode |
+| 3.2  | `mobile.spec.ts`  | 15 → 12        | 中     | 单文件重构，5 个子 describe         |
 
 ### 5.6 Phase 4：Admin
 
-| 批次 | Spec | 测试数 (旧→新) | 工作量 | 理由 |
-|------|------|--------|--------|------|
-| 4.1 | `admin/admin-auth.spec.ts` | 3 → 3 | 小 | 独立认证 |
-| 4.2 | `admin/admin-crud.spec.ts` | 17 → 14 | 大 | 合并 5 个 spec，有 CRUD 操作 |
+| 批次 | Spec                       | 测试数 (旧→新) | 工作量 | 理由                         |
+| ---- | -------------------------- | -------------- | ------ | ---------------------------- |
+| 4.1  | `admin/admin-auth.spec.ts` | 3 → 3          | 小     | 独立认证                     |
+| 4.2  | `admin/admin-crud.spec.ts` | 17 → 14        | 大     | 合并 5 个 spec，有 CRUD 操作 |
 
 ## 6. 迁移检查清单（每个批次 / 每个目标 spec）
 
@@ -517,64 +520,64 @@ Stage 2 完成后，在 `package.json` 添加别名，**同时覆盖 forum 与 a
 
 ## 8. 工作量估算
 
-| Phase | Spec 数 | 测试数 | 预估工时 | SDE Issue 数 |
-|-------|---------|--------|---------|-------------|
-| 准备工作 | 0 | 0 | 0.5h | 1 |
-| Phase 1 | 3 | 26 | 2h | 3 |
-| Phase 2 | 2 | 15 | 1.5h | 2 |
-| Phase 3 | 2 | 22 | 2.5h | 2 |
-| Phase 4 | 2 | 17 | 2h | 2 |
-| 收尾 | 0 | 0 | 0.5h | 1 |
-| **合计** | **9** | **80** | **~9.5h** | **11** |
+| Phase    | Spec 数 | 测试数 | 预估工时  | SDE Issue 数 |
+| -------- | ------- | ------ | --------- | ------------ |
+| 准备工作 | 0       | 0      | 0.5h      | 1            |
+| Phase 1  | 3       | 26     | 2h        | 3            |
+| Phase 2  | 2       | 15     | 1.5h      | 2            |
+| Phase 3  | 2       | 22     | 2.5h      | 2            |
+| Phase 4  | 2       | 17     | 2h        | 2            |
+| 收尾     | 0       | 0      | 0.5h      | 1            |
+| **合计** | **9**   | **80** | **~9.5h** | **11**       |
 
 ## 9. 约束与风险
 
 ### 9.1 不变量
 
-| 不变量 | Baseline | 验证命令 |
-|--------|----------|---------|
-| `scripts/run-l3.ts` 不改 | — | `git diff main -- scripts/run-l3.ts` 必须为空 |
-| `scripts/run-l3-admin.ts` 不改 | — | 同上 |
-| Page Objects 不改 | 7 个 | `ls tests/e2e/pages/*.page.ts \| wc -l` |
-| `fixtures/base.ts` 不改 | — | `git diff main -- tests/e2e/fixtures/base.ts` 必须为空 |
-| `fixtures/selectors.ts` 不改 | — | 同上 |
-| L3 baseline | 29 spec, 94 tests | `grep -cE '^\s*test\(' tests/e2e/*.spec.ts tests/e2e/admin/*.spec.ts \| awk -F: '{s+=$2} END {print s}'` |
-| L1 覆盖率 | 95/90/95/95 per package | `bun run test:coverage` 门限不变 |
-| CI 自建 job | — | `.github/workflows/ci.yml` 中 `browser-e2e` job 步骤不变 |
+| 不变量                         | Baseline                | 验证命令                                                                                                 |
+| ------------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `scripts/run-l3.ts` 不改       | —                       | `git diff main -- scripts/run-l3.ts` 必须为空                                                            |
+| `scripts/run-l3-admin.ts` 不改 | —                       | 同上                                                                                                     |
+| Page Objects 不改              | 7 个                    | `ls tests/e2e/pages/*.page.ts \| wc -l`                                                                  |
+| `fixtures/base.ts` 不改        | —                       | `git diff main -- tests/e2e/fixtures/base.ts` 必须为空                                                   |
+| `fixtures/selectors.ts` 不改   | —                       | 同上                                                                                                     |
+| L3 baseline                    | 29 spec, 94 tests       | `grep -cE '^\s*test\(' tests/e2e/*.spec.ts tests/e2e/admin/*.spec.ts \| awk -F: '{s+=$2} END {print s}'` |
+| L1 覆盖率                      | 95/90/95/95 per package | `bun run test:coverage` 门限不变                                                                         |
+| CI 自建 job                    | —                       | `.github/workflows/ci.yml` 中 `browser-e2e` job 步骤不变                                                 |
 
 ### 9.2 风险
 
-| 风险 | 影响 | 缓解措施 |
-|------|------|---------|
-| Playwright projects testMatch 迁移不完整 | 部分测试不被收集 | Stage 1 期间每次改动后 `bunx playwright test --list` 验证 |
-| stateful CRUD 顺序被打破 | 数据状态不一致 | content.spec.ts 保持 `test.describe.serial` |
-| mobile project viewport 设置丢失 | 移动端测试在桌面视口运行 | mobile.spec.ts 必须在 `mobile` project 的 testMatch 中 |
-| Admin 独立端口/启动器兼容 | admin specs 无法运行 | admin BDD specs 保持在 `bdd/admin/` 子目录，`run-l3-admin.ts` 不变 |
-| POM 内部 locator 与 BDD locator 审查冲突 | 审查范围膨胀 | POM 内部 CSS 允许保留，仅审查 spec 文件中的直接 locator |
-| 防御性 catch 改为 test.skip 后暴露真实失败 | 测试数减少 | 可接受——BDD 的价值之一 |
-| 中文 locale 对 getByRole name 匹配 | 角色匹配困难 | zh-CN 下 `getByRole("heading", { name: "..." })` 需用中文名 |
+| 风险                                       | 影响                     | 缓解措施                                                           |
+| ------------------------------------------ | ------------------------ | ------------------------------------------------------------------ |
+| Playwright projects testMatch 迁移不完整   | 部分测试不被收集         | Stage 1 期间每次改动后 `bunx playwright test --list` 验证          |
+| stateful CRUD 顺序被打破                   | 数据状态不一致           | content.spec.ts 保持 `test.describe.serial`                        |
+| mobile project viewport 设置丢失           | 移动端测试在桌面视口运行 | mobile.spec.ts 必须在 `mobile` project 的 testMatch 中             |
+| Admin 独立端口/启动器兼容                  | admin specs 无法运行     | admin BDD specs 保持在 `bdd/admin/` 子目录，`run-l3-admin.ts` 不变 |
+| POM 内部 locator 与 BDD locator 审查冲突   | 审查范围膨胀             | POM 内部 CSS 允许保留，仅审查 spec 文件中的直接 locator            |
+| 防御性 catch 改为 test.skip 后暴露真实失败 | 测试数减少               | 可接受——BDD 的价值之一                                             |
+| 中文 locale 对 getByRole name 匹配         | 角色匹配困难             | zh-CN 下 `getByRole("heading", { name: "..." })` 需用中文名        |
 
 ## 10. 标杆经验（从 firefly/pew 改造中沉淀）
 
 ### 10.1 已验证的最佳实践
 
-| 实践 | 来源 | 说明 |
-|------|------|------|
-| Route-mock 集中到 fixtures.ts | pew 标杆 | 避免 mock 数据散落各 spec |
-| emptyDataGate + test.skip | firefly 标杆 | 替代 `.isVisible().catch(() => false)` + `expect(x\|\|y).toBe(true)` |
-| expectPathname 集中化 | firefly 修正 | 避免 helper 在 8 个文件中重复（firefly 教训） |
-| 死代码及时删除 | pew 修正 | 定义但未使用的 fixture export（gotoAdmin/emptyDataGate）必须删除 |
-| `page.getByRole("dialog")` | pew 修正 | 不要用 `page.locator('[role="dialog"]')` 替代 |
-| Stage 1/2 三阶段 config | firefly/pew 共识 | 并存期 testMatch 同时覆盖旧新，完成后收敛 |
+| 实践                          | 来源             | 说明                                                                 |
+| ----------------------------- | ---------------- | -------------------------------------------------------------------- |
+| Route-mock 集中到 fixtures.ts | pew 标杆         | 避免 mock 数据散落各 spec                                            |
+| emptyDataGate + test.skip     | firefly 标杆     | 替代 `.isVisible().catch(() => false)` + `expect(x\|\|y).toBe(true)` |
+| expectPathname 集中化         | firefly 修正     | 避免 helper 在 8 个文件中重复（firefly 教训）                        |
+| 死代码及时删除                | pew 修正         | 定义但未使用的 fixture export（gotoAdmin/emptyDataGate）必须删除     |
+| `page.getByRole("dialog")`    | pew 修正         | 不要用 `page.locator('[role="dialog"]')` 替代                        |
+| Stage 1/2 三阶段 config       | firefly/pew 共识 | 并存期 testMatch 同时覆盖旧新，完成后收敛                            |
 
 ### 10.2 已知陷阱
 
-| 陷阱 | 项目 | 说明 |
-|------|------|------|
-| Phase 2.3+ 漏加步骤注释 | firefly | 后期 phase 容易忘记 `// Given:` / `// When:` / `// Then:`，需要 review 时逐文件检查 |
-| expectPathname 重复 8 次 | firefly | 多文件共用的 helper 必须第一时间提取到 fixtures |
-| test 数静态计数 vs 运行时 | pew | 参数化循环（for...of 生成 test）在 `grep` 中计数少于实际运行数，文档用 grep 数，验收用运行数 |
-| gotoAdmin 导出但从未调用 | firefly + pew | 不要"预留" fixture，用到再导出 |
+| 陷阱                      | 项目          | 说明                                                                                         |
+| ------------------------- | ------------- | -------------------------------------------------------------------------------------------- |
+| Phase 2.3+ 漏加步骤注释   | firefly       | 后期 phase 容易忘记 `// Given:` / `// When:` / `// Then:`，需要 review 时逐文件检查          |
+| expectPathname 重复 8 次  | firefly       | 多文件共用的 helper 必须第一时间提取到 fixtures                                              |
+| test 数静态计数 vs 运行时 | pew           | 参数化循环（for...of 生成 test）在 `grep` 中计数少于实际运行数，文档用 grep 数，验收用运行数 |
+| gotoAdmin 导出但从未调用  | firefly + pew | 不要"预留" fixture，用到再导出                                                               |
 
 ## 11. 验收标准
 

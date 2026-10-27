@@ -6,23 +6,23 @@
 
 ### 数据规模
 
-| 表 | 数量 |
-|---|---:|
-| threads | 982,549 |
-| users | 1,141,587 |
-| posts | 9,510,382 |
+| 表      |      数量 |
+| ------- | --------: |
+| threads |   982,549 |
+| users   | 1,141,587 |
+| posts   | 9,510,382 |
 
 ### 技术验证结果
 
 在 tongjinet-db 上完成的 FTS5 测试：
 
-| 指标 | 结果 |
-|------|------|
-| FTS5 支持 | ✅ D1 原生支持 |
-| 中文搜索 | ✅ `unicode61` tokenizer |
-| 全量导入 (98万条) | 6.3 秒 |
-| 搜索延迟 | 0.4ms (纯 FTS) / 57ms (JOIN) |
-| 存储增加 | +86MB (+1.7%) |
+| 指标              | 结果                         |
+| ----------------- | ---------------------------- |
+| FTS5 支持         | ✅ D1 原生支持               |
+| 中文搜索          | ✅ `unicode61` tokenizer     |
+| 全量导入 (98万条) | 6.3 秒                       |
+| 搜索延迟          | 0.4ms (纯 FTS) / 57ms (JOIN) |
+| 存储增加          | +86MB (+1.7%)                |
 
 ---
 
@@ -70,8 +70,8 @@ END;
 
 在 `settings` 表新增搜索开关（遵循 08-general-settings.md 规范）：
 
-| Key | 默认值 | Type | 说明 |
-|-----|--------|------|------|
+| Key                      | 默认值 | Type    | 说明             |
+| ------------------------ | ------ | ------- | ---------------- |
 | `general.search.enabled` | `true` | boolean | 是否启用搜索功能 |
 
 **Migration 追加**：`apps/worker/migrations/0023_create_threads_fts.sql`
@@ -135,46 +135,46 @@ GET /api/v1/search/threads
 
 **Query Parameters**：
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `q` | string | ✅ | 搜索关键词，最少 2 字符 |
-| `limit` | number | ❌ | 返回数量，默认 20，最大 50 |
-| `cursor` | string | ❌ | Base64 编码的分页游标 |
+| 参数     | 类型   | 必填 | 说明                       |
+| -------- | ------ | ---- | -------------------------- |
+| `q`      | string | ✅   | 搜索关键词，最少 2 字符    |
+| `limit`  | number | ❌   | 返回数量，默认 20，最大 50 |
+| `cursor` | string | ❌   | Base64 编码的分页游标      |
 
 **响应格式**：复用现有 `jsonResponse` envelope
 
 ```json
 {
-  "data": [
-    {
-      "id": 123456,
-      "forumId": 5,
-      "authorId": 1001,
-      "authorName": "张三",
-      "authorAvatar": "",
-      "subject": "同济大学2024届毕业典礼",
-      "createdAt": 1704067200,
-      "lastPostAt": 1704153600,
-      "lastPoster": "李四",
-      "lastPosterId": 1002,
-      "lastPosterAvatar": "",
-      "replies": 42,
-      "views": 1234,
-      "closed": 0,
-      "sticky": 0,
-      "digest": 0,
-      "special": 0,
-      "highlight": 0,
-      "recommends": 0,
-      "typeName": ""
-    }
-  ],
-  "meta": {
-    "timestamp": 1704240000,
-    "requestId": "uuid",
-    "nextCursor": "base64...",
-    "total": 183
-  }
+	"data": [
+		{
+			"id": 123456,
+			"forumId": 5,
+			"authorId": 1001,
+			"authorName": "张三",
+			"authorAvatar": "",
+			"subject": "同济大学2024届毕业典礼",
+			"createdAt": 1704067200,
+			"lastPostAt": 1704153600,
+			"lastPoster": "李四",
+			"lastPosterId": 1002,
+			"lastPosterAvatar": "",
+			"replies": 42,
+			"views": 1234,
+			"closed": 0,
+			"sticky": 0,
+			"digest": 0,
+			"special": 0,
+			"highlight": 0,
+			"recommends": 0,
+			"typeName": ""
+		}
+	],
+	"meta": {
+		"timestamp": 1704240000,
+		"requestId": "uuid",
+		"nextCursor": "base64...",
+		"total": 183
+	}
 }
 ```
 
@@ -248,14 +248,14 @@ import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import type { Thread } from "@ellie/types";
 
 export interface SearchData {
-  query: string;
-  results: PaginatedResult<Thread>;
-  disabled?: boolean; // true when search is disabled by admin
+	query: string;
+	results: PaginatedResult<Thread>;
+	disabled?: boolean; // true when search is disabled by admin
 }
 
 /** Settings map type for search-related keys */
 interface SettingsMap {
-  "general.search.enabled"?: boolean;
+	"general.search.enabled"?: boolean;
 }
 
 /**
@@ -264,62 +264,62 @@ interface SettingsMap {
  * avoiding the overhead of a real FTS5 query.
  */
 async function isSearchEnabled(): Promise<boolean> {
-  try {
-    const response = await forumApi.get<SettingsMap>("/api/v1/settings", {
-      prefix: "general.search",
-    });
-    // Default to true if setting doesn't exist
-    return response.data["general.search.enabled"] !== false;
-  } catch {
-    // On error, assume search is enabled (fail open for availability)
-    return true;
-  }
+	try {
+		const response = await forumApi.get<SettingsMap>("/api/v1/settings", {
+			prefix: "general.search",
+		});
+		// Default to true if setting doesn't exist
+		return response.data["general.search.enabled"] !== false;
+	} catch {
+		// On error, assume search is enabled (fail open for availability)
+		return true;
+	}
 }
 
 export async function loadSearchResults(params: {
-  query?: string;
-  cursor?: string;
-  limit?: number;
+	query?: string;
+	cursor?: string;
+	limit?: number;
 }): Promise<SearchData> {
-  const query = params.query?.trim() ?? "";
-  const limit = params.limit ?? 20;
+	const query = params.query?.trim() ?? "";
+	const limit = params.limit ?? 20;
 
-  // Check if search is enabled first (for all requests, even empty queries)
-  // This ensures "搜索功能暂时关闭" shows on page load when disabled
-  const enabled = await isSearchEnabled();
-  if (!enabled) {
-    return {
-      query,
-      results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
-      disabled: true,
-    };
-  }
+	// Check if search is enabled first (for all requests, even empty queries)
+	// This ensures "搜索功能暂时关闭" shows on page load when disabled
+	const enabled = await isSearchEnabled();
+	if (!enabled) {
+		return {
+			query,
+			results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
+			disabled: true,
+		};
+	}
 
-  // Empty or too short query: return empty results (UI shows prompt)
-  // Note: Worker returns 400 for < 2 chars, but we silently handle it in UI layer
-  if (!query || query.length < 2) {
-    return {
-      query,
-      results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
-    };
-  }
+	// Empty or too short query: return empty results (UI shows prompt)
+	// Note: Worker returns 400 for < 2 chars, but we silently handle it in UI layer
+	if (!query || query.length < 2) {
+		return {
+			query,
+			results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
+		};
+	}
 
-  // Title search: call FTS5 API
-  const response = await forumApi.getCursor<Thread>("/api/v1/search/threads", {
-    q: query,
-    limit,
-    cursor: params.cursor,
-  });
+	// Title search: call FTS5 API
+	const response = await forumApi.getCursor<Thread>("/api/v1/search/threads", {
+		q: query,
+		limit,
+		cursor: params.cursor,
+	});
 
-  return {
-    query,
-    results: {
-      items: response.data,
-      nextCursor: response.meta.nextCursor,
-      prevCursor: null, // FTS5 keyset pagination is forward-only
-      total: (response.meta as { total?: number }).total ?? 0,
-    },
-  };
+	return {
+		query,
+		results: {
+			items: response.data,
+			nextCursor: response.meta.nextCursor,
+			prevCursor: null, // FTS5 keyset pagination is forward-only
+			total: (response.meta as { total?: number }).total ?? 0,
+		},
+	};
 }
 ```
 
@@ -332,7 +332,7 @@ export async function loadSearchResults(params: {
 
 /** Check if a search query is valid (>= 2 chars after trim). */
 export function isValidSearchQuery(query: string): boolean {
-  return query.trim().length >= 2;
+	return query.trim().length >= 2;
 }
 ```
 
@@ -397,12 +397,12 @@ if (data.disabled) {
 
 ### 4.2 方案选项
 
-| 方案 | 体验 | 实现复杂度 |
-|------|------|------------|
-| A. 禁用按作者搜索 | 差 | 低 |
-| B. 精确用户名匹配 | 一般 | 低 |
-| C. 用户选择器 → 查看主题 | 好 | 中 |
-| D. 用户 FTS5 索引 | 最好 | 高 |
+| 方案                     | 体验 | 实现复杂度 |
+| ------------------------ | ---- | ---------- |
+| A. 禁用按作者搜索        | 差   | 低         |
+| B. 精确用户名匹配        | 一般 | 低         |
+| C. 用户选择器 → 查看主题 | 好   | 中         |
+| D. 用户 FTS5 索引        | 最好 | 高         |
 
 ### 4.3 首期决策：移除作者搜索
 
@@ -442,37 +442,37 @@ if (data.disabled) {
 
 **文件**：`apps/worker/tests/unit/handlers/search.test.ts`
 
-| 测试用例 | 说明 |
-|----------|------|
-| `returns 503 when search is disabled` | 管理员关闭搜索时返回 503 |
-| `returns 400 for empty query` | 空查询参数 |
-| `returns 400 for query < 2 chars` | 查询少于 2 字符 |
-| `returns 400 for invalid cursor` | 非法 cursor 格式（非 base64、JSON 格式错误）|
-| `returns results for valid query` | 正常搜索 |
-| `supports multi-keyword AND search` | 多关键词搜索（空格分隔）|
-| `respects limit parameter` | limit 参数生效 |
-| `clamps limit to max 50` | limit 上限 |
-| `supports cursor pagination` | 游标分页 |
-| `returns total count on first page only` | 首页返回总数，翻页不返回 |
-| `handles FTS5 special characters` | 引号、星号等特殊字符不报错 |
-| `filters hidden threads (sticky < 0)` | 隐藏主题过滤 |
-| `filters threads in hidden forums` | 隐藏版块过滤 |
-| `respects forum visibility levels` | 版块可见性（public/members/staff/admin）|
-| `returns complete Thread fields` | 字段完整性（含 special/highlight/recommends 等）|
+| 测试用例                                 | 说明                                             |
+| ---------------------------------------- | ------------------------------------------------ |
+| `returns 503 when search is disabled`    | 管理员关闭搜索时返回 503                         |
+| `returns 400 for empty query`            | 空查询参数                                       |
+| `returns 400 for query < 2 chars`        | 查询少于 2 字符                                  |
+| `returns 400 for invalid cursor`         | 非法 cursor 格式（非 base64、JSON 格式错误）     |
+| `returns results for valid query`        | 正常搜索                                         |
+| `supports multi-keyword AND search`      | 多关键词搜索（空格分隔）                         |
+| `respects limit parameter`               | limit 参数生效                                   |
+| `clamps limit to max 50`                 | limit 上限                                       |
+| `supports cursor pagination`             | 游标分页                                         |
+| `returns total count on first page only` | 首页返回总数，翻页不返回                         |
+| `handles FTS5 special characters`        | 引号、星号等特殊字符不报错                       |
+| `filters hidden threads (sticky < 0)`    | 隐藏主题过滤                                     |
+| `filters threads in hidden forums`       | 隐藏版块过滤                                     |
+| `respects forum visibility levels`       | 版块可见性（public/members/staff/admin）         |
+| `returns complete Thread fields`         | 字段完整性（含 special/highlight/recommends 等） |
 
 ### 6.2 L2 集成测试
 
 **文件**：`tests/integration/worker/search.test.ts`（新建，符合现有目录结构）
 
-| 测试用例 | 说明 |
-|----------|------|
-| `GET /search/threads returns matching threads` | 端到端搜索 |
-| `Chinese keywords work correctly` | 中文关键词 |
-| `multi-keyword AND search` | "同济 毕业" 返回同时包含两词的结果 |
-| `pagination with cursor works` | 分页验证 |
-| `hidden threads not in results` | 可见性验证 |
-| `response matches Thread type contract` | 类型契约验证 |
-| `returns 503 when search disabled via setting` | 设置禁用时的响应 |
+| 测试用例                                       | 说明                               |
+| ---------------------------------------------- | ---------------------------------- |
+| `GET /search/threads returns matching threads` | 端到端搜索                         |
+| `Chinese keywords work correctly`              | 中文关键词                         |
+| `multi-keyword AND search`                     | "同济 毕业" 返回同时包含两词的结果 |
+| `pagination with cursor works`                 | 分页验证                           |
+| `hidden threads not in results`                | 可见性验证                         |
+| `response matches Thread type contract`        | 类型契约验证                       |
+| `returns 503 when search disabled via setting` | 设置禁用时的响应                   |
 
 ---
 
@@ -523,15 +523,15 @@ npx wrangler d1 migrations apply tongjinet-db --remote -c apps/worker/wrangler.t
 
 ## 8. 原子提交计划
 
-| # | 提交信息 | 内容 | 状态 |
-|---|----------|------|------|
-| 1 | `feat(db): add FTS5 index for thread search` | migration 文件（含 setting seed）| ✅ |
-| 2 | `feat(worker): add search threads endpoint` | handler + route + L1 tests | ✅ |
-| 3 | `feat(web): connect search page to FTS5 API` | viewmodel 修改 + 移除作者搜索 + 禁用态 UI + L2 tests | ✅ |
-| 4 | `feat(admin): add search enabled setting` | Admin UI 配置 | ✅ |
-| 5 | `docs: update API reference for search endpoint` | 文档更新（含 FEATURE_DISABLED 错误码）| ✅ |
-| 6 | `fix(search): correct error handling and sync E2E tests` | 检查 err.code 而非 status，页面加载时检测禁用状态，移除已废弃的作者搜索 E2E 测试 | ✅ |
-| 7 | `refactor(search): use settings endpoint for feature detection` | 改用轻量 settings 端点检测禁用状态，避免 FTS5 探测请求；添加 17 个单元测试 | ✅ |
+| #   | 提交信息                                                        | 内容                                                                             | 状态 |
+| --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---- |
+| 1   | `feat(db): add FTS5 index for thread search`                    | migration 文件（含 setting seed）                                                | ✅   |
+| 2   | `feat(worker): add search threads endpoint`                     | handler + route + L1 tests                                                       | ✅   |
+| 3   | `feat(web): connect search page to FTS5 API`                    | viewmodel 修改 + 移除作者搜索 + 禁用态 UI + L2 tests                             | ✅   |
+| 4   | `feat(admin): add search enabled setting`                       | Admin UI 配置                                                                    | ✅   |
+| 5   | `docs: update API reference for search endpoint`                | 文档更新（含 FEATURE_DISABLED 错误码）                                           | ✅   |
+| 6   | `fix(search): correct error handling and sync E2E tests`        | 检查 err.code 而非 status，页面加载时检测禁用状态，移除已废弃的作者搜索 E2E 测试 | ✅   |
+| 7   | `refactor(search): use settings endpoint for feature detection` | 改用轻量 settings 端点检测禁用状态，避免 FTS5 探测请求；添加 17 个单元测试       | ✅   |
 
 ---
 

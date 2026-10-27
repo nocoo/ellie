@@ -8,10 +8,10 @@
 
 ### 1.1 D1 现状（截至 2026-06-27）
 
-| 指标 | 值 |
-|---|---|
-| D1 总大小 | 5.66 GB |
-| `posts` 总行数 | 9,510,819 |
+| 指标                   | 值                        |
+| ---------------------- | ------------------------- |
+| D1 总大小              | 5.66 GB                   |
+| `posts` 总行数         | 9,510,819                 |
 | `posts.content` 总字节 | **1.98 GB**（占 D1 ~35%） |
 
 `posts.content` 是 D1 中最大的一块。
@@ -36,15 +36,15 @@ INNER JOIN threads t ON t.id = p.thread_id
 WHERE t.sticky = -99
 ```
 
-| 类别 | 数量 | 占总量 |
-|---|---|---|
-| posts 行 | **3,514,477** | **36.95% of 所有 posts** |
-| posts.content 字节 | **458 MB** | **23% of all content** |
-| posts.author_name (denorm) | ~21 MB | - |
-| post_comments | 18 | 极小 |
-| attachments（D1 元数据） | 6,096 | 元数据小，R2 对象另算 |
-| post_ratings | 56 | 极小 |
-| threads tombstone 行 | 192,488 | subject 共 ~2.4 MB |
+| 类别                       | 数量          | 占总量                   |
+| -------------------------- | ------------- | ------------------------ |
+| posts 行                   | **3,514,477** | **36.95% of 所有 posts** |
+| posts.content 字节         | **458 MB**    | **23% of all content**   |
+| posts.author_name (denorm) | ~21 MB        | -                        |
+| post_comments              | 18            | 极小                     |
+| attachments（D1 元数据）   | 6,096         | 元数据小，R2 对象另算    |
+| post_ratings               | 56            | 极小                     |
+| threads tombstone 行       | 192,488       | subject 共 ~2.4 MB       |
 
 `posts.invisible` 分布：99.99% 是 0（normal 状态）—— 老论坛删除主题时只动了 thread 行，没去标记下属 post，所以这些 posts 在数据库层"看起来正常"但通过 thread JOIN 永远到达不了。
 
@@ -60,11 +60,11 @@ WHERE t.sticky = -99
 
 ### 2.2 写入约定
 
-| 字段 | 当前值 | 空心化后 |
-|---|---|---|
-| `posts.content` | 任意 HTML/文本 | `''`（空串）|
-| `posts.author_name` | 用户名 denorm | `''` |
-| 其它字段 | - | **不动** |
+| 字段                | 当前值         | 空心化后     |
+| ------------------- | -------------- | ------------ |
+| `posts.content`     | 任意 HTML/文本 | `''`（空串） |
+| `posts.author_name` | 用户名 denorm  | `''`         |
+| 其它字段            | -              | **不动**     |
 
 > **为什么用空串而不是 `'[已删除]'`？**
 > - 公开页永远不会返回这些行
@@ -103,15 +103,15 @@ WHERE id >= ? AND id < ?
 
 ### 2.4 执行策略
 
-| 维度 | 选择 |
-|---|---|
-| **位置** | 一次性 admin script（`scripts/blank-tombstone-content.ts`，跑在哥本机），**不**入 cron |
-| **分片** | id 步长 50,000 |
-| **节奏** | 每分片之间 sleep 100-200ms，避免对 D1 主路径产生压力 |
-| **D1 接口** | `wrangler d1 execute --remote --command` 或 worker 自定义 admin 端点；任选 |
-| **总耗时估算** | 不再用"批数 × 时间"估算（取决于实际命中率）。先跑一个 dry-run 测出每分片耗时再外推；预期分钟级，不会跑通宵 |
-| **进度日志** | 脚本每分片打印 `(range, updated_in_batch, total_updated)`；定期通过 worker 的 admin endpoint 触发 `writeAdminLog`（见 §2.6），或脚本若直接 `wrangler d1 execute` 不经过 worker，则 raw INSERT 一行 `admin_logs`（schema 见 §2.6） |
-| **断点续跑** | 脚本支持 `--from-id <N>` 参数，从指定 id 继续 |
+| 维度           | 选择                                                                                                                                                                                                                              |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **位置**       | 一次性 admin script（`scripts/blank-tombstone-content.ts`，跑在哥本机），**不**入 cron                                                                                                                                            |
+| **分片**       | id 步长 50,000                                                                                                                                                                                                                    |
+| **节奏**       | 每分片之间 sleep 100-200ms，避免对 D1 主路径产生压力                                                                                                                                                                              |
+| **D1 接口**    | `wrangler d1 execute --remote --command` 或 worker 自定义 admin 端点；任选                                                                                                                                                        |
+| **总耗时估算** | 不再用"批数 × 时间"估算（取决于实际命中率）。先跑一个 dry-run 测出每分片耗时再外推；预期分钟级，不会跑通宵                                                                                                                        |
+| **进度日志**   | 脚本每分片打印 `(range, updated_in_batch, total_updated)`；定期通过 worker 的 admin endpoint 触发 `writeAdminLog`（见 §2.6），或脚本若直接 `wrangler d1 execute` 不经过 worker，则 raw INSERT 一行 `admin_logs`（schema 见 §2.6） |
+| **断点续跑**   | 脚本支持 `--from-id <N>` 参数，从指定 id 继续                                                                                                                                                                                     |
 
 ### 2.5 数据备份（可选）
 
@@ -178,13 +178,13 @@ VALUES
 
 ### 3.1 D1 存储
 
-| 项 | 节省（逻辑字节） |
-|---|---|
-| `posts.content` | -458 MB |
-| `posts.author_name` | -21 MB |
-| **合计** | **-479 MB** |
-| 占 posts.content | **-23%** |
-| 占 D1 总（5.66 GB → 5.18 GB） | **-8.5%** |
+| 项                            | 节省（逻辑字节） |
+| ----------------------------- | ---------------- |
+| `posts.content`               | -458 MB          |
+| `posts.author_name`           | -21 MB           |
+| **合计**                      | **-479 MB**      |
+| 占 posts.content              | **-23%**         |
+| 占 D1 总（5.66 GB → 5.18 GB） | **-8.5%**        |
 
 ### 3.2 关于 `database_size` 的真实预期 ⚠️
 
@@ -193,6 +193,7 @@ VALUES
 **所以 `wrangler d1 info` 上的 `database_size` 在执行后 24 小时内可能几乎不动**，这**不**代表方案失败。正确的观察手段：
 
 1. **逻辑层指标（强保证、立即可见）**：
+
    ```sql
    SELECT SUM(length(content) + length(author_name)) AS bytes
    FROM posts p INNER JOIN threads t ON t.id=p.thread_id
@@ -210,15 +211,15 @@ VALUES
 
 ## 4. 风险（已修订）
 
-| 风险 | 评估 | 缓解 |
-|---|---|---|
-| 误清非 tombstone 数据 | **极低** | WHERE 严格 `t.sticky = -99`，无边界 case |
+| 风险                                                                   | 评估                                 | 缓解                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 误清非 tombstone 数据                                                  | **极低**                             | WHERE 严格 `t.sticky = -99`，无边界 case                                                                                                                 |
 | **管理后台 admin/post / admin/thread 会展示空 content/空 author_name** | **中**——这是**前提性影响**，不是 bug | 业务上确认这些 tombstone 帖**不再用于恢复/审计**；管理员 UI 看到空内容时心智上知道是历史 tombstone（必要时前端展示"[历史已清理]"占位）；执行前哥确认接受 |
-| `posts.invisible != 0` 的特殊状态被一锅端 | **无影响** | tombstone 主题下 invisible≠0 的 posts 仅 525 行，本来就是 hidden |
-| attachment 路径丢失导致 R2 孤儿对象 | **不在本方案范围** | 6,096 个 attachment 元数据保留，R2 对象另开任务清理 |
-| 后期分片退化（每批扫已空行） | 低 | id 游标分片 + 幂等谓词组合解决 |
-| 单次 dump 备份卡死 | 中 | 备份降级为可选；若做必须分块 + manifest |
-| `database_size` 短期不下降被误判失败 | 中 | 验收以**逻辑字节统计**为准，不以 `wrangler d1 info` 为准 |
+| `posts.invisible != 0` 的特殊状态被一锅端                              | **无影响**                           | tombstone 主题下 invisible≠0 的 posts 仅 525 行，本来就是 hidden                                                                                         |
+| attachment 路径丢失导致 R2 孤儿对象                                    | **不在本方案范围**                   | 6,096 个 attachment 元数据保留，R2 对象另开任务清理                                                                                                      |
+| 后期分片退化（每批扫已空行）                                           | 低                                   | id 游标分片 + 幂等谓词组合解决                                                                                                                           |
+| 单次 dump 备份卡死                                                     | 中                                   | 备份降级为可选；若做必须分块 + manifest                                                                                                                  |
+| `database_size` 短期不下降被误判失败                                   | 中                                   | 验收以**逻辑字节统计**为准，不以 `wrangler d1 info` 为准                                                                                                 |
 
 ## 5. 验证清单
 
@@ -266,38 +267,38 @@ VALUES
 
 ### 8.1 前后对比
 
-| 指标 | Before | After | 变化 |
-|---|---|---|---|
-| D1 `database_size` | **5.66 GB** | **5.45 GB** | **-210 MB (-3.7%)** |
-| Tombstone posts 行数 | 3,514,477 | 3,514,477 | **不变** ✓ |
-| Tombstone `content` 字节 | 458,191,451 | 0 | **-458 MB** |
-| Tombstone `author_name` 字节 | 19,671,568 | 0 | **-20 MB** |
-| Tombstone 仍有内容的行 | 3,514,477 | **0** | 100% 空心化 |
-| `threads.replies` 抽样 sha256 (100 行) | `f5301ba1...4c8deebc` | `f5301ba1...4c8deebc` | 一字不差 ✓ |
-| `users.posts` 抽样 sha256 (top 20) | `6758632a...fdce7cb5e` | `6758632a...fdce7cb5e` | 一字不差 ✓ |
+| 指标                                   | Before                 | After                  | 变化                |
+| -------------------------------------- | ---------------------- | ---------------------- | ------------------- |
+| D1 `database_size`                     | **5.66 GB**            | **5.45 GB**            | **-210 MB (-3.7%)** |
+| Tombstone posts 行数                   | 3,514,477              | 3,514,477              | **不变** ✓          |
+| Tombstone `content` 字节               | 458,191,451            | 0                      | **-458 MB**         |
+| Tombstone `author_name` 字节           | 19,671,568             | 0                      | **-20 MB**          |
+| Tombstone 仍有内容的行                 | 3,514,477              | **0**                  | 100% 空心化         |
+| `threads.replies` 抽样 sha256 (100 行) | `f5301ba1...4c8deebc`  | `f5301ba1...4c8deebc`  | 一字不差 ✓          |
+| `users.posts` 抽样 sha256 (top 20)     | `6758632a...fdce7cb5e` | `6758632a...fdce7cb5e` | 一字不差 ✓          |
 
 > 逻辑上释放 **478 MB**；物理 size 立即下降 210 MB，其余 ~268 MB 进 SQLite freelist 等待复用 / D1 后台 vacuum——完全符合 §3.2 的预期。
 
 ### 8.2 执行决策（与文档前置选项对应）
 
-| 决策点 | 选择 |
-|---|---|
-| 占位文本 | **空串 `''`**（管理员看到空 content 即可判断 tombstone 历史；省字节最大化） |
-| 备份（§2.5） | **跳过**（核心前提"无需恢复"成立，备份降级为可选） |
-| SQL 形态（§2.3） | **EXISTS**（dry-run EXPLAIN 显示 `IN (SELECT ...)` 走 `idx_posts_thread` 全 192k thread_id 列扫；EXISTS 形式走 `posts` 主键 rowid 范围 + `threads` 主键 lookup，正确利用了 id 分片） |
-| admin_logs 写入（§2.6） | **未实施**（一次性脚本直接 `wrangler d1 execute`，进度通过 stdout 行级日志记录在 `/tmp/...output` 文件中；未来跨会话审计需求出现时再补） |
-| 分片步长 | 50,000 id，每分片实测 70-200 ms |
+| 决策点                  | 选择                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 占位文本                | **空串 `''`**（管理员看到空 content 即可判断 tombstone 历史；省字节最大化）                                                                                                          |
+| 备份（§2.5）            | **跳过**（核心前提"无需恢复"成立，备份降级为可选）                                                                                                                                   |
+| SQL 形态（§2.3）        | **EXISTS**（dry-run EXPLAIN 显示 `IN (SELECT ...)` 走 `idx_posts_thread` 全 192k thread_id 列扫；EXISTS 形式走 `posts` 主键 rowid 范围 + `threads` 主键 lookup，正确利用了 id 分片） |
+| admin_logs 写入（§2.6） | **未实施**（一次性脚本直接 `wrangler d1 execute`，进度通过 stdout 行级日志记录在 `/tmp/...output` 文件中；未来跨会话审计需求出现时再补）                                             |
+| 分片步长                | 50,000 id，每分片实测 70-200 ms                                                                                                                                                      |
 
 ### 8.3 阶段产出
 
-| 阶段 | 结果 |
-|---|---|
-| Baseline + 快照 | 完成；`threads.replies` (100 行) 和 `users.posts` (top 20) hash 存档 |
-| EXPLAIN 验证 | 确认 `IN (SELECT...)` 走 thread index → 改用 `EXISTS` 形态后走 posts 主键 rowid 范围 + threads 主键 lookup ✓ |
-| Dry-run 9 条（id ∈ [1, 15)） | 全部 tombstone post 空心化；控制组 id=31（sticky=0）完全不动；计数 hash 一致 |
-| 批量 203 分片（id ∈ [50000, 10.2M)） | 总计 **3,480,429 行**更新；最长单批 ~180ms；wall-clock 约 15 分钟 |
-| Mop-up（id=0 sentinel 行） | 补处理 1 行（脚本 `from=15→50000` 起点跳过了 id=0） |
-| **总计** | 9 + 3,480,429 + 1 = **3,514,439**；vs baseline 3,514,477 = 差 38 行（已在 baseline 时是 `content='' AND author_name=''` 的空行，幂等谓词正确跳过） |
+| 阶段                                 | 结果                                                                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Baseline + 快照                      | 完成；`threads.replies` (100 行) 和 `users.posts` (top 20) hash 存档                                                                               |
+| EXPLAIN 验证                         | 确认 `IN (SELECT...)` 走 thread index → 改用 `EXISTS` 形态后走 posts 主键 rowid 范围 + threads 主键 lookup ✓                                       |
+| Dry-run 9 条（id ∈ [1, 15)）         | 全部 tombstone post 空心化；控制组 id=31（sticky=0）完全不动；计数 hash 一致                                                                       |
+| 批量 203 分片（id ∈ [50000, 10.2M)） | 总计 **3,480,429 行**更新；最长单批 ~180ms；wall-clock 约 15 分钟                                                                                  |
+| Mop-up（id=0 sentinel 行）           | 补处理 1 行（脚本 `from=15→50000` 起点跳过了 id=0）                                                                                                |
+| **总计**                             | 9 + 3,480,429 + 1 = **3,514,439**；vs baseline 3,514,477 = 差 38 行（已在 baseline 时是 `content='' AND author_name=''` 的空行，幂等谓词正确跳过） |
 
 ### 8.4 验收清单回填
 

@@ -259,23 +259,23 @@ export function FloatingToolbar({
 	useEffect(() => {
 		const nav = (href: string | null | undefined) => href && router.push(href);
 
-		const keyActions: Record<string, () => void> = {
-			"[": () => nav(prevHref),
-			ArrowLeft: () => nav(prevHref),
-			"]": () => nav(nextHref),
-			ArrowRight: () => nav(nextHref),
-			Escape: () => nav(backHref),
-			Backspace: () => nav(backHref),
-			t: scrollToTop,
-		};
-		if (actionType === "reply" && onAction) keyActions.r = onAction;
-		if (actionType === "new-thread" && onAction) keyActions.n = onAction;
-		if (canJumpPage) keyActions.g = () => setJumpPageOpen((prev) => !prev);
+		const keyActions = new Map<string, () => void>([
+			["[", () => nav(prevHref)],
+			["ArrowLeft", () => nav(prevHref)],
+			["]", () => nav(nextHref)],
+			["ArrowRight", () => nav(nextHref)],
+			["Escape", () => nav(backHref)],
+			["Backspace", () => nav(backHref)],
+			["t", scrollToTop],
+		]);
+		if (actionType === "reply" && onAction) keyActions.set("r", onAction);
+		if (actionType === "new-thread" && onAction) keyActions.set("n", onAction);
+		if (canJumpPage) keyActions.set("g", () => setJumpPageOpen((prev) => !prev));
 
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.defaultPrevented || e.isComposing || isInputTarget(e) || hasModifier(e)) return;
 			if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return;
-			const action = keyActions[e.key];
+			const action = keyActions.get(e.key);
 			if (action) {
 				e.preventDefault();
 				action();

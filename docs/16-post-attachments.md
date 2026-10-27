@@ -6,17 +6,17 @@ Allow users to upload images while composing threads and replies via drag-and-dr
 
 ## Constraints
 
-| Constraint | Value |
-|------------|-------|
-| Max single file size | 1 MB |
-| Max total per post | 5 MB |
-| Max files per post | 9 |
-| Max active drafts per user | 20 |
-| Max draft storage per user | 20 MB |
-| Draft TTL | 6 hours |
-| Allowed formats | JPG, PNG, GIF, WebP |
-| Storage | R2 bucket `tongjinet` |
-| Folder | `attachments/` |
+| Constraint                 | Value                 |
+| -------------------------- | --------------------- |
+| Max single file size       | 1 MB                  |
+| Max total per post         | 5 MB                  |
+| Max files per post         | 9                     |
+| Max active drafts per user | 20                    |
+| Max draft storage per user | 20 MB                 |
+| Draft TTL                  | 6 hours               |
+| Allowed formats            | JPG, PNG, GIF, WebP   |
+| Storage                    | R2 bucket `tongjinet` |
+| Folder                     | `attachments/`        |
 
 ## Database Schema
 
@@ -205,7 +205,7 @@ try {
 ```
 
 **Key insight**: D1 `batch()` is transactional. If any statement fails, the entire batch rolls back. Post creation is now INSIDE the batch, so a failed attachment insert means the post is never created.
-```
+````
 
 **For thread creation** (`POST /api/v1/threads`):
 
@@ -267,8 +267,8 @@ try {
   ).bind(claimToken).run();
   throw err;
 }
-```
-```
+````
+````
 
 **Key invariants:**
 - `claim_token` (UUID) ensures rollback only affects THIS request's drafts, not concurrent claims
@@ -295,39 +295,46 @@ async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promis
   ctx.waitUntil(aggregateOnlineStats(env));
   ctx.waitUntil(cleanupDraftAttachments(env));  // NEW
 }
-```
+````
 
 **Cleanup logic:**
 
 ```typescript
 // apps/worker/src/lib/draft-cleanup.ts
 export async function cleanupDraftAttachments(env: Env): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const draftTTL = 6 * 60 * 60;  // 6 hours
-  const claimTimeout = 5 * 60;    // 5 minutes — stale claims
+	const now = Math.floor(Date.now() / 1000);
+	const draftTTL = 6 * 60 * 60; // 6 hours
+	const claimTimeout = 5 * 60; // 5 minutes — stale claims
 
-  // 1. Delete promoted drafts (status=2) — R2 blobs already in attachments
-  await env.DB.prepare("DELETE FROM draft_attachments WHERE status = 2").run();
+	// 1. Delete promoted drafts (status=2) — R2 blobs already in attachments
+	await env.DB.prepare("DELETE FROM draft_attachments WHERE status = 2").run();
 
-  // 2. Reset stale claims (status=1, claim_token set but no corresponding active request)
-  //    Use created_at as proxy for age since claim_token has no timestamp
-  await env.DB.prepare(
-    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE status = 1 AND created_at < ?"
-  ).bind(now - claimTimeout).run();
+	// 2. Reset stale claims (status=1, claim_token set but no corresponding active request)
+	//    Use created_at as proxy for age since claim_token has no timestamp
+	await env.DB.prepare(
+		"UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE status = 1 AND created_at < ?",
+	)
+		.bind(now - claimTimeout)
+		.run();
 
-  // 3. Find and delete expired pending/reset drafts — also delete R2 blobs
-  const expired = await env.DB.prepare(
-    "SELECT id, file_path FROM draft_attachments WHERE status IN (0, 1) AND created_at < ?"
-  ).bind(now - draftTTL).all<{ id: number; file_path: string }>();
+	// 3. Find and delete expired pending/reset drafts — also delete R2 blobs
+	const expired = await env.DB.prepare(
+		"SELECT id, file_path FROM draft_attachments WHERE status IN (0, 1) AND created_at < ?",
+	)
+		.bind(now - draftTTL)
+		.all<{ id: number; file_path: string }>();
 
-  if (expired.results.length > 0) {
-    // Delete R2 blobs
-    await deleteAttachmentBlobs(env, expired.results.map(e => e.file_path));
-    // Delete DB rows
-    await env.DB.prepare(
-      "DELETE FROM draft_attachments WHERE status IN (0, 1) AND created_at < ?"
-    ).bind(now - draftTTL).run();
-  }
+	if (expired.results.length > 0) {
+		// Delete R2 blobs
+		await deleteAttachmentBlobs(
+			env,
+			expired.results.map((e) => e.file_path),
+		);
+		// Delete DB rows
+		await env.DB.prepare("DELETE FROM draft_attachments WHERE status IN (0, 1) AND created_at < ?")
+			.bind(now - draftTTL)
+			.run();
+	}
 }
 ```
 
@@ -337,48 +344,45 @@ Create shared helper for R2 blob cleanup:
 
 ```typescript
 // apps/worker/src/lib/r2-cleanup.ts
-export async function deleteAttachmentBlobs(
-  env: Env,
-  filePaths: string[]
-): Promise<void> {
-  // R2.delete() is idempotent, safe to call on non-existent keys
-  await Promise.all(filePaths.map(path => env.R2.delete(path)));
+export async function deleteAttachmentBlobs(env: Env, filePaths: string[]): Promise<void> {
+	// R2.delete() is idempotent, safe to call on non-existent keys
+	await Promise.all(filePaths.map((path) => env.R2.delete(path)));
 }
 
 /**
  * Delete attachments by post ID — used by all post deletion paths.
  * Deletes both DB rows and R2 blobs.
  */
-export async function deleteAttachmentsByPostId(
-  env: Env,
-  postId: number
-): Promise<void> {
-  const attachments = await env.DB.prepare(
-    "SELECT file_path FROM attachments WHERE post_id = ?"
-  ).bind(postId).all<{ file_path: string }>();
+export async function deleteAttachmentsByPostId(env: Env, postId: number): Promise<void> {
+	const attachments = await env.DB.prepare("SELECT file_path FROM attachments WHERE post_id = ?")
+		.bind(postId)
+		.all<{ file_path: string }>();
 
-  if (attachments.results.length > 0) {
-    await deleteAttachmentBlobs(env, attachments.results.map(a => a.file_path));
-    await env.DB.prepare("DELETE FROM attachments WHERE post_id = ?").bind(postId).run();
-  }
+	if (attachments.results.length > 0) {
+		await deleteAttachmentBlobs(
+			env,
+			attachments.results.map((a) => a.file_path),
+		);
+		await env.DB.prepare("DELETE FROM attachments WHERE post_id = ?").bind(postId).run();
+	}
 }
 
 /**
  * Delete attachments by thread ID — used by thread deletion paths.
  * Deletes both DB rows and R2 blobs.
  */
-export async function deleteAttachmentsByThreadId(
-  env: Env,
-  threadId: number
-): Promise<void> {
-  const attachments = await env.DB.prepare(
-    "SELECT file_path FROM attachments WHERE thread_id = ?"
-  ).bind(threadId).all<{ file_path: string }>();
+export async function deleteAttachmentsByThreadId(env: Env, threadId: number): Promise<void> {
+	const attachments = await env.DB.prepare("SELECT file_path FROM attachments WHERE thread_id = ?")
+		.bind(threadId)
+		.all<{ file_path: string }>();
 
-  if (attachments.results.length > 0) {
-    await deleteAttachmentBlobs(env, attachments.results.map(a => a.file_path));
-    await env.DB.prepare("DELETE FROM attachments WHERE thread_id = ?").bind(threadId).run();
-  }
+	if (attachments.results.length > 0) {
+		await deleteAttachmentBlobs(
+			env,
+			attachments.results.map((a) => a.file_path),
+		);
+		await env.DB.prepare("DELETE FROM attachments WHERE thread_id = ?").bind(threadId).run();
+	}
 }
 ```
 
@@ -386,15 +390,15 @@ export async function deleteAttachmentsByThreadId(
 
 **CRITICAL**: All post/thread deletion paths must clean up R2 blobs. Current code only deletes DB rows.
 
-| Path | File | Current Issue | Fix |
-|------|------|---------------|-----|
-| User deletes own post | `user-content.ts:67` | No attachment cleanup | Add `deleteAttachmentsByPostId()` |
+| Path                    | File                  | Current Issue                   | Fix                                 |
+| ----------------------- | --------------------- | ------------------------------- | ----------------------------------- |
+| User deletes own post   | `user-content.ts:67`  | No attachment cleanup           | Add `deleteAttachmentsByPostId()`   |
 | User deletes own thread | `user-content.ts:129` | Deletes attachment rows, not R2 | Use `deleteAttachmentsByThreadId()` |
-| Mod deletes post | `moderation.ts:395` | No attachment cleanup | Add `deleteAttachmentsByPostId()` |
-| Mod deletes thread | `moderation.ts` | Deletes attachment rows, not R2 | Use `deleteAttachmentsByThreadId()` |
-| Admin deletes post | `admin/post.ts:166` | No attachment cleanup | Add `deleteAttachmentsByPostId()` |
-| Admin nuke user | `moderation.ts` | Deletes attachment rows, not R2 | Use helper |
-| Admin delete attachment | `admin/attachment.ts` | Missing R2 delete | Add R2 delete |
+| Mod deletes post        | `moderation.ts:395`   | No attachment cleanup           | Add `deleteAttachmentsByPostId()`   |
+| Mod deletes thread      | `moderation.ts`       | Deletes attachment rows, not R2 | Use `deleteAttachmentsByThreadId()` |
+| Admin deletes post      | `admin/post.ts:166`   | No attachment cleanup           | Add `deleteAttachmentsByPostId()`   |
+| Admin nuke user         | `moderation.ts`       | Deletes attachment rows, not R2 | Use helper                          |
+| Admin delete attachment | `admin/attachment.ts` | Missing R2 delete               | Add R2 delete                       |
 
 **Example fix for user-content.ts:67:**
 
@@ -422,11 +426,11 @@ Reuse existing upload infrastructure. Add `attachment` to `UPLOAD_CONFIGS`:
 ```typescript
 // upload-config.ts
 export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
-  avatar: { maxSize: 200 * 1024, allowedMimeTypes: ["image/jpeg", "image/png"] },
-  attachment: {
-    maxSize: 1 * 1024 * 1024,  // 1 MB
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-  },
+	avatar: { maxSize: 200 * 1024, allowedMimeTypes: ["image/jpeg", "image/png"] },
+	attachment: {
+		maxSize: 1 * 1024 * 1024, // 1 MB
+		allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+	},
 };
 ```
 
@@ -438,12 +442,12 @@ export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
 **Response** (200):
 ```json
 {
-  "data": {
-    "id": 12345,
-    "filePath": "attachments/abc123.jpg",
-    "filename": "screenshot.png",
-    "fileSize": 524288
-  }
+	"data": {
+		"id": 12345,
+		"filePath": "attachments/abc123.jpg",
+		"filename": "screenshot.png",
+		"fileSize": 524288
+	}
 }
 ```
 
@@ -452,13 +456,13 @@ export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
 Frontend derives URL: `https://t.no.mt/${filePath}`
 
 **Errors**:
-| Code | Status | Description |
-|------|--------|-------------|
-| `NO_FILE` | 400 | No file in request |
-| `FILE_TOO_LARGE` | 413 | Single file > 1 MB |
-| `INVALID_FORMAT` | 415 | Not JPG/PNG/GIF/WebP |
-| `DRAFT_QUOTA_EXCEEDED` | 429 | Too many drafts or storage limit |
-| `UPLOAD_FAILED` | 500 | R2 write failed |
+| Code                   | Status | Description                      |
+| ---------------------- | ------ | -------------------------------- |
+| `NO_FILE`              | 400    | No file in request               |
+| `FILE_TOO_LARGE`       | 413    | Single file > 1 MB               |
+| `INVALID_FORMAT`       | 415    | Not JPG/PNG/GIF/WebP             |
+| `DRAFT_QUOTA_EXCEEDED` | 429    | Too many drafts or storage limit |
+| `UPLOAD_FAILED`        | 500    | R2 write failed                  |
 
 ### DELETE /api/v1/upload/draft/:id (new)
 
@@ -473,41 +477,38 @@ import { getWorkerJwt } from "@/lib/forum-auth";
 import { NextResponse } from "next/server";
 
 function csrfCheck(request: Request) {
-  if (isMutatingMethod(request.method) && !validateOrigin(request)) {
-    return NextResponse.json(
-      { error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
-      { status: 403 },
-    );
-  }
-  return null;
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+	return null;
 }
 
 /**
  * DELETE /api/v1/upload/draft/:id
  * Delete draft attachment during compose (before submit)
  */
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = csrfCheck(request);
-  if (csrfError) return csrfError;
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	const csrfError = csrfCheck(request);
+	if (csrfError) return csrfError;
 
-  const { id } = await params;
-  const jwt = await getWorkerJwt();
-  if (!jwt) {
-    return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
-  }
+	const { id } = await params;
+	const jwt = await getWorkerJwt();
+	if (!jwt) {
+		return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
+	}
 
-  try {
-    const result = await forumApi.deleteAuth(`/api/v1/upload/draft/${id}`, {}, jwt);
-    return NextResponse.json(result);
-  } catch (err) {
-    if (err instanceof ForumApiError) {
-      return NextResponse.json({ error: err.code }, { status: err.status });
-    }
-    return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
-  }
+	try {
+		const result = await forumApi.deleteAuth(`/api/v1/upload/draft/${id}`, {}, jwt);
+		return NextResponse.json(result);
+	} catch (err) {
+		if (err instanceof ForumApiError) {
+			return NextResponse.json({ error: err.code }, { status: err.status });
+		}
+		return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+	}
 }
 ```
 
@@ -527,10 +528,10 @@ Create new thread with attachments.
 **Request body additions**:
 ```json
 {
-  "subject": "...",
-  "content": "...",
-  "forumId": 1,
-  "attachmentIds": [12345, 12346]
+	"subject": "...",
+	"content": "...",
+	"forumId": 1,
+	"attachmentIds": [12345, 12346]
 }
 ```
 
@@ -549,9 +550,9 @@ Create reply with attachments. Route is `POST /api/v1/posts` with `threadId` in 
 **Request body additions**:
 ```json
 {
-  "threadId": 123,
-  "content": "...",
-  "attachmentIds": [12347]
+	"threadId": 123,
+	"content": "...",
+	"attachmentIds": [12347]
 }
 ```
 
@@ -564,22 +565,22 @@ Already implemented. Returns `Attachment[]` with `filePath`, `hasThumb`, `downlo
 **Current response shape** (keep as-is):
 ```json
 {
-  "data": [
-    {
-      "id": 12345,
-      "threadId": 100,
-      "postId": 200,
-      "authorId": 1,
-      "filename": "screenshot.png",
-      "filePath": "attachments/abc123.jpg",
-      "fileSize": 524288,
-      "isImage": true,
-      "width": 0,
-      "hasThumb": false,
-      "downloads": 0,
-      "createdAt": 1712345678
-    }
-  ]
+	"data": [
+		{
+			"id": 12345,
+			"threadId": 100,
+			"postId": 200,
+			"authorId": 1,
+			"filename": "screenshot.png",
+			"filePath": "attachments/abc123.jpg",
+			"fileSize": 524288,
+			"isImage": true,
+			"width": 0,
+			"hasThumb": false,
+			"downloads": 0,
+			"createdAt": 1712345678
+		}
+	]
 }
 ```
 
@@ -593,21 +594,21 @@ New component `<AttachmentZone>` for use in post editor:
 
 ```tsx
 interface AttachmentZoneProps {
-  attachments: UploadedAttachment[];
-  onAttachmentsChange: (attachments: UploadedAttachment[]) => void;
-  maxFiles?: number;        // default: 9
-  maxFileSize?: number;     // default: 1MB
-  maxTotalSize?: number;    // default: 5MB
+	attachments: UploadedAttachment[];
+	onAttachmentsChange: (attachments: UploadedAttachment[]) => void;
+	maxFiles?: number; // default: 9
+	maxFileSize?: number; // default: 1MB
+	maxTotalSize?: number; // default: 5MB
 }
 
 interface UploadedAttachment {
-  id: number;               // draft_attachments.id
-  filePath: string;         // R2 path
-  filename: string;
-  fileSize: number;
-  uploading?: boolean;
-  progress?: number;
-  error?: string;
+	id: number; // draft_attachments.id
+	filePath: string; // R2 path
+	filename: string;
+	fileSize: number;
+	uploading?: boolean;
+	progress?: number;
+	error?: string;
 }
 ```
 
@@ -627,9 +628,7 @@ interface UploadedAttachment {
 const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
 
 // On submit, pass attachment IDs to API
-const attachmentIds = attachments
-  .filter(a => !a.uploading && !a.error)
-  .map(a => a.id);
+const attachmentIds = attachments.filter((a) => !a.uploading && !a.error).map((a) => a.id);
 
 await createThread({ subject, content, forumId, attachmentIds });
 // or
@@ -641,9 +640,7 @@ await createPost({ threadId, content, attachmentIds });
 Attachments already fetched in `thread-detail.server.ts` via:
 ```typescript
 const attachmentResults = await Promise.all(
-  postsRes.data.map((post) =>
-    forumApi.getAll<Attachment>(`/api/v1/posts/${post.id}/attachments`)
-  ),
+	postsRes.data.map((post) => forumApi.getAll<Attachment>(`/api/v1/posts/${post.id}/attachments`)),
 );
 ```
 
@@ -664,22 +661,22 @@ Keep display logic in existing components, just ensure they handle the new attac
 
 ## File Locations
 
-| Component | Path |
-|-----------|------|
-| Migration | `apps/worker/migrations/0028_create_draft_attachments.sql` |
-| Upload config | `apps/worker/src/lib/upload-config.ts` (add `attachment`) |
-| Upload handler | `apps/worker/src/lib/upload.ts` (add attachment case + quota check) |
-| R2 cleanup helper | `apps/worker/src/lib/r2-cleanup.ts` (new) |
-| Draft cleanup | `apps/worker/src/lib/draft-cleanup.ts` (new) |
-| Draft delete handler | `apps/worker/src/handlers/upload.ts` (new) |
-| Draft delete proxy | `apps/web/src/app/api/v1/upload/draft/[id]/route.ts` (new) |
-| Scheduled handler | `apps/worker/src/index.ts:541` (add draft cleanup call) |
-| AttachmentZone | `apps/web/src/components/forum/attachment-zone.tsx` |
-| Post API changes | `apps/worker/src/handlers/post.ts` |
-| Thread API changes | `apps/worker/src/handlers/thread.ts` (restructure for post_id) |
-| User content fixes | `apps/worker/src/handlers/user-content.ts` (add R2 cleanup) |
-| Moderation fixes | `apps/worker/src/handlers/moderation.ts` (add R2 cleanup) |
-| Admin post fixes | `apps/worker/src/handlers/admin/post.ts` (add R2 cleanup) |
+| Component            | Path                                                                |
+| -------------------- | ------------------------------------------------------------------- |
+| Migration            | `apps/worker/migrations/0028_create_draft_attachments.sql`          |
+| Upload config        | `apps/worker/src/lib/upload-config.ts` (add `attachment`)           |
+| Upload handler       | `apps/worker/src/lib/upload.ts` (add attachment case + quota check) |
+| R2 cleanup helper    | `apps/worker/src/lib/r2-cleanup.ts` (new)                           |
+| Draft cleanup        | `apps/worker/src/lib/draft-cleanup.ts` (new)                        |
+| Draft delete handler | `apps/worker/src/handlers/upload.ts` (new)                          |
+| Draft delete proxy   | `apps/web/src/app/api/v1/upload/draft/[id]/route.ts` (new)          |
+| Scheduled handler    | `apps/worker/src/index.ts:541` (add draft cleanup call)             |
+| AttachmentZone       | `apps/web/src/components/forum/attachment-zone.tsx`                 |
+| Post API changes     | `apps/worker/src/handlers/post.ts`                                  |
+| Thread API changes   | `apps/worker/src/handlers/thread.ts` (restructure for post_id)      |
+| User content fixes   | `apps/worker/src/handlers/user-content.ts` (add R2 cleanup)         |
+| Moderation fixes     | `apps/worker/src/handlers/moderation.ts` (add R2 cleanup)           |
+| Admin post fixes     | `apps/worker/src/handlers/admin/post.ts` (add R2 cleanup)           |
 
 ## Security Considerations
 
@@ -689,9 +686,9 @@ Keep display logic in existing components, just ensure they handle the new attac
 4. **Claim token**: UUID per request prevents concurrent claim collision
 5. **Atomic batch**: Post/thread creation inside `batch()` ensures all-or-nothing
 6. **Size limits enforced server-side**: Client limits can be bypassed
-6. **MIME type validation**: Check actual file content, not just extension
-7. **Filename sanitization**: Store original name but use GUID for path
-8. **Complete deletion**: All post/thread delete paths clean up R2 blobs
+7. **MIME type validation**: Check actual file content, not just extension
+8. **Filename sanitization**: Store original name but use GUID for path
+9. **Complete deletion**: All post/thread delete paths clean up R2 blobs
 
 ## Migration Checklist
 

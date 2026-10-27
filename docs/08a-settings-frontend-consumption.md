@@ -14,17 +14,17 @@
 
 ### 1.1 现状对照
 
-| 设置 key | 前端应使用的位置 | 当前实际状态 |
-|----------|-----------------|-------------|
-| `general.site.name` | `<title>` 后缀、页脚品牌 | 硬编码 `"同济网 TONGJI.NET"`（`site-footer.tsx:37`） |
-| `general.site.subtitle` | `<title>` 副标题（如 `同济网 - TONGJI.NET`） | 未使用，值为 `"Ellie admin console"` |
-| `general.site.copyright` | 页脚版权行 | 硬编码 `"Comsenz Inc."`（`footer.ts:116`） |
-| `general.site.powered_by` | 页脚 powered by | 硬编码 `"Discuz! X3.2"`（`footer.ts:115`） |
-| `general.og.*` | `<meta>` OG / Twitter Card 标签 | Root layout metadata 为静态值 |
-| `general.assets.avatar_cdn_base` | 头像 URL 拼接 | 硬编码 `"https://t.no.mt/avatar"`（`avatar.ts:4`） |
-| `general.navigation.header_links` | 顶部导航栏 tab | 硬编码 `HEADER_NAV_TABS`（`header.ts:59-71`，11 项） |
-| `general.navigation.friend_links` | 首页底部友情链接 | 硬编码 `FRIEND_LINKS`（`footer.ts:60-89`，28 项） |
-| — | HTML `<title>` | 全站所有页面（含管理后台）均显示 `"Ellie Admin"`（`layout.tsx:12`），无 per-page title、无 title template |
+| 设置 key                          | 前端应使用的位置                             | 当前实际状态                                                                                              |
+| --------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `general.site.name`               | `<title>` 后缀、页脚品牌                     | 硬编码 `"同济网 TONGJI.NET"`（`site-footer.tsx:37`）                                                      |
+| `general.site.subtitle`           | `<title>` 副标题（如 `同济网 - TONGJI.NET`） | 未使用，值为 `"Ellie admin console"`                                                                      |
+| `general.site.copyright`          | 页脚版权行                                   | 硬编码 `"Comsenz Inc."`（`footer.ts:116`）                                                                |
+| `general.site.powered_by`         | 页脚 powered by                              | 硬编码 `"Discuz! X3.2"`（`footer.ts:115`）                                                                |
+| `general.og.*`                    | `<meta>` OG / Twitter Card 标签              | Root layout metadata 为静态值                                                                             |
+| `general.assets.avatar_cdn_base`  | 头像 URL 拼接                                | 硬编码 `"https://t.no.mt/avatar"`（`avatar.ts:4`）                                                        |
+| `general.navigation.header_links` | 顶部导航栏 tab                               | 硬编码 `HEADER_NAV_TABS`（`header.ts:59-71`，11 项）                                                      |
+| `general.navigation.friend_links` | 首页底部友情链接                             | 硬编码 `FRIEND_LINKS`（`footer.ts:60-89`，28 项）                                                         |
+| —                                 | HTML `<title>`                               | 全站所有页面（含管理后台）均显示 `"Ellie Admin"`（`layout.tsx:12`），无 per-page title、无 title template |
 
 ### 1.2 已就绪的基建
 
@@ -54,16 +54,16 @@
 ```ts
 // Before
 export function buildHeaderViewModel(
-    user?: HeaderUserInfo | null,
-    stats?: HeaderStats,
-): HeaderViewModel
+	user?: HeaderUserInfo | null,
+	stats?: HeaderStats,
+): HeaderViewModel;
 
 // After — 追加 settings 参数
 export function buildHeaderViewModel(
-    settings: SettingsMap,
-    user?: HeaderUserInfo | null,
-    stats?: HeaderStats,
-): HeaderViewModel
+	settings: SettingsMap,
+	user?: HeaderUserInfo | null,
+	stats?: HeaderStats,
+): HeaderViewModel;
 ```
 
 hardcode 常量作为 `settings` 中对应 key 缺失时的 fallback 默认值，确保即使 API 异常也不会白屏。
@@ -72,10 +72,10 @@ hardcode 常量作为 `settings` 中对应 key 缺失时的 fallback 默认值�
 
 大部分变更在 ViewModel 层和 Layout 层完成，但以下组件存在硬编码或未消费 VM 字段的问题，需要配合修改：
 
-| 组件 | 问题 | 改动 |
-|------|------|------|
-| `site-footer.tsx` | 硬编码 `"同济网 TONGJI.NET"`（:37）；版权行硬编码 `"2002-{year} TONGJI.NET"`（:41）；`vm.poweredBy` / `vm.copyrightHolder` / `vm.icpNumber` 已定义但从未渲染 | 改为消费 `vm.siteName`、`vm.copyrightHolder`、`vm.poweredBy` |
-| `forum-header.tsx` | 直接调用 `getAvatarUrl(user.uid, "middle")`（:65），无法接收 cdnBase | 改为调用 `getAvatarUrl(user.uid, "middle", vm.avatarCdnBase)` |
+| 组件               | 问题                                                                                                                                                         | 改动                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `site-footer.tsx`  | 硬编码 `"同济网 TONGJI.NET"`（:37）；版权行硬编码 `"2002-{year} TONGJI.NET"`（:41）；`vm.poweredBy` / `vm.copyrightHolder` / `vm.icpNumber` 已定义但从未渲染 | 改为消费 `vm.siteName`、`vm.copyrightHolder`、`vm.poweredBy`  |
+| `forum-header.tsx` | 直接调用 `getAvatarUrl(user.uid, "middle")`（:65），无法接收 cdnBase                                                                                         | 改为调用 `getAvatarUrl(user.uid, "middle", vm.avatarCdnBase)` |
 
 > **头像 CDN 其余调用点**（`post-card.tsx`、`post-sidebar.tsx`、`messages-page.tsx`、`users/[id]/page.tsx`）本次不改。`avatar.ts` 新增的 `cdnBase` 参数有默认值，现有调用不传参仍使用原 CDN，不会 break。全站头像 CDN 统一改造放入 §8 后续工作。
 
@@ -101,18 +101,18 @@ hardcode 常量作为 `settings` 中对应 key 缺失时的 fallback 默认值�
 
 **Title 拼接规则**：
 
-| 页面 | `<title>` 示例 | 数据来源 |
-|------|---------------|---------|
-| 首页 `/` | `同济网 - TONGJI.NET` | `site.name` + `site.subtitle` |
-| 版块 `/forums/2` | `就业实习 - 同济网 - TONGJI.NET` | `forum.name` |
-| 帖子 `/threads/123` | `求租嘉定校区附近一室户 - 同济网 - TONGJI.NET` | `thread.subject` |
-| 用户 `/users/456` | `张三的个人资料 - 同济网 - TONGJI.NET` | `user.username` |
-| 搜索 `/search?q=租房` | `搜索: 租房 - 同济网 - TONGJI.NET` | URL param `q` |
-| 发帖 `/forums/2/new-thread` | `发表帖子 - 就业实习 - 同济网 - TONGJI.NET` | `forumName` |
-| 消息 `/messages` | `消息 - 同济网 - TONGJI.NET` | 静态 |
-| 精华 `/digest` | `精华帖 - 同济网 - TONGJI.NET` | 静态 |
-| 登录 `/login` | `登录 - 同济网 - TONGJI.NET` | 静态 |
-| 注册 `/register` | `注册 - 同济网 - TONGJI.NET` | 静态 |
+| 页面                        | `<title>` 示例                                 | 数据来源                      |
+| --------------------------- | ---------------------------------------------- | ----------------------------- |
+| 首页 `/`                    | `同济网 - TONGJI.NET`                          | `site.name` + `site.subtitle` |
+| 版块 `/forums/2`            | `就业实习 - 同济网 - TONGJI.NET`               | `forum.name`                  |
+| 帖子 `/threads/123`         | `求租嘉定校区附近一室户 - 同济网 - TONGJI.NET` | `thread.subject`              |
+| 用户 `/users/456`           | `张三的个人资料 - 同济网 - TONGJI.NET`         | `user.username`               |
+| 搜索 `/search?q=租房`       | `搜索: 租房 - 同济网 - TONGJI.NET`             | URL param `q`                 |
+| 发帖 `/forums/2/new-thread` | `发表帖子 - 就业实习 - 同济网 - TONGJI.NET`    | `forumName`                   |
+| 消息 `/messages`            | `消息 - 同济网 - TONGJI.NET`                   | 静态                          |
+| 精华 `/digest`              | `精华帖 - 同济网 - TONGJI.NET`                 | 静态                          |
+| 登录 `/login`               | `登录 - 同济网 - TONGJI.NET`                   | 静态                          |
+| 注册 `/register`            | `注册 - 同济网 - TONGJI.NET`                   | 静态                          |
 
 **实现方式**：
 
@@ -127,8 +127,8 @@ hardcode 常量作为 `settings` 中对应 key 缺失时的 fallback 默认值�
 
 ```ts
 export const metadata: Metadata = {
-    title: "Ellie",
-    description: "",
+	title: "Ellie",
+	description: "",
 };
 ```
 
@@ -142,24 +142,24 @@ Next.js 的 `generateMetadata()` 是 layout/page 级 export，不走 ViewModel �
 
 ## 3. 变更文件清单
 
-| # | 文件 | 变更类型 | 说明 |
-|---|------|---------|------|
-| F1 | `apps/web/src/viewmodels/forum/settings.server.ts` | 增强 | 增加 typed helper（`getStr`、`getNum`、`getArr`） |
-| F2 | `apps/web/src/viewmodels/forum/header.ts` | 改造 | `buildHeaderViewModel(settings, user, stats)` 从 settings 读取 `header_links`，并将 `avatarCdnBase` 注入 VM |
-| F3 | `apps/web/src/viewmodels/forum/footer.ts` | 改造 | `buildGlobalFooterViewModel(settings)` + `buildHomeFooterViewModel(settings)` 从 settings 读取品牌、友链 |
-| F4 | `apps/web/src/lib/avatar.ts` | 改造 | `getAvatarUrl` 接受 `cdnBase` 参数，保留默认值向后兼容 |
-| F5 | `apps/web/src/app/(forum)/layout.tsx` | 改造 | 变为 `async`，调用 `fetchPublicSettings()`，注入 builder；export `generateMetadata`（title template + OG） |
-| F6 | `apps/web/src/app/(forum)/page.tsx` | 改造 | 调用 `fetchPublicSettings()`（去重），传递给 `buildHomeFooterViewModel(settings)` |
-| F7 | `apps/web/src/components/forum/site-footer.tsx` | 改造 | 移除硬编码品牌名 / 版权行，改为消费 `vm.siteName`、`vm.copyrightHolder`、`vm.poweredBy` |
-| F8 | `apps/web/src/components/forum/forum-header.tsx` | 微调 | `getAvatarUrl` 调用传入 `vm.avatarCdnBase` |
-| F9 | `apps/web/src/app/layout.tsx` | 微调 | Root metadata 改为纯兜底 |
-| F10 | `apps/web/src/app/(admin)/layout.tsx` | 改造 | 新增 `generateMetadata`，title 设为 `"管理控制台 \| {品牌名}"` |
-| F11 | `apps/web/src/app/(forum)/threads/[id]/page.tsx` | 新增 | export `generateMetadata`，title = `thread.subject` |
-| F12 | `apps/web/src/app/(forum)/forums/[id]/page.tsx` | 新增 | export `generateMetadata`，title = `forum.name` |
-| F13 | `apps/web/src/app/(forum)/users/[id]/page.tsx` | 新增 | export `generateMetadata`，title = `"{用户名}的个人资料"` |
-| F14 | `apps/web/src/app/(forum)/search/page.tsx` | 新增 | export `generateMetadata`，title = `"搜索: {query}"` 或 `"搜索"` |
-| F15 | `apps/web/src/app/(forum)/forums/[id]/new-thread/page.tsx` | 新增 | export `generateMetadata`，title = `"发表帖子 - {forumName}"` |
-| F16 | 静态页面（login、register、messages、digest） | 新增 | 各 export `metadata = { title: "页面名" }` |
+| #   | 文件                                                       | 变更类型 | 说明                                                                                                        |
+| --- | ---------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| F1  | `apps/web/src/viewmodels/forum/settings.server.ts`         | 增强     | 增加 typed helper（`getStr`、`getNum`、`getArr`）                                                           |
+| F2  | `apps/web/src/viewmodels/forum/header.ts`                  | 改造     | `buildHeaderViewModel(settings, user, stats)` 从 settings 读取 `header_links`，并将 `avatarCdnBase` 注入 VM |
+| F3  | `apps/web/src/viewmodels/forum/footer.ts`                  | 改造     | `buildGlobalFooterViewModel(settings)` + `buildHomeFooterViewModel(settings)` 从 settings 读取品牌、友链    |
+| F4  | `apps/web/src/lib/avatar.ts`                               | 改造     | `getAvatarUrl` 接受 `cdnBase` 参数，保留默认值向后兼容                                                      |
+| F5  | `apps/web/src/app/(forum)/layout.tsx`                      | 改造     | 变为 `async`，调用 `fetchPublicSettings()`，注入 builder；export `generateMetadata`（title template + OG）  |
+| F6  | `apps/web/src/app/(forum)/page.tsx`                        | 改造     | 调用 `fetchPublicSettings()`（去重），传递给 `buildHomeFooterViewModel(settings)`                           |
+| F7  | `apps/web/src/components/forum/site-footer.tsx`            | 改造     | 移除硬编码品牌名 / 版权行，改为消费 `vm.siteName`、`vm.copyrightHolder`、`vm.poweredBy`                     |
+| F8  | `apps/web/src/components/forum/forum-header.tsx`           | 微调     | `getAvatarUrl` 调用传入 `vm.avatarCdnBase`                                                                  |
+| F9  | `apps/web/src/app/layout.tsx`                              | 微调     | Root metadata 改为纯兜底                                                                                    |
+| F10 | `apps/web/src/app/(admin)/layout.tsx`                      | 改造     | 新增 `generateMetadata`，title 设为 `"管理控制台 \| {品牌名}"`                                              |
+| F11 | `apps/web/src/app/(forum)/threads/[id]/page.tsx`           | 新增     | export `generateMetadata`，title = `thread.subject`                                                         |
+| F12 | `apps/web/src/app/(forum)/forums/[id]/page.tsx`            | 新增     | export `generateMetadata`，title = `forum.name`                                                             |
+| F13 | `apps/web/src/app/(forum)/users/[id]/page.tsx`             | 新增     | export `generateMetadata`，title = `"{用户名}的个人资料"`                                                   |
+| F14 | `apps/web/src/app/(forum)/search/page.tsx`                 | 新增     | export `generateMetadata`，title = `"搜索: {query}"` 或 `"搜索"`                                            |
+| F15 | `apps/web/src/app/(forum)/forums/[id]/new-thread/page.tsx` | 新增     | export `generateMetadata`，title = `"发表帖子 - {forumName}"`                                               |
+| F16 | 静态页面（login、register、messages、digest）              | 新增     | 各 export `metadata = { title: "页面名" }`                                                                  |
 
 ---
 
@@ -189,21 +189,21 @@ export function getArr<T>(settings: SettingsMap, key: string, fallback: T[]): T[
 
 ```ts
 const HEADER_NAV_TABS: NavTab[] = [
-    { label: "同济网论坛", href: "/" },
-    { label: "就业实习",   href: "/forums/2" },
-    // ... 11 items hardcoded
+	{ label: "同济网论坛", href: "/" },
+	{ label: "就业实习", href: "/forums/2" },
+	// ... 11 items hardcoded
 ];
 
 export function buildHeaderViewModel(
-    user: HeaderUserInfo | null = PLACEHOLDER_USER,
-    stats: HeaderStats = PLACEHOLDER_STATS,
+	user: HeaderUserInfo | null = PLACEHOLDER_USER,
+	stats: HeaderStats = PLACEHOLDER_STATS,
 ): HeaderViewModel {
-    return {
-        user,
-        navTabs: HEADER_NAV_TABS,
-        hotKeywords: HOT_KEYWORDS,
-        stats,
-    };
+	return {
+		user,
+		navTabs: HEADER_NAV_TABS,
+		hotKeywords: HOT_KEYWORDS,
+		stats,
+	};
 }
 ```
 
@@ -214,31 +214,40 @@ import type { SettingsMap } from "./settings.server";
 import { getArr, getStr } from "./settings.server";
 
 // HEADER_NAV_TABS 保留为 fallback 默认值
-const DEFAULT_NAV_TABS: NavTab[] = [ /* 原数据不动 */ ];
+const DEFAULT_NAV_TABS: NavTab[] = [
+	/* 原数据不动 */
+];
 
 export function buildHeaderViewModel(
-    settings: SettingsMap,
-    user: HeaderUserInfo | null = PLACEHOLDER_USER,
-    stats: HeaderStats = PLACEHOLDER_STATS,
+	settings: SettingsMap,
+	user: HeaderUserInfo | null = PLACEHOLDER_USER,
+	stats: HeaderStats = PLACEHOLDER_STATS,
 ): HeaderViewModel {
-    const headerLinks = getArr<{ label: string; url: string }>(
-        settings, "general.navigation.header_links", []
-    );
+	const headerLinks = getArr<{ label: string; url: string }>(
+		settings,
+		"general.navigation.header_links",
+		[],
+	);
 
-    // settings 中的 link 结构 { label, url } → NavTab 结构 { label, href }
-    const navTabs: NavTab[] = headerLinks.length > 0
-        ? headerLinks.map(link => ({ label: link.label, href: link.url }))
-        : DEFAULT_NAV_TABS;
+	// settings 中的 link 结构 { label, url } → NavTab 结构 { label, href }
+	const navTabs: NavTab[] =
+		headerLinks.length > 0
+			? headerLinks.map((link) => ({ label: link.label, href: link.url }))
+			: DEFAULT_NAV_TABS;
 
-    const avatarCdnBase = getStr(settings, "general.assets.avatar_cdn_base", "https://t.no.mt/avatar");
+	const avatarCdnBase = getStr(
+		settings,
+		"general.assets.avatar_cdn_base",
+		"https://t.no.mt/avatar",
+	);
 
-    return {
-        user,
-        navTabs,
-        hotKeywords: HOT_KEYWORDS,
-        stats,
-        avatarCdnBase,  // 新增，供组件传给 getAvatarUrl
-    };
+	return {
+		user,
+		navTabs,
+		hotKeywords: HOT_KEYWORDS,
+		stats,
+		avatarCdnBase, // 新增，供组件传给 getAvatarUrl
+	};
 }
 ```
 
@@ -258,21 +267,21 @@ export function buildHeaderViewModel(
 ```ts
 // Before
 export function buildGlobalFooterViewModel(): GlobalFooterViewModel {
-    return {
-        poweredBy: "Discuz! X3.2",
-        copyrightHolder: "Comsenz Inc.",
-        // ...
-    };
+	return {
+		poweredBy: "Discuz! X3.2",
+		copyrightHolder: "Comsenz Inc.",
+		// ...
+	};
 }
 
 // After
 export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterViewModel {
-    return {
-        siteName:        getStr(settings, "general.site.name", "Ellie"),
-        poweredBy:       getStr(settings, "general.site.powered_by", "Powered by Ellie"),
-        copyrightHolder: getStr(settings, "general.site.copyright", "同济网"),
-        // ...
-    };
+	return {
+		siteName: getStr(settings, "general.site.name", "Ellie"),
+		poweredBy: getStr(settings, "general.site.powered_by", "Powered by Ellie"),
+		copyrightHolder: getStr(settings, "general.site.copyright", "同济网"),
+		// ...
+	};
 }
 ```
 
@@ -283,25 +292,27 @@ export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterV
 ```ts
 // Before
 export function buildHomeFooterViewModel(): HomeFooterViewModel {
-    return {
-        friendLinks: FRIEND_LINKS,    // 28 条 hardcoded
-        onlineStats: PLACEHOLDER_ONLINE_STATS,
-    };
+	return {
+		friendLinks: FRIEND_LINKS, // 28 条 hardcoded
+		onlineStats: PLACEHOLDER_ONLINE_STATS,
+	};
 }
 
 // After
 export function buildHomeFooterViewModel(settings: SettingsMap): HomeFooterViewModel {
-    const friendLinks = getArr<{ label: string; url: string }>(
-        settings, "general.navigation.friend_links", []
-    );
+	const friendLinks = getArr<{ label: string; url: string }>(
+		settings,
+		"general.navigation.friend_links",
+		[],
+	);
 
-    return {
-        friendLinks: friendLinks.map(link => ({
-            label: link.label,
-            href: link.url,
-        })),
-        onlineStats: PLACEHOLDER_ONLINE_STATS,
-    };
+	return {
+		friendLinks: friendLinks.map((link) => ({
+			label: link.label,
+			href: link.url,
+		})),
+		onlineStats: PLACEHOLDER_ONLINE_STATS,
+	};
 }
 ```
 
@@ -316,18 +327,18 @@ export function buildHomeFooterViewModel(settings: SettingsMap): HomeFooterViewM
 const AVATAR_CDN_BASE = "https://t.no.mt/avatar";
 
 export function getAvatarUrl(uid: number, size?: "small" | "middle" | "big"): string {
-    // 使用 AVATAR_CDN_BASE
+	// 使用 AVATAR_CDN_BASE
 }
 
 // After
 const DEFAULT_CDN_BASE = "https://t.no.mt/avatar";
 
 export function getAvatarUrl(
-    uid: number,
-    size?: "small" | "middle" | "big",
-    cdnBase: string = DEFAULT_CDN_BASE,
+	uid: number,
+	size?: "small" | "middle" | "big",
+	cdnBase: string = DEFAULT_CDN_BASE,
 ): string {
-    // 使用 cdnBase 参数
+	// 使用 cdnBase 参数
 }
 ```
 
@@ -335,18 +346,18 @@ export function getAvatarUrl(
 
 **本次改造**：
 
-| 调用点 | 改造方式 |
-|--------|---------|
+| 调用点                | 改造方式                                       |
+| --------------------- | ---------------------------------------------- |
 | `forum-header.tsx:65` | 从 `vm.avatarCdnBase` 读取（Header VM 已注入） |
 
 **后续改造**（见 §8）：
 
-| 调用点 | 改造思路 |
-|--------|---------|
-| `post-card.tsx:58` | 通过 props 从父组件接收 `avatarCdnBase` |
-| `post-sidebar.tsx:39` | 同上 |
-| `users/[id]/page.tsx:91` | Server Component，可独立 `fetchPublicSettings()` 后传入 |
-| `messages-page.tsx:180` | Client Component，无法直接调 `settings.server.ts`；需由路由页 `messages/page.tsx`（Server Component）读取 settings 后通过 props / VM 传入 |
+| 调用点                   | 改造思路                                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `post-card.tsx:58`       | 通过 props 从父组件接收 `avatarCdnBase`                                                                                                   |
+| `post-sidebar.tsx:39`    | 同上                                                                                                                                      |
+| `users/[id]/page.tsx:91` | Server Component，可独立 `fetchPublicSettings()` 后传入                                                                                   |
+| `messages-page.tsx:180`  | Client Component，无法直接调 `settings.server.ts`；需由路由页 `messages/page.tsx`（Server Component）读取 settings 后通过 props / VM 传入 |
 
 ### 4.4a F8 — forum-header.tsx 微调
 
@@ -440,14 +451,14 @@ Root layout 仅作为最终兜底：
 ```ts
 // Before
 export const metadata: Metadata = {
-    title: "Ellie Admin",
-    description: "Ellie admin console",
+	title: "Ellie Admin",
+	description: "Ellie admin console",
 };
 
 // After
 export const metadata: Metadata = {
-    title: "Ellie",
-    description: "",
+	title: "Ellie",
+	description: "",
 };
 ```
 
@@ -460,12 +471,12 @@ import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { getStr } from "@/viewmodels/forum/settings.server";
 
 export async function generateMetadata(): Promise<Metadata> {
-    const settings = await fetchPublicSettings();
-    const siteName = getStr(settings, "general.site.name", "Ellie");
+	const settings = await fetchPublicSettings();
+	const siteName = getStr(settings, "general.site.name", "Ellie");
 
-    return {
-        title: `管理控制台 | ${siteName}`,
-    };
+	return {
+		title: `管理控制台 | ${siteName}`,
+	};
 }
 ```
 
@@ -476,35 +487,35 @@ export async function generateMetadata(): Promise<Metadata> {
 ```tsx
 // threads/[id]/page.tsx
 export async function generateMetadata({ params }): Promise<Metadata> {
-    const data = await loadThreadDetail({ threadId: params.id });
-    return { title: data.thread.subject };
+	const data = await loadThreadDetail({ threadId: params.id });
+	return { title: data.thread.subject };
 }
 // 最终 <title>：求租嘉定校区附近一室户 - 同济网 - TONGJI.NET
 
 // forums/[id]/page.tsx
 export async function generateMetadata({ params }): Promise<Metadata> {
-    const data = await loadThreadListPaged({ forumId: params.id });
-    return { title: data.forum.name };
+	const data = await loadThreadListPaged({ forumId: params.id });
+	return { title: data.forum.name };
 }
 // 最终 <title>：就业实习 - 同济网 - TONGJI.NET
 
 // users/[id]/page.tsx
 export async function generateMetadata({ params }): Promise<Metadata> {
-    const data = await loadUserProfile({ userId: params.id });
-    return { title: `${data.user.username}的个人资料` };
+	const data = await loadUserProfile({ userId: params.id });
+	return { title: `${data.user.username}的个人资料` };
 }
 // 最终 <title>：张三的个人资料 - 同济网 - TONGJI.NET
 
 // search/page.tsx
 export async function generateMetadata({ searchParams }): Promise<Metadata> {
-    const query = searchParams.q;
-    return { title: query ? `搜索: ${query}` : "搜索" };
+	const query = searchParams.q;
+	return { title: query ? `搜索: ${query}` : "搜索" };
 }
 
 // forums/[id]/new-thread/page.tsx
 export async function generateMetadata({ params }): Promise<Metadata> {
-    const data = await loadNewThreadPageData(params.id);
-    return { title: `发表帖子 - ${data.forumName}` };
+	const data = await loadNewThreadPageData(params.id);
+	return { title: `发表帖子 - ${data.forumName}` };
 }
 ```
 
@@ -537,22 +548,22 @@ Layout 无法向 Page 传 props，所以 page.tsx 独立调用 `fetchPublicSetti
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 
 // 内部
-<HomeFooter vm={buildHomeFooterViewModel()} />
+<HomeFooter vm={buildHomeFooterViewModel()} />;
 
 // After
 import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 
 export default async function HomePage() {
-    const settings = await fetchPublicSettings(); // Next.js 去重，与 layout 不产生重复请求
+	const settings = await fetchPublicSettings(); // Next.js 去重，与 layout 不产生重复请求
 
-    // ...
-    return (
-        <>
-            {/* ... */}
-            <HomeFooter vm={buildHomeFooterViewModel(settings)} />
-        </>
-    );
+	// ...
+	return (
+		<>
+			{/* ... */}
+			<HomeFooter vm={buildHomeFooterViewModel(settings)} />
+		</>
+	);
 }
 ```
 
@@ -639,19 +650,19 @@ export default async function HomePage() {
 
 按依赖顺序，每步一个原子化 commit：
 
-| Step | 任务 | 涉及文件 | 说明 |
-|------|------|---------|------|
-| 1 | settings.server.ts 增加 typed helpers | F1 | 纯工具函数，无副作用 |
-| 2 | header.ts 接受 settings 参数 | F2 | builder 签名变更（settings 插入为第一参数），hardcode 降级为 fallback；HeaderViewModel 新增 `avatarCdnBase` |
-| 3 | footer.ts 接受 settings 参数 | F3 | 两个 builder 签名变更；GlobalFooterViewModel 新增 `siteName`；FriendLink 映射 `{ label, href }` |
-| 4 | avatar.ts 参数化 cdnBase | F4 | 新增 `cdnBase` 可选参数，默认值保持向后兼容 |
-| 5 | Root layout 改为兜底 | F9 | title 改为 `"Ellie"`，去掉 `"Ellie Admin"` |
-| 6 | Forum layout 接线 | F5 | Layout 变 async + generateMetadata（title template + OG） |
-| 7 | Admin layout 接线 | F10 | 新增 generateMetadata，title = `"管理控制台 \| {品牌名}"` |
-| 8 | Forum page 接线 | F6 | Homepage 独立 fetch（去重），传递给 homeFooter builder |
-| 9 | 组件层改造 | F7, F8 | site-footer 消费 VM 品牌/版权字段；forum-header 传入 avatarCdnBase |
-| 10 | 各页面 per-page title | F11–F16 | 动态页面 generateMetadata + 静态页面 metadata export |
-| 11 | 清理死代码 | F2, F3 | 确认无引用后删除原 hardcode 常量（如 FRIEND_LINKS、HEADER_NAV_TABS） |
+| Step | 任务                                  | 涉及文件 | 说明                                                                                                        |
+| ---- | ------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| 1    | settings.server.ts 增加 typed helpers | F1       | 纯工具函数，无副作用                                                                                        |
+| 2    | header.ts 接受 settings 参数          | F2       | builder 签名变更（settings 插入为第一参数），hardcode 降级为 fallback；HeaderViewModel 新增 `avatarCdnBase` |
+| 3    | footer.ts 接受 settings 参数          | F3       | 两个 builder 签名变更；GlobalFooterViewModel 新增 `siteName`；FriendLink 映射 `{ label, href }`             |
+| 4    | avatar.ts 参数化 cdnBase              | F4       | 新增 `cdnBase` 可选参数，默认值保持向后兼容                                                                 |
+| 5    | Root layout 改为兜底                  | F9       | title 改为 `"Ellie"`，去掉 `"Ellie Admin"`                                                                  |
+| 6    | Forum layout 接线                     | F5       | Layout 变 async + generateMetadata（title template + OG）                                                   |
+| 7    | Admin layout 接线                     | F10      | 新增 generateMetadata，title = `"管理控制台 \| {品牌名}"`                                                   |
+| 8    | Forum page 接线                       | F6       | Homepage 独立 fetch（去重），传递给 homeFooter builder                                                      |
+| 9    | 组件层改造                            | F7, F8   | site-footer 消费 VM 品牌/版权字段；forum-header 传入 avatarCdnBase                                          |
+| 10   | 各页面 per-page title                 | F11–F16  | 动态页面 generateMetadata + 静态页面 metadata export                                                        |
+| 11   | 清理死代码                            | F2, F3   | 确认无引用后删除原 hardcode 常量（如 FRIEND_LINKS、HEADER_NAV_TABS）                                        |
 
 ```
 Step 1 → Step 2 ─┐
@@ -688,11 +699,11 @@ Step 5 ──────────→ Step 6
 
 ## 8. 不在本次范围
 
-| 后续工作 | 说明 |
-|---------|------|
-| 其余头像调用点传入 cdnBase | `post-card.tsx`、`post-sidebar.tsx`、`users/[id]/page.tsx` 可直接改造；`messages-page.tsx` 是 Client Component，需由路由页 `messages/page.tsx`（Server Component）读取 settings 后通过 props 传入 |
-| Worker handler 消费分页设置 | thread / post handler 的 `DEFAULT_PAGE_SIZE` → `getSetting()` 动态读取 |
-| 前端 `HOT_KEYWORDS` 动态化 | 搜索热词目前 hardcoded，需新增 settings key |
-| 前端 `FOOTER_QUICK_LINKS` 动态化 | 页脚快速链接，需新增 settings key |
-| Logo URL 动态化 | 页头 / 页脚 logo 图片 URL 需新增 settings key |
-| 前端缓存 | 按统一目标：到 Worker 的业务读取默认 `no-store`，请求内去重；展示快照继承上游截止时间，避免独立 revalidate 延长数据有效期 |
+| 后续工作                         | 说明                                                                                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 其余头像调用点传入 cdnBase       | `post-card.tsx`、`post-sidebar.tsx`、`users/[id]/page.tsx` 可直接改造；`messages-page.tsx` 是 Client Component，需由路由页 `messages/page.tsx`（Server Component）读取 settings 后通过 props 传入 |
+| Worker handler 消费分页设置      | thread / post handler 的 `DEFAULT_PAGE_SIZE` → `getSetting()` 动态读取                                                                                                                            |
+| 前端 `HOT_KEYWORDS` 动态化       | 搜索热词目前 hardcoded，需新增 settings key                                                                                                                                                       |
+| 前端 `FOOTER_QUICK_LINKS` 动态化 | 页脚快速链接，需新增 settings key                                                                                                                                                                 |
+| Logo URL 动态化                  | 页头 / 页脚 logo 图片 URL 需新增 settings key                                                                                                                                                     |
+| 前端缓存                         | 按统一目标：到 Worker 的业务读取默认 `no-store`，请求内去重；展示快照继承上游截止时间，避免独立 revalidate 延长数据有效期                                                                         |

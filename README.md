@@ -54,10 +54,10 @@ cp apps/admin/.env.local.example apps/admin/.env.local
 
 启动前填写配置：
 
-| 位置 | 必要内容 |
-| --- | --- |
-| 根 `.dev.vars` | 分别生成 `API_KEY`、`ADMIN_API_KEY`、`JWT_SECRET`；前两者使用不同值 |
-| `apps/web/.env.local` | `AUTH_SECRET`、与 Worker `API_KEY` 一致的 `FORUM_API_KEY`；保留本地 `WORKER_API_URL`、`AUTH_URL` 与 `NEXT_PUBLIC_SITE_URL` |
+| 位置                    | 必要内容                                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 根 `.dev.vars`          | 分别生成 `API_KEY`、`ADMIN_API_KEY`、`JWT_SECRET`；前两者使用不同值                                                              |
+| `apps/web/.env.local`   | `AUTH_SECRET`、与 Worker `API_KEY` 一致的 `FORUM_API_KEY`；保留本地 `WORKER_API_URL`、`AUTH_URL` 与 `NEXT_PUBLIC_SITE_URL`       |
 | `apps/admin/.env.local` | 独立 `AUTH_SECRET`、匹配 Worker 的 `ADMIN_API_KEY`，以及 Google OAuth 的 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`、`ADMIN_EMAILS` |
 
 论坛 Cap 默认走同源 `/api/v1/cap/`，Worker 需要 `CAP_SECRET`。邮箱验证还需要 `EMAIL_VERIFY_HMAC_KEY`、Dove 配置与 Token；未配置时可以准备页面和数据，但无法完成这些交互。后台 Google 回调地址为 `http://localhost:7032/api/auth/callback/google`。
@@ -83,14 +83,14 @@ bun run dev:admin
 
 论坛地址是 `http://localhost:7031`，后台是 `http://localhost:7032`。新库只有表结构和少量初始配置，需要通过后台维护版块或准备导入数据。上述命令显式使用本地资源；远程迁移和部署应使用自己的 Cloudflare 资源，详见[开发与部署指南](docs/25-development.md)。
 
-| 命令 / 路径 | 用途 |
-| --- | --- |
-| `bun run build` | 构建论坛与管理后台 |
-| `bun run typecheck`、`bun run lint` | 类型与代码检查 |
-| `apps/worker/src/` | Worker 路由、权限、数据访问与定时任务 |
-| `apps/worker/migrations/` | 当前 Worker 数据库迁移 |
-| `packages/migrate/` | Discuz dump 解析、转换与本地 SQLite 输出 |
-| `packages/cli-rs/` | Rust API 客户端与 TUI |
+| 命令 / 路径                         | 用途                                     |
+| ----------------------------------- | ---------------------------------------- |
+| `bun run build`                     | 构建论坛与管理后台                       |
+| `bun run typecheck`、`bun run lint` | 类型与代码检查                           |
+| `apps/worker/src/`                  | Worker 路由、权限、数据访问与定时任务    |
+| `apps/worker/migrations/`           | 当前 Worker 数据库迁移                   |
+| `packages/migrate/`                 | Discuz dump 解析、转换与本地 SQLite 输出 |
+| `packages/cli-rs/`                  | Rust API 客户端与 TUI                    |
 
 `main` 的 CI 成功后，Release 工作流部署论坛与后台的 Docker 镜像。Worker 由独立的 `bun run worker:deploy` 流程先迁移再部署，不随 Docker 发布更新。
 
@@ -116,17 +116,17 @@ cargo test --locked --manifest-path packages/cli-rs/Cargo.toml --workspace
 
 ## 技术栈
 
-| 技术 | 用途 |
-| --- | --- |
-| TypeScript、Bun | 论坛应用、共享包、迁移与测试脚本 |
-| Next.js、React | 论坛和管理后台、服务端 API 代理 |
-| Tailwind CSS、shadcn/ui、Tiptap、Recharts | 页面组件、富文本编辑与统计图表 |
-| Cloudflare Workers | 原生 Fetch API 路由与定时任务 |
-| Cloudflare D1、KV、R2 | 论坛数据、缓存与状态、上传文件 |
-| Auth.js、JWT | 论坛密码登录、后台 Google 登录与会话 |
-| Cap、Dove | 网页验证控件与邮箱验证码发送 |
-| Rust、ratatui、crossterm | 终端客户端 |
-| Vitest、Bun test、Playwright | 单元、API 与浏览器测试 |
+| 技术                                      | 用途                                 |
+| ----------------------------------------- | ------------------------------------ |
+| TypeScript、Bun                           | 论坛应用、共享包、迁移与测试脚本     |
+| Next.js、React                            | 论坛和管理后台、服务端 API 代理      |
+| Tailwind CSS、shadcn/ui、Tiptap、Recharts | 页面组件、富文本编辑与统计图表       |
+| Cloudflare Workers                        | 原生 Fetch API 路由与定时任务        |
+| Cloudflare D1、KV、R2                     | 论坛数据、缓存与状态、上传文件       |
+| Auth.js、JWT                              | 论坛密码登录、后台 Google 登录与会话 |
+| Cap、Dove                                 | 网页验证控件与邮箱验证码发送         |
+| Rust、ratatui、crossterm                  | 终端客户端                           |
+| Vitest、Bun test、Playwright              | 单元、API 与浏览器测试               |
 
 ## 文档
 

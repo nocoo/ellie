@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
 	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"linter": {
 		"enabled": true,
@@ -67,7 +67,10 @@
 			"!**/packages/**/*/src/**/*.js",
 			"!**/packages/**/*/src/**/*.js.map",
 			"!**/packages/**/*/src/**/*.d.ts",
-			"!**/test-support/init-sql.generated.ts"
+			"!**/test-support/init-sql.generated.ts",
+			"!docs/02-database-schema.md",
+			"!docs/08-general-settings.md",
+			"!docs/20-worker-kv-reference.md"
 		]
 	},
 	"overrides": [

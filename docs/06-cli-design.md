@@ -86,17 +86,17 @@ X-API-Key: <key>
 
 ```json
 {
-  "apiUrl": "https://ellie.worker.hexly.ai",
-  "apiKey": "<API_KEY, Key A — shipped with CLI>",
-  "auth": {
-    "token": "<论坛用户 JWT>",
-    "user": {
-      "userId": 123,
-      "username": "alice",
-      "role": 1
-    }
-  },
-  "theme": "default"
+	"apiUrl": "https://ellie.worker.hexly.ai",
+	"apiKey": "<API_KEY, Key A — shipped with CLI>",
+	"auth": {
+		"token": "<论坛用户 JWT>",
+		"user": {
+			"userId": 123,
+			"username": "alice",
+			"role": 1
+		}
+	},
+	"theme": "default"
 }
 ```
 
@@ -235,17 +235,17 @@ impl ApiClient {
 
 ### 可用端点
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/live` | 健康检查（无需 API Key） |
-| `GET` | `/api/v1/forums` | 版块列表 |
-| `GET` | `/api/v1/forums/:id` | 版块详情 |
-| `GET` | `/api/v1/threads?forumId=X&limit=N&cursor=C` | 主题列表（游标分页） |
-| `GET` | `/api/v1/threads/:id` | 主题详情 |
-| `GET` | `/api/v1/posts?threadId=X&limit=N&cursor=C` | 帖子列表（游标分页） |
-| `GET` | `/api/v1/posts/:id` | 帖子详情 |
-| `GET` | `/api/v1/users/:id` | 用户资料 |
-| `POST` | `/api/v1/auth/login` | 用户登录 |
+| 方法   | 路径                                         | 说明                     |
+| ------ | -------------------------------------------- | ------------------------ |
+| `GET`  | `/api/live`                                  | 健康检查（无需 API Key） |
+| `GET`  | `/api/v1/forums`                             | 版块列表                 |
+| `GET`  | `/api/v1/forums/:id`                         | 版块详情                 |
+| `GET`  | `/api/v1/threads?forumId=X&limit=N&cursor=C` | 主题列表（游标分页）     |
+| `GET`  | `/api/v1/threads/:id`                        | 主题详情                 |
+| `GET`  | `/api/v1/posts?threadId=X&limit=N&cursor=C`  | 帖子列表（游标分页）     |
+| `GET`  | `/api/v1/posts/:id`                          | 帖子详情                 |
+| `GET`  | `/api/v1/users/:id`                          | 用户资料                 |
+| `POST` | `/api/v1/auth/login`                         | 用户登录                 |
 
 ---
 
@@ -253,14 +253,14 @@ impl ApiClient {
 
 ### 只读功能清单
 
-| 功能 | 描述 | 快捷键 |
-|------|------|--------|
+| 功能     | 描述                         | 快捷键   |
+| -------- | ---------------------------- | -------- |
 | 版块浏览 | 树形展示所有版块（父子层级） | 默认首屏 |
-| 主题列表 | 进入版块查看主题，置顶优先 | `Enter` |
-| 帖子阅读 | 查看主题内所有回帖，支持翻页 | `Enter` |
-| 用户资料 | 查看发帖人信息 | `u` |
-| 搜索过滤 | 在当前列表中搜索 | `/` |
-| 登录 | 输入用户名密码认证 | `L` |
+| 主题列表 | 进入版块查看主题，置顶优先   | `Enter`  |
+| 帖子阅读 | 查看主题内所有回帖，支持翻页 | `Enter`  |
+| 用户资料 | 查看发帖人信息               | `u`      |
+| 搜索过滤 | 在当前列表中搜索             | `/`      |
+| 登录     | 输入用户名密码认证           | `L`      |
 | 主题统计 | 查看回复数、浏览数、最后回复 | 列表内联 |
 
 ### 不实现的功能
@@ -298,17 +298,17 @@ impl ApiClient {
 
 ### 技术栈
 
-| 依赖 | 版本 | 说明 | 对应 llmfit |
-|------|------|------|-------------|
-| `ratatui` | 0.30 | TUI 渲染框架 | `ratatui` |
-| `crossterm` | 0.29 | 终端后端（事件、raw mode） | `crossterm` |
-| `ureq` | 3.x | 同步 HTTP 客户端 | `ureq` |
-| `serde` / `serde_json` | 1.x | JSON 序列化 | `serde` |
-| `clap` | 4.x | CLI 参数解析（derive） | `clap` |
-| `directories` | latest | XDG 配置路径 | - |
-| `anyhow` | latest | 错误处理 | - |
-| `urlencoding` | latest | URL 编码 cursor 等查询参数 | - |
-| `base64` | latest | Cursor 编解码 | - |
+| 依赖                   | 版本   | 说明                       | 对应 llmfit |
+| ---------------------- | ------ | -------------------------- | ----------- |
+| `ratatui`              | 0.30   | TUI 渲染框架               | `ratatui`   |
+| `crossterm`            | 0.29   | 终端后端（事件、raw mode） | `crossterm` |
+| `ureq`                 | 3.x    | 同步 HTTP 客户端           | `ureq`      |
+| `serde` / `serde_json` | 1.x    | JSON 序列化                | `serde`     |
+| `clap`                 | 4.x    | CLI 参数解析（derive）     | `clap`      |
+| `directories`          | latest | XDG 配置路径               | -           |
+| `anyhow`               | latest | 错误处理                   | -           |
+| `urlencoding`          | latest | URL 编码 cursor 等查询参数 | -           |
+| `base64`               | latest | Cursor 编解码              | -           |
 
 **移除的依赖（llmfit 有但 Ellie 不需要）**：
 - ~~`sysinfo`~~ — 不需要硬件检测
@@ -489,37 +489,37 @@ impl App {
 
 **Normal 模式：**
 
-| 键 | 动作 |
-|----|------|
-| `j` / `↓` | 下移光标 |
-| `k` / `↑` | 上移光标 |
-| `Enter` | 进入选中项 |
-| `Esc` / `Backspace` | 返回上一层 |
-| `/` | 进入搜索模式 |
-| `L` | 登录 |
-| `u` | 查看当前项作者资料 |
-| `n` | 下一页（加载更多） |
-| `g` | 跳到顶部 |
-| `G` | 跳到底部 |
-| `r` | 刷新当前视图 |
-| `t` | 切换主题 |
-| `q` | 退出 |
+| 键                  | 动作               |
+| ------------------- | ------------------ |
+| `j` / `↓`           | 下移光标           |
+| `k` / `↑`           | 上移光标           |
+| `Enter`             | 进入选中项         |
+| `Esc` / `Backspace` | 返回上一层         |
+| `/`                 | 进入搜索模式       |
+| `L`                 | 登录               |
+| `u`                 | 查看当前项作者资料 |
+| `n`                 | 下一页（加载更多） |
+| `g`                 | 跳到顶部           |
+| `G`                 | 跳到底部           |
+| `r`                 | 刷新当前视图       |
+| `t`                 | 切换主题           |
+| `q`                 | 退出               |
 
 **Search 模式：**
 
-| 键 | 动作 |
-|----|------|
-| 字符输入 | 追加到搜索词 |
-| `Backspace` | 删除字符 |
+| 键              | 动作                  |
+| --------------- | --------------------- |
+| 字符输入        | 追加到搜索词          |
+| `Backspace`     | 删除字符              |
 | `Enter` / `Esc` | 退出搜索，回到 Normal |
 
 **Login 模式：**
 
-| 键 | 动作 |
-|----|------|
-| `Tab` | 切换用户名/密码字段 |
-| `Enter` | 提交登录 |
-| `Esc` | 取消登录 |
+| 键      | 动作                |
+| ------- | ------------------- |
+| `Tab`   | 切换用户名/密码字段 |
+| `Enter` | 提交登录            |
+| `Esc`   | 取消登录            |
 
 ### 界面布局
 
@@ -719,11 +719,11 @@ gitleaks detect --no-banner
 
 CLI 是纯 HTTP 客户端，不直接持有 D1/KV 访问能力。资源隔离的**实施方**是 Worker（见 04b 文档的 D1 Isolation 部分），CLI 的职责是**验证自己连接的是隔离环境**而非生产环境。
 
-| 层 | 职责 | 实施方 |
-|----|------|--------|
-| 资源隔离 | 本地独立 SQLite D1 / Miniflare KV | 本地测试 Worker（`--local --persist-to`） |
-| 隔离验证 | `--local` 运行模式 / 运行时 `--var ENVIRONMENT=test` 注入 | 测试套件与本地启动脚本 |
-| **连接目标验证** | 确认 CLI L2 测试连接的是 test Worker | **CLI (本文档)** |
+| 层               | 职责                                                      | 实施方                                    |
+| ---------------- | --------------------------------------------------------- | ----------------------------------------- |
+| 资源隔离         | 本地独立 SQLite D1 / Miniflare KV                         | 本地测试 Worker（`--local --persist-to`） |
+| 隔离验证         | `--local` 运行模式 / 运行时 `--var ENVIRONMENT=test` 注入 | 测试套件与本地启动脚本                    |
+| **连接目标验证** | 确认 CLI L2 测试连接的是 test Worker                      | **CLI (本文档)**                          |
 
 **CLI 侧验证方式**：
 
@@ -785,12 +785,12 @@ cargo test --test integration -- --ignored
 
 ### Tier 判定规则
 
-| Tier | 条件 |
-|------|------|
+| Tier  | 条件                                               |
+| ----- | -------------------------------------------------- |
 | **S** | L1 + L2 + L3 + G1 + G2 + D1 全部达标（N/A 计为绿） |
-| **A** | L1 + L2 + G1 + D1 达标 + 其余至少一项 |
-| **B** | L1 + G1 达标 |
-| **C** | 任一基础项（L1/G1）不达标 |
+| **A** | L1 + L2 + G1 + D1 达标 + 其余至少一项              |
+| **B** | L1 + G1 达标                                       |
+| **C** | 任一基础项（L1/G1）不达标                          |
 
 ### Hook 集成
 
@@ -831,12 +831,14 @@ gitleaks detect --no-banner          # G2
 ## 开发路线
 
 ### Phase 0 — 基础设施（质量优先）
+
 - [x] 添加 Rust artifacts 到 .gitignore
 - [x] 创建 Cargo workspace（ellie-core + ellie-tui）
 - [x] 配置 rustfmt.toml + clippy.toml
 - [x] 集成 Rust 质量门控到 husky hooks
 
 ### Phase 1 — Core Library（ellie-core）
+
 - [x] 添加 serde + 核心依赖
 - [x] 定义 domain enums（UserRole, UserStatus, StickyLevel, ForumType）
 - [x] 定义 domain structs（User, Forum, Thread, Post, Attachment）
@@ -848,6 +850,7 @@ gitleaks detect --no-banner          # G2
 - [x] 添加 typed API methods（getForums, getThreads, getPosts, getUser）
 
 ### Phase 2 — TUI Framework（ellie-tui）
+
 - [x] 添加 ratatui + crossterm + clap 依赖
 - [x] 定义 InputMode, ListState, ViewState enums
 - [x] 实现 App struct with view stack
@@ -859,6 +862,7 @@ gitleaks detect --no-banner          # G2
 - [x] 实现主题系统（default/dracula/nord）
 
 ### Phase 3 — Views 组件
+
 - [x] ForumList view（树形结构）
 - [x] ThreadList view（分页表格）
 - [x] PostView（滚动内容）
@@ -870,6 +874,7 @@ gitleaks detect --no-banner          # G2
 - [x] Login flow wiring
 
 ### Phase 4 — Integration（L2）
+
 - [x] 添加 integration test infrastructure
 - [x] GET /api/v1/forums E2E test
 - [x] GET /api/v1/threads pagination E2E test
@@ -878,6 +883,7 @@ gitleaks detect --no-banner          # G2
 - [x] 集成 Rust L2 tests 到 pre-push hook
 
 ### Phase 5 — 打磨
+
 - [x] 集成 osv-scanner + gitleaks（G2）
 - [x] 实现 retry logic with exponential backoff
 - [x] 添加 loading spinners 和 skeleton states
@@ -889,17 +895,17 @@ gitleaks detect --no-banner          # G2
 
 #### Tier S 验证结果
 
-| 维度 | 工具 | 结果 |
-|------|------|------|
-| **L1** Unit | `cargo test --workspace` (132 tests) | ✅ 全通过 |
-| **L1** Coverage | `./scripts/coverage.sh` | ✅ 90.4% ≥ 90% |
-| **L2** Integration | `cargo test --test integration -- --ignored` (6 tests) | ✅ 全通过（需 test Worker） |
-| **L3** E2E | Manual smoke test checklist | ⚠️ 待手动验证 |
-| **G1** Format | `cargo fmt --all --check` | ✅ 零 diff |
-| **G1** Clippy | `cargo clippy --workspace -- -D warnings` | ✅ 零 warning |
-| **G2** Dependencies | `osv-scanner scan --lockfile Cargo.lock` | ✅ No issues found |
-| **G2** Secrets | `gitleaks detect --no-banner` | ✅ No leaks found |
-| **D1** Isolation | `assert_test_environment()` in every L2 test | ✅ 已实现 |
+| 维度                | 工具                                                   | 结果                        |
+| ------------------- | ------------------------------------------------------ | --------------------------- |
+| **L1** Unit         | `cargo test --workspace` (132 tests)                   | ✅ 全通过                   |
+| **L1** Coverage     | `./scripts/coverage.sh`                                | ✅ 90.4% ≥ 90%              |
+| **L2** Integration  | `cargo test --test integration -- --ignored` (6 tests) | ✅ 全通过（需 test Worker） |
+| **L3** E2E          | Manual smoke test checklist                            | ⚠️ 待手动验证               |
+| **G1** Format       | `cargo fmt --all --check`                              | ✅ 零 diff                  |
+| **G1** Clippy       | `cargo clippy --workspace -- -D warnings`              | ✅ 零 warning               |
+| **G2** Dependencies | `osv-scanner scan --lockfile Cargo.lock`               | ✅ No issues found          |
+| **G2** Secrets      | `gitleaks detect --no-banner`                          | ✅ No leaks found           |
+| **D1** Isolation    | `assert_test_environment()` in every L2 test           | ✅ 已实现                   |
 
 **Tier: S**（L3 Manual Checklist 待手动验证，其余全部达标）
 
@@ -940,15 +946,15 @@ ELLIE_API_KEY=test-key cargo run --release --bin ellie-tui
 
 ### 开发命令
 
-| 命令 | 说明 |
-|------|------|
-| `cargo build` | 构建项目 |
-| `cargo test` | 运行所有测试（L1） |
-| `cargo test --test integration -- --ignored` | 运行 E2E 测试（L2） |
-| `cargo clippy --all-targets --all-features -- -D warnings` | 静态分析（G1） |
-| `cargo fmt --check` | 检查格式（G1） |
-| `cargo fmt` | 格式化代码 |
-| `./scripts/coverage.sh` | 覆盖率报告（L1） |
+| 命令                                                       | 说明                |
+| ---------------------------------------------------------- | ------------------- |
+| `cargo build`                                              | 构建项目            |
+| `cargo test`                                               | 运行所有测试（L1）  |
+| `cargo test --test integration -- --ignored`               | 运行 E2E 测试（L2） |
+| `cargo clippy --all-targets --all-features -- -D warnings` | 静态分析（G1）      |
+| `cargo fmt --check`                                        | 检查格式（G1）      |
+| `cargo fmt`                                                | 格式化代码          |
+| `./scripts/coverage.sh`                                    | 覆盖率报告（L1）    |
 
 ---
 

@@ -28,12 +28,12 @@ Ellie 需要在 Cloudflare Workers + D1 + KV 架构下重新实现这些功能�
 
 ### 1.1 核心数据表
 
-| 表名 | 功能 |
-|------|------|
-| `pre_common_session` | 实时会话表，存储在线用户/游客的会话数据 |
-| `pre_common_onlinelist` | 首页在线列表缓存 |
-| `pre_common_member_status` | 用户状态（含 `lastactivity` 字段） |
-| `pre_common_member_count` | 用户计数（含 `oltime` 累计在线分钟数） |
+| 表名                       | 功能                                    |
+| -------------------------- | --------------------------------------- |
+| `pre_common_session`       | 实时会话表，存储在线用户/游客的会话数据 |
+| `pre_common_onlinelist`    | 首页在线列表缓存                        |
+| `pre_common_member_status` | 用户状态（含 `lastactivity` 字段）      |
+| `pre_common_member_count`  | 用户计数（含 `oltime` 累计在线分钟数）  |
 
 ### 1.2 会话表结构（pre_common_session）
 
@@ -94,25 +94,25 @@ Discuz 在 `pre_common_setting` 中存储：
 
 ### 2.1 已迁移字段
 
-| Ellie 字段 | 来源 | 说明 |
-|-----------|------|------|
-| `users.ol_time` | `pre_common_member_count.oltime` | 累计在线时长（分钟） |
-| `users.last_activity` | `pre_common_member_status.lastactivity` | 最后活动时间戳 |
+| Ellie 字段            | 来源                                    | 说明                 |
+| --------------------- | --------------------------------------- | -------------------- |
+| `users.ol_time`       | `pre_common_member_count.oltime`        | 累计在线时长（分钟） |
+| `users.last_activity` | `pre_common_member_status.lastactivity` | 最后活动时间戳       |
 
 ### 2.2 现有 UI 接口
 
 ```typescript
 // apps/web/src/viewmodels/forum/footer.ts
 export interface OnlineStats {
-  totalOnline: number;   // 当前在线人数
-  peakOnline: number;    // 历史峰值
-  peakDate: string;      // 峰值日期
+	totalOnline: number; // 当前在线人数
+	peakOnline: number; // 历史峰值
+	peakDate: string; // 峰值日期
 }
 
 export const DEFAULT_ONLINE_STATS: OnlineStats = {
-  totalOnline: 0,
-  peakOnline: 0,
-  peakDate: "",
+	totalOnline: 0,
+	peakOnline: 0,
+	peakDate: "",
 };
 ```
 
@@ -120,11 +120,11 @@ Footer 组件已预留位置，但目前使用默认值（全 0）。
 
 ### 2.3 技术栈约束
 
-| 组件 | 特性 | 约束 |
-|------|------|------|
-| D1 | SQLite | 单线程写入，高频更新可能成为瓶颈 |
-| KV | 最终一致性 | TTL 自动过期，list 操作每次最多 1000 keys |
-| Workers | 无状态 | 无内存会话，需外部存储 |
+| 组件    | 特性       | 约束                                      |
+| ------- | ---------- | ----------------------------------------- |
+| D1      | SQLite     | 单线程写入，高频更新可能成为瓶颈          |
+| KV      | 最终一致性 | TTL 自动过期，list 操作每次最多 1000 keys |
+| Workers | 无状态     | 无内存会话，需外部存储                    |
 
 ---
 
@@ -132,11 +132,11 @@ Footer 组件已预留位置，但目前使用默认值（全 0）。
 
 ### 3.1 方案对比
 
-| 方案 | 实时性 | 复杂度 | 成本 | 适用场景 |
-|------|--------|--------|------|---------|
-| A: KV + TTL | 准实时（5分钟延迟） | 中 | 低 | **推荐** |
-| B: D1 会话表 | 实时 | 中 | 中（写入多） | 需精确在线列表 |
-| C: 客户端心跳 + 计数器 | 低（估算） | 低 | 极低 | 简单统计 |
+| 方案                   | 实时性              | 复杂度 | 成本         | 适用场景       |
+| ---------------------- | ------------------- | ------ | ------------ | -------------- |
+| A: KV + TTL            | 准实时（5分钟延迟） | 中     | 低           | **推荐**       |
+| B: D1 会话表           | 实时                | 中     | 中（写入多） | 需精确在线列表 |
+| C: 客户端心跳 + 计数器 | 低（估算）          | 低     | 极低         | 简单统计       |
 
 ### 3.2 推荐方案：KV + TTL + Cron 聚合
 
@@ -234,14 +234,14 @@ last_activity  INTEGER NOT NULL DEFAULT 0   -- 最后活动时间戳
 ```typescript
 // apps/worker/src/handlers/stats.ts — 现有接口定义
 export interface PublicStats {
-  todayPosts: number;
-  yesterdayPosts: number;
-  totalThreads: number;
-  totalMembers: number;
-  newestMember: string;
-  totalOnline: number;    // ← 已存在，目前返回 0
-  peakOnline: number;     // ← 已存在，目前返回 0
-  peakDate: string;       // ← 已存在，目前返回 ""
+	todayPosts: number;
+	yesterdayPosts: number;
+	totalThreads: number;
+	totalMembers: number;
+	newestMember: string;
+	totalOnline: number; // ← 已存在，目前返回 0
+	peakOnline: number; // ← 已存在，目前返回 0
+	peakDate: string; // ← 已存在，目前返回 ""
 }
 ```
 
@@ -283,21 +283,21 @@ const ONLINE_TTL = 900; // 15 minutes
  * Call after successful auth, uses waitUntil for non-blocking write.
  */
 export function trackOnline(
-  request: CFRequest,
-  env: Env,
-  ctx: ExecutionContext,
-  user: AuthUser,
+	request: CFRequest,
+	env: Env,
+	ctx: ExecutionContext,
+	user: AuthUser,
 ): void {
-  const key = `online:${user.userId}`;
-  const value = JSON.stringify({
-    uid: user.userId,
-    ip: request.headers.get("CF-Connecting-IP") || "",
-    page: new URL(request.url).pathname,
-    ts: Math.floor(Date.now() / 1000),
-  });
+	const key = `online:${user.userId}`;
+	const value = JSON.stringify({
+		uid: user.userId,
+		ip: request.headers.get("CF-Connecting-IP") || "",
+		page: new URL(request.url).pathname,
+		ts: Math.floor(Date.now() / 1000),
+	});
 
-  // Async write, non-blocking
-  ctx.waitUntil(env.KV.put(key, value, { expirationTtl: ONLINE_TTL }));
+	// Async write, non-blocking
+	ctx.waitUntil(env.KV.put(key, value, { expirationTtl: ONLINE_TTL }));
 }
 ```
 
@@ -310,50 +310,48 @@ import type { Env } from "../lib/env";
 import type { AuthUser } from "./auth";
 
 const ACTIVITY_THRESHOLD = 1800; // 30 分钟内视为连续活动
-const THROTTLE_SECONDS = 60;     // 节流：每分钟最多更新一次
+const THROTTLE_SECONDS = 60; // 节流：每分钟最多更新一次
 
 /**
  * Update user activity and accumulate online time.
  * Call after successful auth, uses waitUntil for non-blocking writes.
  */
 export async function trackActivity(
-  env: Env,
-  ctx: ExecutionContext,
-  user: AuthUser,
+	env: Env,
+	ctx: ExecutionContext,
+	user: AuthUser,
 ): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const throttleKey = `activity_throttle:${user.userId}`;
+	const now = Math.floor(Date.now() / 1000);
+	const throttleKey = `activity_throttle:${user.userId}`;
 
-  // 节流检查：1 分钟内已更新过则跳过
-  const lastUpdate = await env.KV.get(throttleKey);
-  if (lastUpdate && now - parseInt(lastUpdate, 10) < THROTTLE_SECONDS) {
-    return;
-  }
+	// 节流检查：1 分钟内已更新过则跳过
+	const lastUpdate = await env.KV.get(throttleKey);
+	if (lastUpdate && now - parseInt(lastUpdate, 10) < THROTTLE_SECONDS) {
+		return;
+	}
 
-  // 获取用户当前 last_activity
-  const userData = await env.DB.prepare(
-    "SELECT last_activity, ol_time FROM users WHERE id = ?"
-  ).bind(user.userId).first<{ last_activity: number; ol_time: number }>();
+	// 获取用户当前 last_activity
+	const userData = await env.DB.prepare("SELECT last_activity, ol_time FROM users WHERE id = ?")
+		.bind(user.userId)
+		.first<{ last_activity: number; ol_time: number }>();
 
-  if (!userData) return;
+	if (!userData) return;
 
-  const gap = now - userData.last_activity;
+	const gap = now - userData.last_activity;
 
-  // 计算要累加的分钟数
-  // 如果距上次活动超过阈值，不累加（视为离开后重新上线）
-  const addMinutes = gap < ACTIVITY_THRESHOLD && gap >= 60
-    ? Math.floor(gap / 60)
-    : 0;
+	// 计算要累加的分钟数
+	// 如果距上次活动超过阈值，不累加（视为离开后重新上线）
+	const addMinutes = gap < ACTIVITY_THRESHOLD && gap >= 60 ? Math.floor(gap / 60) : 0;
 
-  // 异步执行：更新节流标记 + 更新用户数据
-  ctx.waitUntil(
-    Promise.all([
-      env.KV.put(throttleKey, String(now), { expirationTtl: 120 }),
-      env.DB.prepare(
-        "UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?"
-      ).bind(now, addMinutes, user.userId).run(),
-    ])
-  );
+	// 异步执行：更新节流标记 + 更新用户数据
+	ctx.waitUntil(
+		Promise.all([
+			env.KV.put(throttleKey, String(now), { expirationTtl: 120 }),
+			env.DB.prepare("UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?")
+				.bind(now, addMinutes, user.userId)
+				.run(),
+		]),
+	);
 }
 ```
 
@@ -368,38 +366,38 @@ export async function trackActivity(
 import type { Env } from "./env";
 
 export async function aggregateOnlineStats(env: Env): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  let totalCount = 0;
-  let cursor: string | undefined;
-  
-  // 分页遍历所有 online: 前缀的 key
-  do {
-    const result = await env.KV.list({ prefix: "online:", cursor, limit: 1000 });
-    totalCount += result.keys.length;
-    cursor = result.list_complete ? undefined : result.cursor;
-  } while (cursor);
-  
-  // 更新当前在线人数缓存
-  await env.KV.put("stats:online_count", String(totalCount), { expirationTtl: 300 });
-  
-  // 检查是否创造新峰值
-  const peakData = await env.KV.get("stats:online_peak", "json") as {
-    count: number;
-    date: string;
-    timestamp: number;
-  } | null;
-  
-  if (!peakData || totalCount > peakData.count) {
-    const newPeak = {
-      count: totalCount,
-      date: new Date().toISOString().split("T")[0],
-      timestamp: now,
-    };
-    
-    // 仅更新 KV（永久保留，无 TTL）
-    // 不写入 D1 settings —— 峰值是统计数据，非配置项
-    await env.KV.put("stats:online_peak", JSON.stringify(newPeak));
-  }
+	const now = Math.floor(Date.now() / 1000);
+	let totalCount = 0;
+	let cursor: string | undefined;
+
+	// 分页遍历所有 online: 前缀的 key
+	do {
+		const result = await env.KV.list({ prefix: "online:", cursor, limit: 1000 });
+		totalCount += result.keys.length;
+		cursor = result.list_complete ? undefined : result.cursor;
+	} while (cursor);
+
+	// 更新当前在线人数缓存
+	await env.KV.put("stats:online_count", String(totalCount), { expirationTtl: 300 });
+
+	// 检查是否创造新峰值
+	const peakData = (await env.KV.get("stats:online_peak", "json")) as {
+		count: number;
+		date: string;
+		timestamp: number;
+	} | null;
+
+	if (!peakData || totalCount > peakData.count) {
+		const newPeak = {
+			count: totalCount,
+			date: new Date().toISOString().split("T")[0],
+			timestamp: now,
+		};
+
+		// 仅更新 KV（永久保留，无 TTL）
+		// 不写入 D1 settings —— 峰值是统计数据，非配置项
+		await env.KV.put("stats:online_peak", JSON.stringify(newPeak));
+	}
 }
 ```
 
@@ -419,13 +417,13 @@ import { aggregateOnlineStats } from "./lib/online-stats";
 import type { CFRequest, Env } from "./lib/env";
 
 export default {
-  async fetch(request: CFRequest, env: Env): Promise<Response> {
-    // ... existing fetch handler
-  },
+	async fetch(request: CFRequest, env: Env): Promise<Response> {
+		// ... existing fetch handler
+	},
 
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(aggregateOnlineStats(env));
-  },
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(aggregateOnlineStats(env));
+	},
 };
 ```
 
@@ -437,51 +435,51 @@ export default {
 // apps/worker/src/handlers/stats.ts（修改现有文件）
 
 export async function stats(request: CFRequest, env: Env): Promise<Response> {
-  // ... existing cache check ...
+	// ... existing cache check ...
 
-  const { todayStart, yesterdayStart, yesterdayEnd } = dayBoundaries();
+	const { todayStart, yesterdayStart, yesterdayEnd } = dayBoundaries();
 
-  // 并行查询：现有 D1 查询 + 新增 KV 在线统计
-  const [dbResults, onlineCount, peakData] = await Promise.all([
-    env.DB.batch([
-      // 0: today's posts
-      env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayStart),
-      // 1: yesterday's posts
-      env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?").bind(
-        yesterdayStart, yesterdayEnd
-      ),
-      // 2: total threads
-      env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
-      // 3: total members
-      env.DB.prepare("SELECT COUNT(*) AS cnt FROM users"),
-      // 4: newest member
-      env.DB.prepare("SELECT username FROM users ORDER BY reg_date DESC LIMIT 1"),
-    ]),
-    // 新增：从 KV 读取当前在线人数
-    env.KV.get("stats:online_count"),
-    // 新增：从 KV 读取历史峰值
-    env.KV.get("stats:online_peak", "json") as Promise<{
-      count: number;
-      date: string;
-    } | null>,
-  ]);
+	// 并行查询：现有 D1 查询 + 新增 KV 在线统计
+	const [dbResults, onlineCount, peakData] = await Promise.all([
+		env.DB.batch([
+			// 0: today's posts
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayStart),
+			// 1: yesterday's posts
+			env.DB.prepare(
+				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?",
+			).bind(yesterdayStart, yesterdayEnd),
+			// 2: total threads
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
+			// 3: total members
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM users"),
+			// 4: newest member
+			env.DB.prepare("SELECT username FROM users ORDER BY reg_date DESC LIMIT 1"),
+		]),
+		// 新增：从 KV 读取当前在线人数
+		env.KV.get("stats:online_count"),
+		// 新增：从 KV 读取历史峰值
+		env.KV.get("stats:online_peak", "json") as Promise<{
+			count: number;
+			date: string;
+		} | null>,
+	]);
 
-  const count = (i: number) => (dbResults[i].results[0] as Record<string, number>).cnt;
-  const newestRow = dbResults[4].results[0] as Record<string, string> | undefined;
+	const count = (i: number) => (dbResults[i].results[0] as Record<string, number>).cnt;
+	const newestRow = dbResults[4].results[0] as Record<string, string> | undefined;
 
-  const data: PublicStats = {
-    todayPosts: count(0),
-    yesterdayPosts: count(1),
-    totalThreads: count(2),
-    totalMembers: count(3),
-    newestMember: newestRow?.username ?? "",
-    // 填充真实在线统计（替换 placeholder）
-    totalOnline: onlineCount ? parseInt(onlineCount, 10) : 0,
-    peakOnline: peakData?.count ?? 0,
-    peakDate: peakData?.date ?? "",
-  };
+	const data: PublicStats = {
+		todayPosts: count(0),
+		yesterdayPosts: count(1),
+		totalThreads: count(2),
+		totalMembers: count(3),
+		newestMember: newestRow?.username ?? "",
+		// 填充真实在线统计（替换 placeholder）
+		totalOnline: onlineCount ? parseInt(onlineCount, 10) : 0,
+		peakOnline: peakData?.count ?? 0,
+		peakDate: peakData?.date ?? "",
+	};
 
-  // ... existing KV cache write ...
+	// ... existing KV cache write ...
 }
 ```
 
@@ -503,27 +501,27 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 // apps/web/src/app/(forum)/page.tsx（现有代码，无需修改）
 
 const onlineStats =
-  statsResult.status === "fulfilled"
-    ? {
-        totalOnline: statsResult.value.totalOnline,   // 直接读取
-        peakOnline: statsResult.value.peakOnline,     // 直接读取
-        peakDate: statsResult.value.peakDate,         // 直接读取
-      }
-    : undefined;
+	statsResult.status === "fulfilled"
+		? {
+				totalOnline: statsResult.value.totalOnline, // 直接读取
+				peakOnline: statsResult.value.peakOnline, // 直接读取
+				peakDate: statsResult.value.peakDate, // 直接读取
+			}
+		: undefined;
 ```
 
 ```typescript
 // apps/web/src/viewmodels/forum/stats.server.ts（现有代码，无需修改）
 
 export interface SiteStats {
-  todayPosts: number;
-  yesterdayPosts: number;
-  totalThreads: number;
-  totalMembers: number;
-  newestMember: string;
-  totalOnline: number;    // 已存在
-  peakOnline: number;     // 已存在
-  peakDate: string;       // 已存在
+	todayPosts: number;
+	yesterdayPosts: number;
+	totalThreads: number;
+	totalMembers: number;
+	newestMember: string;
+	totalOnline: number; // 已存在
+	peakOnline: number; // 已存在
+	peakDate: string; // 已存在
 }
 ```
 
@@ -539,15 +537,15 @@ export interface SiteStats {
 // apps/web/src/viewmodels/forum/user-profile.ts
 
 export function formatOlTime(minutes: number): string | null {
-  if (minutes <= 0) return null;
-  
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  
-  if (hours > 0) {
-    return mins > 0 ? `${hours} 小时 ${mins} 分钟` : `${hours} 小时`;
-  }
-  return `${mins} 分钟`;
+	if (minutes <= 0) return null;
+
+	const hours = Math.floor(minutes / 60);
+	const mins = minutes % 60;
+
+	if (hours > 0) {
+		return mins > 0 ? `${hours} 小时 ${mins} 分钟` : `${hours} 小时`;
+	}
+	return `${mins} 分钟`;
 }
 ```
 
@@ -556,9 +554,9 @@ export function formatOlTime(minutes: number): string | null {
 ```tsx
 // 用户资料页面
 <div className="user-stats">
-  <dt>在线时间</dt>
-  <dd>{formatOlTime(user.olTime) || "暂无记录"}</dd>
-</div>
+	<dt>在线时间</dt>
+	<dd>{formatOlTime(user.olTime) || "暂无记录"}</dd>
+</div>;
 ```
 
 ---
@@ -587,11 +585,11 @@ Files:
 
 **变更文件：**
 
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `apps/worker/src/middleware/online.ts` | 新增 | onlineMiddleware 实现 |
-| `apps/worker/wrangler.toml` | 修改 | 确认 KV namespace 绑定（已存在） |
-| `apps/worker/tests/unit/middleware/online.test.ts` | 新增 | L1 单元测试 |
+| 文件                                               | 操作 | 说明                             |
+| -------------------------------------------------- | ---- | -------------------------------- |
+| `apps/worker/src/middleware/online.ts`             | 新增 | onlineMiddleware 实现            |
+| `apps/worker/wrangler.toml`                        | 修改 | 确认 KV namespace 绑定（已存在） |
+| `apps/worker/tests/unit/middleware/online.test.ts` | 新增 | L1 单元测试                      |
 
 > **注**：类型定义在 `apps/worker/src/lib/env.ts`，`Env.KV` 已存在，无需修改。
 
@@ -620,10 +618,10 @@ Files:
 
 **变更文件：**
 
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `apps/worker/src/middleware/activity.ts` | 新增 | activityMiddleware 实现 |
-| `apps/worker/tests/unit/middleware/activity.test.ts` | 新增 | L1 单元测试 |
+| 文件                                                 | 操作 | 说明                    |
+| ---------------------------------------------------- | ---- | ----------------------- |
+| `apps/worker/src/middleware/activity.ts`             | 新增 | activityMiddleware 实现 |
+| `apps/worker/tests/unit/middleware/activity.test.ts` | 新增 | L1 单元测试             |
 
 **验证命令：**
 ```bash
@@ -653,12 +651,12 @@ Files:
 
 **变更文件：**
 
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `apps/worker/src/lib/online-stats.ts` | 新增 | aggregateOnlineStats 函数 |
-| `apps/worker/src/index.ts` | 修改 | 添加 scheduled export 调用 aggregateOnlineStats |
-| `apps/worker/wrangler.toml` | 修改 | 添加 `[triggers] crons` 配置 |
-| `apps/worker/tests/unit/lib/online-stats.test.ts` | 新增 | L1 单元测试 |
+| 文件                                              | 操作 | 说明                                            |
+| ------------------------------------------------- | ---- | ----------------------------------------------- |
+| `apps/worker/src/lib/online-stats.ts`             | 新增 | aggregateOnlineStats 函数                       |
+| `apps/worker/src/index.ts`                        | 修改 | 添加 scheduled export 调用 aggregateOnlineStats |
+| `apps/worker/wrangler.toml`                       | 修改 | 添加 `[triggers] crons` 配置                    |
+| `apps/worker/tests/unit/lib/online-stats.test.ts` | 新增 | L1 单元测试                                     |
 
 > **目录决策**：Cron 逻辑放入 `lib/online-stats.ts` 而非新建 `cron/` 目录，与现有 lib 结构保持一致。
 
@@ -687,10 +685,10 @@ Files:
 
 **变更文件：**
 
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `apps/worker/src/handlers/stats.ts` | 修改 | 从 KV 读取在线数据填充已有字段 |
-| `apps/worker/tests/unit/handlers/stats.test.ts` | 修改 | 扩展测试验证 KV 读取 |
+| 文件                                            | 操作 | 说明                           |
+| ----------------------------------------------- | ---- | ------------------------------ |
+| `apps/worker/src/handlers/stats.ts`             | 修改 | 从 KV 读取在线数据填充已有字段 |
+| `apps/worker/tests/unit/handlers/stats.test.ts` | 修改 | 扩展测试验证 KV 读取           |
 
 **验证命令：**
 ```bash
@@ -715,10 +713,10 @@ Files:
 
 **变更文件：**
 
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `apps/worker/src/index.ts` | 修改 | 集成 middleware 到路由链 |
-| `apps/worker/tests/unit/integration/online-tracking.test.ts` | 新增 | L2 集成测试 |
+| 文件                                                         | 操作 | 说明                     |
+| ------------------------------------------------------------ | ---- | ------------------------ |
+| `apps/worker/src/index.ts`                                   | 修改 | 集成 middleware 到路由链 |
+| `apps/worker/tests/unit/integration/online-tracking.test.ts` | 新增 | L2 集成测试              |
 
 > **测试目录**：使用现有的 `tests/unit/integration/` 目录（已有 `router.test.ts`），而非新建 `tests/integration/`。
 
@@ -745,11 +743,11 @@ bun test apps/worker/tests/unit/integration/online-tracking.test.ts
 
 每个提交必须通过以下检查：
 
-| Gate | 命令 | 说明 |
-|------|------|------|
-| G1 Typecheck | `bun run typecheck` | TypeScript 类型检查 |
-| L1 Unit Tests | `bun test <相关文件>` | 单元测试通过 |
-| G2 Security | `gitleaks detect --no-banner` | 无敏感信息泄露 |
+| Gate          | 命令                          | 说明                |
+| ------------- | ----------------------------- | ------------------- |
+| G1 Typecheck  | `bun run typecheck`           | TypeScript 类型检查 |
+| L1 Unit Tests | `bun test <相关文件>`         | 单元测试通过        |
+| G2 Security   | `gitleaks detect --no-banner` | 无敏感信息泄露      |
 
 完整流程验证：
 ```bash
@@ -762,11 +760,11 @@ bun run typecheck && bun test apps/worker && bun test tests/unit/
 
 ### 10.1 测试层级概览
 
-| 层级 | 范围 | 工具 | 文件 |
-|------|------|------|------|
-| L1 | 单元测试 | Bun test + mock | `apps/worker/tests/unit/**` |
-| L2 | 集成测试 | Bun test + miniflare | `apps/worker/tests/unit/integration/**` |
-| L3 | E2E 测试 | Playwright | `tests/e2e/**` |
+| 层级 | 范围     | 工具                 | 文件                                    |
+| ---- | -------- | -------------------- | --------------------------------------- |
+| L1   | 单元测试 | Bun test + mock      | `apps/worker/tests/unit/**`             |
+| L2   | 集成测试 | Bun test + miniflare | `apps/worker/tests/unit/integration/**` |
+| L3   | E2E 测试 | Playwright           | `tests/e2e/**`                          |
 
 ### 10.2 L1 单元测试
 
@@ -779,76 +777,74 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { onlineMiddleware } from "../../../src/middleware/online";
 
 describe("onlineMiddleware", () => {
-  let mockContext: any;
-  let mockKV: any;
-  let mockNext: any;
+	let mockContext: any;
+	let mockKV: any;
+	let mockNext: any;
 
-  beforeEach(() => {
-    mockKV = {
-      put: vi.fn().mockResolvedValue(undefined),
-    };
-    mockNext = vi.fn().mockResolvedValue(undefined);
-    mockContext = {
-      env: { KV: mockKV },
-      req: {
-        url: "https://example.com/forums/1",
-        header: vi.fn().mockReturnValue("1.2.3.4"),
-      },
-      res: { status: 200 },
-      get: vi.fn((key: string) => {
-        if (key === "userId") return 123;
-        if (key === "username") return "testuser";
-        return undefined;
-      }),
-      executionCtx: {
-        waitUntil: vi.fn((p: Promise<any>) => p),
-      },
-    };
-  });
+	beforeEach(() => {
+		mockKV = {
+			put: vi.fn().mockResolvedValue(undefined),
+		};
+		mockNext = vi.fn().mockResolvedValue(undefined);
+		mockContext = {
+			env: { KV: mockKV },
+			req: {
+				url: "https://example.com/forums/1",
+				header: vi.fn().mockReturnValue("1.2.3.4"),
+			},
+			res: { status: 200 },
+			get: vi.fn((key: string) => {
+				if (key === "userId") return 123;
+				if (key === "username") return "testuser";
+				return undefined;
+			}),
+			executionCtx: {
+				waitUntil: vi.fn((p: Promise<any>) => p),
+			},
+		};
+	});
 
-  it("should call next middleware", async () => {
-    await onlineMiddleware(mockContext, mockNext);
-    expect(mockNext).toHaveBeenCalledOnce();
-  });
+	it("should call next middleware", async () => {
+		await onlineMiddleware(mockContext, mockNext);
+		expect(mockNext).toHaveBeenCalledOnce();
+	});
 
-  it("should write online key for authenticated user", async () => {
-    await onlineMiddleware(mockContext, mockNext);
-    
-    expect(mockKV.put).toHaveBeenCalledWith(
-      "online:123",
-      expect.stringContaining('"uid":123'),
-      { expirationTtl: 900 }
-    );
-  });
+	it("should write online key for authenticated user", async () => {
+		await onlineMiddleware(mockContext, mockNext);
 
-  it("should skip KV write for error responses", async () => {
-    mockContext.res.status = 401;
-    await onlineMiddleware(mockContext, mockNext);
-    
-    expect(mockKV.put).not.toHaveBeenCalled();
-  });
+		expect(mockKV.put).toHaveBeenCalledWith("online:123", expect.stringContaining('"uid":123'), {
+			expirationTtl: 900,
+		});
+	});
 
-  it("should skip KV write for unauthenticated requests", async () => {
-    mockContext.get = vi.fn().mockReturnValue(undefined);
-    await onlineMiddleware(mockContext, mockNext);
-    
-    expect(mockKV.put).not.toHaveBeenCalled();
-  });
+	it("should skip KV write for error responses", async () => {
+		mockContext.res.status = 401;
+		await onlineMiddleware(mockContext, mockNext);
 
-  it("should include correct data in KV value", async () => {
-    await onlineMiddleware(mockContext, mockNext);
-    
-    const putCall = mockKV.put.mock.calls[0];
-    const value = JSON.parse(putCall[1]);
-    
-    expect(value).toMatchObject({
-      uid: 123,
-      username: "testuser",
-      ip: "1.2.3.4",
-      page: "/forums/1",
-    });
-    expect(value.ts).toBeTypeOf("number");
-  });
+		expect(mockKV.put).not.toHaveBeenCalled();
+	});
+
+	it("should skip KV write for unauthenticated requests", async () => {
+		mockContext.get = vi.fn().mockReturnValue(undefined);
+		await onlineMiddleware(mockContext, mockNext);
+
+		expect(mockKV.put).not.toHaveBeenCalled();
+	});
+
+	it("should include correct data in KV value", async () => {
+		await onlineMiddleware(mockContext, mockNext);
+
+		const putCall = mockKV.put.mock.calls[0];
+		const value = JSON.parse(putCall[1]);
+
+		expect(value).toMatchObject({
+			uid: 123,
+			username: "testuser",
+			ip: "1.2.3.4",
+			page: "/forums/1",
+		});
+		expect(value.ts).toBeTypeOf("number");
+	});
 });
 ```
 
@@ -861,92 +857,92 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { activityMiddleware } from "../../../src/middleware/activity";
 
 describe("activityMiddleware", () => {
-  let mockContext: any;
-  let mockDB: any;
-  let mockKV: any;
-  const NOW = 1711900800; // 固定时间戳
+	let mockContext: any;
+	let mockDB: any;
+	let mockKV: any;
+	const NOW = 1711900800; // 固定时间戳
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW * 1000);
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW * 1000);
 
-    mockDB = {
-      prepare: vi.fn().mockReturnThis(),
-      bind: vi.fn().mockReturnThis(),
-      first: vi.fn(),
-      run: vi.fn().mockResolvedValue({ success: true }),
-    };
-    mockKV = {
-      get: vi.fn().mockResolvedValue(null),
-      put: vi.fn().mockResolvedValue(undefined),
-    };
-    mockContext = {
-      env: { DB: mockDB, KV: mockKV },
-      res: { status: 200 },
-      get: vi.fn((key: string) => (key === "userId" ? 123 : undefined)),
-      executionCtx: {
-        waitUntil: vi.fn((p: Promise<any>) => p),
-      },
-    };
-  });
+		mockDB = {
+			prepare: vi.fn().mockReturnThis(),
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn(),
+			run: vi.fn().mockResolvedValue({ success: true }),
+		};
+		mockKV = {
+			get: vi.fn().mockResolvedValue(null),
+			put: vi.fn().mockResolvedValue(undefined),
+		};
+		mockContext = {
+			env: { DB: mockDB, KV: mockKV },
+			res: { status: 200 },
+			get: vi.fn((key: string) => (key === "userId" ? 123 : undefined)),
+			executionCtx: {
+				waitUntil: vi.fn((p: Promise<any>) => p),
+			},
+		};
+	});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+	afterEach(() => {
+		vi.useRealTimers();
+	});
 
-  it("should skip for unauthenticated requests", async () => {
-    mockContext.get = vi.fn().mockReturnValue(undefined);
-    await activityMiddleware(mockContext, vi.fn());
-    
-    expect(mockDB.prepare).not.toHaveBeenCalled();
-  });
+	it("should skip for unauthenticated requests", async () => {
+		mockContext.get = vi.fn().mockReturnValue(undefined);
+		await activityMiddleware(mockContext, vi.fn());
 
-  it("should skip for error responses", async () => {
-    mockContext.res.status = 500;
-    await activityMiddleware(mockContext, vi.fn());
-    
-    expect(mockDB.prepare).not.toHaveBeenCalled();
-  });
+		expect(mockDB.prepare).not.toHaveBeenCalled();
+	});
 
-  it("should update last_activity without adding ol_time for first activity", async () => {
-    mockDB.first.mockResolvedValue({ last_activity: 0, ol_time: 0 });
-    
-    await activityMiddleware(mockContext, vi.fn());
-    
-    expect(mockDB.prepare).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE users SET last_activity")
-    );
-    // gap > 30 minutes (from 0), should add 0 minutes
-    expect(mockDB.bind).toHaveBeenCalledWith(NOW, 0, 123);
-  });
+	it("should skip for error responses", async () => {
+		mockContext.res.status = 500;
+		await activityMiddleware(mockContext, vi.fn());
 
-  it("should accumulate ol_time for activity within 30 minutes", async () => {
-    const lastActivity = NOW - 600; // 10 分钟前
-    mockDB.first.mockResolvedValue({ last_activity: lastActivity, ol_time: 100 });
-    
-    await activityMiddleware(mockContext, vi.fn());
-    
-    // gap = 600 秒 = 10 分钟，应累加 10 分钟
-    expect(mockDB.bind).toHaveBeenCalledWith(NOW, 10, 123);
-  });
+		expect(mockDB.prepare).not.toHaveBeenCalled();
+	});
 
-  it("should not accumulate ol_time for activity gap > 30 minutes", async () => {
-    const lastActivity = NOW - 3600; // 1 小时前
-    mockDB.first.mockResolvedValue({ last_activity: lastActivity, ol_time: 100 });
-    
-    await activityMiddleware(mockContext, vi.fn());
-    
-    // gap > 30 minutes, should add 0 minutes
-    expect(mockDB.bind).toHaveBeenCalledWith(NOW, 0, 123);
-  });
+	it("should update last_activity without adding ol_time for first activity", async () => {
+		mockDB.first.mockResolvedValue({ last_activity: 0, ol_time: 0 });
 
-  it("should respect throttle (skip if updated within 1 minute)", async () => {
-    mockKV.get.mockResolvedValue(String(NOW - 30)); // 30 秒前更新过
-    
-    await activityMiddleware(mockContext, vi.fn());
-    
-    expect(mockDB.prepare).not.toHaveBeenCalled();
-  });
+		await activityMiddleware(mockContext, vi.fn());
+
+		expect(mockDB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("UPDATE users SET last_activity"),
+		);
+		// gap > 30 minutes (from 0), should add 0 minutes
+		expect(mockDB.bind).toHaveBeenCalledWith(NOW, 0, 123);
+	});
+
+	it("should accumulate ol_time for activity within 30 minutes", async () => {
+		const lastActivity = NOW - 600; // 10 分钟前
+		mockDB.first.mockResolvedValue({ last_activity: lastActivity, ol_time: 100 });
+
+		await activityMiddleware(mockContext, vi.fn());
+
+		// gap = 600 秒 = 10 分钟，应累加 10 分钟
+		expect(mockDB.bind).toHaveBeenCalledWith(NOW, 10, 123);
+	});
+
+	it("should not accumulate ol_time for activity gap > 30 minutes", async () => {
+		const lastActivity = NOW - 3600; // 1 小时前
+		mockDB.first.mockResolvedValue({ last_activity: lastActivity, ol_time: 100 });
+
+		await activityMiddleware(mockContext, vi.fn());
+
+		// gap > 30 minutes, should add 0 minutes
+		expect(mockDB.bind).toHaveBeenCalledWith(NOW, 0, 123);
+	});
+
+	it("should respect throttle (skip if updated within 1 minute)", async () => {
+		mockKV.get.mockResolvedValue(String(NOW - 30)); // 30 秒前更新过
+
+		await activityMiddleware(mockContext, vi.fn());
+
+		expect(mockDB.prepare).not.toHaveBeenCalled();
+	});
 });
 ```
 
@@ -959,104 +955,92 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { aggregateOnlineStats } from "../../../src/lib/online-stats";
 
 describe("aggregateOnlineStats", () => {
-  let mockEnv: any;
-  const NOW = 1711900800;
+	let mockEnv: any;
+	const NOW = 1711900800;
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW * 1000);
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW * 1000);
 
-    mockEnv = {
-      KV: {
-        list: vi.fn(),
-        get: vi.fn(),
-        put: vi.fn().mockResolvedValue(undefined),
-      },
-      DB: {
-        prepare: vi.fn().mockReturnThis(),
-        bind: vi.fn().mockReturnThis(),
-        run: vi.fn().mockResolvedValue({ success: true }),
-        batch: vi.fn().mockResolvedValue([]),
-      },
-    };
-  });
+		mockEnv = {
+			KV: {
+				list: vi.fn(),
+				get: vi.fn(),
+				put: vi.fn().mockResolvedValue(undefined),
+			},
+			DB: {
+				prepare: vi.fn().mockReturnThis(),
+				bind: vi.fn().mockReturnThis(),
+				run: vi.fn().mockResolvedValue({ success: true }),
+				batch: vi.fn().mockResolvedValue([]),
+			},
+		};
+	});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+	afterEach(() => {
+		vi.useRealTimers();
+	});
 
-  it("should count online users from KV list", async () => {
-    mockEnv.KV.list.mockResolvedValue({
-      keys: [{ name: "online:1" }, { name: "online:2" }, { name: "online:3" }],
-      list_complete: true,
-    });
-    mockEnv.KV.get.mockResolvedValue(null); // no existing peak
+	it("should count online users from KV list", async () => {
+		mockEnv.KV.list.mockResolvedValue({
+			keys: [{ name: "online:1" }, { name: "online:2" }, { name: "online:3" }],
+			list_complete: true,
+		});
+		mockEnv.KV.get.mockResolvedValue(null); // no existing peak
 
-    await aggregateOnlineStats(mockEnv);
+		await aggregateOnlineStats(mockEnv);
 
-    expect(mockEnv.KV.put).toHaveBeenCalledWith(
-      "stats:online_count",
-      "3",
-      { expirationTtl: 300 }
-    );
-  });
+		expect(mockEnv.KV.put).toHaveBeenCalledWith("stats:online_count", "3", { expirationTtl: 300 });
+	});
 
-  it("should handle pagination for large user counts", async () => {
-    mockEnv.KV.list
-      .mockResolvedValueOnce({
-        keys: Array(1000).fill({ name: "online:x" }),
-        list_complete: false,
-        cursor: "cursor1",
-      })
-      .mockResolvedValueOnce({
-        keys: Array(500).fill({ name: "online:x" }),
-        list_complete: true,
-      });
-    mockEnv.KV.get.mockResolvedValue(null);
+	it("should handle pagination for large user counts", async () => {
+		mockEnv.KV.list
+			.mockResolvedValueOnce({
+				keys: Array(1000).fill({ name: "online:x" }),
+				list_complete: false,
+				cursor: "cursor1",
+			})
+			.mockResolvedValueOnce({
+				keys: Array(500).fill({ name: "online:x" }),
+				list_complete: true,
+			});
+		mockEnv.KV.get.mockResolvedValue(null);
 
-    await aggregateOnlineStats(mockEnv);
+		await aggregateOnlineStats(mockEnv);
 
-    expect(mockEnv.KV.put).toHaveBeenCalledWith(
-      "stats:online_count",
-      "1500",
-      expect.any(Object)
-    );
-  });
+		expect(mockEnv.KV.put).toHaveBeenCalledWith("stats:online_count", "1500", expect.any(Object));
+	});
 
-  it("should update peak when current count exceeds historical", async () => {
-    mockEnv.KV.list.mockResolvedValue({
-      keys: Array(100).fill({ name: "online:x" }),
-      list_complete: true,
-    });
-    mockEnv.KV.get.mockResolvedValue({ count: 50, date: "2026-03-01" });
+	it("should update peak when current count exceeds historical", async () => {
+		mockEnv.KV.list.mockResolvedValue({
+			keys: Array(100).fill({ name: "online:x" }),
+			list_complete: true,
+		});
+		mockEnv.KV.get.mockResolvedValue({ count: 50, date: "2026-03-01" });
 
-    await aggregateOnlineStats(mockEnv);
+		await aggregateOnlineStats(mockEnv);
 
-    expect(mockEnv.KV.put).toHaveBeenCalledWith(
-      "stats:online_peak",
-      expect.stringContaining('"count":100')
-    );
-    // 不写 D1 — 峰值仅存 KV
-    expect(mockEnv.DB.batch).not.toHaveBeenCalled();
-  });
+		expect(mockEnv.KV.put).toHaveBeenCalledWith(
+			"stats:online_peak",
+			expect.stringContaining('"count":100'),
+		);
+		// 不写 D1 — 峰值仅存 KV
+		expect(mockEnv.DB.batch).not.toHaveBeenCalled();
+	});
 
-  it("should not update peak when current count is lower", async () => {
-    mockEnv.KV.list.mockResolvedValue({
-      keys: Array(30).fill({ name: "online:x" }),
-      list_complete: true,
-    });
-    mockEnv.KV.get.mockResolvedValue({ count: 50, date: "2026-03-01" });
+	it("should not update peak when current count is lower", async () => {
+		mockEnv.KV.list.mockResolvedValue({
+			keys: Array(30).fill({ name: "online:x" }),
+			list_complete: true,
+		});
+		mockEnv.KV.get.mockResolvedValue({ count: 50, date: "2026-03-01" });
 
-    await aggregateOnlineStats(mockEnv);
+		await aggregateOnlineStats(mockEnv);
 
-    // Should update count but not peak
-    expect(mockEnv.KV.put).toHaveBeenCalledTimes(1);
-    expect(mockEnv.KV.put).toHaveBeenCalledWith(
-      "stats:online_count",
-      "30",
-      expect.any(Object)
-    );
-  });
+		// Should update count but not peak
+		expect(mockEnv.KV.put).toHaveBeenCalledTimes(1);
+		expect(mockEnv.KV.put).toHaveBeenCalledWith("stats:online_count", "30", expect.any(Object));
+	});
 });
 ```
 
@@ -1069,68 +1053,68 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { stats } from "../../../src/handlers/stats";
 
 describe("GET /api/v1/stats — online fields", () => {
-  let mockEnv: any;
+	let mockEnv: any;
 
-  beforeEach(() => {
-    mockEnv = {
-      KV: {
-        get: vi.fn(),
-        put: vi.fn().mockResolvedValue(undefined),
-      },
-      DB: {
-        batch: vi.fn().mockResolvedValue([
-          { results: [{ cnt: 10 }] },   // today posts
-          { results: [{ cnt: 5 }] },    // yesterday posts
-          { results: [{ cnt: 1000 }] }, // threads
-          { results: [{ cnt: 500 }] },  // members
-          { results: [{ username: "newest" }] }, // newest member
-        ]),
-      },
-    };
-  });
+	beforeEach(() => {
+		mockEnv = {
+			KV: {
+				get: vi.fn(),
+				put: vi.fn().mockResolvedValue(undefined),
+			},
+			DB: {
+				batch: vi.fn().mockResolvedValue([
+					{ results: [{ cnt: 10 }] }, // today posts
+					{ results: [{ cnt: 5 }] }, // yesterday posts
+					{ results: [{ cnt: 1000 }] }, // threads
+					{ results: [{ cnt: 500 }] }, // members
+					{ results: [{ username: "newest" }] }, // newest member
+				]),
+			},
+		};
+	});
 
-  it("should fill online stats from KV when available", async () => {
-    // KV cache miss for public-stats, so it computes fresh
-    mockEnv.KV.get
-      .mockResolvedValueOnce(null)  // public-stats cache miss
-      .mockResolvedValueOnce("123") // stats:online_count
-      .mockResolvedValueOnce({ count: 456, date: "2026-04-01" }); // stats:online_peak
+	it("should fill online stats from KV when available", async () => {
+		// KV cache miss for public-stats, so it computes fresh
+		mockEnv.KV.get
+			.mockResolvedValueOnce(null) // public-stats cache miss
+			.mockResolvedValueOnce("123") // stats:online_count
+			.mockResolvedValueOnce({ count: 456, date: "2026-04-01" }); // stats:online_peak
 
-    const request = new Request("https://example.com/api/v1/stats");
-    const response = await stats(request, mockEnv);
-    const body = await response.json();
+		const request = new Request("https://example.com/api/v1/stats");
+		const response = await stats(request, mockEnv);
+		const body = await response.json();
 
-    expect(body.totalOnline).toBe(123);
-    expect(body.peakOnline).toBe(456);
-    expect(body.peakDate).toBe("2026-04-01");
-  });
+		expect(body.totalOnline).toBe(123);
+		expect(body.peakOnline).toBe(456);
+		expect(body.peakDate).toBe("2026-04-01");
+	});
 
-  it("should return zeros for online when KV has no data", async () => {
-    mockEnv.KV.get.mockResolvedValue(null);
+	it("should return zeros for online when KV has no data", async () => {
+		mockEnv.KV.get.mockResolvedValue(null);
 
-    const request = new Request("https://example.com/api/v1/stats");
-    const response = await stats(request, mockEnv);
-    const body = await response.json();
+		const request = new Request("https://example.com/api/v1/stats");
+		const response = await stats(request, mockEnv);
+		const body = await response.json();
 
-    expect(body.totalOnline).toBe(0);
-    expect(body.peakOnline).toBe(0);
-    expect(body.peakDate).toBe("");
-  });
+		expect(body.totalOnline).toBe(0);
+		expect(body.peakOnline).toBe(0);
+		expect(body.peakDate).toBe("");
+	});
 
-  it("should preserve existing stats fields", async () => {
-    mockEnv.KV.get.mockResolvedValue(null);
+	it("should preserve existing stats fields", async () => {
+		mockEnv.KV.get.mockResolvedValue(null);
 
-    const request = new Request("https://example.com/api/v1/stats");
-    const response = await stats(request, mockEnv);
-    const body = await response.json();
+		const request = new Request("https://example.com/api/v1/stats");
+		const response = await stats(request, mockEnv);
+		const body = await response.json();
 
-    // Verify existing fields still work
-    expect(body.todayPosts).toBe(10);
-    expect(body.yesterdayPosts).toBe(5);
-    expect(body.totalThreads).toBe(1000);
-    expect(body.totalMembers).toBe(500);
-    expect(body.newestMember).toBe("newest");
-  });
+		// Verify existing fields still work
+		expect(body.todayPosts).toBe(10);
+		expect(body.yesterdayPosts).toBe(5);
+		expect(body.totalThreads).toBe(1000);
+		expect(body.totalMembers).toBe(500);
+		expect(body.newestMember).toBe("newest");
+	});
 });
 ```
 
@@ -1144,59 +1128,59 @@ import { unstable_dev } from "wrangler";
 import type { UnstableDevWorker } from "wrangler";
 
 describe("Online Tracking Integration", () => {
-  let worker: UnstableDevWorker;
+	let worker: UnstableDevWorker;
 
-  beforeAll(async () => {
-    worker = await unstable_dev("src/index.ts", {
-      experimental: { disableExperimentalWarning: true },
-    });
-  });
+	beforeAll(async () => {
+		worker = await unstable_dev("src/index.ts", {
+			experimental: { disableExperimentalWarning: true },
+		});
+	});
 
-  afterAll(async () => {
-    await worker.stop();
-  });
+	afterAll(async () => {
+		await worker.stop();
+	});
 
-  it("should track authenticated user as online", async () => {
-    // 1. 登录获取 JWT
-    const loginRes = await worker.fetch("/api/v1/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "testuser", password: "testpass" }),
-    });
-    const { accessToken } = await loginRes.json();
+	it("should track authenticated user as online", async () => {
+		// 1. 登录获取 JWT
+		const loginRes = await worker.fetch("/api/v1/auth/login", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ username: "testuser", password: "testpass" }),
+		});
+		const { accessToken } = await loginRes.json();
 
-    // 2. 发起认证请求
-    await worker.fetch("/api/v1/forums", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+		// 2. 发起认证请求
+		await worker.fetch("/api/v1/forums", {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
 
-    // 3. 触发 cron 聚合
-    // Note: 在真实测试中需要等待或手动触发 cron
-    
-    // 4. 检查统计结果
-    const statsRes = await worker.fetch("/api/v1/stats");
-    const stats = await statsRes.json();
+		// 3. 触发 cron 聚合
+		// Note: 在真实测试中需要等待或手动触发 cron
 
-    expect(stats.totalOnline).toBeGreaterThanOrEqual(1);
-  });
+		// 4. 检查统计结果
+		const statsRes = await worker.fetch("/api/v1/stats");
+		const stats = await statsRes.json();
 
-  it("should accumulate online time for active user", async () => {
-    // 1. 获取用户初始 ol_time
-    const user1 = await getUserProfile(worker, "testuser");
-    const initialOlTime = user1.olTime;
+		expect(stats.totalOnline).toBeGreaterThanOrEqual(1);
+	});
 
-    // 2. 模拟多次活动（间隔 > 1 分钟）
-    // Note: 在真实测试中需要 mock 时间或使用真实等待
+	it("should accumulate online time for active user", async () => {
+		// 1. 获取用户初始 ol_time
+		const user1 = await getUserProfile(worker, "testuser");
+		const initialOlTime = user1.olTime;
 
-    // 3. 检查 ol_time 增加
-    const user2 = await getUserProfile(worker, "testuser");
-    expect(user2.olTime).toBeGreaterThanOrEqual(initialOlTime);
-  });
+		// 2. 模拟多次活动（间隔 > 1 分钟）
+		// Note: 在真实测试中需要 mock 时间或使用真实等待
+
+		// 3. 检查 ol_time 增加
+		const user2 = await getUserProfile(worker, "testuser");
+		expect(user2.olTime).toBeGreaterThanOrEqual(initialOlTime);
+	});
 });
 
 async function getUserProfile(worker: UnstableDevWorker, username: string) {
-  const res = await worker.fetch(`/api/v1/users/by-name/${username}`);
-  return res.json();
+	const res = await worker.fetch(`/api/v1/users/by-name/${username}`);
+	return res.json();
 }
 ```
 
@@ -1208,51 +1192,51 @@ async function getUserProfile(worker: UnstableDevWorker, username: string) {
 import { test, expect } from "@playwright/test";
 
 test.describe("Online Statistics", () => {
-  test("should display online count on homepage", async ({ page }) => {
-    await page.goto("/");
-    
-    // 等待 footer 加载
-    const footer = page.locator(".home-footer");
-    await expect(footer).toBeVisible();
+	test("should display online count on homepage", async ({ page }) => {
+		await page.goto("/");
 
-    // 检查在线统计区域存在
-    const onlineStats = footer.locator(".online-stats");
-    await expect(onlineStats).toBeVisible();
+		// 等待 footer 加载
+		const footer = page.locator(".home-footer");
+		await expect(footer).toBeVisible();
 
-    // 检查显示格式
-    await expect(onlineStats).toContainText(/当前在线.*\d+.*人/);
-  });
+		// 检查在线统计区域存在
+		const onlineStats = footer.locator(".online-stats");
+		await expect(onlineStats).toBeVisible();
 
-  test("should display peak when available", async ({ page }) => {
-    await page.goto("/");
-    
-    const peakText = page.locator(".online-stats .peak");
-    
-    // 峰值可能不存在（新系统），检查格式正确即可
-    const peakContent = await peakText.textContent();
-    if (peakContent) {
-      expect(peakContent).toMatch(/历史最高.*\d+.*人/);
-    }
-  });
+		// 检查显示格式
+		await expect(onlineStats).toContainText(/当前在线.*\d+.*人/);
+	});
 
-  test("should show user online time in profile", async ({ page }) => {
-    // 登录
-    await page.goto("/login");
-    await page.fill('input[name="username"]', "testuser");
-    await page.fill('input[name="password"]', "testpass");
-    await page.click('button[type="submit"]');
+	test("should display peak when available", async ({ page }) => {
+		await page.goto("/");
 
-    // 访问个人资料
-    await page.goto("/users/testuser");
+		const peakText = page.locator(".online-stats .peak");
 
-    // 检查在线时长显示
-    const olTimeRow = page.locator("dt:has-text('在线时间') + dd");
-    await expect(olTimeRow).toBeVisible();
-    
-    // 格式可能是 "X 小时 Y 分钟" 或 "暂无记录"
-    const text = await olTimeRow.textContent();
-    expect(text).toMatch(/(小时|分钟|暂无记录)/);
-  });
+		// 峰值可能不存在（新系统），检查格式正确即可
+		const peakContent = await peakText.textContent();
+		if (peakContent) {
+			expect(peakContent).toMatch(/历史最高.*\d+.*人/);
+		}
+	});
+
+	test("should show user online time in profile", async ({ page }) => {
+		// 登录
+		await page.goto("/login");
+		await page.fill('input[name="username"]', "testuser");
+		await page.fill('input[name="password"]', "testpass");
+		await page.click('button[type="submit"]');
+
+		// 访问个人资料
+		await page.goto("/users/testuser");
+
+		// 检查在线时长显示
+		const olTimeRow = page.locator("dt:has-text('在线时间') + dd");
+		await expect(olTimeRow).toBeVisible();
+
+		// 格式可能是 "X 小时 Y 分钟" 或 "暂无记录"
+		const text = await olTimeRow.textContent();
+		expect(text).toMatch(/(小时|分钟|暂无记录)/);
+	});
 });
 ```
 
@@ -1262,56 +1246,56 @@ test.describe("Online Statistics", () => {
 // apps/worker/tests/fixtures/online.ts
 
 export const MOCK_ONLINE_USERS = [
-  { uid: 1, username: "admin", ip: "10.0.0.1", page: "/admin", ts: 1711900000 },
-  { uid: 2, username: "moderator", ip: "10.0.0.2", page: "/forums/1", ts: 1711900100 },
-  { uid: 3, username: "user1", ip: "10.0.0.3", page: "/threads/123", ts: 1711900200 },
+	{ uid: 1, username: "admin", ip: "10.0.0.1", page: "/admin", ts: 1711900000 },
+	{ uid: 2, username: "moderator", ip: "10.0.0.2", page: "/forums/1", ts: 1711900100 },
+	{ uid: 3, username: "user1", ip: "10.0.0.3", page: "/threads/123", ts: 1711900200 },
 ];
 
 export const MOCK_PEAK_DATA = {
-  count: 256,
-  date: "2026-03-15",
-  timestamp: 1710460800,
+	count: 256,
+	date: "2026-03-15",
+	timestamp: 1710460800,
 };
 
 export function createMockKV(users = MOCK_ONLINE_USERS, peak = MOCK_PEAK_DATA) {
-  const store = new Map<string, string>();
-  
-  // 填充在线用户
-  for (const user of users) {
-    store.set(`online:${user.uid}`, JSON.stringify(user));
-  }
-  
-  // 填充统计缓存
-  store.set("stats:online_count", String(users.length));
-  store.set("stats:online_peak", JSON.stringify(peak));
+	const store = new Map<string, string>();
 
-  return {
-    get: async (key: string, type?: string) => {
-      const value = store.get(key);
-      if (!value) return null;
-      return type === "json" ? JSON.parse(value) : value;
-    },
-    put: async (key: string, value: string) => {
-      store.set(key, value);
-    },
-    list: async ({ prefix, cursor, limit }: any) => {
-      const keys = Array.from(store.keys())
-        .filter((k) => k.startsWith(prefix))
-        .map((name) => ({ name }));
-      return { keys, list_complete: true };
-    },
-  };
+	// 填充在线用户
+	for (const user of users) {
+		store.set(`online:${user.uid}`, JSON.stringify(user));
+	}
+
+	// 填充统计缓存
+	store.set("stats:online_count", String(users.length));
+	store.set("stats:online_peak", JSON.stringify(peak));
+
+	return {
+		get: async (key: string, type?: string) => {
+			const value = store.get(key);
+			if (!value) return null;
+			return type === "json" ? JSON.parse(value) : value;
+		},
+		put: async (key: string, value: string) => {
+			store.set(key, value);
+		},
+		list: async ({ prefix, cursor, limit }: any) => {
+			const keys = Array.from(store.keys())
+				.filter((k) => k.startsWith(prefix))
+				.map((name) => ({ name }));
+			return { keys, list_complete: true };
+		},
+	};
 }
 ```
 
 ### 10.6 测试覆盖率目标
 
-| 模块 | 行覆盖率 | 分支覆盖率 |
-|------|---------|-----------|
-| `middleware/online.ts` | ≥90% | ≥85% |
-| `middleware/activity.ts` | ≥90% | ≥85% |
-| `cron/online-stats.ts` | ≥85% | ≥80% |
-| `handlers/stats.ts` | ≥95% | ≥90% |
+| 模块                     | 行覆盖率 | 分支覆盖率 |
+| ------------------------ | -------- | ---------- |
+| `middleware/online.ts`   | ≥90%     | ≥85%       |
+| `middleware/activity.ts` | ≥90%     | ≥85%       |
+| `cron/online-stats.ts`   | ≥85%     | ≥80%       |
+| `handlers/stats.ts`      | ≥95%     | ≥90%       |
 
 运行覆盖率报告：
 ```bash
@@ -1324,11 +1308,11 @@ bun test --coverage apps/worker/tests/unit/
 
 ### 11.1 KV 操作成本
 
-| 操作 | 频率 | 成本影响 |
-|------|------|---------|
+| 操作              | 频率          | 成本影响          |
+| ----------------- | ------------- | ----------------- |
 | 写入 online:{uid} | 每次 API 请求 | 低（KV 写入便宜） |
-| List online:* | 每 5 分钟 | 低（单次操作） |
-| 读取 stats:* | 每次首页加载 | 极低（读取便宜） |
+| List online:*     | 每 5 分钟     | 低（单次操作）    |
+| 读取 stats:*      | 每次首页加载  | 极低（读取便宜）  |
 
 ### 11.2 D1 写入优化
 
@@ -1350,13 +1334,13 @@ await c.env.KV.put(`activity_throttle:${userId}`, String(now), { expirationTtl: 
 
 ## 12. 未来扩展
 
-| 功能 | 说明 | 优先级 |
-|------|------|--------|
-| 游客统计 | 基于 session ID 或 IP 统计游客数 | P2 |
-| 在线用户列表 | 展示当前在线的用户名列表 | P2 |
-| 版块在线统计 | 按版块统计当前浏览人数 | P3 |
-| 24 小时在线趋势 | 记录每小时在线人数，绘制曲线 | P3 |
-| 用户在线时长排行 | TOP N 在线时长用户榜单 | P3 |
+| 功能             | 说明                             | 优先级 |
+| ---------------- | -------------------------------- | ------ |
+| 游客统计         | 基于 session ID 或 IP 统计游客数 | P2     |
+| 在线用户列表     | 展示当前在线的用户名列表         | P2     |
+| 版块在线统计     | 按版块统计当前浏览人数           | P3     |
+| 24 小时在线趋势  | 记录每小时在线人数，绘制曲线     | P3     |
+| 用户在线时长排行 | TOP N 在线时长用户榜单           | P3     |
 
 ---
 

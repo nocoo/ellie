@@ -9,27 +9,27 @@
 
 ### S 级项目经验吸收
 
-| 项目 | 模式 | 吸收点 |
-|------|------|--------|
-| **surety** | Page Object Model | 每个页面一个 `*.page.ts` |
-| **surety** | Custom fixtures | `fixtures/base.ts` 扩展 test |
-| **surety** | Data-driven tests | 路由数组 + for-loop |
-| **gecko** | BDD 目录分离 | 独立于单元测试 |
-| **dove** | Skeleton-aware | `skeleton.or(content)` |
+| 项目       | 模式              | 吸收点                       |
+| ---------- | ----------------- | ---------------------------- |
+| **surety** | Page Object Model | 每个页面一个 `*.page.ts`     |
+| **surety** | Custom fixtures   | `fixtures/base.ts` 扩展 test |
+| **surety** | Data-driven tests | 路由数组 + for-loop          |
+| **gecko**  | BDD 目录分离      | 独立于单元测试               |
+| **dove**   | Skeleton-aware    | `skeleton.or(content)`       |
 
 ### Quality System Context
 
-| 维度 | 要求 | Ellie 状态 |
-|------|------|-----------|
-| L3 | 真实用户视角 E2E | ✅ Playwright |
-| D1 | 测试资源物理隔离 | ⚠️ 需配置 |
+| 维度 | 要求             | Ellie 状态    |
+| ---- | ---------------- | ------------- |
+| L3   | 真实用户视角 E2E | ✅ Playwright |
+| D1   | 测试资源物理隔离 | ⚠️ 需配置     |
 
 ### Port Convention
 
-| 环境 | 端口 | 用途 |
-|------|------|------|
-| Dev | 7031 | 本地开发 |
-| API E2E (L2) | 17031 | Worker API 测试 |
+| 环境             | 端口  | 用途            |
+| ---------------- | ----- | --------------- |
+| Dev              | 7031  | 本地开发        |
+| API E2E (L2)     | 17031 | Worker API 测试 |
 | Browser E2E (L3) | 27031 | Playwright 测试 |
 
 > 规则：E2E = dev+10000，BDD = dev+20000（见 Memory 端口分配总表）
@@ -47,35 +47,40 @@
 ```typescript
 // playwright.config.ts
 export default defineConfig({
-  // ... 
-  projects: [
-    {
-      name: "stateless",
-      testMatch: /\/(navigation|auth-readonly|search)\.spec\.ts/,
-      fullyParallel: true,
-    },
-    {
-      name: "stateful",
-      testMatch: /\/(thread|post|moderation|admin)\.spec\.ts/,
-      fullyParallel: false,  // Sequential
-      workers: 1,
-    },
-  ],
+	// ...
+	projects: [
+		{
+			name: "stateless",
+			testMatch: /\/(navigation|auth-readonly|search)\.spec\.ts/,
+			fullyParallel: true,
+		},
+		{
+			name: "stateful",
+			testMatch: /\/(thread|post|moderation|admin)\.spec\.ts/,
+			fullyParallel: false, // Sequential
+			workers: 1,
+		},
+	],
 });
 ```
 
 **Stateful tests** 每个 describe 块前执行 seed reset：
 
 ```typescript
-test.describe.serial("Thread CRUD", () => {
-  test.beforeAll(async ({ request }) => {
-    // Reset to known state via API
-    await request.post("/api/test/reset-seed");
-  });
-  
-  test("create thread", async ({ page }) => { /* ... */ });
-  test("delete thread", async ({ page }) => { /* ... */ });
-});
+test.describe
+	.serial("Thread CRUD", () => {
+		test.beforeAll(async ({ request }) => {
+			// Reset to known state via API
+			await request.post("/api/test/reset-seed");
+		});
+
+		test("create thread", async ({ page }) => {
+			/* ... */
+		});
+		test("delete thread", async ({ page }) => {
+			/* ... */
+		});
+	});
 ```
 
 ### 2. Admin Authentication Strategy
@@ -96,44 +101,44 @@ import fs from "fs";
 const ADMIN_AUTH_FILE = ".auth/admin.json";
 
 setup("authenticate as admin", async ({ page }) => {
-  // Skip if auth state already exists and is recent (< 7 days)
-  if (fs.existsSync(ADMIN_AUTH_FILE)) {
-    const stats = fs.statSync(ADMIN_AUTH_FILE);
-    const ageMs = Date.now() - stats.mtimeMs;
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    if (ageMs < sevenDays) {
-      console.log("Reusing existing admin auth state");
-      return;  // Skip — state is still valid
-    }
-  }
-  
-  // First run or expired: require manual OAuth
-  console.log("Admin auth state missing or expired. Manual OAuth required.");
-  console.log("Complete Google OAuth in the browser window...");
-  
-  await page.goto("/admin/login");
-  await page.waitForURL("/admin", { timeout: 120_000 });  // Wait for manual completion
-  
-  // Save signed-in state for reuse
-  await page.context().storageState({ path: ADMIN_AUTH_FILE });
-  console.log("Admin auth state saved to", ADMIN_AUTH_FILE);
+	// Skip if auth state already exists and is recent (< 7 days)
+	if (fs.existsSync(ADMIN_AUTH_FILE)) {
+		const stats = fs.statSync(ADMIN_AUTH_FILE);
+		const ageMs = Date.now() - stats.mtimeMs;
+		const sevenDays = 7 * 24 * 60 * 60 * 1000;
+		if (ageMs < sevenDays) {
+			console.log("Reusing existing admin auth state");
+			return; // Skip — state is still valid
+		}
+	}
+
+	// First run or expired: require manual OAuth
+	console.log("Admin auth state missing or expired. Manual OAuth required.");
+	console.log("Complete Google OAuth in the browser window...");
+
+	await page.goto("/admin/login");
+	await page.waitForURL("/admin", { timeout: 120_000 }); // Wait for manual completion
+
+	// Save signed-in state for reuse
+	await page.context().storageState({ path: ADMIN_AUTH_FILE });
+	console.log("Admin auth state saved to", ADMIN_AUTH_FILE);
 });
 
 // playwright.config.ts
 export default defineConfig({
-  projects: [
-    {
-      name: "setup",
-      testMatch: /auth\.setup\.ts/,
-    },
-    {
-      name: "admin-tests",
-      dependencies: ["setup"],
-      use: {
-        storageState: ADMIN_AUTH_FILE,
-      },
-    },
-  ],
+	projects: [
+		{
+			name: "setup",
+			testMatch: /auth\.setup\.ts/,
+		},
+		{
+			name: "admin-tests",
+			dependencies: ["setup"],
+			use: {
+				storageState: ADMIN_AUTH_FILE,
+			},
+		},
+	],
 });
 ```
 
@@ -180,15 +185,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 ```typescript
 // tests/e2e/fixtures/test-data.ts
 export async function createTestThread(request: APIRequestContext) {
-  const res = await request.post("/api/v1/threads", {
-    data: {
-      forumId: 10,
-      subject: `E2E-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-      content: "Test content",
-    },
-    headers: { Authorization: `Bearer ${TEST_USER_TOKEN}` },
-  });
-  return res.json();
+	const res = await request.post("/api/v1/threads", {
+		data: {
+			forumId: 10,
+			subject: `E2E-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+			content: "Test content",
+		},
+		headers: { Authorization: `Bearer ${TEST_USER_TOKEN}` },
+	});
+	return res.json();
 }
 ```
 
@@ -200,28 +205,28 @@ export async function createTestThread(request: APIRequestContext) {
 
 基于当前代码库实际状态，以下功能可立即测试：
 
-| Domain | Specs | 状态 |
-|--------|-------|------|
-| Navigation | 6 | ✅ 可测试 |
-| Auth (Read-only) | 3 | ✅ 可测试 |
-| Thread (Create/View) | 2 | ✅ 可测试 |
-| Post (Create/View) | 2 | ✅ 可测试 |
-| Search | 2 | ✅ 可测试 |
-| System (Theme) | 1 | ✅ 可测试 |
-| **Total Current** | **16** | |
+| Domain               | Specs  | 状态      |
+| -------------------- | ------ | --------- |
+| Navigation           | 6      | ✅ 可测试 |
+| Auth (Read-only)     | 3      | ✅ 可测试 |
+| Thread (Create/View) | 2      | ✅ 可测试 |
+| Post (Create/View)   | 2      | ✅ 可测试 |
+| Search               | 2      | ✅ 可测试 |
+| System (Theme)       | 1      | ✅ 可测试 |
+| **Total Current**    | **16** |           |
 
 ### Future Planned Coverage (Blocked)
 
 以下测试需要产品功能完成后才能实施：
 
-| Domain | Specs | 阻塞原因 |
-|--------|-------|----------|
-| Auth (Registration) | 1 | CAPTCHA 环境依赖 |
-| User Profile Edit | 2 | `/users/me` 不存在，无编辑 UI |
-| Moderation | 7 | 需要 stateful 隔离方案 |
-| Admin | 8 | 需要 admin storage state |
-| System (Maintenance) | 2 | 需要 admin 权限 |
-| **Total Future** | **20** | |
+| Domain               | Specs  | 阻塞原因                      |
+| -------------------- | ------ | ----------------------------- |
+| Auth (Registration)  | 1      | CAPTCHA 环境依赖              |
+| User Profile Edit    | 2      | `/users/me` 不存在，无编辑 UI |
+| Moderation           | 7      | 需要 stateful 隔离方案        |
+| Admin                | 8      | 需要 admin storage state      |
+| System (Maintenance) | 2      | 需要 admin 权限               |
+| **Total Future**     | **20** |                               |
 
 ---
 
@@ -230,6 +235,7 @@ export async function createTestThread(request: APIRequestContext) {
 ### E2E-NV: Navigation Flow (6 specs)
 
 #### E2E-NV-01: Homepage Loads
+
 ```gherkin
 Given I navigate to /
 Then I should see forum groups
@@ -238,6 +244,7 @@ And I should see home footer
 ```
 
 #### E2E-NV-02: Forum Page Loads
+
 ```gherkin
 Given I navigate to /forums/10
 Then I should see forum heading
@@ -246,6 +253,7 @@ And I should see thread list
 ```
 
 #### E2E-NV-03: Thread Page Loads
+
 ```gherkin
 Given I navigate to /threads/50001
 Then I should see thread title
@@ -254,6 +262,7 @@ And I should see breadcrumbs
 ```
 
 #### E2E-NV-04: User Profile Loads
+
 ```gherkin
 Given I navigate to /users/1
 Then I should see user avatar
@@ -262,6 +271,7 @@ And I should see tab navigation
 ```
 
 #### E2E-NV-05: Digest Page Loads
+
 ```gherkin
 Given I navigate to /digest
 Then I should see "精华帖列表" heading
@@ -269,6 +279,7 @@ And I should see digest statistics
 ```
 
 #### E2E-NV-06: Search Page Loads
+
 ```gherkin
 Given I navigate to /search
 Then I should see search input
@@ -281,6 +292,7 @@ And I should see "搜索" button
 ### E2E-AU: Auth Flow (3 specs - Read-only)
 
 #### E2E-AU-01: Login Form Renders
+
 ```gherkin
 Given I navigate to /login
 Then I should see username input
@@ -289,6 +301,7 @@ And submit button should be disabled
 ```
 
 #### E2E-AU-02: Login Form Validation
+
 ```gherkin
 Given I am on /login
 When I fill username "admin"
@@ -297,6 +310,7 @@ Then submit button should be enabled
 ```
 
 #### E2E-AU-03: Login Success Redirects
+
 ```gherkin
 Given I am on /login
 When I submit valid credentials
@@ -311,6 +325,7 @@ And I should see my username in navbar
 ### E2E-TH: Thread Flow (2 specs)
 
 #### E2E-TH-01: View Thread Detail
+
 ```gherkin
 Given I navigate to /threads/50001
 Then I should see thread subject
@@ -319,6 +334,7 @@ And I should see post content
 ```
 
 #### E2E-TH-02: Create Thread (Logged In)
+
 ```gherkin
 Given I am logged in
 And I navigate to /forums/10
@@ -337,6 +353,7 @@ And I should see my thread subject as page heading
 ### E2E-PO: Post Flow (2 specs)
 
 #### E2E-PO-01: View Posts
+
 ```gherkin
 Given I navigate to /threads/50001
 Then I should see multiple post cards
@@ -345,6 +362,7 @@ And each post should have content area
 ```
 
 #### E2E-PO-02: Reply to Thread (Logged In)
+
 ```gherkin
 Given I am logged in
 And I am on /threads/50001
@@ -363,6 +381,7 @@ And my reply should appear in post list
 ### E2E-SE: Search Flow (2 specs)
 
 #### E2E-SE-01: Search by Title
+
 ```gherkin
 Given I am on /search
 When I type "测试" in search input
@@ -372,6 +391,7 @@ And I should see results or "未找到" message
 ```
 
 #### E2E-SE-02: Switch Search Type
+
 ```gherkin
 Given I have search results for "admin"
 When I click "按作者搜索" tab
@@ -384,6 +404,7 @@ And results should update
 ### E2E-SY: System Flow (1 spec)
 
 #### E2E-SY-01: Theme Toggle (Three-state)
+
 ```gherkin
 Given I am on any page
 When I click theme toggle
@@ -401,6 +422,7 @@ Then icon should change to Sun (light)
 ## Future Specs (Blocked)
 
 ### E2E-AU-04: Registration (Blocked: CAPTCHA)
+
 ```gherkin
 # Requires NEXT_PUBLIC_CAP_API_ENDPOINT
 Given I am on /register
@@ -414,6 +436,7 @@ And redirected to /
 ---
 
 ### E2E-US: User Profile Edit (Blocked: No UI)
+
 ```gherkin
 # /users/me does not exist
 # Profile page has no edit functionality
@@ -423,6 +446,7 @@ And redirected to /
 ---
 
 ### E2E-MO: Moderation (Blocked: Isolation)
+
 ```gherkin
 # Requires stateful test isolation
 # Requires moderator login fixtures
@@ -432,6 +456,7 @@ And redirected to /
 ---
 
 ### E2E-AD: Admin (Blocked: Auth)
+
 ```gherkin
 # Requires Google OAuth + ADMIN_EMAILS
 # Or storage state injection
@@ -470,6 +495,7 @@ tests/e2e/
 ### Phase 1: Infrastructure (2 commits)
 
 #### Commit 1: Fixtures & Config
+
 ```
 - tests/e2e/fixtures/base.ts (navigateTo, loginAs)
 - tests/e2e/fixtures/selectors.ts
@@ -477,6 +503,7 @@ tests/e2e/
 ```
 
 #### Commit 2: Page Objects
+
 ```
 - tests/e2e/pages/home.page.ts
 - tests/e2e/pages/forum.page.ts
@@ -489,22 +516,26 @@ tests/e2e/
 ### Phase 2: Current Specs (4 commits)
 
 #### Commit 3: Navigation Spec
+
 ```
 - tests/e2e/navigation.spec.ts (6 tests)
 ```
 
 #### Commit 4: Auth Spec
+
 ```
 - tests/e2e/auth.spec.ts (3 tests)
 ```
 
 #### Commit 5: Thread & Post Specs
+
 ```
 - tests/e2e/thread.spec.ts (2 tests)
 - tests/e2e/post.spec.ts (2 tests)
 ```
 
 #### Commit 6: Search & System Specs
+
 ```
 - tests/e2e/search.spec.ts (2 tests)
 - tests/e2e/system.spec.ts (1 test)
@@ -513,6 +544,7 @@ tests/e2e/
 ### Phase 3: Migration & Cleanup (1 commit)
 
 #### Commit 7: Migrate Legacy Tests
+
 ```
 - Merge content from critical-path.spec.ts
 - Merge content from functional-flows.spec.ts
@@ -531,29 +563,29 @@ Based on actual UI inspection:
 
 ```typescript
 export class ForumPage {
-  constructor(private page: Page) {}
+	constructor(private page: Page) {}
 
-  async goto(forumId: number) {
-    await this.page.goto(`/forums/${forumId}`);
-    await this.page.waitForLoadState("networkidle");
-  }
+	async goto(forumId: number) {
+		await this.page.goto(`/forums/${forumId}`);
+		await this.page.waitForLoadState("networkidle");
+	}
 
-  get heading() {
-    return this.page.locator("h1");  // Forum name
-  }
+	get heading() {
+		return this.page.locator("h1"); // Forum name
+	}
 
-  get newThreadButton() {
-    // Actual text is "发表新帖", not "发新帖"
-    return this.page.getByRole("button", { name: "发表新帖" });
-  }
+	get newThreadButton() {
+		// Actual text is "发表新帖", not "发新帖"
+		return this.page.getByRole("button", { name: "发表新帖" });
+	}
 
-  get threadList() {
-    // No data-testid, use structure
-    return this.page.locator(".divide-y");
-  }
+	get threadList() {
+		// No data-testid, use structure
+		return this.page.locator(".divide-y");
+	}
 
-  // No sort buttons in current UI
-  // No digest filter toggle in current UI
+	// No sort buttons in current UI
+	// No digest filter toggle in current UI
 }
 ```
 
@@ -564,9 +596,9 @@ export class ForumPage {
 const THEME_SEQUENCE = ["Light mode", "Dark mode", "System theme"];
 
 async function cycleTheme(page: Page, times: number) {
-  for (let i = 0; i < times; i++) {
-    await page.getByLabel(/mode|theme/).click();
-  }
+	for (let i = 0; i < times; i++) {
+		await page.getByLabel(/mode|theme/).click();
+	}
 }
 ```
 
@@ -574,15 +606,15 @@ async function cycleTheme(page: Page, times: number) {
 
 ## Implementation Checklist
 
-| # | Commit | Status |
-|---|--------|--------|
-| 1 | Fixtures & Config | ✅ |
-| 2 | Page Objects | ✅ |
-| 3 | Navigation Spec | ✅ |
-| 4 | Auth Spec | ✅ |
-| 5 | Thread & Post Specs | ✅ |
-| 6 | Search & System Specs | ✅ |
-| 7 | Legacy Migration | ✅ |
+| #   | Commit                | Status |
+| --- | --------------------- | ------ |
+| 1   | Fixtures & Config     | ✅     |
+| 2   | Page Objects          | ✅     |
+| 3   | Navigation Spec       | ✅     |
+| 4   | Auth Spec             | ✅     |
+| 5   | Thread & Post Specs   | ✅     |
+| 6   | Search & System Specs | ✅     |
+| 7   | Legacy Migration      | ✅     |
 
 **Current scope: 16 tests in 7 commits**
 
@@ -590,10 +622,10 @@ async function cycleTheme(page: Page, times: number) {
 
 ## Appendix: Blockers for Future Scope
 
-| Blocker | Impact | Resolution Path |
-|---------|--------|-----------------|
-| CAPTCHA env dependency | Registration test | Mock CAPTCHA or skip in E2E |
-| No `/users/me` route | Profile edit tests | Implement route + edit UI |
-| No profile edit UI | Profile edit tests | Implement edit form |
-| Admin requires OAuth | Admin tests | Storage state or E2E bypass |
-| Stateful test collision | Moderation tests | Implement seed reset API |
+| Blocker                 | Impact             | Resolution Path             |
+| ----------------------- | ------------------ | --------------------------- |
+| CAPTCHA env dependency  | Registration test  | Mock CAPTCHA or skip in E2E |
+| No `/users/me` route    | Profile edit tests | Implement route + edit UI   |
+| No profile edit UI      | Profile edit tests | Implement edit form         |
+| Admin requires OAuth    | Admin tests        | Storage state or E2E bypass |
+| Stateful test collision | Moderation tests   | Implement seed reset API    |
