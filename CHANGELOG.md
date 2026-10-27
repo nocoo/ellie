@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.29] - 2026-10-27
+
+### Changed
+
+- Bump @biomejs/biome to 2.6.3, @cloudflare/workers-types to 5.20261026.1, capjs-core to 0.1.6, lucide-react to 1.61.0, wrangler to 4.153.0, @types/bun to 1.4.4, and Next.js to 16.4.3.
+
 ## [1.14.28] - 2026-10-26
 
 ### Changed
@@ -655,7 +661,7 @@ No database schema migration is introduced. These changes trade display freshnes
   - `buildThreadColumns({variant, forumNameById?})`
   - `buildPostColumns({variant?})`
   - `buildAttachmentColumns({variant?, onPreview?})`
-  Actions column stays per-page (dialog wiring differs per caller). `variant: "full" | "compact"` picks the column set; a single cell body per column propagates to every consumer. `/admin/recent`'s UsersTab automatically inherits UserAvatar + the destructive 未验证 badge as side-effects of the extraction.
+    Actions column stays per-page (dialog wiring differs per caller). `variant: "full" | "compact"` picks the column set; a single cell body per column propagates to every consumer. `/admin/recent`'s UsersTab automatically inherits UserAvatar + the destructive 未验证 badge as side-effects of the extraction.
 
 ### Fixed
 

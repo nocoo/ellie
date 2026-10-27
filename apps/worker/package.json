@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/worker",
-	"version": "1.14.28",
+	"version": "1.14.29",
 	"private": true,
 	"type": "module",
 	"scripts": {
