@@ -32,6 +32,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: hard-coded IIFE constant, no user input
 					dangerouslySetInnerHTML={{ __html: `${themeInitScript}\n${LEGACY_DISCUZ_STUBS_SCRIPT}` }}
 				/>
+				<script
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: Traks analytics queue stub, no user input
+					dangerouslySetInnerHTML={{
+						__html: `window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}`,
+					}}
+				/>
+				<script
+					defer
+					data-site="pb_live_tn8ddj6al5j2m6xhgg2c5vkc"
+					src="https://track-collect.nocoo.cloud/t.js"
+				/>
 			</head>
 			<body>
 				<Providers>{children}</Providers>
