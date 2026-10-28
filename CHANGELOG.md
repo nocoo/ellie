@@ -4,7 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [1.14.30] - 2026-10-27
+## [1.14.31] - 2026-10-28
+
+### Added
+
+- Load the Traks analytics collector on the public forum frontend (`apps/web`).
+
 
 ### Security
 
