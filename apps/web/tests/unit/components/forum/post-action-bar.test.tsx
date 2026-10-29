@@ -7,6 +7,23 @@ import { PostActionBar } from "@/components/forum/post-action-bar";
 afterEach(cleanup);
 
 describe("PostActionBar", () => {
+	it("keeps all mobile actions in one horizontally scrollable row", () => {
+		render(
+			<ForumToastProvider>
+				<PostActionBar canComment canRateCoins canRateCredits canEdit canDelete canReport />
+			</ForumToastProvider>,
+		);
+		const bar = screen.getByTestId("post-action-bar");
+		expect(bar.classList.contains("overflow-x-auto")).toBe(true);
+		expect(bar.classList.contains("flex-wrap")).toBe(false);
+		expect(bar.classList.contains("sm:flex-wrap")).toBe(true);
+		expect(screen.getAllByRole("button")).toHaveLength(7);
+		for (const group of bar.children) {
+			expect(group.classList.contains("shrink-0")).toBe(true);
+			expect(group.classList.contains("flex-wrap")).toBe(false);
+		}
+	});
+
 	it("ignores a second quote-reply click while the first handoff is still running", async () => {
 		let finish!: () => void;
 		const onReply = vi.fn(

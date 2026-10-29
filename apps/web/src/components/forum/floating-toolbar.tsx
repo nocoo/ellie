@@ -289,7 +289,7 @@ export function FloatingToolbar({
 	const showAction = actionType !== "none" && onAction;
 
 	return (
-		<div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40">
+		<div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40">
 			<TooltipProvider delay={300}>
 				<fieldset
 					aria-label="阅读工具"

@@ -108,6 +108,22 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("ThreadPostsClient", () => {
+	it("keeps both mobile toolbars scrollable without wrapping action groups", () => {
+		const { getAllByTestId } = render(
+			createElement(ThreadPostsClient, { ...defaultProps, canManageThread: true }),
+		);
+		const toolbars = getAllByTestId("thread-toolbar");
+		expect(toolbars).toHaveLength(2);
+		for (const toolbar of toolbars) {
+			expect(toolbar.classList.contains("overflow-x-auto")).toBe(true);
+			expect(toolbar.classList.contains("flex-wrap")).toBe(false);
+			expect(toolbar.classList.contains("sm:flex-wrap")).toBe(true);
+			const actions = toolbar.lastElementChild;
+			expect(actions?.classList.contains("shrink-0")).toBe(true);
+			expect(actions?.classList.contains("flex-wrap")).toBe(false);
+		}
+	});
+
 	it("passes jumpPage to FloatingToolbar when provided", () => {
 		const jumpPage = { basePath: "/threads/1", pages: 5 };
 		render(createElement(ThreadPostsClient, { ...defaultProps, jumpPage }));

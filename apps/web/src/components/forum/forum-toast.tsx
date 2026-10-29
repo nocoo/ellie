@@ -63,7 +63,7 @@ function ForumToastContent({ children }: { children: ReactNode }) {
 			<Toast.Portal>
 				<Toast.Viewport
 					aria-label="操作提示"
-					className="pointer-events-none fixed inset-x-3 top-3 z-[9999] flex flex-col gap-2 outline-none sm:inset-x-auto sm:right-5 sm:top-5 sm:w-96 sm:max-w-[calc(100vw-2.5rem)]"
+					className="pointer-events-none fixed left-[calc(env(safe-area-inset-left)+0.75rem)] right-[calc(env(safe-area-inset-right)+0.75rem)] top-[calc(env(safe-area-inset-top)+0.75rem)] z-[9999] flex flex-col gap-2 outline-none sm:left-auto sm:right-[calc(env(safe-area-inset-right)+1.25rem)] sm:top-[calc(env(safe-area-inset-top)+1.25rem)] sm:w-96 sm:max-w-[calc(100vw-2.5rem)]"
 				>
 					{toasts.map((toast) => {
 						const type = (toast.type ?? "info") as ToastType;

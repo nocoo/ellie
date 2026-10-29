@@ -160,6 +160,16 @@
 	/* Layout */
 	--content-max-width: 1280px;
 	--content-px: 1rem;
+	--dialog-max-width: calc(
+		100vw -
+		2 *
+		max(1rem, env(safe-area-inset-left), env(safe-area-inset-right))
+	);
+	--dialog-max-height: calc(
+		100dvh -
+		2 *
+		max(1rem, env(safe-area-inset-top), env(safe-area-inset-bottom))
+	);
 }
 
 /* ==========================================================================
@@ -215,7 +225,7 @@
 		@apply border-border;
 	}
 	html {
-		@apply bg-background;
+		@apply bg-card;
 		color-scheme: light;
 	}
 	html:has([data-home-sections]) {
@@ -225,7 +235,7 @@
 		color-scheme: dark;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-card text-foreground;
 		font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
 	}
 }
@@ -241,15 +251,16 @@
 .width-container {
 	max-width: var(--content-max-width);
 	margin-inline: auto;
-	padding-inline: var(--content-px);
+	padding-left: max(var(--content-px), env(safe-area-inset-left));
+	padding-right: max(var(--content-px), env(safe-area-inset-right));
 }
 :root[data-width-mode="full"] .width-container {
+	--content-px: 1rem;
 	max-width: none;
-	padding-inline: 1rem;
 }
 @media (min-width: 768px) {
 	:root[data-width-mode="full"] .width-container {
-		padding-inline: 2rem;
+		--content-px: 2rem;
 	}
 }
 

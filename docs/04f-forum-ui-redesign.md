@@ -6,6 +6,15 @@
 >
 > **路径约定**：本文档所有文件路径相对于 `apps/web/`。例如 `src/hooks/use-theme.ts` 指 `apps/web/src/hooks/use-theme.ts`。
 
+### Mobile refinements (2026-10-29)
+
+- Below `sm` (640px), home category links scroll horizontally beside a fixed-width check-in action. The section-count label is removed at every width.
+- Home showcases expose at most five items without a vertical scroll region on mobile; desktop retains the existing seven-item, fixed-height scroll region.
+- Wide forum cards use the existing grid card's mobile icon column, two-row content, spacing and activity badge. Panel column breakpoints and desktop layouts are unchanged.
+- Both thread toolbars and post action groups stay on one horizontally scrollable row on mobile, preserving desktop wrapping and all permission checks.
+- The root viewport covers safe areas. Header browser colors follow the `--card` token on first paint and theme changes, including stored preferences overriding the system theme. The header, content gutters and footer account for safe-area insets.
+- Automated browser checks verify viewport metadata, computed theme colors and responsive geometry. Actual iOS Safari chrome and Home Screen status-bar rendering still require a physical-device check; Chromium and desktop WebKit mobile emulation do not render them.
+
 ## 目标
 
 1. **卡片化布局** — 全站使用 shadcn `Card` 组件体系

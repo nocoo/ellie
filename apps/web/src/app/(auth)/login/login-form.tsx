@@ -192,7 +192,7 @@ function LoginFormInner() {
 						}
 					/>
 					<DialogContent
-						className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
+						className="max-h-[min(90dvh,var(--dialog-max-height))] overflow-y-auto sm:max-w-2xl"
 						showCloseButton={!registerBusy}
 					>
 						<DialogHeader>

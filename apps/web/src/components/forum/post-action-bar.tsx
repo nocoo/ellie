@@ -82,8 +82,11 @@ export function PostActionBar({
 	const hasModActions = canEdit || canDelete || canReport;
 
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-1 border-t border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-			<div className="flex flex-wrap items-center gap-1">
+		<div
+			className="flex items-center justify-between gap-1 overflow-x-auto whitespace-nowrap border-t border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground sm:flex-wrap sm:overflow-visible"
+			data-testid="post-action-bar"
+		>
+			<div className="flex shrink-0 items-center gap-1 sm:shrink sm:flex-wrap">
 				{canComment && (
 					<ForumActionButton
 						icon={MessageCircle}
@@ -112,7 +115,7 @@ export function PostActionBar({
 			</div>
 
 			{hasModActions && (
-				<div className="flex flex-wrap items-center gap-1">
+				<div className="flex shrink-0 items-center gap-1 sm:shrink sm:flex-wrap">
 					{canEdit && (
 						<ForumActionButton icon={Pencil} label="编辑" onClick={edit.onClick} busy={edit.busy} />
 					)}

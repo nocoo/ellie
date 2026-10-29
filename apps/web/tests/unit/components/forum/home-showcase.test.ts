@@ -66,7 +66,7 @@ describe("homepage shared showcase", () => {
 		expect(screen.getByText("time:200")).toBeTruthy();
 		expect(screen.getAllByTitle("阅读量")).toHaveLength(1);
 	});
-	it("keeps equal-height keyboard-scrollable lists and includes seven topics", () => {
+	it("keeps seven desktop topics while only the first five display on mobile", () => {
 		render(
 			createElement(DigestShowcase, {
 				threads: Array.from({ length: 9 }, (_, id) => ({ ...digest, id })),
@@ -74,8 +74,14 @@ describe("homepage shared showcase", () => {
 		);
 		expect(screen.getAllByTestId("home-showcase-item")).toHaveLength(7);
 		const region = screen.getByRole("region", { name: "精华推荐" });
-		expect(region.className).toContain("h-76");
-		expect(region.className).toContain("overflow-y-auto");
+		expect(region.classList.contains("h-auto")).toBe(true);
+		expect(region.classList.contains("overflow-visible")).toBe(true);
+		expect(region.classList.contains("sm:h-76")).toBe(true);
+		expect(region.classList.contains("sm:overflow-y-auto")).toBe(true);
+		expect(region.firstElementChild?.classList.contains("[&>*:nth-child(n+6)]:hidden")).toBe(true);
+		expect(region.firstElementChild?.classList.contains("sm:[&>*:nth-child(n+6)]:block")).toBe(
+			true,
+		);
 		expect(region.tabIndex).toBe(0);
 	});
 	it("shows empty placeholders without requesting profiles", () => {
