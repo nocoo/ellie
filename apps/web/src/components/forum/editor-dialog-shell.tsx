@@ -38,8 +38,8 @@ export function EditorDialogFrame({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				className={cn(
-					"w-[calc(100vw-1.5rem)] sm:w-[90vw] sm:max-w-4xl",
-					"h-[90dvh] max-h-[90dvh] overflow-hidden flex flex-col gap-0",
+					"sm:w-[min(90vw,var(--dialog-max-width))] sm:max-w-4xl",
+					"h-[90dvh] max-h-[min(90dvh,var(--dialog-max-height))] overflow-hidden flex flex-col gap-0",
 					"rounded-2xl p-0",
 				)}
 				showCloseButton={false}

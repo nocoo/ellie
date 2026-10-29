@@ -20,11 +20,24 @@
 // (390×844) + chromium browser. Each scenario calls page.setViewportSize
 // to land at the specific width under test.
 
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import type { APIRequestContext, Locator, Page } from "@playwright/test";
+import { TEST_WORKER_VARS } from "../../../scripts/lib/test-worker-vars";
 import { ForumPage } from "../pages/forum.page";
 import { HomePage } from "../pages/home.page";
 import { expect, test } from "./fixtures";
 
 const POPULATED_FORUM_ID = 114;
+
+// Evidence screenshots live outside the repo tree (.herdr-brief is
+// git-excluded) so the L3 run never dirties the working tree.
+const SHOT_DIR = path.resolve(process.cwd(), ".herdr-brief/screens");
+
+async function shot(page: Page, name: string): Promise<void> {
+	await mkdir(SHOT_DIR, { recursive: true });
+	await page.screenshot({ path: path.join(SHOT_DIR, `${name}.png`), fullPage: false });
+}
 
 // Reviewer-required viewport widths (freeze msg=8b90cb85).
 const MOBILE_WIDTHS = [
@@ -466,4 +479,625 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 			expect(height, `width=${width} appears wrapped (height=${height})`).toBeLessThan(32);
 		}
 	});
+
+	// ────────────────────────────────────────────────────────────────────────
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Mobile UX polish regressions (brief 2026-10-29, requirements 1-5).
+// Own describe block: the disposable fixtures promote e2etest to admin, so
+// they must not leak into the pre-existing drift-guard scenarios above.
+// ────────────────────────────────────────────────────────────────────────────
+test.describe("Feature: Mobile UX Polish", () => {
+	test.describe.configure({ mode: "serial" });
+	test("Given the homepage at iPhone width, Then the theme-color metadata matches the computed header background under OS and stored-override themes, and the viewport declares safe-area coverage", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto("/");
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		await setStoredTheme(page, null);
+		await page.reload();
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const light = await readThemeState(page);
+		expect(light.isDark, "OS light without override must stay light").toBe(false);
+		expect(light.viewportMeta).toContain("viewport-fit=cover");
+		expect(light.viewportMeta).toContain("width=device-width");
+		expect(light.appleStatusBar, "apple status bar style meta missing").not.toBe("");
+		expect(light.safeAreaUsed, "no safe-area-inset handling in the stylesheet").toBe(true);
+		expect(
+			light.effectiveNorm,
+			`theme-color "${light.effective}" !== header bg "${light.headerBg}"`,
+		).toBe(light.headerBgNorm);
+		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(245, 247, 250)");
+		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(245, 247, 250)");
+		await shot(page, "req1-theme-light");
+
+		// Stored override (dark) must win over the OS (light) and repaint the
+		// status bar color with the dark header background.
+		await setStoredTheme(page, "dark");
+		await page.reload();
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		const overridden = await readThemeState(page);
+		expect(overridden.isDark, "stored dark override must beat OS light").toBe(true);
+		expect(
+			overridden.effectiveNorm,
+			`theme-color "${overridden.effective}" !== dark header bg "${overridden.headerBg}"`,
+		).toBe(overridden.headerBgNorm);
+		expect(overridden.effectiveNorm).not.toBe(light.headerBgNorm);
+		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(18, 22, 28)");
+		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(18, 22, 28)");
+		await shot(page, "req1-theme-stored-dark");
+
+		// OS dark without an override resolves to the dark theme as well.
+		await setStoredTheme(page, null);
+		await page.emulateMedia({ colorScheme: "dark" });
+		await page.reload();
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		const dark = await readThemeState(page);
+		expect(dark.isDark, "OS dark must resolve to the dark theme").toBe(true);
+		expect(
+			dark.effectiveNorm,
+			`theme-color "${dark.effective}" !== dark header bg "${dark.headerBg}"`,
+		).toBe(dark.headerBgNorm);
+		expect(dark.effectiveNorm).not.toBe(light.headerBgNorm);
+		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(18, 22, 28)");
+		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(18, 22, 28)");
+		await shot(page, "req1-theme-os-dark");
+	});
+
+	test("Given the homepage at mobile and desktop widths, Then the section chips stay on one horizontally scrollable row, the check-in button is right-aligned, and the 分区 count label is gone", async ({
+		page,
+	}) => {
+		for (const width of [390, 1280] as const) {
+			await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+			await page.goto("/");
+			await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+			expect(
+				await page.getByText(/\d+\s*个分区/).count(),
+				`width=${width}: the 分区 count label is still rendered`,
+			).toBe(0);
+
+			const sections = page.locator("[data-home-sections]");
+			await expect(sections, `width=${width}: section nav missing`).toBeVisible({
+				timeout: 15_000,
+			});
+			const chips = sections.locator('a[href^="#forum-group-"]');
+			await expect(chips, `width=${width}: no section chips rendered`).not.toHaveCount(0);
+
+			// One row only: every chip shares the same Y.
+			const chipTops = await chips.evaluateAll((els: Element[]) =>
+				els.map((el) => el.getBoundingClientRect().top),
+			);
+			expect(
+				Math.max(...chipTops) - Math.min(...chipTops),
+				`width=${width}: section chips wrapped onto multiple rows`,
+			).toBeLessThanOrEqual(4);
+
+			// The chip strip scrolls sideways instead of wrapping.
+			const nav = await readNavState(page);
+			expect(nav.chipWhiteSpace, `width=${width}: chips are not nowrap`).toBe("nowrap");
+			expect(nav.scrollerFound, `width=${width}: no overflow-x scroller for the chips`).toBe(true);
+			expect(["auto", "scroll"], `width=${width}: overflow-x=${nav.scrollerOverflowX}`).toContain(
+				nav.scrollerOverflowX,
+			);
+			expect(
+				nav.pageScrollWidth,
+				`width=${width}: the page scrolls horizontally`,
+			).toBeLessThanOrEqual(nav.innerWidth + 1);
+
+			// The check-in button is the right-most element of the row.
+			const checkin = sections.locator('a[href="/checkin"]');
+			await expect(checkin, `width=${width}: check-in button missing`).toBeVisible({
+				timeout: 15_000,
+			});
+			const checkinBox = await checkin.boundingBox();
+			const scrollBox = await chips.first().locator("..").boundingBox();
+			const navBox = await sections.boundingBox();
+			expect(checkinBox).not.toBeNull();
+			expect(scrollBox).not.toBeNull();
+			expect(navBox).not.toBeNull();
+			if (checkinBox && scrollBox && navBox) {
+				expect(checkinBox.x).toBeGreaterThanOrEqual(scrollBox.x + scrollBox.width);
+				expect(
+					Math.abs(checkinBox.x + checkinBox.width - navBox.x - navBox.width),
+				).toBeLessThanOrEqual(1);
+			}
+			await shot(page, `req2-sections-${width}`);
+		}
+	});
+
+	test("Given the homepage at iPhone width, Then both showcases show exactly 5 of their 7 rows without an inner vertical scroller, and desktop keeps all 7 rows", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto("/");
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const sections = page.locator("section[aria-label]");
+		await expect(sections, "expected exactly two showcase sections").toHaveCount(2);
+		const labels = await sections.evaluateAll((els: Element[]) =>
+			els.map((el) => el.getAttribute("aria-label") ?? ""),
+		);
+		expect(
+			labels.some((l) => /精华/.test(l)),
+			`labels=${labels}`,
+		).toBe(true);
+		expect(
+			labels.some((l) => /最近/.test(l)),
+			`labels=${labels}`,
+		).toBe(true);
+
+		for (let i = 0; i < 2; i++) {
+			const items = sections.nth(i).locator('[data-testid="home-showcase-item"]');
+			await expect(items, `${labels[i]}: showcase rows missing`).toHaveCount(7);
+			const visible = await items.evaluateAll(
+				(els: Element[]) => els.filter((el) => el.getClientRects().length > 0).length,
+			);
+			expect(visible, `${labels[i]}: ${visible} rows visible on mobile (expected 5)`).toBe(5);
+			const box = await sections.nth(i).evaluate((el) => {
+				let scroller: string | null = null;
+				let node = el.parentElement;
+				while (node && node !== document.body) {
+					const cs = getComputedStyle(node);
+					if (
+						(cs.overflowY === "auto" || cs.overflowY === "scroll") &&
+						node.scrollHeight > node.clientHeight + 2
+					) {
+						scroller = node.tagName.toLowerCase();
+					}
+					node = node.parentElement;
+				}
+				return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, scroller };
+			});
+			expect(box.scroller, `${labels[i]}: an inner vertical scroller clips the list`).toBeNull();
+			expect(box.scrollHeight, `${labels[i]}: content overflows its own box`).toBeLessThanOrEqual(
+				box.clientHeight + 2,
+			);
+		}
+		await shot(page, "req3-showcase-mobile");
+		await sections.nth(1).scrollIntoViewIfNeeded();
+		await shot(page, "req3-recent-mobile");
+
+		// Desktop keeps the full list.
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.reload();
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		const desktopSections = page.locator("section[aria-label]");
+		await expect(desktopSections).toHaveCount(2);
+		for (let i = 0; i < 2; i++) {
+			const items = desktopSections.nth(i).locator('[data-testid="home-showcase-item"]');
+			await expect(items).toHaveCount(7);
+			const visible = await items.evaluateAll(
+				(els: Element[]) => els.filter((el) => el.getClientRects().length > 0).length,
+			);
+			expect(visible, "desktop must keep all 7 showcase rows").toBe(7);
+		}
+		await shot(page, "req3-showcase-desktop");
+	});
+
+	test("Given the homepage at iPhone width, Then wide-layout and grid-layout forum cards render the same mobile row structure and density", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto("/");
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const cards = page.locator('[data-testid="forum-card"]');
+		await expect(cards, "expected the disposable wide + grid forums").toHaveCount(
+			WIDE_CHILDREN + GRID_CHILDREN,
+		);
+		const gridCards = page.locator('[data-testid="forum-card"]:has([data-testid="grid-row1"])');
+		await expect(gridCards, "expected grid-layout cards").toHaveCount(GRID_CHILDREN);
+		const wideCards = page.locator(
+			`[data-testid="forum-card"]:not(:has([data-testid="grid-row1"]))`,
+		);
+		await expect(wideCards, "expected wide-layout cards").toHaveCount(WIDE_CHILDREN);
+
+		const measure = async (locator: Locator) =>
+			locator.evaluateAll((els: Element[]) =>
+				els.map((el) => {
+					const row = el.querySelector(
+						'[data-testid="mobile-last-post-row"], [data-testid="mobile-last-post-empty"]',
+					);
+					return {
+						height: el.getBoundingClientRect().height,
+						rowVisible: row ? row.getClientRects().length > 0 : false,
+					};
+				}),
+			);
+
+		for (const [label, list] of [
+			["wide", await measure(wideCards)],
+			["grid", await measure(gridCards)],
+		] as const) {
+			for (const card of list) {
+				expect(card.rowVisible, `${label} card row-2 is not visible at 390px`).toBe(true);
+				expect(card.height, `${label} card height ${card.height}`).toBeGreaterThan(40);
+				expect(card.height, `${label} card height ${card.height}`).toBeLessThan(170);
+			}
+		}
+
+		const avg = (list: { height: number }[]) =>
+			list.reduce((sum, c) => sum + c.height, 0) / list.length;
+		const wideAvg = avg(await measure(wideCards));
+		const gridAvg = avg(await measure(gridCards));
+		expect(
+			Math.abs(wideAvg - gridAvg),
+			`wide avg ${wideAvg.toFixed(1)}px vs grid avg ${gridAvg.toFixed(1)}px`,
+		).toBeLessThanOrEqual(1);
+		await wideCards.first().scrollIntoViewIfNeeded();
+		await shot(page, "req4-card-density");
+	});
+
+	test("Given I am logged in as a privileged user on a thread at iPhone width, Then the top and bottom thread toolbars and every post action bar stay on one line with the overflowing controls reachable by horizontal scroll", async ({
+		page,
+		baseURL,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await loginPrivileged(page, baseURL ?? "http://localhost:27031");
+		await page.goto("/threads/662174");
+		await expect(page.getByTestId("thread-toolbar").first()).toBeVisible({ timeout: 15_000 });
+
+		const toolbars = page.getByTestId("thread-toolbar");
+		await expect(toolbars, "expected a top and a bottom thread toolbar").toHaveCount(2);
+		const bars = page.getByTestId("post-action-bar");
+		expect(await bars.count(), "expected at least one post action bar").toBeGreaterThanOrEqual(1);
+
+		let overflowing = 0;
+		let overflowingPosts = 0;
+		for (const [testid, count] of [
+			["thread-toolbar", await toolbars.count()],
+			["post-action-bar", await bars.count()],
+		] as const) {
+			for (let i = 0; i < count; i++) {
+				const state = await inspectBar(page, testid, i);
+				expect(state, `${testid} ${i} missing`).not.toBeNull();
+				if (!state) continue;
+				expect(state.flexWrap, `${testid} ${i} wraps`).toBe("nowrap");
+				expect(state.whiteSpace, `${testid} ${i} is not nowrap`).toBe("nowrap");
+				expect(["auto", "scroll"], `${testid} ${i} overflow-x=${state.overflowX}`).toContain(
+					state.overflowX,
+				);
+				expect(
+					state.controlSpread,
+					`${testid} ${i} controls wrapped onto multiple lines`,
+				).toBeLessThanOrEqual(4);
+				expect(
+					state.pageScrollWidth,
+					`${testid} ${i}: the page scrolls horizontally instead of the bar`,
+				).toBeLessThanOrEqual(state.innerWidth + 1);
+				if (state.overflowing) {
+					overflowing++;
+					if (testid === "post-action-bar") overflowingPosts++;
+					expect(
+						state.lastControlReachable,
+						`${testid} ${i}: overflowing controls are not reachable`,
+					).toBe(true);
+				}
+			}
+		}
+		// The horizontal-scroll path must actually be exercised, not just
+		// declared — otherwise the reachability branch above never runs.
+		expect(
+			overflowing,
+			"no toolbar overflowed, so the scroll path was never exercised",
+		).toBeGreaterThan(0);
+		expect(
+			overflowingPosts,
+			"non-self post controls must exercise horizontal scrolling",
+		).toBeGreaterThan(0);
+		await shot(page, "req5-thread-toolbars");
+		await bars.first().evaluate((element) => element.scrollIntoView({ block: "center" }));
+		await shot(page, "req5-post-actions");
+		await toolbars.last().scrollIntoViewIfNeeded();
+		await shot(page, "req5-bottom-toolbar");
+	});
+
+	// ────────────────────────────────────────────────────────────────────────
+	// Disposable L3 fixtures — created through the local admin API, promoted
+	// e2etest to admin for the privileged session, and restored afterwards.
+	// ────────────────────────────────────────────────────────────────────────
+
+	const WORKER_URL = "http://localhost:8788";
+	const ADMIN_KEY = TEST_WORKER_VARS.ADMIN_API_KEY;
+	const E2E = { username: "e2etest", password: "e2etest123" };
+	const E2E_USER_ID = 100;
+	const WIDE_CHILDREN = 2;
+	const GRID_CHILDREN = 11;
+	const SHOWCASE_ROWS = 7;
+
+	let promoted = false;
+	const createdForums: number[] = [];
+	const createdThreads: number[] = [];
+
+	async function adminPost(
+		request: APIRequestContext,
+		path: string,
+		data: unknown,
+	): Promise<Record<string, unknown>> {
+		const res = await request.post(`${WORKER_URL}${path}`, {
+			headers: { "x-api-key": ADMIN_KEY },
+			data,
+		});
+		expect(res.ok(), `admin POST ${path} failed: ${res.status()} ${await res.text()}`).toBe(true);
+		const body = (await res.json()) as { data: Record<string, unknown> };
+		return body.data;
+	}
+
+	async function adminPatch(
+		request: APIRequestContext,
+		path: string,
+		data: unknown,
+	): Promise<void> {
+		const res = await request.patch(`${WORKER_URL}${path}`, {
+			headers: { "x-api-key": ADMIN_KEY },
+			data,
+		});
+		expect(res.ok(), `admin PATCH ${path} failed: ${res.status()} ${await res.text()}`).toBe(true);
+	}
+
+	async function createForum(
+		request: APIRequestContext,
+		name: string,
+		parentId: number,
+	): Promise<number> {
+		const created = await adminPost(request, "/api/admin/forums", {
+			name,
+			type: parentId === 0 ? "group" : "forum",
+			parentId,
+			displayOrder: 900 + parentId,
+		});
+		const id = Number(created.id);
+		expect(Number.isInteger(id), `forum ${name} created without an id`).toBe(true);
+		createdForums.push(id);
+		return id;
+	}
+
+	/** Fresh credentials login (bypasses the shared storageState cache). */
+	async function loginPrivileged(page: Page, baseURL: string): Promise<void> {
+		await page.context().clearCookies();
+		const csrfRes = await page.request.get(`${baseURL}/api/auth/csrf`);
+		expect(csrfRes.ok(), "csrf fetch failed").toBe(true);
+		const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
+		const loginRes = await page.request.post(`${baseURL}/api/auth/callback/credentials`, {
+			form: {
+				csrfToken,
+				username: E2E.username,
+				password: E2E.password,
+				callbackUrl: `${baseURL}/`,
+				json: "true",
+			},
+			headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+		});
+		expect(loginRes.ok(), "privileged login failed").toBe(true);
+		await page.goto("/");
+	}
+
+	test.beforeAll(async ({ browser, request }) => {
+		// Guard: the disposable fixtures must only ever hit the local test stack.
+		const workerHost = new URL(WORKER_URL).hostname;
+		expect(
+			["localhost", "127.0.0.1", "[::1]"],
+			`refusing to touch non-loopback worker ${WORKER_URL}`,
+		).toContain(workerHost);
+		const liveRes = await request.get(`${WORKER_URL}/api/live`);
+		expect(liveRes.ok(), "worker /api/live is not reachable").toBe(true);
+		const live = (await liveRes.json()) as { environment?: string };
+		expect(live.environment, "worker is not running with ENVIRONMENT=test").toBe("test");
+
+		// Promote the seeded e2etest to admin so the thread/post toolbars render
+		// their moderation controls (the overflow case under test).
+		await adminPatch(request, `/api/admin/users/${E2E_USER_ID}`, { role: 2 });
+		promoted = true;
+
+		// Two disposable groups: one wide (few children), one grid (> 10).
+		const wideGroup = await createForum(request, "移动端回归宽版组", 0);
+		const gridGroup = await createForum(request, "移动端回归网格组", 0);
+		let wideChild = 0;
+		for (let i = 0; i < WIDE_CHILDREN; i++) {
+			const id = await createForum(request, `移动端回归宽版子版${i}`, wideGroup);
+			if (i === 0) wideChild = id;
+		}
+		for (let i = 0; i < GRID_CHILDREN; i++) {
+			await createForum(request, `移动端回归网格子版${i}`, gridGroup);
+		}
+
+		// Real threads in a disposable forum give the showcases fresh rows
+		// (the seeded threads are too old to count as recent activity).
+		const context = await browser.newContext();
+		const page = await context.newPage();
+		await loginPrivileged(page, "http://localhost:27031");
+		for (let i = 0; i < SHOWCASE_ROWS; i++) {
+			const res = await page.request.post("http://localhost:27031/api/v1/threads", {
+				headers: { origin: "http://localhost:27031" },
+				data: {
+					forumId: wideChild,
+					subject: `移动端回归主题 ${i}`,
+					content: "移动端体验回归用的真实主题内容，长度足够。",
+				},
+			});
+			expect(res.ok(), `thread create failed: ${res.status()} ${await res.text()}`).toBe(true);
+			const body = (await res.json()) as { data?: { id?: number } };
+			const threadId = Number(body.data?.id);
+			expect(Number.isInteger(threadId), "thread create returned no id").toBe(true);
+			createdThreads.push(threadId);
+			// Promote to 精华 so the digest showcase has rows as well.
+			await adminPatch(request, `/api/admin/threads/${threadId}`, { digest: 1 });
+		}
+		await context.close();
+	});
+
+	test.afterAll(async ({ request }) => {
+		if (!promoted) return;
+		await adminPatch(request, `/api/admin/users/${E2E_USER_ID}`, { role: 0 });
+		for (const [resource, ids] of [
+			["threads", createdThreads],
+			["forums", createdForums],
+		] as const) {
+			for (const id of ids.toReversed()) {
+				const response = await request.delete(`${WORKER_URL}/api/admin/${resource}/${id}`, {
+					headers: { "x-api-key": ADMIN_KEY },
+				});
+				expect(response.ok(), `cleanup ${resource}/${id} failed`).toBe(true);
+			}
+		}
+	});
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Page-side probes
+// ────────────────────────────────────────────────────────────────────────────
+
+async function setStoredTheme(page: Page, theme: "light" | "dark" | null): Promise<void> {
+	await page.evaluate((value) => {
+		try {
+			if (value === null) localStorage.removeItem("theme");
+			else localStorage.setItem("theme", value);
+		} catch {
+			/* storage unavailable */
+		}
+	}, theme);
+}
+
+interface ThemeState {
+	effective: string;
+	headerBg: string;
+	headerBgNorm: string;
+	effectiveNorm: string;
+	isDark: boolean;
+	viewportMeta: string;
+	appleStatusBar: string;
+	safeAreaUsed: boolean;
+}
+
+async function readThemeState(page: Page): Promise<ThemeState> {
+	return page.evaluate(() => {
+		const norm = (css: string): string => {
+			const probe = document.createElement("span");
+			probe.style.color = "";
+			probe.style.color = css;
+			if (!probe.style.color) return "";
+			document.body.appendChild(probe);
+			const computed = getComputedStyle(probe).color;
+			probe.remove();
+			return computed;
+		};
+		const metas = Array.from(document.querySelectorAll('meta[name="theme-color"]'));
+		// The color iOS Safari paints in the status bar is the first
+		// theme-color meta whose media query matches the OS.
+		const effective =
+			metas
+				.find((m) => {
+					const media = m.getAttribute("media");
+					return !media || window.matchMedia(media).matches;
+				})
+				?.getAttribute("content") ?? "";
+		const header = document.querySelector("header");
+		const headerBg = header ? getComputedStyle(header).backgroundColor : "";
+		let css = "";
+		for (const sheet of Array.from(document.styleSheets)) {
+			try {
+				for (const rule of Array.from(sheet.cssRules)) css += rule.cssText;
+			} catch {
+				/* cross-origin sheet */
+			}
+		}
+		return {
+			effective,
+			headerBg,
+			headerBgNorm: norm(headerBg),
+			effectiveNorm: norm(effective),
+			isDark: document.documentElement.classList.contains("dark"),
+			viewportMeta: document.querySelector('meta[name="viewport"]')?.getAttribute("content") ?? "",
+			appleStatusBar:
+				document
+					.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+					?.getAttribute("content") ?? "",
+			safeAreaUsed: css.includes("safe-area-inset"),
+		};
+	});
+}
+
+interface NavState {
+	chipWhiteSpace: string;
+	scrollerFound: boolean;
+	scrollerOverflowX: string;
+	pageScrollWidth: number;
+	innerWidth: number;
+}
+
+async function readNavState(page: Page): Promise<NavState> {
+	return page.evaluate(() => {
+		const el = document.querySelector("[data-home-sections]");
+		const chip = el?.querySelector('a[href^="#forum-group-"]');
+		let scroller: HTMLElement | null = null;
+		let node: HTMLElement | null = chip?.parentElement ?? null;
+		while (node && !scroller) {
+			const cs = getComputedStyle(node);
+			if (cs.overflowX === "auto" || cs.overflowX === "scroll") scroller = node;
+			if (node === el) break;
+			node = node.parentElement;
+		}
+		return {
+			chipWhiteSpace: chip ? getComputedStyle(chip).whiteSpace : "",
+			scrollerFound: scroller !== null,
+			scrollerOverflowX: scroller ? getComputedStyle(scroller).overflowX : "",
+			pageScrollWidth: document.documentElement.scrollWidth,
+			innerWidth: window.innerWidth,
+		};
+	});
+}
+
+interface BarState {
+	whiteSpace: string;
+	flexWrap: string;
+	overflowX: string;
+	overflowing: boolean;
+	controlSpread: number;
+	lastControlReachable: boolean;
+	pageScrollWidth: number;
+	innerWidth: number;
+}
+
+async function inspectBar(page: Page, testid: string, index: number): Promise<BarState | null> {
+	return page.evaluate(
+		({ testid, index }) => {
+			const el = document.querySelectorAll(`[data-testid="${testid}"]`)[index] as
+				| HTMLElement
+				| undefined;
+			if (!el) return null;
+			const cs = getComputedStyle(el);
+			const rect = el.getBoundingClientRect();
+			const controlTops = Array.from(el.querySelectorAll("button, a")).map(
+				(c) => c.getBoundingClientRect().top,
+			);
+			const spread = controlTops.length ? Math.max(...controlTops) - Math.min(...controlTops) : 0;
+			const overflowing = el.scrollWidth > el.clientWidth + 1;
+			let lastControlReachable = true;
+			if (overflowing) {
+				el.scrollLeft = el.scrollWidth;
+				const controls = Array.from(el.querySelectorAll("button, a"));
+				const last = controls[controls.length - 1];
+				if (last) {
+					lastControlReachable = last.getBoundingClientRect().right <= rect.right + 1;
+				}
+				el.scrollLeft = 0;
+			}
+			return {
+				whiteSpace: cs.whiteSpace,
+				flexWrap: cs.flexWrap,
+				overflowX: cs.overflowX,
+				overflowing,
+				controlSpread: spread,
+				lastControlReachable,
+				pageScrollWidth: document.documentElement.scrollWidth,
+				innerWidth: window.innerWidth,
+			};
+		},
+		{ testid, index },
+	);
+}

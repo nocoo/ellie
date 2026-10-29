@@ -269,7 +269,7 @@ export function ThreadModMenu({
 	return (
 		<>
 			{/* Flat action bar */}
-			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+			<div className="flex shrink-0 items-center gap-x-4 gap-y-1 whitespace-nowrap text-xs sm:shrink sm:flex-wrap">
 				{canManageThread && (
 					<>
 						<ForumActionButton

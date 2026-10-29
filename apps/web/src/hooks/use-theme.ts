@@ -4,6 +4,7 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { syncBrowserTheme } from "@/lib/theme-init";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -46,6 +47,7 @@ function applyTheme(resolved: "light" | "dark") {
 	const root = document.documentElement;
 	root.classList.toggle("dark", resolved === "dark");
 	root.style.colorScheme = resolved;
+	syncBrowserTheme();
 }
 
 // ─── Hook ──────────────────────────────────────────────────────

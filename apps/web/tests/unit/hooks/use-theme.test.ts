@@ -102,6 +102,8 @@ const documentElement = {
 };
 
 const savedGlobals: Record<string, unknown> = {};
+const themeColorMeta = { setAttribute: vi.fn() };
+const statusBarMeta = { setAttribute: vi.fn() };
 
 beforeEach(() => {
 	localStorageMock = createLocalStorageMock();
@@ -121,11 +123,19 @@ beforeEach(() => {
 	savedGlobals.localStorage = globalThis.localStorage;
 	savedGlobals.matchMedia = globalThis.matchMedia;
 	savedGlobals.document = globalThis.document;
+	savedGlobals.getComputedStyle = globalThis.getComputedStyle;
+	(globalThis as Record<string, unknown>).getComputedStyle = () => ({
+		getPropertyValue: () => (classListMethods._classes.has("dark") ? "218 21% 12%" : "0 0% 100%"),
+	});
 
 	(globalThis as Record<string, unknown>).localStorage = localStorageMock;
 	const matchMediaFn = vi.fn(() => createMatchMediaMock());
 	(globalThis as Record<string, unknown>).matchMedia = matchMediaFn;
-	(globalThis as Record<string, unknown>).document = { documentElement };
+	(globalThis as Record<string, unknown>).document = {
+		documentElement,
+		querySelectorAll: () => [themeColorMeta],
+		querySelector: () => statusBarMeta,
+	};
 	(globalThis as Record<string, unknown>).window = { matchMedia: matchMediaFn };
 });
 
@@ -134,6 +144,23 @@ afterEach(() => {
 	(globalThis as Record<string, unknown>).localStorage = savedGlobals.localStorage;
 	(globalThis as Record<string, unknown>).matchMedia = savedGlobals.matchMedia;
 	(globalThis as Record<string, unknown>).document = savedGlobals.document;
+	(globalThis as Record<string, unknown>).getComputedStyle = savedGlobals.getComputedStyle;
+});
+
+describe("browser chrome", () => {
+	it("follows explicit overrides and resumed system preferences", () => {
+		const theme = useTheme();
+		theme.setTheme("dark");
+		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(218 21% 12%)");
+		expect(statusBarMeta.setAttribute).toHaveBeenLastCalledWith("content", "black-translucent");
+		theme.setTheme("light");
+		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(0 0% 100%)");
+		expect(statusBarMeta.setAttribute).toHaveBeenLastCalledWith("content", "default");
+		theme.setTheme("system");
+		matchMediaMatches = true;
+		for (const handler of matchMediaHandlers) handler({ matches: true });
+		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(218 21% 12%)");
+	});
 });
 
 // ---------------------------------------------------------------------------

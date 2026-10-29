@@ -92,19 +92,9 @@ function TodayThreadBadge({
 	variant,
 }: {
 	count: number;
-	variant: "parenthesized" | "pill" | "plus";
+	variant: "parenthesized" | "plus";
 }) {
 	if (count <= 0) return null;
-	if (variant === "pill") {
-		// Fixed line-height pill so it never bumps the row height.
-		// `shrink-0` keeps the pill at intrinsic width even when a long
-		// forum name truncates inside a `flex items-center` mobile row.
-		return (
-			<span className="inline-flex items-center h-4 rounded-full bg-forum-accent/10 px-1.5 text-xs font-medium text-forum-accent leading-none shrink-0">
-				+{formatCount(count)}
-			</span>
-		);
-	}
 	return (
 		<span className="text-sm text-forum-accent font-medium shrink-0">
 			{variant === "parenthesized" ? `(${formatCount(count)})` : `+${formatCount(count)}`}
@@ -333,28 +323,25 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				</div>
 			</div>
 
-			{/* Mobile <640: compact 2-row stack.
-			    Row 1: icon + name + today-pill (single line).
-			    Row 2: shared MobileLastPostLine (avatar + thread title +
-			    user/date) or "暂无最新主题" empty state. Reviewer freeze
-			    msg=efa3c2e9 reversed the earlier msg=8b90cb85 freeze to
-			    surface the latest-thread context per哥's "右侧空间利用"
-			    requirement, while keeping every row at exactly 2 lines via
-			    `truncate min-w-0` on the title and `max-w-[42%] shrink-0`
-			    on the user/date meta. */}
-			<div className="sm:hidden px-3 py-2.5">
-				<div className="flex items-center gap-2">
+			<div className="sm:hidden flex items-start gap-2.5 px-4 py-3">
+				<div className="mt-0.5 shrink-0">
 					<ForumIcon lastPostAt={forum.lastPostAt} />
-					<Link
-						href={`/forums/${forum.id}`}
-						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0"
-					>
-						{forum.name}
-					</Link>
-					<TodayThreadBadge count={forum.todayThreads} variant="pill" />
 				</div>
-				<MobileLastPostLine forum={forum} />
+				<div className="min-w-0 flex-1">
+					<div className="flex flex-nowrap items-baseline gap-3 leading-5">
+						<div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+							<Link
+								href={`/forums/${forum.id}`}
+								prefetch={false}
+								className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0 leading-5"
+							>
+								{forum.name}
+							</Link>
+							<TodayThreadBadge count={forum.todayThreads} variant="plus" />
+						</div>
+					</div>
+					<MobileLastPostLine forum={forum} />
+				</div>
 			</div>
 		</div>
 	);

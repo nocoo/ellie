@@ -234,7 +234,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 
 export function ForumHeader({ vm }: { vm: HeaderViewModel }) {
 	return (
-		<header className="forum-header relative isolate border-b border-border bg-card">
+		<header className="forum-header relative isolate border-b border-border bg-card pt-[env(safe-area-inset-top)]">
 			<div className="site-art-frame width-container" aria-hidden="true">
 				<div
 					className="forum-header-art"

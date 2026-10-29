@@ -97,7 +97,7 @@ export function HomeShowcase({
 			</CardHeader>
 			<CardContent>
 				<section
-					className="h-76 overflow-y-auto overscroll-contain"
+					className="h-auto overflow-visible sm:h-76 sm:overflow-y-auto sm:overscroll-contain"
 					aria-label={title}
 					// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
 					tabIndex={0}
@@ -105,7 +105,7 @@ export function HomeShowcase({
 					{items.length === 0 ? (
 						<p className="py-4 text-center text-sm text-muted-foreground">{emptyText}</p>
 					) : (
-						<div className="divide-y divide-border/50">
+						<div className="divide-y divide-border/50 [&>*:nth-child(n+6)]:hidden sm:[&>*:nth-child(n+6)]:block">
 							{items.slice(0, HOME_DIGEST_LIMIT).map((item) => (
 								<HomeShowcaseItem key={item.id} item={item} />
 							))}

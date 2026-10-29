@@ -33,23 +33,22 @@ export default async function ForumHomePage() {
 		<div className="space-y-4">
 			<nav
 				aria-label="版块分区"
-				className="flex flex-wrap items-center gap-2 text-xs"
+				className="flex min-w-0 items-center justify-between gap-2 text-xs"
 				data-home-sections
 			>
-				{tree.length > 0 && (
-					<span className="mr-1 text-muted-foreground">{tree.length} 个分区</span>
-				)}
-				{tree.map((group) => (
-					<a
-						key={group.id}
-						href={`#forum-group-${group.id}`}
-						className="rounded-lg border border-border bg-card px-3 py-2 text-muted-foreground hover:border-primary/40 hover:text-primary"
-					>
-						{group.name}
-					</a>
-				))}
+				<div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+					{tree.map((group) => (
+						<a
+							key={group.id}
+							href={`#forum-group-${group.id}`}
+							className="shrink-0 rounded-lg border border-border bg-card px-3 py-2 text-muted-foreground hover:border-primary/40 hover:text-primary"
+						>
+							{group.name}
+						</a>
+					))}
+				</div>
 				<Button
-					className="ml-auto"
+					className="shrink-0"
 					nativeButton={false}
 					render={<Link href="/checkin" prefetch={false} />}
 				>

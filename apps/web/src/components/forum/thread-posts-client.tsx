@@ -207,7 +207,10 @@ function ThreadToolbar({
 	if (!showReply && !showMod) return null;
 
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-2 py-1">
+		<div
+			className="flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap py-1 sm:flex-wrap sm:overflow-visible"
+			data-testid="thread-toolbar"
+		>
 			{/* Reply button — traditional Discuz image */}
 			{showReply ? (
 				<Button onClick={onReply} className="shrink-0">
@@ -220,7 +223,7 @@ function ThreadToolbar({
 
 			{/* Thread mod menu */}
 			{showMod && (
-				<div className="min-w-0 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+				<div className="flex shrink-0 items-center justify-end gap-x-2 gap-y-1 sm:min-w-0 sm:shrink sm:flex-wrap">
 					<ThreadModMenu
 						threadId={thread.id}
 						forumId={thread.forumId}

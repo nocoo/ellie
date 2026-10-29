@@ -100,7 +100,7 @@ export function AnnouncementEditDialog({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="max-h-[90dvh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+				className="max-h-[min(90dvh,var(--dialog-max-height))] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
 				showCloseButton={false}
 			>
 				<DialogHeroHeader

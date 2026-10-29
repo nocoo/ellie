@@ -369,17 +369,17 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 		expect(row.className).not.toContain("text-sm");
 	});
 
-	it("TodayThreadBadge pill uses text-xs (was text-2xs — no sub-12px)", () => {
-		const withToday = makeForum({ todayThreads: 5 });
-		render(createElement(ForumCard, { forum: withToday, layout: "wide" }));
-		// Badge text appears as `+5` or `(5)`; walk to the inline span.
-		const pillCandidates = screen.getAllByText(/^[+(]5[)]?$/);
-		// At least one wrapper must use text-xs and never text-2xs.
-		const hasTextXs = pillCandidates.some((el) => el.className.includes("text-xs"));
-		const hasText2xs = pillCandidates.some((el) => el.className.includes("text-2xs"));
-		expect(hasTextXs).toBe(true);
-		expect(hasText2xs).toBe(false);
-	});
+	it.each(["wide", "grid"] as const)(
+		"%s activity badge uses the same readable inline style",
+		(layout) => {
+			const withToday = makeForum({ todayThreads: 5 });
+			render(createElement(ForumCard, { forum: withToday, layout }));
+			const badge = screen.getByText("+5");
+			expect(badge.classList.contains("text-sm")).toBe(true);
+			expect(badge.classList.contains("shrink-0")).toBe(true);
+			expect(badge.classList.contains("rounded-full")).toBe(false);
+		},
+	);
 });
 
 // ─── Mobile 2-row contract (reviewer freeze msg=efa3c2e9) ────────────────────
@@ -387,6 +387,17 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 // auxiliary content (latest thread title + user + short date) is now visible
 // on mobile, but bounded so every card stays at exactly 2 lines.
 describe("ForumCard — mobile 2-row contract", () => {
+	it.each(["wide", "grid"] as const)("%s aligns both mobile rows beside the icon", (layout) => {
+		render(createElement(ForumCard, { forum: makeForum({ lastPostAt: 0 }), layout }));
+		const row = screen.getByTestId("mobile-last-post-empty");
+		const body = layout === "wide" ? row.parentElement : row.parentElement?.parentElement;
+		expect(body?.classList.contains("flex-1")).toBe(true);
+		expect(body?.previousElementSibling?.querySelector("img")).not.toBeNull();
+		for (const token of ["flex", "items-start", "gap-2.5", "px-4", "py-3"]) {
+			expect(body?.parentElement?.classList.contains(token)).toBe(true);
+		}
+	});
+
 	it("wide layout mobile name uses `min-w-0 truncate`, today-pill is shrink-0 (no overflow on long names)", () => {
 		const longName = makeForum({ name: "一二三四五六七八九十一二三四五六七", todayThreads: 5 });
 		render(createElement(ForumCard, { forum: longName, layout: "wide" }));

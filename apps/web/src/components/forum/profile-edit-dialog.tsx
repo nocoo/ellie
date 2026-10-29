@@ -95,7 +95,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="max-h-[90dvh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+				className="max-h-[min(90dvh,var(--dialog-max-height))] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
 				showCloseButton={false}
 			>
 				{/* Header */}

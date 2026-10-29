@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./tailwind.css";
 import { DM_Sans, Inter } from "next/font/google";
@@ -13,6 +13,17 @@ const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
 export const metadata: Metadata = {
 	title: "ellie - 论坛归档",
 	description: "",
+	appleWebApp: { capable: true, statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+	width: "device-width",
+	initialScale: 1,
+	viewportFit: "cover",
+	themeColor: [
+		{ media: "(prefers-color-scheme: light)", color: "hsl(0 0% 100%)" },
+		{ media: "(prefers-color-scheme: dark)", color: "hsl(218 21% 12%)" },
+	],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
