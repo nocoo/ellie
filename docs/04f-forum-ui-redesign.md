@@ -13,6 +13,7 @@
 - Wide forum cards use the existing grid card's mobile icon column, two-row content, spacing and activity badge. Panel column breakpoints and desktop layouts are unchanged.
 - Both thread toolbars and post action groups stay on one horizontally scrollable row on mobile, preserving desktop wrapping and all permission checks.
 - The root viewport covers safe areas. Header browser colors follow the `--card` token on first paint and theme changes, including stored preferences overriding the system theme. The header, content gutters and footer account for safe-area insets.
+- The `html` and `body` page surfaces retain `--background`, including the pre-hydration first frame. Browser theme-color metadata follows the header independently and must not recolor the page canvas.
 - Automated browser checks verify viewport metadata, computed theme colors and responsive geometry. Actual iOS Safari chrome and Home Screen status-bar rendering still require a physical-device check; Chromium and desktop WebKit mobile emulation do not render them.
 
 ## 目标

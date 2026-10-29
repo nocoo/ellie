@@ -353,3 +353,7 @@ A mobile-polish pane resize using `--current` resolved to another workspace's fo
 The first mobile acceptance fixture assumed a raw admin entity response; the Worker returns `{ data, meta }`. Read the response helper as well as the handler, track only confirmed created IDs, and restore promoted users only after the guarded promotion succeeds. Overflow assertions must compare the visible scroller bounds, not offscreen children. Keep the reviewed diff frozen until the reviewer returns.
 
 An interrupted L3 runner stopped its servers but left a detached Playwright process alive. Reusing its log path mixed stale failures into the next run. Disable automatic HTML-report serving, wait for the complete owned process tree to exit, use separate run logs, and keep builds separate from browser execution. Only the identified task-owned process group was terminated. For stopped, checkpointed local SQLite state, an immutable read-only connection verified the test marker without opening WAL sidecars.
+
+## 2026-10-29: Keep browser chrome separate from the page canvas
+
+PR #948 changed the root and body from `--background` to the header's `--card` surface while aligning Safari chrome. Mobile metadata checks passed, but the three existing pre-hydration first-frame checks failed in CI. Restore both page surfaces without changing theme-color metadata or the original assertions. Run the existing first-frame scenarios alongside mobile acceptance whenever browser theme handling changes, and verify page backgrounds independently of header colors.
