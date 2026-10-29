@@ -30,6 +30,14 @@ import { adminGet, adminPost, workerFetch } from "../setup";
 
 describe("L2: Worker Admin KV Monitor", () => {
 	test("inspects, rebuilds and deletes one real snapshot with an audit trail", async () => {
+		const reset = await adminPost("/api/admin/kv/delete", {
+			family: "settings:all",
+			key: "settings:all",
+		});
+		expect(reset.status).toBe(200);
+		const resetBody = (await reset.json()) as { data: { outcome: string } };
+		expect(resetBody.data.outcome).toBe("deleted");
+
 		const warm = await workerFetch("/api/v1/settings");
 		expect(warm.status).toBe(200);
 		await warm.json();
