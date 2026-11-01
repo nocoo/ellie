@@ -133,6 +133,7 @@
 		"esbuild": "^0.28.1",
 		"fast-uri": "4.2.3",
 		"ip-address": "^10.1.1",
+		"minimatch": "^11.0.2",
 		"nanoid": "3.3.18",
 		"postcss": "^8.5.18",
 		"prosemirror-model": "1.25.12",
