@@ -71,7 +71,7 @@
 		"@ellie/types": "workspace:*",
 		"@emoji-mart/data": "^1.2.1",
 		"@emoji-mart/react": "^1.1.1",
-		"@playwright/test": "^1.64.1",
+		"@playwright/test": "^1.65.0",
 		"@tiptap/extension-character-count": "3.32.0",
 		"@tiptap/extension-image": "3.32.0",
 		"@tiptap/extension-placeholder": "3.32.0",
