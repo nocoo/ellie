@@ -154,6 +154,7 @@ const ADMIN_API_KEY = process.env.ADMIN_API_KEY!; // Key B — Admin 专用密�
 ### 2.3 Next.js API Route 代理约定
 
 每个 API Route 做三件事：
+
 1. **验证 admin** — 调用 `resolveAdmin(session)` 验证 email ∈ `ADMIN_EMAILS`
 2. **转发** — 调用 adminApiClient 发往 Worker（仅 `X-API-Key: ADMIN_API_KEY`）
 3. **返回** — 透传 Worker 响应（status code + body）
@@ -674,6 +675,7 @@ export async function batchDeletePosts(ids: number[]): Promise<BatchDeleteResult
 **编辑弹窗字段**：同创建，但所有字段可选，至少修改一项。
 
 **合并对话框**：
+
 - 显示源版块信息（名称、帖子数）
 - 版块选择器选择目标（排除自身）
 - 确认后显示结果：`"Merged: 234 threads, 1,567 posts moved"`
@@ -817,6 +819,7 @@ export async function batchDeleteAttachments(ids: number[]): Promise<BatchResult
 **IP 检测工具**：
 
 页面顶部提供一个 "Check IP" 工具：
+
 - 输入框：输入待检测 IP
 - 调用 `GET /api/admin/ip-bans/check-ip?ip=xxx`
 - 结果显示：
@@ -896,6 +899,7 @@ export async function checkIp(ip: string): Promise<CheckIpResult> {}
 **内容测试工具**：
 
 页面顶部提供 "Test Content" 工具：
+
 - 文本框：输入待测内容
 - 调用 `POST /api/admin/censor-words/test` body:`{content}`
 - 结果显示：
@@ -1109,6 +1113,7 @@ interface AdminConfirmDialogProps {
 | 0.9 | `replicate pew badge card decorations on login page`                        | ✅   |
 
 **已建立的基础设施**：
+
 - `src/auth.ts` — NextAuth v5 Google OAuth + JWT
 - `src/proxy.ts` — 路由守卫（纯函数，可测试）— ⚠️ 仅检查 `isLoggedIn`，待 6.1.1 增加 email 白名单验证
 - `src/lib/admin.ts` — `isAdmin(email)` + `resolveAdmin(session)`，基于 `ADMIN_EMAILS`

@@ -56,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_draft_attachments_status ON draft_attachments(sta
 ```
 
 **Status values:**
+
 - `0` = pending (available for use)
 - `1` = claimed (locked for promotion, has `claim_token`)
 - `2` = promoted (successfully moved to attachments, pending cleanup)
@@ -65,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_draft_attachments_status ON draft_attachments(sta
 **Note**: `width` is NOT extracted at upload time — the Worker only validates MIME/size. If needed later, image metadata extraction can be added as a future enhancement.
 
 **Lifecycle:**
+
 1. Upload → INSERT with `status=0`
 2. Submit post → Claim drafts (`status=1`), create post, promote to attachments (`status=2`)
 3. Cleanup → DELETE where `status=2` OR (`status IN (0,1)` AND too old)
@@ -116,6 +118,7 @@ User drags image → POST /api/v1/upload (purpose=attachment)
 ```
 
 **Draft quota check (prevents abuse):**
+
 ```typescript
 const quota = await env.DB.prepare(
   "SELECT COUNT(*) as count, COALESCE(SUM(file_size), 0) as total FROM draft_attachments WHERE author_id = ? AND status = 0"
@@ -205,6 +208,7 @@ try {
 ```
 
 **Key insight**: D1 `batch()` is transactional. If any statement fails, the entire batch rolls back. Post creation is now INSIDE the batch, so a failed attachment insert means the post is never created.
+
 ````
 
 **For thread creation** (`POST /api/v1/threads`):
@@ -435,11 +439,13 @@ export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
 ```
 
 **Request**: `multipart/form-data`
+
 - `file`: The image file
 - `purpose`: `"attachment"`
 - Headers: `Authorization: Bearer {jwt}`
 
 **Response** (200):
+
 ```json
 {
 	"data": {
@@ -456,6 +462,7 @@ export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
 Frontend derives URL: `https://t.no.mt/${filePath}`
 
 **Errors**:
+
 | Code                   | Status | Description                      |
 | ---------------------- | ------ | -------------------------------- |
 | `NO_FILE`              | 400    | No file in request               |
@@ -513,11 +520,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 ```
 
 **Worker handler validation**:
+
 - Must exist in `draft_attachments`
 - Must be author (`author_id = user.userId`)
 - Must be `status = 0` (not claimed or promoted)
 
 **Behavior**:
+
 - Delete from R2
 - Delete from `draft_attachments`
 
@@ -526,6 +535,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 Create new thread with attachments.
 
 **Request body additions**:
+
 ```json
 {
 	"subject": "...",
@@ -536,6 +546,7 @@ Create new thread with attachments.
 ```
 
 **Validation**:
+
 - All IDs must exist in `draft_attachments` with `status = 0`
 - All must have `author_id = current_user.id`
 - Total size of all attachments ≤ 5 MB
@@ -548,6 +559,7 @@ Create new thread with attachments.
 Create reply with attachments. Route is `POST /api/v1/posts` with `threadId` in body (not nested route).
 
 **Request body additions**:
+
 ```json
 {
 	"threadId": 123,
@@ -563,6 +575,7 @@ Same validation as thread creation.
 Already implemented. Returns `Attachment[]` with `filePath`, `hasThumb`, `downloads`, etc.
 
 **Current response shape** (keep as-is):
+
 ```json
 {
 	"data": [
@@ -613,6 +626,7 @@ interface UploadedAttachment {
 ```
 
 **Features**:
+
 - Drag-and-drop zone (or click to select)
 - Multiple file selection
 - Progress bar per file
@@ -638,6 +652,7 @@ await createPost({ threadId, content, attachmentIds });
 ### Post Display (existing)
 
 Attachments already fetched in `thread-detail.server.ts` via:
+
 ```typescript
 const attachmentResults = await Promise.all(
 	postsRes.data.map((post) => forumApi.getAll<Attachment>(`/api/v1/posts/${post.id}/attachments`)),
@@ -653,6 +668,7 @@ The existing `<PostContent>` or attachment display component derives URLs from `
 ### Image Display
 
 Images shown in attachment gallery below post content:
+
 - Grid layout for multiple images
 - Click to expand/lightbox
 - Shows filename on hover

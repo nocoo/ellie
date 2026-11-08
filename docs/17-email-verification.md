@@ -41,6 +41,7 @@ Rev3 把流程简化为单路径并完成 prod ops clean state（5a 已 apply，
 > 已登录 + 无邮箱 ⇒ 必须填新邮箱 + 验证 ⇒ 否则只读
 
 Rev3 关键变化：
+
 - 所有 `users.email / email_normalized / email_verified_at / email_changed_at` 在 prod ops 阶段一次性清零。
 - 取消旧 §7.1 `POST /api/v1/users/me/email` (email-change endpoint)，合并进 §7.2 request-code 的请求体扩展。
 - 取消旧 §6 email-change quota（首次补邮箱不计配额；将来已验证用户改邮箱由独立 RFC 引入 quota）。
@@ -166,6 +167,7 @@ withVerifiedEmail(handler)  // analogous to withAuthVerified, but uses requireVe
 For the moderation chain, extend `moderationMiddleware` with the same verified-email check (mods/admins are not exempt — confirmed in §13).
 
 Then:
+
 - In `index.ts`, switch the inline `authMiddlewareVerified` calls (`POST /threads`, `POST /posts`, `POST /upload`) to `requireVerifiedEmail`.
 - In each `handlers/*.ts` listed in §5.2, switch the import from `withAuthVerified` to `withVerifiedEmail`.
 - Verify in code review that no mutating route uses `withAuth` (un-verified, un-banned) — that wrapper exists for read-only consumers; default-deny rule says it must not be used for writes.
@@ -193,6 +195,7 @@ The frontend additionally hides write affordances, but the Worker is the source 
 ```
 
 字段约束：
+
 - `error` 固定为字符串 `"EMAIL_NOT_VERIFIED"`，前端用此字段做 dialog 触发判断（不要解析 message 文案）。
 - `dialog.title / body / cta_label` 是中文文案，文案变更属 UX 改动，需要回到本文档 §5.4 同步。
 - `dialog.cta_variant ∈ {"primary"}`，预留扩展。
@@ -200,6 +203,7 @@ The frontend additionally hides write affordances, but the Worker is the source 
 - 请求来源不影响 payload 结构 —— REST、Next.js proxy 透传、SSR 抓取都使用同一 schema。
 
 前端契约（与 §9 共用）：
+
 - 写入口（发帖 / 回帖 / 评论 / 私信 / 上传 / 编辑 / 举报）按钮**永远可点**。点击时如果 cached `me.email_verified_at == 0`，前端**直接弹** dialog（payload 来自前端常量，schema 与 §5.4 一致），不实际发请求。
 - 如果用户绕过前端发出请求，Worker 返回 §5.4 payload，前端 fetch 包装层（`apps/web/src/lib/api.ts`）拦截 `error == "EMAIL_NOT_VERIFIED"` 并弹同一 dialog，CTA 跳转 `redirect_to`。
 - Dialog 组件由前端常量与 server payload 共享同一 TypeScript type：`type EmailNotVerifiedPayload = { error: "EMAIL_NOT_VERIFIED"; message: string; dialog: {...}; redirect_to: string }`，定义放在 `packages/types/src/email-verification.ts`（rev4 新增）。
@@ -228,6 +232,7 @@ ALTER TABLE users ADD COLUMN email_changed_at INTEGER NOT NULL DEFAULT 0;
 ```
 
 Notes:
+
 - `email_verified_at = 0` is the unverified sentinel. Code reads it via `email_verified_at > 0`.
 - We deliberately do **not** add a `verification_code` column on `users`. Codes live in KV (§6.2).
 - Email comparison everywhere uses `email_normalized` (lowercase + trim). The display form in `email` is preserved as the user typed it.
@@ -264,6 +269,7 @@ All live under `/api/v1/users/me/email*`. All require valid JWT (`authMiddleware
 > **Rev4 change** _(superseded)_: body 增加必填字段 `cf_turnstile_token`。Worker 调 Cloudflare `siteverify` 通过后才进入 dove 发送链路。详细契约见 §7.2.1。
 
 Request:
+
 ```json
 {
 	"email": "user@example.com",
@@ -272,6 +278,7 @@ Request:
 ```
 
 Behavior:
+
 - **Rev4: Turnstile 校验先行**。`cf_turnstile_token` 缺失 ⇒ `400 CAPTCHA_REQUIRED`；`siteverify` 返回 `success=false` ⇒ `403 CAPTCHA_INVALID`（不计入 resend throttle，保持 idempotent UX）。校验通过后再走原有 rev3 流程。
 - Normalize body.email (`lower(trim(...))`)，长度 ≤ 254、RFC-style regex；失败 ⇒ `400 EMAIL_INVALID`。
 - **不写 `users` 表**。所有 pending 状态都在 KV record 内。
@@ -294,11 +301,13 @@ Behavior:
 - 仅在 dove 200 后才持久化 KV / `lastSentAt`（dove 失败不烧 throttle）。
 
 Response 200（rev4，mask 不变）：
+
 ```json
 { "sent_to": "u***@example.com", "expires_in": 900, "next_resend_allowed_at": 1714576800 }
 ```
 
 Errors（rev4 集合）：
+
 - `400 CAPTCHA_REQUIRED` — body 缺 `cf_turnstile_token`。
 - `403 CAPTCHA_INVALID` — Turnstile `siteverify` 拒绝（含过期 / 重放 / hostname mismatch）。
 - `400 EMAIL_INVALID` — body.email 缺失 / 格式不合法。
@@ -330,11 +339,13 @@ Errors（rev4 集合）：
 ### 7.3 `POST /api/v1/users/me/email/verify` (Rev3)
 
 Request:
+
 ```json
 { "email": "user@example.com", "code": "123456" }
 ```
 
 Behavior:
+
 - Normalize body.email；要求等于 KV `pendingEmailNormalized`，否则 `409 EMAIL_CODE_EMAIL_MISMATCH`（场景：多 tab / 用户重输 email / pending 被新 request 覆盖）。
 - HMAC 重算 `<userId>:<KV pendingEmailNormalized>:<body.code>`；constant-time 与 KV `codeHmac` 比较。
 - `attempts` 校验同 rev2（5 次后 KV 删除 + `403 CODE_LOCKED`）。
@@ -357,11 +368,13 @@ Behavior:
 - 成功后删除 KV record + 解锁。
 
 Response 200:
+
 ```json
 { "verified": true, "verified_at": 1714576800 }
 ```
 
 Errors（rev3 集合）：
+
 - `400 CODE_FORMAT_INVALID` — code 不是 6 位数字。
 - `400 EMAIL_INVALID` — body.email 缺失 / 格式不合法。
 - `404 CODE_NOT_FOUND` — KV 无 record（过期 / 从未 request）。
@@ -399,11 +412,13 @@ Body: { "template": "<slug>", "to": "<email>", "idempotency_key": "<uuid>", "var
 `dove/src/server/routes/webhook.ts` 历史上对 `to` 做 recipient lookup，缺失则返回 `recipient_not_found`，这与 Ellie 给任意 end-user 邮箱发验证码的需求冲突。
 
 **Decision (resolved 2026-05-02): Option A 已确定并实施 dove 侧代码。**
+
 - per-project flag `projects.allow_unknown_recipients BOOLEAN` 已在 dove 仓库实现 (`eefaf76` / `0adfb4f` / `bc0b2f6`)，flag = true 时跳过 recipient lookup，接受任何 RFC-valid `to`；其他 dove project 默认 `false`、行为不变。
 - Ellie project 通过 dove 侧管理界面/SQL 设为 `true`（out-of-band）。
 - 配额与 per-project rate limits 仍生效。
 
 **Pending（不再是 design 决策，而是 ops gate）：**
+
 - prod dove 部署 + Ellie project flag 配置 smoke。
 - pre-cutover smoke 见 §11.4（rev3 已更新口径——dove 没有独立 staging）。
 - Phase 5b worker write-route enforcement 受这两条 ops gate 阻塞；Phase 3b 代码本身不阻塞。
@@ -493,6 +508,7 @@ WHERE id = ? AND email_verified_at = 0
 ```
 
 职责划分：
+
 - `WHERE email_verified_at = 0` 仅是**单向流程 guard**（rev3：从未验证 → 已验证 一次性写入），不参与并发安全。
 - 并发 pending 一致性由 §7.3 的 `body.email == KV pendingEmailNormalized` 检查保证。
 - **email 冲突的最终安全边界仅是 0029 `users_email_normalized_uniq` 唯一索引**，捕获 D1 唯一约束错误并映射为 `409 EMAIL_ALREADY_IN_USE`。可选的应用层预检查只是为了改善错误体验，不构成安全保证。

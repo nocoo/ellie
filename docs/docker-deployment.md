@@ -31,6 +31,7 @@ docker build --build-arg APP=admin -t ellie-admin .
 ```
 
 Three stages:
+
 1. **deps** — `bun install --frozen-lockfile` (workspace-aware)
 2. **builder** — `bun run build:forum` or `bun run build:admin`, with placeholder env vars only for libs that read env at module-init (next-auth)
 3. **runner** — copies `.next/standalone` + `static` + `public`, runs `bun apps/<app>/server.js`
@@ -45,6 +46,7 @@ Three stages:
 | Release  | `.github/workflows/release.yml` | CI succeeds on `main`, or `workflow_dispatch` | Build → push GHCR → deploy to jp2 |
 
 Release steps:
+
 1. Build & push two images to GHCR: `ellie-web:latest` + `:sha`, `ellie-admin:latest` + `:sha`
 2. SSH to deploy server: `docker compose pull web admin && docker compose up -d --no-deps web admin`
 3. In-container health check: `GET /api/live` on each container
@@ -142,6 +144,7 @@ After editing: `cd /opt/proxy && docker compose exec caddy caddy reload --config
 ### Cloudflare DNS
 
 Add two A records pointing to your server's public IP (proxied):
+
 - `ellie.hexly.ai` → server IP
 - `ellie-admin.hexly.ai` → server IP
 

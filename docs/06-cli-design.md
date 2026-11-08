@@ -7,6 +7,7 @@
 Ellie CLI 是一个终端 TUI（Text User Interface）应用，使用 Rust 编写，通过 Cloudflare Worker API 浏览同济网论坛数据。架构参考 [llmfit-tui](https://github.com/AlexsJones/llmfit) 的状态机 + 事件循环模式。
 
 **核心原则**：
+
 - **只读模式** — 浏览版块、主题、帖子、用户资料，不提供发帖/回复功能
 - **登录可选** — 匿名即可浏览，登录后可查看需要权限的内容
 - **全屏 TUI** — 键盘驱动的交互式界面，非一次性命令输出
@@ -311,6 +312,7 @@ impl ApiClient {
 | `base64`               | latest | Cursor 编解码              | -           |
 
 **移除的依赖（llmfit 有但 Ellie 不需要）**：
+
 - ~~`sysinfo`~~ — 不需要硬件检测
 - ~~`tabled`~~ — TUI 自己渲染
 - ~~`colored`~~ — ratatui 内置颜色
@@ -675,6 +677,7 @@ fn get_forums_e2e() {
 - **工具**：手动 smoke test（TUI 难以自动化）
 
 **Manual Checklist**：
+
 - [ ] 启动 CLI 显示版块列表
 - [ ] Enter 进入版块显示主题列表
 - [ ] Enter 进入主题显示帖子
@@ -795,6 +798,7 @@ cargo test --test integration -- --ignored
 ### Hook 集成
 
 **pre-commit**：
+
 ```bash
 bunx lint-staged                      # TypeScript lint
 pnpm -r exec tsc --noEmit            # TypeScript typecheck
@@ -812,6 +816,7 @@ fi
 ```
 
 **pre-push**：
+
 ```bash
 bun run typecheck                    # G1
 bun test tests/unit/                 # L1

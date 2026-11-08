@@ -185,6 +185,7 @@
 4. `ForumLayoutShell` 中容器使用固定 `className="width-container"`，不依赖 React state 切换 class
 
 **这样做的好处**：
+
 - `<head>` script 在 HTML 解析阶段就设置好 `data-width-mode`，CSS 立即生效
 - React hydration 时 className 是固定的 `"width-container"`，不会 mismatch
 - 切换时 hook 直接操作 DOM 属性，CSS 即时响应，无需 React re-render
@@ -228,11 +229,13 @@ SiteFooter (compact)
 ```
 
 Desktop：
+
 - 左侧：Logo（font-display text-primary）
 - 中左：导航链接（首页 / 精华 / 搜索）
 - 右侧：用户名或登录链接 + WidthToggle + ThemeToggle
 
 Mobile：
+
 - 左侧：Logo
 - 右侧：Hamburger → Sheet 展开 nav + auth + toggles
 
@@ -481,6 +484,7 @@ interface KeysetPaginationProps {
 **页面**：`/login`（不在 ForumLayoutShell 中）
 
 轻度改进：
+
 - 表单外层使用 shadcn `Card`
 - `<input>` → shadcn `Input`
 - `<button>` → shadcn `Button`

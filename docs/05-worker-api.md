@@ -7,12 +7,14 @@
 ## 概述
 
 Ellie Worker 是基于 Cloudflare Workers 的边缘 API 层，作为前端与 D1 数据库之间的中间件。所有数据库操作都通过 Worker 进行，确保：
+
 - 统一的认证和授权
 - 边缘计算的低延迟
 - D1 数据库的安全隔离
 - API 限流和防护
 
 **核心原则**：
+
 1. **共享包优先**：Worker 组合 `@ellie/types`、`@ellie/repositories`，不重复定义类型
 2. **Contract 对齐**：API 返回体严格遵循 04a 定义的 `PaginatedResult`、cursor 编码
 3. **双 Key 隔离**：`API_KEY`（Key A）守护 `/api/v1/*`，`ADMIN_API_KEY`（Key B）守护 `/api/admin/*`，两组 Key 互不通用
@@ -138,6 +140,7 @@ apps/worker/
 ### 通用响应格式
 
 **成功响应：**
+
 ```json
 {
   "data": { /* 业务数据 */ },
@@ -149,6 +152,7 @@ apps/worker/
 ```
 
 **错误响应：**
+
 ```json
 {
 	"error": {
@@ -174,6 +178,7 @@ interface ThreadListResponse {
 ```
 
 **Cursor 编码**：使用 04a 定义的 opaque cursor（严格遵循索引排序）：
+
 - `latest` 排序 → `base64(JSON({ sticky, lastPostAt, id }))` ← 注意含 sticky
 - `newest` 排序 → `base64(JSON({ createdAt, id }))`
 - `hot` 排序 → `base64(JSON({ replies, id }))`
@@ -234,12 +239,14 @@ const params = cursor ? [threadId, cursor.position] : [threadId];
 | GET  | /api/live | 系统健康检查 | 无   |
 
 **设计规范**（来源：Memory 知识库 `label_规范`）：
+
 - 不被登录保护，不被缓存（`Cache-Control: no-store`）
 - 探测 D1 连通性（`SELECT 1 AS probe`），轻量快速
 - 错误响应中不包含 "ok"（防止 keyword monitor 误判）
 - UT 覆盖率 100%
 
 **正常响应（200）：**
+
 ```json
 {
 	"status": "ok",
@@ -250,6 +257,7 @@ const params = cursor ? [threadId, cursor.position] : [threadId];
 ```
 
 **异常响应（503）：**
+
 ```json
 {
 	"status": "error",
@@ -304,12 +312,14 @@ const params = cursor ? [threadId, cursor.position] : [threadId];
 | GET  | /api/v1/threads/:id | 获取单个主题详情 | -                                    |
 
 **查询参数：**
+
 - `forumId`: number - 版块 ID
 - `limit`: number - 每页数量（默认 20，最大 50）
 - `cursor`: string - 分页游标（04a opaque cursor）
 - `sort`: "latest" \| "newest" \| "hot" - 排序方式
 
 **响应格式（PaginatedResult）：**
+
 ```json
 {
   "data": {
@@ -329,6 +339,7 @@ const params = cursor ? [threadId, cursor.position] : [threadId];
 | GET  | /api/v1/posts/:id | 获取单个帖子详情 | -                             |
 
 **查询参数：**
+
 - `threadId`: number - 帖子 ID（必需）
 - `limit`: number - 每页数量（默认 20，最大 50）
 - `cursor`: string - 分页游标（04a opaque cursor，基于 position）
@@ -370,6 +381,7 @@ const params = cursor ? [threadId, cursor.position] : [threadId];
 ```
 
 **登录响应：**
+
 ```json
 {
 	"data": {
@@ -556,6 +568,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 ### 版主操作 API（Key A + 论坛 JWT，role ∈ {1, 2, 3}）
 
 **重要**：`/api/v1/moderation/*` 走 **Key A** 体系，使用论坛用户 JWT 认证。版主在论坛前端（Web）中执行这些操作，不需要进入 Admin Console。
+
 - Admin (1) / SuperMod (2) / Mod (3)：均可在论坛前端执行版主操作
 - Mod (3) **不能**进入 Admin Console（Admin Console 使用 Key B + Google OAuth，与论坛用户无关）
 
@@ -834,6 +847,7 @@ export interface Env {
 | `handlers/*`               | 各 handler 函数              | bun test + mock D1 |
 
 **示例：**
+
 ```typescript
 // tests/unit/lib/password.test.ts
 import { describe, it, expect } from "bun:test";

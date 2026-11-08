@@ -245,6 +245,7 @@ ON CONFLICT(user_id) DO UPDATE SET
 ```
 
 Only inserts checkins for users that exist in D1:
+
 ```sql
 WHERE EXISTS (SELECT 1 FROM users WHERE id = ?);
 ```

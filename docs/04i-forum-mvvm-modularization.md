@@ -82,6 +82,7 @@ Page (RSC)
 3. **`use-post-editor.ts`** 在客户端调用 `createRepositories()`，这个调用链在当前架构下实际上无法工作（repos 需要 D1 数据库绑定）。
 
 **前置依赖**：04g（用户登录与注册 — JWT 认证链路）完成后，需要：
+
 - 为 `forumApi` 添加 JWT 注入能力（或新建 `authedForumApi` 封装）
 - 在页面层获取用户 session/JWT，传递给 Server Action
 - 接入真实的发帖/回帖 UI
@@ -172,6 +173,7 @@ src/viewmodels/shared/
 ### 3.3 统一日期格式化
 
 **问题**：同类日期格式化散布在 4 个位置，实现不一致：
+
 - `thread-detail.ts` — 手写 `YYYY-M-D` 无零填充
 - `thread-list.ts` — `formatTime()` 中文相对时间
 - `user-profile.ts` — `toLocaleDateString("zh-CN")` 有零填充
@@ -293,6 +295,7 @@ Page ──→ ViewModel.server ──→ ViewModel.pure ──→ @ellie/types
 ```
 
 禁止的依赖方向：
+
 - ~~Component → ViewModel.server~~ （组件不直接调用 server loader）
 - ~~ViewModel → Component~~ （VM 不导入组件层任何内容）
 - ~~ViewModel.pure → lib/forum-api~~ （纯逻辑层不做 I/O）

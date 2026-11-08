@@ -100,6 +100,7 @@ The Worker is the **single source of truth** for all data operations.
 | `/api/live`    | None                    | None                                    | Health check     |
 
 **Key endpoints:**
+
 - `GET /api/v1/forums` - List forums; optional `view=names` returns only visible `{ id, name }` entries without thread summaries
 - `GET /api/v1/threads?forumId=X` - List threads
 - `GET /api/v1/posts?threadId=X` - List posts
@@ -113,6 +114,7 @@ The Worker is the **single source of truth** for all data operations.
 ### Layer 2: Next.js API Routes (Proxy Layer)
 
 Next.js routes act as **proxies** that:
+
 1. Hide API keys from the browser
 2. Handle CSRF protection
 3. Inject authentication headers
@@ -218,12 +220,14 @@ if (path.startsWith("/api/admin/")) {
 ### 2. Using Wrong API Client
 
 **Wrong:**
+
 ```typescript
 // In Client Component
 import { forumApi } from "@/lib/forum-api"; // Server-only!
 ```
 
 **Right:**
+
 ```typescript
 // In Client Component
 import { apiClient } from "@/lib/api-client"; // Browser-safe
@@ -232,6 +236,7 @@ import { apiClient } from "@/lib/api-client"; // Browser-safe
 ### 3. Calling Worker Directly from Browser
 
 **Wrong:**
+
 ```typescript
 // Browser trying to call Worker
 fetch("https://worker.example.com/api/v1/threads", {
@@ -240,6 +245,7 @@ fetch("https://worker.example.com/api/v1/threads", {
 ```
 
 **Right:**
+
 ```typescript
 // Browser calls Next.js proxy
 fetch("/api/v1/threads"); // Next.js injects key server-side

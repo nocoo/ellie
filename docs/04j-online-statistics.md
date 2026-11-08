@@ -7,6 +7,7 @@
 ## 概述
 
 Discuz X3.4 的在线统计功能包括：
+
 - **实时在线人数**：当前活跃用户数（含游客）
 - **历史峰值**：最高在线人数及日期
 - **用户在线时长**：每个用户的累计在线时间
@@ -16,6 +17,7 @@ Ellie 需要在 Cloudflare Workers + D1 + KV 架构下重新实现这些功能�
 ### 范围裁剪
 
 本期实现 **仅统计登录用户**，不含游客。原因：
+
 - 游客无稳定标识（IP 共享、动态变化）
 - 基于 fingerprint 的方案复杂且不可靠
 - KV key 数量会随游客暴增，成本不可控
@@ -59,6 +61,7 @@ CREATE TABLE pre_common_session (
 ```
 
 **关键点：**
+
 - 使用 `ENGINE=MEMORY`，数据全内存，重启丢失
 - `lastactivity` 用于判断是否在线（通常 15 分钟内视为在线）
 - `lastolupdate` 用于计算在线时长增量
@@ -85,6 +88,7 @@ if ($oltime >= 60) {  // 至少累积1分钟
 ### 1.4 峰值记录
 
 Discuz 在 `pre_common_setting` 中存储：
+
 - `onlinemax`：历史最高在线人数
 - `onlinemaxtime`：达到峰值的时间戳
 
@@ -484,6 +488,7 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 ```
 
 **变更点**：
+
 - 将 `env.DB.batch()` 与 KV 读取并行化
 - `totalOnline` 从 `stats:online_count` 读取
 - `peakOnline` / `peakDate` 从 `stats:online_peak` 读取
@@ -594,6 +599,7 @@ Files:
 > **注**：类型定义在 `apps/worker/src/lib/env.ts`，`Env.KV` 已存在，无需修改。
 
 **验证命令：**
+
 ```bash
 bun test apps/worker/tests/unit/middleware/online.test.ts
 ```
@@ -624,6 +630,7 @@ Files:
 | `apps/worker/tests/unit/middleware/activity.test.ts` | 新增 | L1 单元测试             |
 
 **验证命令：**
+
 ```bash
 bun test apps/worker/tests/unit/middleware/activity.test.ts
 ```
@@ -661,6 +668,7 @@ Files:
 > **目录决策**：Cron 逻辑放入 `lib/online-stats.ts` 而非新建 `cron/` 目录，与现有 lib 结构保持一致。
 
 **验证命令：**
+
 ```bash
 bun test apps/worker/tests/unit/lib/online-stats.test.ts
 ```
@@ -691,6 +699,7 @@ Files:
 | `apps/worker/tests/unit/handlers/stats.test.ts` | 修改 | 扩展测试验证 KV 读取           |
 
 **验证命令：**
+
 ```bash
 bun test apps/worker/tests/unit/handlers/stats.test.ts
 ```
@@ -721,6 +730,7 @@ Files:
 > **测试目录**：使用现有的 `tests/unit/integration/` 目录（已有 `router.test.ts`），而非新建 `tests/integration/`。
 
 **验证命令：**
+
 ```bash
 bun test apps/worker/tests/unit/integration/online-tracking.test.ts
 ```
@@ -750,6 +760,7 @@ bun test apps/worker/tests/unit/integration/online-tracking.test.ts
 | G2 Security   | `gitleaks detect --no-banner` | 无敏感信息泄露      |
 
 完整流程验证：
+
 ```bash
 bun run typecheck && bun test apps/worker && bun test tests/unit/
 ```
@@ -1298,6 +1309,7 @@ export function createMockKV(users = MOCK_ONLINE_USERS, peak = MOCK_PEAK_DATA) {
 | `handlers/stats.ts`      | ≥95%     | ≥90%       |
 
 运行覆盖率报告：
+
 ```bash
 bun test --coverage apps/worker/tests/unit/
 ```
@@ -1317,6 +1329,7 @@ bun test --coverage apps/worker/tests/unit/
 ### 11.2 D1 写入优化
 
 活动时长更新的写入可能频繁，优化策略：
+
 1. **批量更新**：使用 `waitUntil` 异步执行，不阻塞响应
 2. **节流**：如果距上次更新不足 1 分钟，跳过本次更新
 3. **最终一致性**：允许少量时长损失，换取更低的写入压力

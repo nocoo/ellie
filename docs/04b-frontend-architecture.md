@@ -26,6 +26,7 @@
 ### 从参考项目复用的模式
 
 **从 basalt 复用：**
+
 - MVVM 架构（`models/` → `viewmodels/` → `pages/`）
 - 3 层亮度体系（L0 background / L1 card / L2 secondary）
 - Dashboard widget 组件（StatCard, Chart Cards 等）→ 04c
@@ -36,6 +37,7 @@
 - `cn()` = `clsx()` + `tailwind-merge()`
 
 **从 pew 复用：**
+
 - Next.js 16 App Router Route Groups
 - Proxy（替代 middleware）守卫路由
 - `useIsMobile()` 响应式 hook
@@ -130,6 +132,7 @@ ellie/
 ```
 
 Worker 提供：
+
 - `/api/v1/*` — 公开 API + 论坛用户认证（Key A 体系）
 - `/api/v1/moderation/*` — 版主操作（Key A + 论坛 JWT + role check）
 - `/api/admin/*` — 管理 API（Key B，Next.js 服务端直连）
@@ -397,6 +400,7 @@ Next.js 16 使用 `proxy.ts` 替代 `middleware.ts`：
 | **测试环境** | 本地隔离 SQLite / Miniflare | 运行器自动管理 `--local --persist-to` 独立状态目录，脱网执行 |
 
 测试隔离验证：
+
 1. **本地运行隔离**：测试环境强制运行于 `--local` 模式，状态持久化到各自独立的 `.wrangler/state/` 目录
 2. **运行时环境变量**：测试启动时注入 `ENVIRONMENT = "test"`
 3. **确定性测试夹具**：每次启动自动应用全量本地迁移并载入初始测试种子数据

@@ -60,7 +60,6 @@ Accident narratives belong here. Keep only recurring project rules in `AGENTS.md
 
 The remote test setup below is historical. Current L2/L3 runners use local Wrangler; it is not an instruction to provision or execute remote tests.
 
-
 ### 2026-05-10: Checkin Streak Bug from Pre-Fix Deployment
 
 - **Issue:** 3 users who checked in on May 9 have `streak_days=1` instead of 2, despite checking in on consecutive days (import from May 8 → new checkin May 9).
@@ -180,7 +179,6 @@ The remote test setup below is historical. Current L2/L3 runners use local Wrang
 - Final deployment review found a protocol dependency in both directions: old Web required a count on display refill, while new Web needed a new Worker route. Checking only the final combined source missed this transition risk. Publish the endpoint and new reader first while retaining the old count policy, then remove the coupling in a second patch after Web is live. Verify both mixed-version combinations before choosing a rollout order.
 - Production observation then showed another scan spike after the thirty-minute count expiry. Approximate pagination totals need an independent lifetime, and a forced display retry must not discard a still-valid count. Retain event invalidation and absolute expiry, and test a second in-flight count invalidation explicitly when separating the two lifetimes. Report cold-start costs and steady windows separately without removing cold starts from the aggregate comparison.
 
-
 ## 2026-09-25 — Daily statistics local bootstrap
 
 The first browser-lane bootstrap returned 503 because its Worker lifecycle still
@@ -189,7 +187,6 @@ The failure was caught before deployment. L3 now uses `TEST_WORKER_VARS`, seeds 
 daily snapshot after Worker readiness, and passes the same test credential to Web.
 When adding startup-dependent state, validate every local lifecycle through real
 HTTP rather than assuming similarly named runners share their configuration.
-
 
 ## 2026-09-25 — Daily statistics deleted-forum sentinel
 
@@ -239,16 +236,13 @@ The patch-release script ran `bun install` with the required temporary mirror an
 
 The v1.14.15 picker removed the Coolmonkey tab as requested, but the maintained browser scenario still required that label. Local commit/push hooks passed because they do not run L3; GitHub L3 then failed and the deployment workflow skipped both web applications. Worker deployment alone left production versions split. Update existing behavioral assertions whenever controls are removed, and distinguish a pushed release from a completed web deployment. The scenario now checks the two supported tabs, the default selected tab, the forum search and the shared recent-history region.
 
-
 ## 2026-09-26 — Local preview blocked by authentication
 
 The sticky icon mock page used a new route without accounting for the proxy default login guard. The shared preview URL redirected to login. Allow only `/dev/pins` in development and keep the page unavailable in production. Check anonymous access before sharing local preview links.
 
-
 ## 2026-09-26 — Misread classic sticky icon geometry
 
 The initial SVG redraw interpreted the small GIF glyphs as arrows and omitted the continuous rounded border. All three originals use two chevrons. Inspect enlarged source geometry before redrawing tiny raster icons; preserve glyph count, negative space, border, and corner shape.
-
 
 ## 2026-09-26 — SVG accessibility gate missed during icon preview
 
@@ -297,6 +291,7 @@ not stop on the failed Python guard. Hooks ran and Git rejected the empty commit
 no bad lockfile was committed. Chain staging/commit with successful validation (or
 set shell errexit), restore only the generated registry URL expansion, and assert
 an exact version-only lockfile diff before proceeding.
+
 ## 2026-10-04: Preserve scope and normal gates during dependency maintenance
 
 The Rust upgrade checkout initially selected an Xcode linker with a newer Command Line Tools SDK. A per-invocation matching Xcode SDK/compiler pair passed a real compile/run probe; no global machine configuration changed. The next parallel hook exposed two unchanged Worker tests exceeding their existing five-second limit while the first Rust build competed for resources. The same 48 targeted tests passed separately, and subsequent complete hooks passed with supported Vitest worker and Cargo build concurrency limits. Test timeouts, assertions, coverage thresholds, skips and hooks were unchanged; original failures remain in the duty evidence.
@@ -328,7 +323,6 @@ evidence of authenticated page coverage.
 ### 2026-10-13: Authorize dashboard requests before automatic loading
 
 The first automatic-loading implementation relied only on the parent Admin layout's redirect. Local browser tests showed that an unauthorized request still issued the five dashboard report requests before redirecting because Next.js can render pages and layouts concurrently. Reuse the existing session/allowlist check in the dashboard before loading any report, and test that rejected sessions invoke neither statistics loader. A layout redirect alone does not prevent child Server Component data access.
-
 
 ## 2026-10-26: Use the Caddy origin for manual previews
 

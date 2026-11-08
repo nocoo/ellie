@@ -143,6 +143,7 @@ const HOME_PREFIX: BreadcrumbItem[] = [
 ### 现状
 
 `/forums/[id]` 页面当前功能：
+
 - 面包屑 + 版块标题/描述 + 子版块面板
 - 帖子列表（经典 4 列） + 分页器
 - 排序固定为 `ORDER BY sticky DESC, last_post_at DESC`
@@ -174,6 +175,7 @@ Forum 表当前无 `rules` 字段。方案：
 #### 前端组件
 
 新建 `ForumRulesPanel` 组件：
+
 - 默认折叠，点击标题行展开
 - `localStorage` 记忆每个 forum 的折叠状态 key: `forum-rules-{forumId}`
 - 内容通过 `SafeHtml` 组件渲染（已有 HTML 净化器）

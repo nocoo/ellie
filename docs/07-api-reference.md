@@ -76,6 +76,7 @@
 **Refresh Token**：UUID 格式，存储在 KV 中，有效期 30 天，单次使用（旋转机制）。
 
 **角色鉴权说明**（仅用于 `/api/v1/moderation/*`）：
+
 - `withAuth`：仅验证论坛 JWT 有效性，任何已登录用户均可访问
 - `withModerator`：要求 `role ∈ {1, 2, 3}`（管理员、超级版主、版主）
 
@@ -102,6 +103,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ### 通用响应格式
 
 **成功响应（单体）：**
+
 ```json
 {
   "data": { ... },
@@ -113,6 +115,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ```
 
 **成功响应（游标分页 — 公开列表）：**
+
 ```json
 {
   "data": [ ... ],
@@ -127,6 +130,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 > `nextCursor` 为 `null` 时表示没有更多数据。
 
 **成功响应（偏移分页 — 管理列表）：**
+
 ```json
 {
   "data": [ ... ],
@@ -142,6 +146,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ```
 
 **错误响应：**
+
 ```json
 {
 	"error": {
@@ -355,6 +360,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 **请求参数**：无
 
 **成功响应（200）：**
+
 ```json
 {
 	"status": "ok",
@@ -367,6 +373,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ```
 
 **异常响应（503）：**
+
 ```json
 {
 	"status": "error",
@@ -396,6 +403,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 **请求参数**：无
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": [
@@ -433,6 +441,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | 路径参数 | `id` — 版块 ID（整数） |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -486,6 +495,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 **排序规则**：`sticky DESC, last_post_at DESC, id DESC` — 置顶主题始终排在最前。
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": [
@@ -536,6 +546,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | 路径参数 | `id` — 主题 ID（整数） |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -587,6 +598,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `content` | string | 是   | 非空（主楼内容）    |
 
 **成功响应（201）：**
+
 ```json
 {
 	"data": {
@@ -612,6 +624,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ```
 
 **副作用（原子批量操作）：**
+
 - 插入主题记录
 - 插入主楼帖子（`is_first=1, position=1`）
 - 更新版块计数（`threads+1`, `posts+1`）和最后发帖信息
@@ -652,6 +665,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 **排序规则**：`position ASC` — 按楼层顺序排列。
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": [
@@ -693,6 +707,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | 路径参数 | `id` — 帖子 ID（整数） |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -734,6 +749,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `content`  | string | 是   | 非空                       |
 
 **成功响应（201）：**
+
 ```json
 {
 	"data": {
@@ -752,6 +768,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ```
 
 **副作用（原子批量操作）：**
+
 - 插入帖子（`position` 自动计算为 `MAX(position) + 1`）
 - 更新主题（`replies+1`、最后回复信息）
 - 更新版块（`posts+1`、最后发帖信息）
@@ -782,6 +799,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | 分页     | 无（全量返回）                            |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": [
@@ -826,6 +844,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | 路径参数 | `id` — 用户 ID（整数） |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -917,6 +936,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 **可见性过滤：**
 
 搜索结果遵循标准可见性规则：
+
 - 主题：`sticky >= 0`（排除隐藏/删除/占位主题）
 - 版块：`status = 1` 且用户有权访问的 visibility 级别
 - 匿名用户只能搜索到 `public` 版块的主题
@@ -963,6 +983,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `password` | string | 是   |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -979,6 +1000,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **副作用：**
+
 - **静默密码升级**：如果用户使用 Discuz 旧格式密码（有 `password_salt`），验证成功后自动重新哈希为 PBKDF2-SHA256 格式并清除 `password_salt`
 - **最后登录更新**：更新 `users.last_login` 为当前时间戳
 
@@ -1007,6 +1029,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `refreshToken` | string | 是   |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -1049,6 +1072,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `refreshToken` | string | 是   |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": { "loggedOut": true },
@@ -1077,6 +1101,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **请求参数**：无
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -1127,6 +1152,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 > **注意**：头像不再通过此端点更新。请使用 `POST /api/v1/upload` 上传头像（见 docs/15-avatar-upload.md）。
 
 **成功响应（200）** — 返回 **SelfUser** 模型：
+
 ```json
 {
 	"data": {
@@ -1172,6 +1198,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `newPassword` | string | 是   | 至少 6 个字符 |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": { "updated": true },
@@ -1214,6 +1241,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `level` | string | 是   | `"none"` / `"forum"` / `"global"` |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": { "id": 100, "sticky": 1 },
@@ -1251,6 +1279,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `level` | number | 是   | 整数，0-3 |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": { "id": 100, "digest": 2 },
@@ -1286,6 +1315,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `closed` | boolean | 是   | `true` 关闭、`false` 开放 |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": { "id": 100, "closed": 1 },
@@ -1323,6 +1353,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | `targetForumId` | number | 是   | 正整数，目标版块必须存在 |
 
 **成功响应（200）— 已移动：**
+
 ```json
 {
 	"data": { "id": 100, "forumId": 5, "moved": true },
@@ -1331,6 +1362,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **成功响应（200）— 目标与当前相同，未移动：**
+
 ```json
 {
 	"data": { "id": 100, "forumId": 5, "moved": false },
@@ -1339,6 +1371,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **副作用（仅当实际移动时）：**
+
 - 更新主题和所有帖子的 `forum_id`
 - 原版块计数递减（`threads-1`, `posts-N`）
 - 目标版块计数递增（`threads+1`, `posts+N`）
@@ -1367,6 +1400,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | 路径参数 | `id` — 帖子 ID（整数）         |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": { "deleted": true, "id": 500 },
@@ -1375,6 +1409,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **副作用：**
+
 - 删除帖子记录
 - 主题 `replies-1`
 - 版块 `posts-1`
@@ -1513,6 +1548,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **请求体**：`{ targetForumId: number }` — 目标版块必须存在，不能与源相同。
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -1605,6 +1641,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **成功响应（200）**：`{ data: Thread, meta }`
 
 **当 `forumId` 存在时的副作用（move）：**
+
 - 更新主题和所有帖子的 `forum_id`
 - 原版块计数递减（`threads`, `posts`）
 - 目标版块计数递增
@@ -1779,11 +1816,13 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **请求体（可选）**：`{ deleteContent?: boolean }`
 
 **成功响应（200）— 不删除内容：**
+
 ```json
 { "data": { "banned": true, "id": 42, "contentDeleted": false } }
 ```
 
 **成功响应（200）— 删除内容：**
+
 ```json
 {
 	"data": {
@@ -1797,6 +1836,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **`deleteContent: true` 的副作用：**
+
 - 设置 `status = -1`，清零 `threads` / `posts`
 - 删除用户的所有主题及帖子
 - 删除用户在其他主题的回复
@@ -1813,6 +1853,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **请求体**：无
 
 **成功响应（200）：**
+
 ```json
 { "data": { "nuked": true, "id": 42, "threadsDeleted": 10, "postsDeleted": 150 } }
 ```
@@ -2106,6 +2147,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **请求体**：`{ content: string }`
 
 **成功响应（200）— 命中 ban**：
+
 ```json
 {
 	"data": {
@@ -2123,6 +2165,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **成功响应（200）— 命中 replace**：
+
 ```json
 {
 	"data": {
@@ -2140,6 +2183,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **成功响应（200）— 无命中**：
+
 ```json
 {
 	"data": { "matched": false, "action": null, "matches": [], "filtered": null }
@@ -2161,6 +2205,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | 认证 | Key B |
 
 **成功响应（200）：**
+
 ```json
 {
 	"data": {
@@ -2188,6 +2233,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ### CORS 配置
 
 允许的来源：
+
 - `https://ellie.nocoo.cloud`
 - `https://ellie.worker.hexly.ai`
 - `http://localhost:3000`
@@ -2205,6 +2251,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 #### 文档协议（目标格式）
 
 **未匹配的路由（404）：**
+
 ```json
 {
 	"error": {
@@ -2216,6 +2263,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 ```
 
 **未捕获的异常（500）：**
+
 ```json
 {
 	"error": {
@@ -2356,6 +2404,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **测试隔离**：每个 `describe` block 独立初始化 mock D1，测试间不共享状态。
 
 **Mock 策略**：
+
 - D1 数据库：使用 `miniflare` 或内存 mock
 - KV Store：内存 mock
 - 认证中间件：每个 admin 测试注入已认证的 admin/mod context
@@ -2363,6 +2412,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 **禁止 skip**：所有测试必须执行。暂时无法实现的测试用 `it.todo()` 标记，不使用 `it.skip()`。
 
 **运行命令**：
+
 ```bash
 # 全部 worker 单元测试
 bun test apps/worker

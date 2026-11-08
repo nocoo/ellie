@@ -9,12 +9,14 @@ Cache administration targets are defined in [the unified cache design](20-worker
 The admin console is a standalone management interface at `/admin/*` that provides comprehensive control over all forum entities.
 
 **Access Control Model:**
+
 - Admin status is determined by `ADMIN_EMAILS` environment variable (comma-separated email whitelist)
 - Authentication via Google OAuth + NextAuth session
 - All admins in whitelist have equal full permissions (no role hierarchy in admin console)
 - This is independent of forum user roles (role=1/2/3 in users table)
 
 **Key Principles:**
+
 - Complete visibility: admins can see all data across all forums
 - Full CRUD operations on all entities
 - Batch operations for efficiency
@@ -123,6 +125,7 @@ Content display is shared with the public forum through `@ellie/shared/content`:
 | **Reports** | `/admin/reports` | ✅     | Type-aware list (thread/post/user) with per-type target metadata, status & type filters, detail dialog, resolve/dismiss/revert + batch delete |
 
 **Scope (E batch):**
+
 - Worker `POST /api/v1/reports` accepts `type ∈ {thread, post, user}` with uniform self-report / duplicate / visibility guards.
 - Admin list/detail JOINs per-type metadata (`target_title` for thread/post via `threads.subject`, `target_name` for user, `thread_id` for post→parent thread navigation).
 - Admin UI exposes 类型 filter + 类型 badge column; target column links to `/admin/threads/:id` (thread/post) or `/admin/users/:id` (user).
@@ -135,6 +138,7 @@ Content display is shared with the public forum through `@ellie/shared/content`:
 | **Operation Logs** | `/admin/logs/operations` | ✅     | Read-only admin action history. Filters: action (exact), targetType, adminId, targetId, date range. Detail dialog renders pretty-printed JSON or falls back to raw text on parse failure. Target column whitelist-links to `user`/`thread`/`report`/`forum`. |
 
 **Scope (F batch):**
+
 - F1 (write helper): `apps/worker/src/lib/adminLog.ts` provides `resolveActor(request)` (reads `X-Admin-Actor-Email` / `X-Admin-Actor-Name` injected by `adminApiAs`; falls back to `system`/`id=0`), `sanitizeAdminLogDetails(input)` (deny-list redaction at every depth, depth cap 4, 4 KB UTF-8 cap with `{truncated:true,head:"…"}` envelope), and `writeAdminLog(env, actor, params)` (best-effort INSERT — never throws back to the caller; failures go to `console.error`).
 - F2 (read API): `GET /api/admin/admin-logs` (list, filterable + paginated) and `GET /api/admin/admin-logs/:id` (single row).
 - F3-a/b/c (handler integration): the mutation families covered are `user.ban` / `user.unban` / `user.nuke` / `user.purge`, `report.resolve` / `report.dismiss` / `report.batch_delete`, `thread.update` / `thread.delete` / `thread.batch_delete` / `thread.batch_move`, `post.update` / `post.delete` / `post.batch_delete`, `forum.create` / `forum.update` / `forum.delete` / `forum.merge` / `forum.reorder`, `setting.update`, `ip_ban.create` / `ip_ban.update` / `ip_ban.delete` / `ip_ban.batch_delete`, `censor_word.create` / `censor_word.update` / `censor_word.delete` / `censor_word.batch_delete`, `announcement.create` / `announcement.update` / `announcement.delete` / `announcement.batch_delete`. Except for `user.purge`, each handler calls `writeAdminLog` after the underlying mutation commits. Purge inserts its audit record in the same transaction as content deletion, counter repair, and the tombstone, so an audit failure rolls back the cleanup. Failure-path audit is intentionally out of scope.
@@ -143,6 +147,7 @@ Content display is shared with the public forum through `@ellie/shared/content`:
 **Purge completion:** Repeating `POST /api/admin/users/:id/purge` for a tombstone returns `{ data: { purged: true, id, alreadyPurged: true } }` without changing counters, audit, or timestamps. A failed D1 response is reconciled against the authoritative tombstone before reporting failure. The admin client likewise uses a read to reconcile a lost response; it never retries the destructive POST automatically. Successful receipts replace the detail panel directly, without a second user fetch. R2 cleanup uses batches of at most 1,000 keys and reports unconfirmed files separately from the committed database cleanup.
 
 **Not yet covered (follow-ups):**
+
 - Attachment mutations (`attachment.delete` / `attachment.batch_delete`) — R2 + DB side-effects need their own action shape; tracked as F3-d.
 - Generic `user.update`, role/status batch flips, statistics recalc — maintenance-class mutations not part of the F batch.
 - No `/admin/logs/audit` event-stream page is planned — operation logs cover the audit need today.
@@ -160,6 +165,7 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 | **Staff** | `/admin/staff` | Medium   | Assign/revoke admin/supermod/mod roles, per-forum moderator assignment |
 
 **Implementation Plan:**
+
 1. Create staff management UI showing all users with role > 0
 2. Add role assignment dialog
 3. Add forum moderator assignment UI (edits `forums.moderators` / `moderator_ids` fields)
@@ -175,6 +181,7 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 | **Announcements** | `/admin/announcements` | Low      | Create/edit/delete announcements, schedule, target forums, display priority |
 
 **Implementation Plan:**
+
 1. Add `announcements` table: `id`, `title`, `content`, `forum_ids` (JSON), `sticky`, `start_at`, `end_at`, `status`, `created_at`
 2. Create Worker handlers for CRUD
 3. Build admin UI with rich text editor, forum selector, date picker
@@ -208,6 +215,7 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 | L3 E2E         | Full admin workflows               | ✅ Partial / Active | Playwright `admin` project covers auth, forums, threads, users, reports, and operation logs. Run via `bun run test:e2e:admin` (boots admin app on :7032 with `NODE_ENV=test` + `.env.test`). Direct `bunx playwright …` requires the same env loaded manually. |
 
 **Known Issues:**
+
 - Admin L3 specs require `.env.test` + a `-test` Worker URL via the `bun run test:e2e:admin` runner; running raw `bunx playwright …` without that setup will fail in `loginAsAdmin`.
 - Attachment delete audit is still a follow-up (F3-d); attachment mutations do not yet write to `admin_logs`.
 
@@ -254,7 +262,6 @@ See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, r
 4. **Audit Trail**: Implemented under the F batch (see §7 + [`docs/14a-audit-logs.md`](./14a-audit-logs.md)). Mutations in the covered families (user ban/nuke, report resolve/dismiss, thread/post content edits & deletes, forum/setting/ip_ban/censor_word/announcement CRUD) are recorded best-effort to `admin_logs`; sensitive keys are redacted by `sanitizeAdminLogDetails`. Attachment delete audit (F3-d) and maintenance-class mutations (statistics recalc, role/status batches, generic `user.update`) are not covered yet.
 
 5. **Dangerous Actions**: Always require confirmation dialogs
-
 
 ## 查询成本约束（v1.13.1）
 

@@ -75,6 +75,7 @@ src/components/layout/
 ```
 
 **响应式行为**（与 04b 一致）：
+
 - Desktop (>1024px): 全功能布局，max-w-[1200px] 居中
 - Tablet (768-1024px): 导航折叠为汉堡菜单，内容区全宽
 - Mobile (<768px): 单列布局，汉堡菜单，帖子列表简化（隐藏统计列）
@@ -107,6 +108,7 @@ src/components/layout/
 ```
 
 **数据源：**
+
 - `ForumRepository.listAll()` — 全量 213 个版块，前端构建树
 - 复用 04a 的 `buildForumTree()` 纯函数
 
@@ -164,10 +166,12 @@ export function useForumListViewModel() {
 ```
 
 **数据源：**
+
 - `ForumRepository.getById(id)` — 版块信息
 - `ThreadRepository.list({ forumId, sort, digest?, cursor, limit })` — 帖子列表（keyset 分页）
 
 **排序策略：**
+
 - 置顶帖 (sticky > 0) 始终排在最前，按 sticky 降序
 - 普通帖按用户选择的排序方式：
   - `latest`（默认）：按 lastPostAt 降序 — 最新回复的帖子靠前
@@ -253,12 +257,14 @@ export function useThreadListViewModel(forumId: number) {
 ```
 
 **数据源：**
+
 - `ThreadRepository.getById(id)` — 帖子元信息
 - `PostRepository.list({ threadId, cursor, limit })` — 回复列表（keyset 分页）
 - `AttachmentRepository.listByThreadId(threadId)` — 附件列表
 - `UserRepository.getById(authorId)` — 作者详细信息（用于 UserCard）
 
 **楼层展示规则：**
+
 - 1 楼 (isFirst=true) 为主帖，样式加强
 - 2 楼起为回复，按 position 升序排列
 - 每页 20 条回复
@@ -346,6 +352,7 @@ Tab: [发帖历史] [回帖历史]
 ```
 
 **数据源：**
+
 - `UserRepository.getById(id)` — 用户资料
 - `ThreadRepository.list({ authorId, sort: "newest", cursor, limit })` — 发帖历史
 - `PostRepository.list({ authorId, cursor, limit })` — 回帖历史
@@ -383,6 +390,7 @@ export function useUserProfileViewModel(userId: number) {
 跨版块展示所有精华帖，按 lastPostAt 降序。
 
 **数据源：**
+
 - `ThreadRepository.list({ digest: true, sort: "latest", cursor, limit })` — 全站精华
 
 **ViewModel：**
@@ -401,6 +409,7 @@ export function useDigestListViewModel() {
 ### 搜索（/search）
 
 **MVP 搜索能力**（受 Doc02 D1 限制）：
+
 - 标题前缀匹配：`WHERE subject LIKE '搜索词%'`（LIKE pattern ≤50 bytes）
 - 作者精确匹配：`WHERE author_name = '用户名'`
 - 不支持中文全文搜索（D1/SQLite 不支持中文 FTS）
@@ -695,6 +704,7 @@ export function decodeHighlight(highlight: number): HighlightStyle | null {
 ```
 
 **安全保障**：
+
 - 展示时由 `@ellie/shared/content` 的 `renderContent` 统一处理旧帖标签、实体编码和表情，最后通过 `sanitize-html` 白名单清洗；管理后台主题预览复用同一函数与 `@ellie/shared/content.css` 样式。
 - 内容在写入 D1 前已经过 sanitize（迁移阶段和运行时写入都执行同一套规则）
 - Sanitize 规则详见 04a §Sanitize 规则（以 `bbcode.ts` 现有实现为 source of truth）
@@ -709,10 +719,12 @@ export function decodeHighlight(highlight: number): HighlightStyle | null {
 2. **附件列表**：跟随楼层底部展示未内嵌的剩余附件
 
 **URL 规则**（04a §附件渲染链路）：
+
 - `attachmentUrl(filePath)` → `R2_PUBLIC_BASE/filePath` — 原图/文件下载
 - `thumbnailUrl(filePath)` → `R2_PUBLIC_BASE/filePath.thumb.jpg` — 缩略图（仅 hasThumb=true）
 
 展示：
+
 - **图片附件** (isImage=true)：内嵌或列表中展示缩略图，点击查看原图
 - **文件附件** (isImage=false)：展示文件名 + 大小 + 下载按钮
 
@@ -761,6 +773,7 @@ Mobile 下折叠为汉堡菜单。
 ```
 
 层级关系：
+
 - 首页 → Group → Forum → Sub（可选）→ Thread
 
 ### SiteFooter

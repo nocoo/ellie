@@ -7,6 +7,7 @@
 Frontend moderation provides in-context management capabilities directly within the forum UI, without requiring access to the admin console.
 
 **Role Hierarchy:**
+
 | Role            | Code | Scope           | Capabilities                              |
 | --------------- | ---- | --------------- | ----------------------------------------- |
 | Admin           | 1    | Global          | All operations, can manage users          |
@@ -17,12 +18,14 @@ Frontend moderation provides in-context management capabilities directly within 
 **⚠️ IMPORTANT - Current Implementation Gap:**
 
 The permission matrix above is the **intended design** per `@ellie/types/permission.ts`. However, the Worker implementation (`moderationMiddleware`) only checks "is role > 0" and does NOT enforce:
+
 - Forum scope for moderators (Mod can currently operate on any forum)
 - Action-level restrictions per the shared permission functions
 
 This means a Moderator can currently bypass the permission model defined in `@ellie/types`. **Backend must be updated to call the shared permission functions.**
 
 **Key Principles:**
+
 - Management actions appear in-context (not separate pages)
 - Clear visual separation: user actions (left), mod actions (right)
 - All destructive actions require confirmation dialog
@@ -87,11 +90,13 @@ This means a Moderator can currently bypass the permission model defined in `@el
 **UI Relocation Consideration:**
 
 Current page structure places views/replies in the first post sidebar (not thread header). The thread header only shows:
+
 - Badges (sticky, digest, locked)
 - Title
 - Forum link, author, timestamp
 
 Options for mod menu placement:
+
 1. **Keep current location** (first post footer) - consistent with "management actions near content"
 2. **Add to thread header right side** - but header is already minimal
 3. **Create expandable management section** - collapsible panel below header
@@ -114,6 +119,7 @@ Decision needed based on overall UX direction.
 | Delete  | ✅     | Author (non-first, within limit) or Mod+ |
 
 **Current Layout:**
+
 ```
 ┌─────────────────────────────────────────────────┐
 │ [Reply] [Edit] [Delete]                         │  ← All left-aligned
@@ -121,6 +127,7 @@ Decision needed based on overall UX direction.
 ```
 
 **Optional Enhancement - Left/Right Separation:**
+
 ```
 ┌─────────────────────────────────────────────────┐
 │ [Reply]                    [Edit] [Delete]      │
@@ -150,6 +157,7 @@ User management by moderators/admins needs two entry points:
 | **Mod actions button** | 📋 TODO | Dropdown with ban/warn actions |
 
 **TODO - Mod Actions Dropdown:**
+
 ```tsx
 <DropdownMenu>
 	<DropdownMenuTrigger>
@@ -228,6 +236,7 @@ All user moderation actions require **confirmation dialog** before API call.
 | API needed   | `POST /api/v1/moderation/users/:id/nuke`                 |
 
 **IMPORTANT: Deletion Cascade Order:**
+
 1. Delete all posts by user (update thread reply counts)
 2. Delete all threads by user (update forum thread counts)
 3. Delete all attachments by user
@@ -260,6 +269,7 @@ All moderation handlers now use the shared permission functions from `@ellie/typ
 ### Helper Functions
 
 `apps/worker/src/lib/permissionHelpers.ts` provides:
+
 - `getUserForPermission()` - fetches minimal user data for permission checks
 - `getForumForPermission()` - fetches forum with moderators field
 - `getThreadForPermission()` - fetches thread with forum_id
@@ -306,6 +316,7 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 **Commit:** `feat(mod): enforce permission checks in moderation handlers`
 
 **Implementation Details:**
+
 - Created `apps/worker/src/lib/permissionHelpers.ts` with helper functions
 - Updated all handlers in `moderation.ts` to use `canModerate`, `canMoveThread`, `canDeletePost`, `canDeleteThread`, `canEditPost`
 - Updated `@ellie/types/permission.ts` to use `PermissionUser`/`PermissionForum` partial types for efficiency
@@ -324,6 +335,7 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 **Phase 2.1 Commit:** `feat(mod): add user moderation APIs (mute/ban/nuke)`
 
 **API Endpoints Implemented:**
+
 - `GET /api/v1/moderation/users/:id/status` - Get user status (Admin/SuperMod only)
 - `GET /api/v1/moderation/users/:id/ip-records` - View IP history (Admin/SuperMod only)
 - `POST /api/v1/moderation/users/:id/mute` - Mute user (Admin/SuperMod only)
@@ -335,6 +347,7 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 **Phase 2.2 Commit:** `feat(mod): implement UserPopover mod actions dropdown`
 
 **Frontend Features Implemented:**
+
 - UserPopover mod dropdown with mute/unmute, ban/unban, nuke actions
 - User status badges (banned/muted) in popover
 - Confirmation dialogs for all destructive actions
@@ -343,6 +356,7 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 **Phase 2.3 Commit:** `feat(mod): add mod panel to user profile page`
 
 **Shared Component:**
+
 - `UserModActions` component in `components/forum/user-mod-actions.tsx`
 - Used by both UserPopover and ProfileHero
 - Includes dropdown menu, confirmation dialogs, and status badge
@@ -357,6 +371,7 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 **Phase 3 Commit:** `refactor(mod): PostActionBar left/right layout separation`
 
 **Layout Change:**
+
 ```
 ┌─────────────────────────────────────────────────┐
 │ [Reply]                    [Edit] [Delete]      │
@@ -391,6 +406,7 @@ This is the **authoritative** permission model defined in `packages/types/src/pe
 \* Within time limit, if not locked
 
 **Key constraint from permission.ts:**
+
 - `canDeletePost`: Author OR Admin/SuperMod only — **Mod CANNOT delete others' posts**
 - `canDeleteThread`: Author OR Admin/SuperMod only — **Mod CANNOT delete others' threads**
 - `canMoveThread`: Admin/SuperMod only — **Mod CANNOT move threads**
@@ -408,6 +424,7 @@ This is the **authoritative** permission model defined in `packages/types/src/pe
 | L3 E2E         | Full moderation workflows       | ❌ Not implemented |                                                                                            |
 
 **Known Issues:**
+
 - `tests/integration/moderation.test.ts` tests a non-existent endpoint:
   - Tests `POST /api/v1/moderation` with `{ action: "sticky", threadId }` body
   - Actual API is `PATCH /api/v1/moderation/threads/:id/sticky` with `{ level }` body

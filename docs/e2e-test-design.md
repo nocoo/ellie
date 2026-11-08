@@ -86,6 +86,7 @@ test.describe
 ### 2. Admin Authentication Strategy
 
 **问题**: Admin 路由需要 Google OAuth + ADMIN_EMAILS 白名单，无法用 credentials 登录。
+
 - `proxy.ts` 检查 OAuth session + admin whitelist
 - `(admin)/layout.tsx` 服务端调用 `auth()` + `resolveAdmin()`，非 admin 重定向
 

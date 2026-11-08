@@ -191,11 +191,13 @@ GET /api/v1/search/threads
 **产品决策**：首期按"最近活跃"排序，不使用 FTS5 BM25 相关性排序。
 
 理由：
+
 - 论坛场景下，用户更关心"最近讨论的相关主题"而非"最匹配标题的主题"
 - BM25 对中文单字符分词效果有限
 - 与列表页排序保持一致，用户体验更统一
 
 如后续需要相关性排序，可使用：
+
 ```sql
 ORDER BY bm25(threads_fts) -- FTS5 内置相关性评分
 ```
@@ -232,6 +234,7 @@ if (path === "/api/v1/search/threads" && method === "GET") {
 搜索页是 Server Component，直接在 `search.server.ts` 调用 Worker API，无需额外 proxy route。
 
 理由：
+
 - 与 `thread-list.server.ts` 保持一致
 - 减少维护成本
 - 如未来需要客户端实时搜索（如搜索建议），再添加 proxy route
@@ -337,6 +340,7 @@ export function isValidSearchQuery(query: string): boolean {
 ```
 
 **删除内容**：
+
 - `SearchType` 类型定义
 - `resolveSearchType()` 函数
 - `buildSearchParams()` 函数
@@ -346,14 +350,17 @@ export function isValidSearchQuery(query: string): boolean {
 **文件**：`apps/web/src/app/(forum)/search/page.tsx`
 
 **删除内容**：
+
 - `SEARCH_TYPES` 数组
 - Tab 切换 UI（`typeTabs`, `titleTab`, `authorTab` 相关代码）
 - `searchType` 相关的 URL 参数处理
 
 **新增内容**：
+
 - 搜索禁用状态 UI
 
 **保留内容**：
+
 - 搜索表单
 - 搜索结果列表
 - 分页组件
@@ -391,6 +398,7 @@ if (data.disabled) {
 现有 `/api/v1/users/search` 是**用户名前缀匹配**的 autocomplete 接口（用于私信发件人选择），不是全文作者搜索。
 
 如果用它做"作者搜索"：
+
 - 搜索 "张" 只会找到用户名**以"张"开头**的用户
 - 不支持模糊匹配（搜"三"找不到"张三"）
 - 多个同前缀用户只取第一个，结果不可控

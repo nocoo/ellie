@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS reports (
 ```
 
 **提交按钮状态**：
+
 - 权限检查失败 → 禁用，显示原因
 - Cap.js 未通过 → 禁用（未配置时跳过此检查）
 - 未选择理由 → 禁用
@@ -346,6 +347,7 @@ Messages routes (#70-#74)
 **PATCH 处理人信息**：Next.js proxy 从 session 获取当前 admin 名称，自动补齐 `handlerName` 字段（`handlerId` 固定为 0）。
 
 **文件**：
+
 - `apps/web/src/app/api/v1/reports/route.ts` — POST
 - `apps/web/src/app/api/v1/posting-permission/route.ts` — GET（新增）
 - `apps/web/src/app/api/admin/reports/route.ts` — GET
@@ -390,6 +392,7 @@ Messages routes (#70-#74)
 ```
 
 **显示条件**：
+
 - 用户已登录
 - 不是自己的帖子
 
@@ -400,6 +403,7 @@ Messages routes (#70-#74)
 主题详情页头部右侧渲染"举报主题"按钮，targetType=`thread`，targetId=`thread.id`。
 
 **显示条件**：
+
 - 用户已登录
 - 不是主题作者
 
@@ -410,6 +414,7 @@ Messages routes (#70-#74)
 个人主页 hero 区渲染"举报用户"按钮，targetType=`user`，targetId=`user.id`。
 
 **显示条件**：
+
 - 用户已登录
 - 不是本人主页
 
@@ -422,12 +427,14 @@ Messages routes (#70-#74)
 **Step 1: 权限检查**（自动执行）
 
 调用 `/api/v1/posting-permission` 检查用户是否有发帖权限：
+
 - ✓ 通过 → 显示绿色勾，进入 Step 2
 - ✗ 失败 → 显示红色叉和具体原因，禁用后续步骤
 
 **Step 2: Cap.js 验证**
 
 显示 CapWidget 组件（复用 `NEXT_PUBLIC_CAP_API_ENDPOINT`）：
+
 - ✓ 通过 → 显示绿色勾，进入 Step 3
 - ✗ 失败 → 显示重试按钮
 - 如果 `NEXT_PUBLIC_CAP_API_ENDPOINT` 未配置，自动跳过此步
@@ -435,6 +442,7 @@ Messages routes (#70-#74)
 **Step 3: 选择理由**
 
 显示预设理由列表（radio）：
+
 - 必须选择一个才能提交
 
 **完整 UI（全部通过）**：
@@ -477,6 +485,7 @@ Messages routes (#70-#74)
 ```
 
 **提交按钮状态**：
+
 - 权限检查失败 → 不显示提交按钮
 - Cap.js 未通过 → 禁用（未配置时跳过此检查）
 - 未选择理由 → 禁用
@@ -553,6 +562,7 @@ reports: "举报管理",
 | 状态     | 待处理（黄）/已处理（绿）/已驳回（灰）                                                                                                            |
 
 **筛选项**：
+
 - 状态：全部 / 待处理 / 已处理 / 已驳回
 - 类型：全部 / 主题 / 帖子 / 用户
 
@@ -578,11 +588,13 @@ reports: "举报管理",
 ```
 
 **操作按钮**：
+
 - **标记已处理**：设置 status=resolved
 - **驳回举报**：设置 status=dismissed
 - **删除**：调用 batch-delete 传 `[id]`
 
 **跳转链接**（admin 内部跳转，不跳前台）：
+
 - `type=thread`：`/admin/threads/{target_id}`
 - `type=post`：`/admin/threads/{threadId}`（目前没有 stable 的 post anchor，跳到所属主题详情）
 - `type=user`：`/admin/users/{target_id}`

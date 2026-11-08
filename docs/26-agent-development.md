@@ -120,11 +120,11 @@ npx wrangler dev -c apps/worker/wrangler.toml
 ```
 
 **Rust CLI** reads API key from (highest priority first):
+
 1. `--api-key <KEY>` CLI argument
 2. `ELLIE_API_KEY` environment variable
 3. `apiKey` in the OS-specific Ellie JSON config (or explicit `--config`; see `docs/25-development.md`)
 4. Build-time `ELLIE_DEFAULT_API_KEY` (injected in release builds)
-
 
 ## Versions
 
@@ -137,6 +137,7 @@ npx wrangler dev -c apps/worker/wrangler.toml
 | `bun run release -- --dry-run` | Preview changes without modifying |
 
 **Version locations (all updated by release script):**
+
 - Root `package.json` (single source of truth)
 - All workspace `package.json` files
 - `packages/types/src/version.ts` — exports `VERSION` and `VERSION_DISPLAY`
@@ -144,9 +145,9 @@ npx wrangler dev -c apps/worker/wrangler.toml
 - `packages/cli-rs/ellie-{core,tui}/Cargo.toml` and their first-party `Cargo.lock` entries — Rust package and CLI versions
 
 **Version display:**
+
 - Footer: `v1.0.0` (via `VERSION_DISPLAY`)
 - `/api/live`: returns `version` field
-
 
 ## Current environment and release
 

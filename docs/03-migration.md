@@ -207,11 +207,13 @@ reference/db/*.sql.gz
 ## SQL Dump 解析器
 
 mysqldump 的 extended INSERT 格式：
+
 ```sql
 INSERT INTO `table` VALUES (1,'foo','bar'),(2,'baz','qux');
 ```
 
 解析要点：
+
 - 流式读取 gzip 文件（逐行或逐块）
 - 只关心 `INSERT INTO \`目标表\`` 开头的行
 - 处理 MySQL 转义：`\'`, `\\`, `\n`, `\r`, `\0`, `NULL`
@@ -257,6 +259,7 @@ INSERT INTO `table` VALUES (1,'foo','bar'),(2,'baz','qux');
 ## 编码处理
 
 Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
+
 - mysqldump 已声明 `SET NAMES utf8mb4`，大部分数据应该是正确的 UTF-8
 - 验证策略：解析后检查是否包含 UTF-8 非法序列
 - 修复策略：检测到非 UTF-8 时尝试按 GBK 解码再转 UTF-8

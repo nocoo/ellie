@@ -172,6 +172,7 @@ Each Wave is a single commit targeting one package. Dependencies between waves a
 - Packages without tests use `passWithNoTests: true` until their wave
 
 Changes:
+
 - `vitest.config.ts` (rewritten — Vitest 4 projects mode)
 - `apps/worker/vitest.config.ts` (new)
 - `apps/web/vitest.config.ts` (new, `passWithNoTests: true`)
@@ -196,6 +197,7 @@ Changes:
 - Ratchet threshold to 95/95/95/90
 
 Coverage work needed:
+
 - `api-error.ts`: ~30 lines, needs 2-3 tests for constructor branches
 - `formatting.ts`, `pagination.ts`, `params.ts`: Already tested but tests import from `apps/web` copy — repoint to `packages/shared`
 
@@ -204,6 +206,7 @@ Coverage work needed:
 **Commit: `test(worker): fill coverage gaps to reach 95% gate`**
 
 Current gaps (0% coverage):
+
 - `handlers/digest.ts` (238 lines) — digest email generation
 - `handlers/message.ts` (403 lines) — private messaging
 - `handlers/post-comment.ts` (236 lines) — post comments
@@ -214,6 +217,7 @@ Current gaps (0% coverage):
 - `handlers/admin/statistics.ts` (295 lines) — statistics
 
 Partially covered (needs boost):
+
 - `handlers/forum.ts` (72% → 95%)
 - `handlers/thread.ts` (77% → 95%)
 - `handlers/admin/forum.ts` (79% → 95%)
@@ -228,17 +232,20 @@ Estimated new test lines: ~2000–3000 lines across 15+ test files.
 **Commit: `test(web): migrate tests by package, fill coverage gaps, reach 95% gate`**
 
 Bun→Vitest migration (4 files):
+
 - `tests/unit/auth-callbacks.test.ts` — rewrite `mock()` → `vi.fn()`, move to `apps/web/tests/unit/auth.test.ts`
 - `tests/unit/proxy.test.ts` — swap `bun:test` → `vitest`, move to `apps/web/tests/unit/proxy.test.ts`
 - `tests/unit/hooks/use-is-mobile.test.ts` — rewrite `mock.module()` → `vi.mock()`, move to `apps/web/tests/unit/hooks/`
 - `tests/unit/hooks/use-theme.test.ts` — rewrite `mock.module()` → `vi.mock()`, move to `apps/web/tests/unit/hooks/`
 
 File moves (already vitest-compatible):
+
 - `tests/unit/viewmodels/forum/*.test.ts` → `apps/web/tests/unit/viewmodels/forum/`
 - `tests/unit/lib/*.test.ts` → `apps/web/tests/unit/lib/`
 - `tests/unit/components/` → `apps/web/tests/unit/components/`
 
 Coverage gaps to fill:
+
 - `src/lib/csrf.ts` (0% → 95%)
 - `src/lib/forum-auth.ts` (0% → 95%)
 - `src/lib/forum-settings.ts` (0% → 95%)
@@ -259,6 +266,7 @@ Estimated new test lines: ~1500–2500 lines.
 > **Note:** Existing `tests/unit/components/` tests are retained as non-gated smoke tests. They are NOT included in the coverage scope — only `src/lib/**`, `src/viewmodels/**`, `src/hooks/**`, and `src/auth.ts` are gated.
 
 Currently no coverage measurement. Need:
+
 - `tests/unit/lib/admin-api.test.ts` (195 lines source)
 - `tests/unit/lib/admin-proxy.test.ts` (109 lines source)
 - `tests/unit/lib/api-client.test.ts` (147 lines source)
@@ -277,6 +285,7 @@ Estimated new test lines: ~2000–3000 lines.
 **Commit: `test(test-mocks): add vitest config and maintain 98% coverage gate`**
 
 Already at 100%/98%/100%/100%. This commit:
+
 - Creates `packages/test-mocks/vitest.config.ts` with 98/98/98/95 thresholds
 - Adds minimal `packages/test-mocks/tests/mocks.test.ts` to verify mock factory correctness
 - Ensures the package is independently runnable via `vitest run --project test-mocks`
@@ -417,6 +426,7 @@ After each wave, verify:
 - [ ] No dead/orphaned test files in old locations
 
 Final gate (Wave 6):
+
 - [ ] All 5 packages pass their respective thresholds
 - [ ] `bun test tests/unit/loader.test.ts tests/unit/verify.test.ts` still passes
 - [ ] `.husky/pre-push` updated to use workspace coverage

@@ -10,7 +10,6 @@ All notable changes to this project will be documented in this file.
 
 - Load the Traks analytics collector on the public forum frontend (`apps/web`).
 
-
 ### Security
 
 - Reconfigure `ellie-tui` ratatui features (crossterm-only, no `underline-color`) so `Cargo.lock` no longer pulls the termwiz/sha2 chain that pinned vulnerable `block-buffer` 0.10.4 (GHSA-qwgh-2vcv-g2f7).

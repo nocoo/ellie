@@ -20,6 +20,7 @@ L1 / L2 已经**完全本地化**，仅 L3 与若干旁路脚本仍依赖 Cloudf
 | KV `490227e9…`      | KV（与 prod preview_id 同 ID 复用）               | `[env.test.kv_namespaces]` 绑定 | 同上                                                                         |
 
 **真正在调用远端的 21 处引用**（详见 §1.2 全量清单）：
+
 - `.github/workflows/ci.yml:62-109`：`browser-e2e` job 申请 5 个 CF secret，`wrangler d1 migrations apply --remote`、`wrangler deploy --env test`、`wrangler d1 execute tongjinet-db-test --remote`。
 - `scripts/run-l3.ts:84,109`、`scripts/run-l3-admin.ts:81,98`：要求 `WORKER_API_URL` 含 `-test` 才放行。
 - `scripts/verify-test-db.ts:39,79`：直接 `wrangler d1 execute tongjinet-db-test --env test --remote`。
@@ -83,6 +84,7 @@ L3  tests/e2e/**                       wrangler dev --local + Next.js dev (改�
 ### 2.2 INIT_SQL 单一源
 
 新增 `apps/worker/src/test-support/init-sql.ts`，导出一个 `INIT_SQL: string` 常量。生成方式：
+
 - 启动时按编号顺序拼接 `apps/worker/migrations/0000_init_schema.sql` … `0050_*.sql`，所有 `CREATE TABLE` 改为 `CREATE TABLE IF NOT EXISTS`，`INSERT` 包到 `INSERT OR IGNORE`。
 - 由 `scripts/build-init-sql.ts` 显式生成，产物写到 `apps/worker/src/test-support/init-sql.generated.ts`。
 - `L2-fast` 直接 `db.exec(INIT_SQL)` 一次建库；`L2-http` 仍走 `wrangler d1 migrations apply --local`（互证两条路径产物等价 — §8 增加 hash 校验测试）。
@@ -94,6 +96,7 @@ L3  tests/e2e/**                       wrangler dev --local + Next.js dev (改�
 **初版方案**用 postinstall hook + gitignore，但 CI 用 `bun install --frozen-lockfile --ignore-scripts`（`.github/workflows/ci.yml:26,50,79`），postinstall 不会跑，clean checkout 中 L2-fast `import` 直接找不到文件。
 
 **修订方案**：**生成文件提交进 git**，与 migration 同步演进：
+
 - `apps/worker/src/test-support/init-sql.generated.ts` 进版本控制，**不 gitignore**。
 - 文件顶部明确标注 `/* AUTO-GENERATED — do not edit by hand. Run: bun run prepare:test-sql */`，并附 source migrations 的 sha256。
 - `scripts/build-init-sql.ts` 提供两种模式：
@@ -111,6 +114,7 @@ L3  tests/e2e/**                       wrangler dev --local + Next.js dev (改�
 - `bun install` 不再依赖 postinstall — 即便加了，`--ignore-scripts` 仍跳过，但因为文件已 commit，零影响。
 
 三条路径覆盖：
+
 | 场景              | 行为                                                                      |
 | ----------------- | ------------------------------------------------------------------------- |
 | 普通 dev          | 文件已存在；改 migration 后跑 `bun run prepare:test-sql` 重生成并 commit  |
@@ -247,6 +251,7 @@ afterEach(async () => {
 ```
 
 **用法**（review #4 修订；review v3 #5 调整签名；review v4 #3 修订默认 ctx 行为）：
+
 - **默认调 `workerFetch(env, path, init)` → 拿 `Response`**，后台 `waitUntil` 错误自动被 harness 的 `afterEach` 捕获并抛出（不会静默）：
 
   ```ts
@@ -271,6 +276,7 @@ afterEach(async () => {
 ### 2.4 L2-http 保留场景
 
 只保留这些必须真 HTTP 的用例：
+
 - CORS preflight、`Access-Control-*` header
 - `X-Real-IP` / `X-Ellie-Client-IP` 改写链（参考 [feedback_cloudflare-header-overwrite.md](../.claude/projects/-Users-nocoo-workspace-personal-ellie/memory/feedback_cloudflare-header-overwrite.md)）
 - cookie 路径 / SameSite
@@ -285,6 +291,7 @@ afterEach(async () => {
 `scripts/run-l3.ts` 改造（review #2 修订 — 必须复刻 L2 的 cleanup → migrate → seed → start，否则 fixture 全空 → 大面积 500/404）：
 
 执行顺序（在 `validateAndOverride()` 之前）：
+
 1. **cleanup**：`rmSync(.wrangler/state/e2e-l3, { recursive: true, force: true })`，独立于 L2 的 `.wrangler/state/e2e`，避免本机并跑 L2/L3 互踩，也避免本地 L3 状态累积。
 2. **migrations apply (local)**：`wrangler d1 migrations apply DB --local --persist-to .wrangler/state/e2e-l3 -c apps/worker/wrangler.toml`。
 3. **seed**：`wrangler d1 execute DB --local --persist-to .wrangler/state/e2e-l3 -c apps/worker/wrangler.toml --file scripts/seed-test-db.sql`（保留种子文件，因为 L3 fixture 依赖 forum 1/2/114、users {1,2,3,100,64495}、threads 662174-662198）。
@@ -342,6 +349,7 @@ export async function startLocalWorker(opts: LocalWorkerOptions): Promise<Subpro
 | L3 admin | `.wrangler/state/e2e-l3-admin` | 37032（首选）→ OS 分配 | 27032    |
 
 **`WORKER_API_URL` / `WORKER_URL_TEST` 解耦**：
+
 - `WORKER_API_URL` 默认 = `http://127.0.0.1:<auto-port>`（本地 worker 启动后注入）。
 - CI secret `WORKER_URL_TEST` 改为可选；若设置且不空则不启本地 worker、直接打远端（保留作为冒烟兜底，长期可下线）。
 - `validateAndOverride()` 的 `-test` 子串校验改为：URL 是 `127.0.0.1` / `localhost` 任一端口 **或** 包含 `-test` 子串才放行；防止误打 prod。
@@ -513,6 +521,7 @@ export function wrapAsD1(sqlite: Database): D1Database {
 ```
 
 **已知差异**：
+
 - D1 `meta.size_after`、`meta.rows_read/written` 不模拟（handler 不应依赖）。
 - `withSession` 不实现 → 任何用 read-replication API 的 handler 必须走 L2-http。
 - bun:sqlite 是同步的，shim 包成 async。性能开销可忽略（`:memory:` 单查询 < 50µs）。
@@ -520,6 +529,7 @@ export function wrapAsD1(sqlite: Database): D1Database {
 - `batch()` 行为对齐：D1 真实 batch 的 `results[i]` 总有 `results` 字段（写入是 `[]`、读取是 rows）；shim 完全一致。
 
 **配套测试**：`tests/unit/d1-shim.test.ts` 覆盖：
+
 - `prepare(SELECT).bind().all()/first()` 正确返回行
 - `prepare(INSERT/UPDATE/DELETE).run()` 返回正确 `meta.changes / last_row_id`
 - `batch([SELECT, SELECT, INSERT])` 返回 `[{ results: [...] }, { results: [...] }, { results: [], meta }]` 形态
@@ -532,6 +542,7 @@ export function wrapAsD1(sqlite: Database): D1Database {
 ### 3.3 Migration 拼装规则
 
 `scripts/build-init-sql.ts`：
+
 1. `readdir apps/worker/migrations/`，按文件名排序。
 2. 对每个 `.sql` 文件做正则改写：
    - `CREATE TABLE\s+(?!IF NOT EXISTS)` → `CREATE TABLE IF NOT EXISTS `
@@ -682,6 +693,7 @@ console.log(`L2 chose port ${TEST_PORT}`);
 | **D1 隔离**     | 三层（binding / env / `_test_marker`），需远端 D1                   | 三层（binding / env / `_test_marker`），全部本地：binding = `[[d1_databases]]` 主段（local-only mode）；env = `ENVIRONMENT="test"`（通过 `--var` 注入 worker）；marker = 首选 `wrangler d1 execute --local --persist-to --json` 查 `_test_marker`，降级 glob + bun:sqlite（详 §2.5） | `bun run verify:test-db` 脱网通过；CI 无 CF token 也能跑 L2/L3                                                    |
 
 新增维度专项：
+
 - **覆盖率两轴**：`scripts/audit-l2-coverage.ts` 扩展为同时扫描 `tests/integration/fast/` + `tests/integration/http/`，输出两套矩阵到 `docs/18-l2-coverage-matrix.md`，要求每个 (route × method) 至少在 `fast` 或 `http` 中之一被覆盖。
 - **稳定性**：L2-fast 启动 0 子进程，端口冲突场景为 0；L2-http 端口自适应；CI 不再因 CF token scope 问题退化为 stale worker。
 
@@ -739,6 +751,7 @@ console.log(`L2 chose port ${TEST_PORT}`);
 ### Phase F — CF 资源最终下线（哥手动操作，非代码改动）
 
 观察 1 个月（4 个绿色 PR + 1 次手动 deploy 验证）后：
+
 - 在 CF 控制台删除 D1 `tongjinet-db-test`
 - 删除 Worker `ellie-test`（含其 routes / KV preview 绑定）
 - 删除 R2 桶 `tongjinet-test`（如有内容先备份）
@@ -989,10 +1002,12 @@ bun x wrangler d1 execute tongjinet-db-test --remote --command \
 7. **B2 不修改 `test:integration`**：该 script 公开使用、文档引用多。本期只加 `test:l2:fast` 新 script，并把 `scripts/run-l2.ts` 内的 spawn 改为只跑 worker/+proxy/（不影响 `test:integration`）。
 
 **未实施（推迟）**：
+
 - Phase B3-Bn（各 module fast 用例迁移）— 框架就绪，后续按模块逐个 commit。
 - Phase C/D/E/F — §6 完整列出，本轮不动。
 
 **质量验证**：
+
 - pre-commit 8 次全绿（lint + L1 coverage thresholds + L2 + typecheck + gitleaks + INIT_SQL --check）。
 - L1 测试集：7,343 unit + 119 worker，coverage 维持在 stmt/line/func ≥ 95% / branch ≥ 90%（最终 96.32/95.23/96.76/90.06）。
 - L2 测试集：352 用例，wall-clock ~7-12s（含 wrangler boot）。

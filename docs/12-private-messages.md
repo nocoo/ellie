@@ -149,6 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 ```
 
 浏览器**永远不能**直接调用 Worker。Next.js Proxy Route 负责：
+
 - 从 NextAuth session 中提取 Worker JWT
 - 注入 `X-API-Key`（Key A，服务端环境变量）
 - 转发请求到 Worker
@@ -203,6 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 ```
 
 **说明**：
+
 - `preview`：内容截取前 100 字符
 - `unreadCount`：仅 inbox 返回
 
@@ -225,6 +227,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 ### 4.5 #72 GET /api/v1/messages/:id
 
 **行为**：
+
 - 返回完整消息内容
 - 如果是收信人查看，自动标记为已读
 
@@ -263,6 +266,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 ```
 
 **验证**：
+
 1. `receiverId` 必填，必须是有效用户
 2. `content` 必填，长度 1-10000 字符
 3. `subject` 可选，长度 0-100 字符
@@ -290,6 +294,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 ### 4.7 #74 DELETE /api/v1/messages/:id
 
 **行为**：
+
 - 发送者调用：设置 `sender_deleted = 1`
 - 接收者调用：设置 `receiver_deleted = 1`
 - 只能删除自己参与的消息
@@ -333,6 +338,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 ```
 
 **说明**：
+
 - 按 `username LIKE 'keyword%'` 前缀匹配
 - 只返回 status >= 0 的正常用户
 - 不需要 JWT（公开端点，但需要 Key A）
@@ -385,6 +391,7 @@ Other routes...
 | `/api/v1/users/search`          | GET    | 用户搜索（`forumApi.get`，无需 JWT） |
 
 **文件**：
+
 - `apps/web/src/app/api/v1/messages/route.ts` — GET（`forumApi.getAuth`）、POST（`forumApi.postAuth`）
 - `apps/web/src/app/api/v1/messages/unread-count/route.ts` — GET（`forumApi.getAuth`）
 - `apps/web/src/app/api/v1/messages/[id]/route.ts` — GET（`forumApi.getAuth`）、DELETE（`forumApi.deleteAuth`）
@@ -581,6 +588,7 @@ export async function GET(request: Request) {
 ### 6.2 页面鉴权
 
 `/messages*` 页面需要 credentials 用户登录。需要区分三种情况：
+
 1. 未登录 → 跳转登录页
 2. Google OAuth 登录（无 Worker JWT）→ 显示提示
 3. Credentials 登录 → 正常渲染
@@ -588,6 +596,7 @@ export async function GET(request: Request) {
 **问题**：现有 `getCurrentForumUser()` 对 Google 用户返回 null，无法区分"未登录"和"Google 登录"。
 
 **解决方案**：
+
 1. 新增 `getSessionProvider()` 函数（在 `forum-auth.ts` 中）
 2. 在 `messages/layout.tsx` 中统一做鉴权守卫，子页面无需重复
 
@@ -756,6 +765,7 @@ export default async function MessagesLayout({ children }: { children: ReactNode
 ```
 
 这样：
+
 - `/threads/new`：保持原逻辑，Google OAuth 用户被 proxy 拦截跳转到 `/login`
 - `/messages*`：Google OAuth 用户放行到 layout，显示 `CredentialsOnlyNotice`
 
@@ -840,6 +850,7 @@ export default async function MessagesLayout({ children }: { children: ReactNode
 ```
 
 **用户名自动补全**：
+
 - 输入 >= 2 字符时触发搜索
 - 调用 `/api/v1/users/search?q=xxx`
 - 显示匹配的用户列表供选择

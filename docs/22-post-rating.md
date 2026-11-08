@@ -12,6 +12,7 @@
 复刻旧站 Discuz 的"评分"功能：用户对帖子打分，把"积分"或"同钱"从评分者传递给被评分者。
 
 **调查结论**（详见 #ellie-评分功能 thread d07b0041，SDE 报告 msg=71a6819e + Reviewer 复核 msg=2320d5f8）：
+
 - 两种维度：
   - `credits` (extcredits1, 旧"积分") — 旧站 raterange 显示仅管理/版务类用户组开放评分。
   - `coins` (extcredits2, 旧"同钱") — 旧站所有正式注册用户组开放评分。
@@ -48,6 +49,7 @@
 ✅ 撤销评分：仅 Admin / SuperMod，单条撤销。
 
 ⛔ 不做：
+
 - 兑换 / 商城。
 - 批量撤销。
 - 撤销 PM。
@@ -65,6 +67,7 @@
 | 1    | Admin    | ✅       | ✅       | ✅   |
 
 公共门槛（与旧站等价）：
+
 - 必须登录、`status = Active(0)`、email 已验证（沿用现有写操作 gate）。
 - 不能给自己评（`post.author_id === currentUserId` → 403）。
 - 不能给匿名 / 屏蔽 / 已删除 / RecycleBin 帖子评（`invisible != 0 || author_id == 0` → 403）。
@@ -186,6 +189,7 @@ popover 明细仍走独立 `GET /api/v1/posts/:postId/ratings`，懒加载，避
 ### 6.2 `POST /api/v1/posts/:postId/rate` 请求/响应
 
 请求：
+
 ```json
 {
   "dimension": "credits" | "coins",
@@ -200,6 +204,7 @@ popover 明细仍走独立 `GET /api/v1/posts/:postId/ratings`，懒加载，避
 > ⚠️ D1 batch **不会**因为某条 statement 返回 `changes()=0` 而自动 rollback。唯一会让 batch 整体失败的是 SQL error（例如唯一索引冲突）。所以这里**不能**指望"`changes()=0` → 回滚整个 batch"，必须把后续每一步写入都用 `WHERE changes() > 0` 风格的条件 + 同样的额度子查询防御一遍，使额度不足时后续写入静默成为 no-op；batch 跑完后由 handler 检查首条 INSERT 的 `meta.changes` 来决定 429 / 200。
 
 D1 batch 顺序：
+
 1. 拉取 post + author + thread 状态 → 公共门槛校验（§3）。
 2. 权限矩阵 + `|score|` 范围校验（纯应用层）。
 3. **条件 INSERT 守护额度**（避免先读后写竞态）：
@@ -257,6 +262,7 @@ D1 batch 顺序：
 7. **唯一索引冲突**（重复 `(rater_id, post_id, dimension) WHERE revoked_at=0`）→ D1 batch 抛 error → handler catch → 返回 `409 RATING_DUPLICATE`。这是 batch 唯一会真正失败的路径。
 
 **PM 字段与正文模板**：
+
 - `sender_*` 取自评分者行（uid + 当前 username 快照）。
 - `receiver_*` 取自 post 作者行。
 - `subject` = `您收到一条评分`。
@@ -276,6 +282,7 @@ D1 batch 顺序：
      最终入库的 `post_ratings.reason` 也是这份 `reason_plain`，保证公开列表与 PM 一致。
 
 错误码：
+
 - `403 RATING_PERMISSION_DENIED` 角色无此 dimension 权限。
 - `403 RATING_SELF` 给自己评。
 - `403 RATING_INVALID_POST` 匿名/屏蔽/删除。
@@ -318,6 +325,7 @@ D1 batch 顺序：
 仅返回 `revoked_at = 0` 的明细（默认按 created_at DESC，limit 200，足够帖子级展示）。
 
 **可见性门槛**（Reviewer 修正）：
+
 - Optional auth，但必须先做 post → thread → forum 的 visibility 检查（沿用 `GET /api/v1/posts/:id` 与 `comments batch` 同一套 `loadVisiblePost()` / `loadVisibleThread()` helper）。
 - 隐藏主题、staff-only 论坛、被屏蔽/删除的 post → 直接 404，不返回 aggregate 也不返回 items。
 - 通过 visibility 后才执行聚合 + 明细查询。
@@ -381,6 +389,7 @@ D1 batch 顺序：
 复用 `editor-dialog-shell.tsx` 模式。新建 `components/forum/post-rating-dialog.tsx`：
 
 字段：
+
 1. **维度切换** — 入口已确定 dimension 时锁定显示。
 2. **分值快捷按钮** — 根据 role + dimension 渲染允许的快捷值 (例：积分 Mod ±10/±20/±50；同钱 +1/+2/+3/+5/+10)，再带一个 ±N 自定义滑块（受单次/单日双重约束）。
 3. **预设理由 dropdown**（client-side 常量数组，二期改 settings）：
@@ -390,6 +399,7 @@ D1 batch 顺序：
 5. **通知作者** — 复选框，默认 ✔。
 
 提交 → `POST /api/v1/posts/:postId/rate`，成功后：
+
 - toast 提示。
 - 触发 `PostRatingSummary` 重新拉取（或乐观更新 aggregate）。
 
@@ -398,6 +408,7 @@ D1 batch 顺序：
 新建 `components/forum/post-rating-summary.tsx`，挂在 `post-card.tsx` 正文 + action-bar 之间（仅当 `aggregate.total > 0` 时渲染）。聚合数来自 `posts.list/get` 的 `ratingAggregate` enrichment（§5.2），首屏 SSR 即可显示，无需额外请求。
 
 形态：
+
 ```
 评分 · 12 人参与   ┃ 积分 +60   ┃ 同钱 +24      [展开 ▾]
 ```
@@ -493,16 +504,19 @@ D1 batch 顺序：
 ### 10.3 Web 测试（vitest + happy-dom + RTL）— 已落地
 
 **Route-level（proxy）测试** — `apps/web/tests/unit/app/post-rating-proxy.test.ts`（16 cases）：
+
 - `POST /api/v1/posts/:id/rate`：CSRF / 401 / 403 EMAIL_NOT_VERIFIED 扁平 payload 透传 / 409 RATING_DUPLICATE / 429 RATING_DAILY_LIMIT / 201 success。
 - `GET /api/v1/posts/:id/ratings`（optional-auth）：anonymous fallback / authenticated `getAuth` / `getWorkerJwt` 抛错回退 anonymous / 404 NOT_FOUND / 500 INTERNAL_ERROR。
 - `POST /api/v1/posts/:id/ratings/:ratingId/revoke`：CSRF / 401 / **204 空 body**（断言 `await res.text() === ""`）/ 404 NOT_FOUND / 403 FORBIDDEN_MOD_ONLY。
 
 **Component 测试**：
+
 - `post-rating-dialog.test.ts`：维度切换、预设分值/理由、单次范围、reason 长度、提交流程、错误展示。
 - `post-rating-summary.test.ts`：0/1/N 条聚合渲染、popover 展开（click/键盘）、明细 list、撤销按钮可见性按 `canRevoke` 控制、撤销后聚合下调。
 
 **Dialog → Summary 集成测试** — `apps/web/tests/unit/components/forum/post-rating-flow.test.ts`（2 cases）：
 仿照 `post-card.tsx` 的 React 状态提升，把 dialog `onSuccess` 回写 aggregate 到父级，summary 仅在 `total > 0` 渲染。断言：
+
 - 提交 payload 与 dimension/score/reason/notifyAuthor 完全匹配。
 - 提交成功后 summary 出现，`*-total / *-coins / *-credits` 文本含新值（验证 React 真的 re-render，不是只挂 prop）。
 - popover toggle 之前 `fetchPostRatings` 调用次数 0；toggle 之后恰好 1 次且参数 `42`；详情 list 渲染 rater + reason。

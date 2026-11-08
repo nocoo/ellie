@@ -28,6 +28,7 @@
 **目标**：搭建前端视觉原型（管理后台 + 论坛前端），Mock 数据驱动，不连接真实数据库。
 
 **与其他文档的关系**：
+
 - Doc01 Phase 顺序不变：Phase 2 先建 API + Worker，Phase 3 再建前端
 - 本系列是 Phase 3 的**预研与设计**，当前 worktree 只做原型
 - Phase 2 Worker API 就绪后，前端通过 Repository 接口切换到真实数据源

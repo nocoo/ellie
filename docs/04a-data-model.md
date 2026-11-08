@@ -286,6 +286,7 @@ export interface PaginationParams {
 ```
 
 **Cursor 结构**：cursor 是 opaque string，内部编码为 `base64(JSON({ sortValue, id }))`。不同排序方式使用不同的 sortValue：
+
 - `latest` 排序 → `{ sticky, lastPostAt, id }` ← 注意：含 sticky，处理置顶帖
 - `newest` 排序 → `{ createdAt, id }`
 - `hot` 排序 → `{ replies, id }`
@@ -491,6 +492,7 @@ export function thumbnailUrl(filePath: string): string {
 ```
 
 **缩略图规则：**
+
 - 只有 `hasThumb === true` 的图片附件才有缩略图
 - 缩略图在迁移阶段已生成并上传到 R2（与原图同路径，追加 `.thumb.jpg`）
 - 列表/帖子内嵌展示用缩略图，点击查看原图
@@ -519,6 +521,7 @@ export function thumbnailUrl(filePath: string): string {
 ### 隐藏版块说明
 
 Doc02/Doc03 迁移查询 `WHERE f.status = 1`，**隐藏版块（status=0）未迁移到 D1**。因此：
+
 - D1 中不存在 `status=0` 的版块记录
 - 04c 版块管理的"隐藏/显示"操作：将 status 设为 0 意味着在前端隐藏，但数据仍在 D1 中（这是新数据，不是迁移遗漏）
 - 04d 前端只展示 `status=1` 的版块，这是正确行为

@@ -242,6 +242,7 @@ const editor = useEditor({
 ```
 
 Sanitize 规则复用 04a §Sanitize 规则（以 `bbcode.ts` 现有实现为 source of truth）：
+
 - URL 协议白名单：`http:`, `https:`, `ftp:`, `mailto:` + 相对路径
 - 标签白名单：`p, br, strong, em, u, s, h2, h3, h4, ul, ol, li, blockquote, pre, code, a, img, span, div, hr, attachment`
 - 禁止 `<script>`, `<style>`, `on*` 属性, `<iframe>/<embed>/<object>` 等
@@ -364,6 +365,7 @@ D1 (获取完整帖子数据)
 | D1         | 元数据存储和精确查询    |
 
 **索引策略：**
+
 - 对 threads.subject + posts.content（首帖）建立向量索引
 - 写入时异步更新向量（不阻塞发帖流程）
 - 搜索时先向量召回 Top-K，再 D1 回查详情
@@ -466,6 +468,7 @@ export interface MessageRepository {
 ### 用户注册
 
 当前 MVP 不开放注册。未来需要：
+
 - 注册表单（用户名 + 邮箱 + 密码）
 - 邮箱验证（Cloudflare Email Workers）
 - 验证码/人机验证（Turnstile）
@@ -473,6 +476,7 @@ export interface MessageRepository {
 ### 通知系统
 
 当前不实现。未来需要：
+
 - 帖子被回复通知
 - @提及通知
 - 系统公告
@@ -481,6 +485,7 @@ export interface MessageRepository {
 ### 用户设置
 
 当前不实现。未来需要：
+
 - 修改密码
 - 修改头像（上传到 R2）
 - 修改个人签名

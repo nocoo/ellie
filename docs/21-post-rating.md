@@ -8,6 +8,7 @@
 复刻旧站 Discuz 的"评分"功能：用户对帖子打分，把"积分"（extcredits1）或"同钱"（extcredits2）从评分者传递给被评分者。
 
 **调查结论摘录（详见 #ellie-评分功能 frequency d07b0041 thread）：**
+
 - 两种维度：
   - **积分（credits, ext1）** — 仅管理类用户组可评。
   - **同钱（coins, ext2）** — 正式注册用户可评，游客/禁止访问/等待验证不可评。
@@ -27,6 +28,7 @@
 ✅ 撤销评分：仅管理员（role=1）和超级版主（role=2）可见入口（按需，遵循旧站 `removerate`）。
 
 ⛔ **不做**（与旧站等价但本期省略）：
+
 - 撤销评分的复杂分支（`removerate` 的二次 PM、可批量撤销等）—— 我们先支持"管理员单条撤销"。
 - 兑换/商城（`allowexchangein/out`）——评分体系不依赖这块。
 - "评分理由发出后转发"的隐藏 `from_idtype=rate` 关联—— 用普通 PM 即可。
@@ -43,6 +45,7 @@
 | 3    | Mod      | ✅     | ✅     | ❌   |
 
 补充门槛（与旧站等价）：
+
 - 必须已登录（且 `status = Active = 0`）。
 - 未通过 email verify 的账号 → 拒绝（沿用现有写操作 gate）。
 - 不能给自己打分（`post.authorId === currentUserId` → reject）。
@@ -133,6 +136,7 @@ ALTER TABLE posts ADD COLUMN rate_times INTEGER NOT NULL DEFAULT 0;
 ### 4.3 `GET /api/v1/posts/:id/ratings`
 
 返回结构：
+
 ```ts
 {
   postId: number;
@@ -189,6 +193,7 @@ ALTER TABLE posts ADD COLUMN rate_times INTEGER NOT NULL DEFAULT 0;
 ```
 
 Hover 或点击"展开" → 浮层显示完整列表（`GET /api/v1/posts/:id/ratings`）：
+
 - 每行 `头像 @用户名 +5 同钱 「理由」 时间`。
 - 撤销按钮只对管理员/超版可见。
 

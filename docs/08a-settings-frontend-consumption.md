@@ -42,6 +42,7 @@
 `fetchPublicSettings()` 在 `(forum)/layout.tsx` 和 `(forum)/page.tsx` 中各调用一次。Layout 无法直接向 Page 传递 props（Next.js 限制），因此两处独立 fetch，依赖 **Next.js Server Component 的请求级去重**（同一渲染周期内相同 URL 只发一次实际请求）。
 
 **理由**：
+
 - Layout 需要 settings 来构建 header / footer ViewModel
 - Page 需要 settings 来构建 homeFooter ViewModel（友情链接）
 - Next.js 的 `fetch` 去重保证两次调用只产生一次网络请求，无性能损失
@@ -252,6 +253,7 @@ export function buildHeaderViewModel(
 ```
 
 **注意**：
+
 - `settings` 作为第一个参数（必填），`user` 和 `stats` 仍保留默认值
 - Settings 中 link 格式 `{ label, url }` → NavTab 格式 `{ label, href }`，需做字段映射
 - `avatarCdnBase` 注入 `HeaderViewModel`，供 `forum-header.tsx` 传给 `getAvatarUrl`
@@ -439,6 +441,7 @@ export default async function ForumLayout({ children }) {
 ```
 
 **关键点**：
+
 - Layout 变为 `async` Server Component
 - `title` 使用 Next.js **template 模式**：子页面 export `{ title: "帖子标题" }` 后自动套入 `"%s - 同济网 - TONGJI.NET"`
 - `fetchPublicSettings()` 在 `generateMetadata` 和 `default export` 中各调用一次，Next.js 会自动去重

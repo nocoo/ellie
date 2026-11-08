@@ -140,6 +140,7 @@ Per-file counts (reproducible via
 | `waitForTimeout()` | 0        | ✅ 无硬编码等待    |
 
 **结论**：
+
 1. **交互复杂度高**：click(87) + fill(16) 远高于 firefly(35+2) 和 pew(18+6)，BDD 改写需更谨慎
 2. **Locator 质量中等**：语义化 65%（getByRole+getByText+getByLabel+getByPlaceholder），CSS 35% 需审查
 3. **Page Object 成熟**：7 个 POM + 集中选择器文件是 ellie 独有优势，BDD 改写可直接复用
@@ -244,11 +245,13 @@ export { base as test };
 ```
 
 **保留不动**的现有基础设施：
+
 - `fixtures/base.ts` — `navigateTo`、`loginAs`、auth state caching
 - `fixtures/selectors.ts` — 集中选择器常量
 - `pages/*.page.ts` — 7 个 Page Objects
 
 **不放进 BDD fixtures**：
+
 - 任何 spec 内部一次性 helper
 - Page Object 逻辑（已在 `pages/` 中）
 
@@ -263,6 +266,7 @@ export { base as test };
 5. `page.locator("css")` — **仅作为兜底**，必须加注释说明
 
 **审查重点**：
+
 - `fixtures/selectors.ts` 中的选择器常量如 `NAV.sidebar`、`FORUM.threadCard` 等：若底层是 CSS 选择器，保留但加注释说明为何无法用语义化 locator
 - Page Object 内部的 locator 也应审查，但不强制改写（POM 内部 CSS 是可接受的封装）
 
@@ -284,6 +288,7 @@ test.skip(gate.skip, gate.reason);
 ```
 
 **统一条件跳过**：
+
 - 4 处 `test.skip` → 保留，但统一格式为 `test.skip(condition, "explicit reason")`
 - 2 处 `skipOnCI` → 迁移为 `test.skip(!!process.env.CI, "Requires local-only resource")`
 
@@ -327,6 +332,7 @@ test.skip(gate.skip, gate.reason);
 8+14+3+10+7+9+12 = 63 forum，3+14 = 17 admin，合计 80 ✅
 
 预估测试数减少原因：
+
 - 合并 navigation + navigation-extra + header-actions 中重复的导航验证
 - 合并 mobile-layout 5 个子 describe 中重复的响应式断言
 - 合并 admin-users 中功能相近的搜索/筛选测试
@@ -360,6 +366,7 @@ Stage 1 迁移期需同时匹配旧/新路径，Stage 2 收敛到纯 BDD 路径�
 | `user-journey`  | stateless  | `social.spec.ts`  | stateful   |
 
 **取舍**：本次重构优先按"语义域"分组（content / social），接受这 4 个原本可并行的只读 spec 转串行带来的 L3 时长增加（预估 +10~15s，目前 L3 单 worker 顺序执行已无并行收益）。**不**为此引入第五个 `stateful-readonly` project，理由：
+
 - 现有 `playwright.config.ts` 顶层就是 `workers: 1`，stateless 的 `fullyParallel: true` 实际只在单 worker 内做文件内并行，收益有限
 - 多一个 project 等于多一组 testMatch 维护成本，与 BDD"按语义分文件"的核心目的冲突
 - 若 L3 时长后续恶化超过 20%（以基线运行时为准），再考虑拆 readonly project
@@ -488,6 +495,7 @@ test.describe("Feature: Forum Content", () => {
 ### 7.1 当前 CI 架构
 
 ellie CI 使用**自建 L3 job**（`browser-e2e`），因为需要：
+
 - D1 迁移（`bun run worker:migrate:test`）
 - Best-effort worker deploy
 - 测试数据 seed

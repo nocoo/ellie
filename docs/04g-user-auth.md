@@ -152,6 +152,7 @@ interface RegisterInput {
 | 密码最低长度 | ≥6 字符                                                               |
 
 **暂不实现（后续按需）：**
+
 - CAPTCHA / 验证码
 - 邮箱验证
 - 邀请码
@@ -233,6 +234,7 @@ NextAuth v5 的 `auth()` 在 RSC / Server Action 中无参调用时，执行链�
 **⚠️ 第二个陷阱**：步骤 4 的 "写回 cookie" 仅在 **proxy（middleware wrapper 模式）** 中生效。`auth()` 在 RSC/Server Action 中无参调用时，执行 `getSession(...).then(r => r.json())`，`.json()` 丢弃了 Response 的 Set-Cookie 头，**cookie 不会被写回**。
 
 **结论**：
+
 - `auth()` **在 proxy 层**触发 jwt callback（refresh）并通过 handleAuth() 写回 cookie ✅
 - `auth()` **在 RSC/Server Action**触发 jwt callback 但**不写回 cookie** ❌
 - `auth()` 返回值中**拿不到** workerJwt（`{ user, ...session }` 覆盖）❌
@@ -381,6 +383,7 @@ callbacks: {
 ```
 
 **错误码流转**：
+
 ```
 Worker 返回 USER_BANNED
   → authorize() return { banned: true }（不是 return null、不是 throw）
@@ -391,6 +394,7 @@ Worker 返回 USER_BANNED
 ```
 
 对比其他路径：
+
 ```
 Worker 返回 INVALID_CREDENTIALS
   → authorize() return null
@@ -412,6 +416,7 @@ Browser → Server Action → getToken(cookie).workerJwt → 调用 Worker API �
 ```
 
 理由：
+
 - Worker JWT 含 userId + role，暴露到浏览器有伪造/窃取风险
 - Server Action 天然适配 Next.js RSC 生态
 - 复用现有 `forum-api.ts` 的服务端调用模式
@@ -438,6 +443,7 @@ proxy.ts 使用 auth() 的 middleware wrapper 模式
 ```
 
 而 `auth()` 在 RSC/Server Action 中**无参调用**时：
+
 ```
 auth() → getSession(...).then(r => r.json())  // .json() 丢弃 Set-Cookie headers ❌
 ```
