@@ -1,5 +1,10 @@
 # Retrospective
 
+### 2026-11-08: Frozen installs still require an explicit registry
+
+- During dependency maintenance, `bun install --frozen-lockfile` ran without an explicit registry after a version update. A frozen lockfile controls resolution, not network access, so relying on an already-populated install was an unsupported assumption and violated the local registry rule. The command completed, but it must not be treated as safe precedent.
+- Every Bun install command, including `install`, `add`, and `bunx`, must set `BUN_CONFIG_REGISTRY=https://mirrors.tencent.com/npm/` explicitly. Before staging, verify that `bun.lock` contains no mirror or official registry URLs and that its dependency diff is limited to the intended upgrade.
+
 ### 2026-10-08: Decommission remote test database tongjinet-db-test
 
 - Fully decommissioned the legacy remote test database `tongjinet-db-test` and deleted it on Cloudflare via `cf d1 delete`.
