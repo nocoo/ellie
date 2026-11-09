@@ -1230,6 +1230,22 @@ describe("extractPostComment", () => {
 		});
 	});
 
+	test("preserves signed negative historical scores", () => {
+		const r = row({
+			0: "501",
+			1: "1000",
+			2: "5000",
+			3: "commenter",
+			4: "200",
+			5: "1700000000",
+			6: "Historical comment",
+			7: "-3",
+			10: "0",
+		});
+		const result = extractPostComment(r);
+		expect(result?.score).toBe(-3);
+	});
+
 	test("returns null for corrupt row (id=0)", () => {
 		const r = row({ 0: "0" });
 		expect(extractPostComment(r)).toBeNull();

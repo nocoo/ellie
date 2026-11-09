@@ -6,6 +6,7 @@
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,8 +23,9 @@ interface PostCommentsProps {
 	postId: number;
 	threadClosed?: boolean;
 	isLoggedIn: boolean;
-	/** Optional preloaded comments. Otherwise read only after clicking 查看点评. */
-	initialComments?: PostComment[];
+	/** Fresh comments returned with the thread context. */
+	initialComments: PostComment[] | null;
+	commentLoadError?: "load_failed" | "too_large" | null;
 	/** External dialog state control */
 	dialogOpen?: boolean;
 	onDialogOpenChange?: (open: boolean) => void;
@@ -158,74 +160,57 @@ export function PostComments({
 	threadClosed,
 	isLoggedIn,
 	initialComments,
+	commentLoadError,
 	dialogOpen: externalDialogOpen,
 	onDialogOpenChange,
 }: PostCommentsProps) {
 	const [comments, setComments] = useState<PostComment[]>(initialComments ?? []);
-	const [loaded, setLoaded] = useState(initialComments !== undefined);
-	const [loading, setLoading] = useState(false);
-	const [loadError, setLoadError] = useState(false);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
-	const loadingRef = useRef(false);
 	const commentGateRef = useRef(false);
 	const [commentGateBusy, setCommentGateBusy] = useState(false);
-	const toast = useForumToast();
+	const router = useRouter();
+
+	useEffect(() => {
+		if (initialComments !== null) setComments(initialComments);
+	}, [initialComments]);
 
 	// Use external dialog state if provided, otherwise use internal
 	const dialogOpen = externalDialogOpen ?? internalDialogOpen;
 	const setDialogOpen = onDialogOpenChange ?? setInternalDialogOpen;
 
-	const fetchComments = useCallback(async () => {
-		if (loadingRef.current) return;
-		loadingRef.current = true;
-		setLoading(true);
-		setLoadError(false);
-		try {
-			// Use searchParams object form so the helper handles encoding and
-			// undefined/null filtering. Never string-concat user-supplied
-			// values into the URL.
-			const response = await apiClient.get<PostComment[]>("/api/v1/post-comments", {
-				postId,
-				limit: "all",
+	const handleCommentSuccess = useCallback(
+		(newComment: PostComment) => {
+			setComments((previous) => {
+				const byId = new Map(previous.map((comment) => [comment.id, comment]));
+				byId.set(newComment.id, newComment);
+				return [...byId.values()].sort(
+					(left, right) => left.createdAt - right.createdAt || left.id - right.id,
+				);
 			});
-			setComments((previous) => [
-				...new Map([...response.data, ...previous].map((row) => [row.id, row])).values(),
-			]);
-			setLoaded(true);
-		} catch {
-			setLoadError(true);
-			toast.error({ title: "点评加载失败", description: "请稍后重试" });
-		} finally {
-			loadingRef.current = false;
-			setLoading(false);
-		}
-	}, [postId, toast]);
-
-	const handleCommentSuccess = useCallback((newComment: PostComment) => {
-		// Show the confirmed write immediately, without waiting for shared cache expiry.
-		setComments((prev) => [...prev, newComment]);
-		// Also expand to show the new comment if list was collapsed
-		setExpanded(true);
-	}, []);
-
-	const loadButton = !loaded && (
-		<button
-			type="button"
-			disabled={loading}
-			onClick={() => void fetchComments()}
-			aria-busy={loading}
-			aria-live="polite"
-			className="text-xs text-forum-link hover:underline py-1.5"
-		>
-			{loading ? "加载点评…" : loadError ? "加载失败，重试点评" : "查看点评"}
-		</button>
+			setExpanded(true);
+			router.refresh();
+		},
+		[router],
 	);
+
+	const loadErrorAlert = commentLoadError ? (
+		<div role="alert" className="py-1.5 text-xs text-destructive">
+			{commentLoadError === "too_large" ? "点评数据过多，无法一次加载" : "点评加载失败"}
+			<button
+				type="button"
+				onClick={() => router.refresh()}
+				className="ml-2 text-forum-link hover:underline"
+			>
+				刷新重试
+			</button>
+		</div>
+	) : null;
 
 	if (comments.length === 0) {
 		return (
 			<>
-				{loadButton}
+				{loadErrorAlert}
 				<CommentDialog
 					open={dialogOpen}
 					onOpenChange={setDialogOpen}
@@ -243,7 +228,7 @@ export function PostComments({
 
 	return (
 		<div className="border-t border-dashed border-border">
-			{loadButton}
+			{loadErrorAlert}
 			{/* Header - theme-aware colors */}
 			<div className="flex items-center justify-between px-3 py-1.5 bg-muted/30">
 				<span className="text-xs text-muted-foreground font-medium flex items-center gap-1">

@@ -380,6 +380,13 @@ export async function getPostAttachments(
 	});
 }
 
+export class PostCommentReadBoundError extends Error {
+	constructor(message = "Post comment collection exceeds its read bound") {
+		super(message);
+		this.name = "PostCommentReadBoundError";
+	}
+}
+
 export async function loadPostComments(
 	env: Env,
 	ids: number[],
@@ -395,6 +402,75 @@ export async function loadPostComments(
 			FROM post_comments WHERE post_id IN (${p})) WHERE rn <= ${limit} ORDER BY post_id, created_at, id`,
 	);
 	return groupRows(ids, rows, "post_id");
+}
+
+export async function loadFreshPostComments(
+	env: Env,
+	ids: readonly number[],
+	threadId: number,
+	maxRows: number,
+	maxBytes: number,
+): Promise<Map<number, ReadingRow[]>> {
+	const unique = uniqueIds(ids);
+	if (unique.length === 0) return new Map(unique.map((id) => [id, [] as ReadingRow[]]));
+	const rows: ReadingRow[] = [];
+	let bytes = 0;
+	for (let start = 0; start < unique.length; start += 98) {
+		const batch = unique.slice(start, start + 98);
+		const remainingRows = maxRows - rows.length;
+		const remainingBytes = maxBytes - bytes;
+		const rowLimit = remainingRows + 1;
+		const result = await env.DB.prepare(
+			`WITH ordered AS (
+				 SELECT id, thread_id, post_id, author_id, author_name,
+				        score, reply_post_id, created_at,
+				        length(CAST(content AS BLOB)) AS content_bytes
+				 FROM post_comments
+				 WHERE post_id IN (${batch.map(() => "?").join(",")}) AND thread_id = ?
+				 ORDER BY post_id, created_at, id
+				 LIMIT ${rowLimit}
+			 ), ranked AS (
+				 SELECT ordered.*,
+				        ROW_NUMBER() OVER (
+						ORDER BY post_id, created_at, id
+					) AS row_number,
+				        SUM(content_bytes) OVER (
+						ORDER BY post_id, created_at, id
+						ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+					) AS cumulative_bytes
+				 FROM ordered
+			 )
+			 SELECT id, thread_id, post_id, author_id, author_name,
+			        CASE
+					 WHEN row_number <= ${remainingRows}
+					      AND cumulative_bytes <= ${remainingBytes}
+					 THEN (SELECT content FROM post_comments WHERE id = ranked.id)
+					 ELSE ''
+				 END AS content,
+			        score, reply_post_id, created_at,
+			        CASE
+					 WHEN row_number > ${remainingRows}
+					      OR cumulative_bytes > ${remainingBytes}
+					 THEN 1 ELSE 0
+				 END AS budget_overflow
+			 FROM ranked
+			 ORDER BY post_id, created_at, id`,
+		)
+			.bind(...batch, threadId)
+			.all<ReadingRow>();
+		if (!result.success) throw new Error("Post comment query failed");
+		for (const row of result.results) {
+			if (row.budget_overflow === 1 || row.budget_overflow === "1") {
+				throw new PostCommentReadBoundError();
+			}
+			rows.push(row);
+			bytes += new TextEncoder().encode(String(row.content ?? "")).length;
+			if (rows.length > maxRows || bytes > maxBytes) {
+				throw new PostCommentReadBoundError();
+			}
+		}
+	}
+	return groupRows(unique, rows, "post_id");
 }
 
 export async function getPostComments(

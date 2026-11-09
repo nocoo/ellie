@@ -85,6 +85,7 @@ async function render(thread: Thread) {
 		nextCursor: null,
 		revision: "a".repeat(64),
 		cacheable: true,
+		comments: [],
 		stats: undefined,
 		display: { forum: FORUM, ancestors: [], posts: [], authors: [], attachments: [] },
 	});

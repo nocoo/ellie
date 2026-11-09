@@ -31,6 +31,7 @@ function context(extra = {}): ThreadDetailContextData & { display: ThreadDetailD
 		revision: "a".repeat(64),
 		cacheable: true,
 		nextCursor: "next",
+		comments: [],
 		display: {
 			forum: {
 				id: 10,
@@ -88,7 +89,7 @@ it("assembles bodies, attachment groups, cursor and breadcrumbs from one authori
 	expect(data.thread?.views).toBe(5);
 	expect(data.posts).toHaveLength(1);
 	expect(data.posts[0].attachments[0].id).toBe(3);
-	expect(data.posts[0].comments).toBeUndefined();
+	expect(data.posts[0].comments).toEqual([]);
 	expect(data.nextCursor).toBe("next");
 	expect(data.prevCursor).toBeNull();
 	expect(data.breadcrumbs.map((item) => item.label)).toEqual([

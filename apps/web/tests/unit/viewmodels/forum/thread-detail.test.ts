@@ -346,30 +346,37 @@ describe("enrichPosts", () => {
 		expect(enriched).toEqual([]);
 	});
 
-	// ─── SSR batch failure semantics (L3 e2e regression guard) ───
-	// Contract: enrichPosts must distinguish "comment batch succeeded with no
-	// rows" (Map → empty array on the post) from "comment batch failed"
-	// (undefined → undefined on the post). PostComments uses the latter to
-	// trigger a client-side refetch.
+	// ─── Fresh thread-context comment semantics ───
+	// Null means the context could not load comments; [] means the read succeeded
+	// and the current posts have no comments. Neither state triggers a per-post HTTP read.
 
-	it("propagates `comments: undefined` when commentMap is undefined (SSR batch failure)", () => {
+	it("propagates null when comment loading fails", () => {
 		const posts = [makePost({ id: 100, authorId: 1 }), makePost({ id: 101, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), undefined, null, {
-			moderators: "",
-		});
+		const enriched = enrichPosts(
+			posts,
+			new Map(),
+			new Map(),
+			null,
+			null,
+			{
+				moderators: "",
+			},
+			"load_failed",
+		);
 		expect(enriched).toHaveLength(2);
-		expect(enriched[0]?.comments).toBeUndefined();
-		expect(enriched[1]?.comments).toBeUndefined();
+		expect(enriched[0]?.comments).toBeNull();
+		expect(enriched[1]?.comments).toBeNull();
+		expect(enriched[0]?.commentLoadError).toBe("load_failed");
 	});
 
-	it("propagates `comments: []` when commentMap is empty Map (SSR batch succeeded, no rows)", () => {
+	it("propagates `comments: []` when commentMap is empty Map (fresh read succeeded, no rows)", () => {
 		const posts = [makePost({ id: 100, authorId: 1 })];
 		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), null, {
 			moderators: "",
 		});
-		// Empty array, NOT undefined — client must not refetch in this case.
+		// Empty array — the client must not fetch or show a view button.
 		expect(enriched[0]?.comments).toEqual([]);
-		expect(enriched[0]?.comments).not.toBeUndefined();
+		expect(enriched[0]?.comments).not.toBeNull();
 	});
 });
 

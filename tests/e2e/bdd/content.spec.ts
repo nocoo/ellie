@@ -70,12 +70,7 @@ test.describe("Feature: Forum Content", () => {
 		// Then: posts have loaded
 		await expect(threadPage.postCards.first()).toBeVisible();
 
-		await threadPage.postCards
-			.first()
-			.getByRole("button", { name: "查看点评", exact: true })
-			.click();
-
-		// Then: seeded comment content from PC-01 ("写得好！" by e2etest /
+		// Then: seeded comment content loads with the thread context, without a separate click from PC-01 ("写得好！" by e2etest /
 		// e2eprofile on post 662174) is visible inside the 点评 section.
 		await expect(page.getByText("写得好！").first()).toBeVisible({ timeout: 10_000 });
 

@@ -16,7 +16,12 @@ import { getCachedThreadContext, recordThreadView } from "@/lib/forum-cache";
 import type { ForumContext } from "@/lib/forum-data";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { fetchPublicSettings, getStr } from "./settings.server";
-import { type EnrichedPost, enrichPosts, groupAttachmentsByPostId } from "./thread-detail";
+import {
+	type EnrichedPost,
+	enrichPosts,
+	groupAttachmentsByPostId,
+	groupCommentsByPostId,
+} from "./thread-detail";
 
 export interface ThreadDetailPageData {
 	thread: Thread | null;
@@ -130,13 +135,15 @@ export async function loadThreadDetail(params: {
 	const authorMap = new Map(display.authors.map((author) => [author.id, publicUserToUser(author)]));
 
 	const attachmentMap = groupAttachmentsByPostId(display.attachments);
+	const commentMap = context.comments === null ? null : groupCommentsByPostId(context.comments);
 	const posts = enrichPosts(
 		display.posts,
 		authorMap,
 		attachmentMap,
-		undefined,
+		commentMap,
 		currentUser,
 		forum ?? { moderators: "" },
+		context.commentError ?? null,
 	);
 
 	// Build breadcrumbs from forum ancestors

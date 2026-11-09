@@ -39,6 +39,7 @@ function response(extra = {}) {
 			revision,
 			cacheable: true,
 			nextCursor: null,
+			comments: [],
 			...extra,
 		},
 	};
@@ -77,6 +78,53 @@ it("always checks authority and preserves fresh identity/header outside the stor
 		display,
 		revision,
 	});
+});
+
+it("accepts signed historical comment scores without treating negative values as corruption", async () => {
+	const comment = {
+		id: 7,
+		threadId: 4,
+		postId: 1,
+		authorId: 8,
+		authorName: "Historian",
+		authorAvatarPath: "historian.png",
+		content: "A migrated negative-score comment",
+		score: -3,
+		replyPostId: 0,
+		createdAt: 1,
+	};
+	mocks.post.mockResolvedValueOnce(response({ display, comments: [comment] }));
+	const result = await loadThreadContext(params);
+	expect(result.comments).toEqual([comment]);
+	expect(result.commentError).toBeUndefined();
+	expect(result.thread.id).toBe(4);
+});
+
+it("preserves the thread when malformed comment data is returned", async () => {
+	mocks.post.mockResolvedValueOnce(
+		response({
+			display,
+			comments: [
+				{
+					id: 7,
+					threadId: 4,
+					postId: 999,
+					authorId: 8,
+					authorName: "Wrong post",
+					authorAvatarPath: "",
+					content: "invalid",
+					score: 1,
+					replyPostId: 0,
+					createdAt: 1,
+				},
+			],
+		}),
+	);
+	const result = await loadThreadContext(params);
+	expect(result.thread.id).toBe(4);
+	expect(result.display.posts).toEqual(display.posts);
+	expect(result.comments).toBeNull();
+	expect(result.commentError).toBe("load_failed");
 });
 
 it("serves verified content without daily stats and ignores unsolicited Worker statistics", async () => {

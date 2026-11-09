@@ -3,6 +3,9 @@ import "server-only";
 import {
 	decodeThreadDetailCursor,
 	type HomeStats,
+	type PostComment,
+	THREAD_DETAIL_COMMENT_MAX_BYTES,
+	THREAD_DETAIL_COMMENT_MAX_ROWS,
 	THREAD_DETAIL_CONTEXT_PATH,
 	type ThreadDetailContextData,
 	type ThreadDetailContextRequest,
@@ -32,6 +35,62 @@ function validateDisplay(
 		!Array.isArray(display.ancestors)
 	)
 		throw new Error("Incomplete thread context");
+}
+
+function validateComments(
+	comments: ThreadDetailContextData["comments"] | undefined,
+	commentError: ThreadDetailContextData["commentError"] | undefined,
+	display: ThreadDetailSnapshot["display"],
+	threadId: number,
+): "load_failed" | "too_large" | null {
+	if (comments === null) {
+		return commentError === "load_failed" || commentError === "too_large"
+			? commentError
+			: "load_failed";
+	}
+	if (!Array.isArray(comments) || commentError !== undefined) return "load_failed";
+	if (comments.length > THREAD_DETAIL_COMMENT_MAX_ROWS) return "too_large";
+	const postIds = new Set(display.posts.map((post) => post.id));
+	let bytes = 0;
+	for (const comment of comments) {
+		if (!comment || typeof comment !== "object") return "load_failed";
+		const record = comment as PostComment;
+		if (
+			!Number.isSafeInteger(record.id) ||
+			record.id <= 0 ||
+			record.threadId !== threadId ||
+			!postIds.has(record.postId) ||
+			!Number.isSafeInteger(record.authorId) ||
+			record.authorId < 0 ||
+			typeof record.authorName !== "string" ||
+			typeof record.authorAvatarPath !== "string" ||
+			typeof record.content !== "string" ||
+			!Number.isSafeInteger(record.score) ||
+			!Number.isSafeInteger(record.replyPostId) ||
+			record.replyPostId < 0 ||
+			!Number.isSafeInteger(record.createdAt) ||
+			record.createdAt < 0 ||
+			Object.keys(record).some(
+				(key) =>
+					![
+						"id",
+						"threadId",
+						"postId",
+						"authorId",
+						"authorName",
+						"authorAvatarPath",
+						"content",
+						"score",
+						"replyPostId",
+						"createdAt",
+					].includes(key),
+			)
+		)
+			return "load_failed";
+		bytes += new TextEncoder().encode(record.content).length;
+		if (bytes > THREAD_DETAIL_COMMENT_MAX_BYTES) return "too_large";
+	}
+	return null;
 }
 
 export function loadThreadContext(params: ThreadParams) {
@@ -81,7 +140,8 @@ async function readContext(
 		typeof data.cacheable !== "boolean" ||
 		typeof data.revision !== "string" ||
 		!/^[a-f0-9]{64}$/.test(data.revision) ||
-		(data.nextCursor !== null && typeof data.nextCursor !== "string")
+		(data.nextCursor !== null && typeof data.nextCursor !== "string") ||
+		(data.comments !== null && !Array.isArray(data.comments))
 	)
 		throw new Error("Invalid thread context");
 	const current =
@@ -100,6 +160,11 @@ async function readContext(
 	}
 	const display = data.display ?? (data.cacheable && reusable ? current.display : undefined);
 	validateDisplay(display, data.thread, params);
+	const commentError = validateComments(data.comments, data.commentError, display, params.threadId);
+	if (commentError) {
+		data.comments = null;
+		data.commentError = commentError;
+	}
 	if (data.cacheable && data.display) {
 		runtime.admit(key, { selection, revision: data.revision, display }, displayToken);
 	}

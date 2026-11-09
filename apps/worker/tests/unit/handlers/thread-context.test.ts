@@ -61,6 +61,199 @@ describe("POST /api/v1/threads/context", () => {
 		expect(f.calls.some((call) => call.mode === "run")).toBe(false);
 	});
 
+	it("returns fresh page comments without exposing IP and preserves signed scores", async () => {
+		open();
+		f.insert("post_comments", {
+			id: 20,
+			thread_id: 1,
+			post_id: 1,
+			author_id: 10,
+			author_name: "alice",
+			content: "fresh comment",
+			score: -3,
+			reply_post_id: 0,
+			created_at: 1,
+			ip: "private-ip",
+		});
+		const response = await threadContext(post(body), f.env);
+		const payload = await response.json();
+		expect(payload.data.comments).toEqual([
+			expect.objectContaining({
+				id: 20,
+				postId: 1,
+				threadId: 1,
+				score: -3,
+				content: "fresh comment",
+			}),
+		]);
+		expect(JSON.stringify(payload.data.comments)).not.toContain("private-ip");
+		expect(JSON.stringify(payload.data.comments)).not.toContain("ip");
+	});
+
+	it("returns comments again on a warm hit and sees same-page cross-instance writes", async () => {
+		open();
+		const cold = await threadContext(post(body), f.env);
+		const revision = (await cold.json()).data.revision as string;
+		f.insert("post_comments", {
+			id: 21,
+			thread_id: 1,
+			post_id: 1,
+			author_id: 10,
+			author_name: "alice",
+			content: "cross-instance comment",
+			score: 0,
+			reply_post_id: 0,
+			created_at: 2,
+			ip: "private-ip",
+		});
+		const warm = await threadContext(
+			post({ ...body, includeDisplay: false, cachedRevision: revision }),
+			f.env,
+		);
+		const payload = await warm.json();
+		expect(payload.data.display).toBeUndefined();
+		expect(payload.data.comments.map((comment: { content: string }) => comment.content)).toEqual([
+			"cross-instance comment",
+		]);
+	});
+
+	it("keeps thread display readable when comment loading fails", async () => {
+		open();
+		const original = f.env.DB.prepare.bind(f.env.DB);
+		const prepare = vi.spyOn(f.env.DB, "prepare").mockImplementation((sql) => {
+			if (sql.includes("FROM post_comments")) throw new Error("comments unavailable");
+			return original(sql);
+		});
+		try {
+			const response = await threadContext(post(body), f.env);
+			expect(response.status).toBe(200);
+			const payload = await response.json();
+			expect(payload.data.display.posts).toHaveLength(1);
+			expect(payload.data.comments).toBeNull();
+			expect(payload.data.commentError).toBe("load_failed");
+		} finally {
+			prepare.mockRestore();
+		}
+	});
+
+	it("accepts exactly 1 MiB and rejects 1 MiB plus one byte with a bounded SQL projection", async () => {
+		open();
+		f.insert("post_comments", {
+			id: 30,
+			thread_id: 1,
+			post_id: 1,
+			author_id: 10,
+			author_name: "alice",
+			content: "a".repeat(524288) + "b".repeat(524288),
+			score: 0,
+			reply_post_id: 0,
+			created_at: 1,
+		});
+		const exact = await threadContext(post(body), f.env);
+		const exactPayload = await exact.json();
+		expect(exact.status).toBe(200);
+		expect(exactPayload.data.comments).toHaveLength(1);
+		expect(exactPayload.data.comments[0].content.length).toBe(1048576);
+		expect(exactPayload.data.commentError).toBeUndefined();
+
+		f.sqlite.prepare("DELETE FROM post_comments WHERE id = 30").run();
+		f.insert("post_comments", {
+			id: 31,
+			thread_id: 1,
+			post_id: 1,
+			author_id: 10,
+			author_name: "alice",
+			content: "a".repeat(524288) + "b".repeat(524289),
+			score: 0,
+			reply_post_id: 0,
+			created_at: 2,
+		});
+		const over = await threadContext(post(body), f.env);
+		const overPayload = await over.json();
+		expect(over.status).toBe(200);
+		expect(overPayload.data.display.posts).toHaveLength(1);
+		expect(overPayload.data.comments).toBeNull();
+		expect(overPayload.data.commentError).toBe("too_large");
+		const projection = f.calls.find(
+			(call) => call.sql.includes("budget_overflow") && call.sql.includes("content_bytes"),
+		);
+		expect(projection?.sql).toContain("CASE");
+		expect(projection?.sql).toContain("length(CAST(content AS BLOB))");
+		expect(projection?.sql).not.toContain(
+			"SELECT id, thread_id, post_id, author_id, author_name, content,",
+		);
+	});
+
+	it("enforces the cumulative byte budget across 98/100 post-ID SQL batches", async () => {
+		open();
+		for (let postId = 2; postId <= 100; postId++) {
+			f.post(postId, { position: postId, author_id: 20, author_name: "bob" });
+		}
+		let commentId = 200;
+		for (let index = 0; index < 128; index++) {
+			const postId = (index % 100) + 1;
+			f.insert("post_comments", {
+				id: commentId++,
+				thread_id: 1,
+				post_id: postId,
+				author_id: 10,
+				author_name: "alice",
+				content: "x".repeat(8192),
+				score: 0,
+				reply_post_id: 0,
+				created_at: index,
+			});
+		}
+		const exact = await threadContext(post({ ...body, limit: 100 }), f.env);
+		const exactPayload = await exact.json();
+		expect(exact.status).toBe(200);
+		expect(exactPayload.data.comments).toHaveLength(128);
+		expect(exactPayload.data.commentError).toBeUndefined();
+		const queries = f.calls.filter(
+			(call) => call.sql.includes("budget_overflow") && call.sql.includes("content_bytes"),
+		);
+		expect(queries.length).toBeGreaterThanOrEqual(2);
+		expect(queries.every((call) => call.params.length <= 100)).toBe(true);
+
+		f.insert("post_comments", {
+			id: commentId++,
+			thread_id: 1,
+			post_id: 100,
+			author_id: 10,
+			author_name: "alice",
+			content: "z",
+			score: 0,
+			reply_post_id: 0,
+			created_at: 11,
+		});
+		const over = await threadContext(post({ ...body, limit: 100 }), f.env);
+		const overPayload = await over.json();
+		expect(overPayload.data.comments).toBeNull();
+		expect(overPayload.data.commentError).toBe("too_large");
+	});
+
+	it("returns an explicit too-large comment state instead of truncating", async () => {
+		open();
+		for (let id = 100; id <= 1100; id++) {
+			f.insert("post_comments", {
+				id,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 10,
+				author_name: "alice",
+				content: `comment-${id}`,
+				score: 0,
+				reply_post_id: 0,
+				created_at: id,
+			});
+		}
+		const response = await threadContext(post(body), f.env);
+		const payload = await response.json();
+		expect(payload.data.display.posts).toHaveLength(1);
+		expect(payload.data.comments).toBeNull();
+		expect(payload.data.commentError).toBe("too_large");
+	});
+
 	it("skips bodies, ratings, attachments and profiles on a public warm hit", async () => {
 		open();
 		const cold = await threadContext(post(body), f.env);
@@ -74,7 +267,7 @@ describe("POST /api/v1/threads/context", () => {
 		expect(payload.data.display).toBeUndefined();
 		expect(payload.data.thread.subject).toBe("Thread 1");
 		const sql = f.calls.map((call) => call.sql).join("\n");
-		expect(sql).not.toContain("content");
+		expect(sql).not.toContain("SELECT id, thread_id, forum_id, author_id, author_name, content");
 		expect(sql).not.toContain("attachments");
 		expect(sql).not.toContain("post_ratings");
 		expect(sql).not.toContain("signature");
@@ -91,6 +284,26 @@ describe("POST /api/v1/threads/context", () => {
 			Array.from({ length: 20 }, (_, index) => index + 6),
 		);
 		expect(payload.data.nextCursor).toBeNull();
+	});
+
+	it("loads comments only for the authorized current page posts", async () => {
+		open();
+		f.post(2, { position: 2, author_id: 20, author_name: "bob" });
+		f.insert("post_comments", {
+			id: 22,
+			thread_id: 1,
+			post_id: 2,
+			author_id: 20,
+			author_name: "bob",
+			content: "second-page comment",
+			score: 1,
+			reply_post_id: 0,
+			created_at: 1,
+		});
+		const first = await (await threadContext(post({ ...body, limit: 1 }), f.env)).json();
+		expect(first.data.comments).toEqual([]);
+		const last = await (await threadContext(post({ ...body, limit: 1, last: true }), f.env)).json();
+		expect(last.data.comments.map((comment: { postId: number }) => comment.postId)).toEqual([2]);
 	});
 
 	it("derives the forward cursor from the last returned post", async () => {

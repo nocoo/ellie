@@ -306,9 +306,11 @@ const data = await forumApi.get("/api/v1/example");
 const data = await apiClient.get("/api/v1/example");
 ```
 
-## Deferred post comments
+## Fresh thread-page post comments
 
-The thread page requests `GET /api/v1/post-comments?postId=…&limit=all` only after the reader selects **查看点评**. The Next.js proxy forwards the current session and query parameters. `limit=all` returns the complete single-post collection using the existing 30-minute comments cache; omitted limits still default to 50 and numeric limits remain capped at 100. Worker checks current post/thread/forum access before every cached read. **查看全部** therefore includes comments beyond the former 50/100 limits, while successful writes appear immediately on the current page.
+The thread context loads the authorized current-page post IDs once and returns `comments` as a top-level fresh field in the same `/api/v1/threads/context` response. The Web never fires one `GET /api/v1/post-comments` request per post. Comments are read directly from D1, excluded from the 30-minute display snapshot and independent of the old per-post comment cache. Comments therefore reflect cross-instance writes on the next context request while only the current page is queried. The response uses `comments: []` for a successful empty read and `comments: null` with `commentError: "load_failed" | "too_large"` for an explicit load/resource failure; the thread body remains readable in both error states.
+
+The context accepts at most 1000 comments and 1 MiB of comment content for the current page. It rejects neither signed historical scores nor authoritative zero/negative values; it only protects the response shape and resource budget. Direct comment reads never return `ip`. Each comment author is projected to name/avatar fields through a direct batched user read. Successful writes are shown optimistically and the page refresh replaces the same post's comment props; the standalone single-post and batch comment APIs remain for explicit API consumers.
 
 ## Admin statistics and manual cache snapshots
 

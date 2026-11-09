@@ -250,6 +250,7 @@ export function PostCard({
 			threadClosed={threadClosed}
 			isLoggedIn={currentUserId !== null}
 			initialComments={post.comments}
+			commentLoadError={post.commentLoadError}
 			dialogOpen={commentDialogOpen}
 			onDialogOpenChange={setCommentDialogOpen}
 		/>

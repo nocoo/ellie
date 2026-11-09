@@ -27,8 +27,9 @@ import {
 export interface EnrichedPost extends Post {
 	author: User | null;
 	attachments: Attachment[];
-	/** Preloaded comments, or undefined to load when the reader expands them. */
-	comments: PostComment[] | undefined;
+	/** Fresh comments returned with the thread context. Null means a load failure. */
+	comments: PostComment[] | null;
+	commentLoadError?: "load_failed" | "too_large" | null;
 	canDelete: boolean;
 	canEdit: boolean;
 }
@@ -106,29 +107,21 @@ export function enrichPosts(
 	posts: Post[],
 	authorMap: Map<number, User>,
 	attachmentMap: Map<number, Attachment[]>,
-	/**
-	 * Comments grouped by postId. `undefined` signals that the SSR batch
-	 * fetch FAILED (vs. an empty Map which means the batch succeeded with no
-	 * comments). When `undefined`, every post gets `comments: undefined` so
-	 * the client component can fall back to its own fetch path.
-	 */
-	commentMap: Map<number, PostComment[]> | undefined,
+	commentMap: Map<number, PostComment[]> | null,
 	currentUser: User | null,
 	forum: { moderators: string },
+	commentLoadError: "load_failed" | "too_large" | null = null,
 ): EnrichedPost[] {
 	return posts.map((post) => {
 		const author = authorMap.get(post.authorId) ?? null;
-		// `commentMap === undefined` → SSR batch failed → propagate undefined so
-		// PostComments triggers a client-side refetch.
-		// `commentMap.get(post.id) ?? []` → batch succeeded; missing key just
-		// means this post has no comments, render the empty state.
-		const comments = commentMap === undefined ? undefined : (commentMap.get(post.id) ?? []);
+		const comments = commentMap === null ? null : (commentMap.get(post.id) ?? []);
 		return {
 			...post,
 			content: renderContent(post.content),
 			author: author ? { ...author, signature: renderContent(author.signature ?? "") } : null,
 			attachments: attachmentMap.get(post.id) ?? [],
 			comments,
+			commentLoadError,
 			canDelete: canDeletePost(currentUser, post, forum),
 			canEdit: canEditPost(currentUser, post, forum),
 		};

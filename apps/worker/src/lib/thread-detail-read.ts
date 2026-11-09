@@ -9,7 +9,10 @@ import {
 	type HomeStats,
 	type HomeUser,
 	homeForumVisible,
+	type PostComment,
 	type ReadingBucket,
+	THREAD_DETAIL_COMMENT_MAX_BYTES,
+	THREAD_DETAIL_COMMENT_MAX_ROWS,
 	type ThreadDetailContextData,
 	type ThreadDetailContextRequest,
 	type ThreadDetailDisplay,
@@ -19,6 +22,7 @@ import {
 } from "@ellie/types";
 import { loadPublicStats } from "./cache/public-stats-read";
 import {
+	loadFreshPostComments,
 	loadPostAccessBatch,
 	loadPostAttachments,
 	loadPostEntities,
@@ -28,6 +32,7 @@ import {
 	loadThreadEntities,
 	loadThreadStats,
 	type PostAccess,
+	PostCommentReadBoundError,
 	type PostPageMember,
 	projectCurrentThread,
 	type ThreadAccess,
@@ -44,6 +49,7 @@ import {
 	toThread,
 	type ViewerContext,
 } from "./mappers";
+import { loadUserMiniProfilesFromDb } from "./user-cache";
 import { STICKY_MODERATED } from "./visibility";
 
 const CHAIN_MAX = 32;
@@ -146,7 +152,44 @@ export async function readThreadDetailContext(
 		revision,
 		cacheable,
 		nextCursor: membership.nextCursor,
+		comments: null,
 	};
+	try {
+		const commentRows = await loadFreshPostComments(
+			env,
+			page.map((item) => item.id),
+			access.id,
+			THREAD_DETAIL_COMMENT_MAX_ROWS,
+			THREAD_DETAIL_COMMENT_MAX_BYTES,
+		);
+		const rawComments = page.flatMap((item) => commentRows.get(item.id) ?? []);
+		const profiles = await loadUserMiniProfilesFromDb(
+			env,
+			rawComments.flatMap((row) => {
+				const authorId = Number(row.author_id);
+				return Number.isSafeInteger(authorId) && authorId > 0 ? [authorId] : [];
+			}),
+		);
+		data.comments = rawComments.map((row): PostComment => {
+			const authorId = Number(row.author_id);
+			const profile = profiles.get(authorId);
+			return {
+				id: Number(row.id),
+				threadId: Number(row.thread_id),
+				postId: Number(row.post_id),
+				authorId,
+				authorName: profile?.username ?? String(row.author_name ?? ""),
+				authorAvatarPath: profile?.avatarPath ?? "",
+				content: String(row.content ?? ""),
+				score: Number(row.score),
+				replyPostId: Number(row.reply_post_id),
+				createdAt: Number(row.created_at),
+			};
+		});
+	} catch (error) {
+		data.comments = null;
+		data.commentError = error instanceof PostCommentReadBoundError ? "too_large" : "load_failed";
+	}
 	if (stats) data.stats = stats;
 	if (!forceDisplay) return data;
 	data.display = await loadDisplay(

@@ -1,9 +1,11 @@
 /** Thread detail context transport. Worker owns authority; Web caches display only. */
 import type { HomeStats, HomeUser } from "./home";
-import type { Attachment, ForumVisibility, ModeratorInfo, Post, PublicUser, Thread } from "./types";
+import type { Attachment, ForumVisibility, ModeratorInfo, Post, PostComment, PublicUser, Thread } from "./types";
 export declare const THREAD_DETAIL_CONTEXT_PATH = "/api/v1/threads/context";
 export declare const THREAD_DETAIL_MAX_BODY_BYTES = 4096;
 export declare const THREAD_DETAIL_MAX_LIMIT = 100;
+export declare const THREAD_DETAIL_COMMENT_MAX_ROWS = 1000;
+export declare const THREAD_DETAIL_COMMENT_MAX_BYTES: number;
 export declare const THREAD_DETAIL_MESSAGES: {
     readonly invalidBody: "Invalid request body";
     readonly invalidJson: "Invalid JSON";
@@ -58,6 +60,8 @@ export interface ThreadDetailContextData {
     revision: string;
     cacheable: boolean;
     nextCursor: string | null;
+    comments: PostComment[] | null;
+    commentError?: "load_failed" | "too_large";
     stats?: HomeStats;
     display?: ThreadDetailDisplay;
 }

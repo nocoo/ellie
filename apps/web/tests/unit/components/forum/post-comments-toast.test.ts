@@ -4,6 +4,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+	useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 // Mock apiClient before importing component
 vi.mock("@/lib/api-client", () => ({
 	apiClient: {
@@ -36,6 +40,8 @@ function renderPostComments() {
 				postId: 1,
 				isLoggedIn: true,
 				threadClosed: false,
+				initialComments: [],
+				commentLoadError: null,
 				dialogOpen: true,
 				onDialogOpenChange: vi.fn(),
 			}),
@@ -102,6 +108,7 @@ describe("CommentDialog toast integration", () => {
 
 		await waitFor(() => {
 			expect(screen.getByText("点评已发送")).toBeTruthy();
+			expect(screen.getByText("hi")).toBeTruthy();
 		});
 	});
 
