@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.33] - 2026-11-09
+
+### Added
+
+- Load the Traks analytics collector on the public forum frontend.
+- Include fresh post comments in the Worker thread-detail context, with bounded row and payload limits, so thread pages can render comments without a deferred client fetch.
+
+### Changed
+
+- Improve mobile forum layouts with safe-area-aware browser chrome, dialogs and toolbars; horizontal forum-section and action scrolling; unified forum cards; and a five-item homepage showcase with explicit clipping coverage.
+- Enable Tailscale workload identity federation for the Docker release workflow and update the shared CI workflow revisions.
+- Upgrade Next.js to 16.4.5, Biome to 2.6.6, Wrangler to 4.158.0, Vitest to 5.1.0, Playwright to 1.65.0, Tiptap to 3.33.0, Tailwind CSS to 4.3.5, Cap packages to widget 0.1.61/core 0.1.10, Lucide React to 1.70.0, Entities to 9.0.0, Commander to 15.1.0, and Inquirer to 14.2.5.
+
+### Fixed
+
+- Preserve forum page backgrounds during the first paint while keeping selected theme metadata synchronized.
+- Isolate the KV monitor snapshot lifecycle in L2 coverage and add retryable thread-comment load errors for failed or oversized context reads.
+
+### Security
+
+- Limit the Rust TUI to Ratatui's Crossterm backend, removing the termwiz/backend chain that carried vulnerable `block-buffer` 0.10.4.
+- Override `minimatch` to `^11.0.2` for GHSA-g3hv-75wg-m249 and pin `nanoid` at 3.3.20.
+
+### Removed
+
+- Remove the unused `ora` dependency from the legacy TypeScript CLI.
+
 ## [1.14.31] - 2026-10-28
 
 ### Added
