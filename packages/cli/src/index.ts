@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 // Ellie CLI — Telnet-style command-line forum client
+import { VERSION } from "@ellie/types";
 import { program } from "commander";
 
 // TODO: Implement commands
@@ -8,7 +9,7 @@ import { program } from "commander";
 // import { openThread } from "./commands/thread";
 // import { postReply } from "./commands/reply";
 
-program.name("ellie").description("Ellie Forum CLI").version("0.1.0");
+program.name("ellie").description("Ellie Forum CLI").version(VERSION);
 
 // TODO: Add commands
 // program.command("login").description("Login to Ellie").action(login);

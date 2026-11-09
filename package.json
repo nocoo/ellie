@@ -19,7 +19,7 @@
 		"start:forum": "bun run --filter web start",
 		"start:admin": "bun run --filter admin start",
 		"migrate": "bun run --filter migrate start",
-		"cli": "bun run --filter cli start",
+		"cli": "bun run --filter '@ellie/cli' start",
 		"worker:dev": "bun run --filter '@ellie/worker' dev",
 		"worker:migrate:prod": "cd apps/worker && bun x wrangler d1 migrations apply tongjinet-db --remote",
 		"worker:deploy": "bun run worker:migrate:prod && bun run --filter '@ellie/worker' deploy",
