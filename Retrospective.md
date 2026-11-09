@@ -1,5 +1,10 @@
 # Retrospective
 
+### 2026-11-09: Use one regex for fd content patterns
+
+- During release preparation, `fd` was invoked twice with multiple `--glob` arguments. Those arguments combined into an unintended filename-only search, so the expected source references were not searched and the commands only failed later or returned unusable results.
+- Keep read-only searches recursive with `rg`. When using `fd`, use one combined regex for filename matching instead of repeated `--glob` alternatives, and verify the command semantics before relying on an empty result.
+
 ### 2026-11-08: Frozen installs still require an explicit registry
 
 - During dependency maintenance, `bun install --frozen-lockfile` ran without an explicit registry after a version update. A frozen lockfile controls resolution, not network access, so relying on an already-populated install was an unsupported assumption and violated the local registry rule. The command completed, but it must not be treated as safe precedent.
