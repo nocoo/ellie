@@ -159,7 +159,7 @@ export function Sidebar({
 				{!collapsed && (
 					<>
 						<span className="text-base font-semibold">Ellie</span>
-						<Badge variant="secondary" className="text-[10px]">
+						<Badge variant="secondary" className="font-mono text-xs">
 							{VERSION_DISPLAY}
 						</Badge>
 						<Button
