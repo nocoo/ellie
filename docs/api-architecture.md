@@ -464,7 +464,7 @@ an authorization claim. Responses contain fresh `bucket`, `user`,
 and `stats`. `recent` contains at most seven `{ id, forumId, forumName, subject,
 lastPostAt, replies, lastPosterId, lastPoster, lastPosterAvatarPath, anonymousLastPoster }` rows ordered by last activity. Fresh topic gates mask anonymous last posters before profile hydration. Digest display also includes `forumName` and `authorAvatarPath`. Both lists hydrate only visible user IDs in one batch through the existing `user:mini:v3` cache; cache misses use the existing batched loader, never one request per item. Recent candidate snapshots remain identity-free.
 The nightly snapshot includes the last 24 hours and up to 28 historical candidates
-so quiet periods can still display seven discussions. Historical rows pass the same
+so quiet periods can still supply up to seven discussion candidates for the five-item showcase. Historical rows pass the same
 current-authority gates and do not trigger daily forum recounts.
 It is refreshed on every context request from Worker memory/KV candidates, filtered
 against the existing fresh forum and topic gates, and never cached in Web display.
