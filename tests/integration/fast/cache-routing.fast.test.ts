@@ -2,6 +2,10 @@ import "./_helpers/setup";
 
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
 import { statsReportsGenKey, threadMetaGenKey } from "../../../apps/worker/src/lib/cache/keys";
+import {
+	DAILY_STATISTICS_KEY,
+	refreshDailyStatistics,
+} from "../../../apps/worker/src/lib/daily-statistics";
 import { createJwt } from "../../../apps/worker/src/lib/jwt";
 import {
 	shanghaiDateLocal,
@@ -259,7 +263,35 @@ describe("L2-fast: statistics calibration routing", () => {
 		},
 	);
 
-	test("Key B alone reads stored counters and the Shanghai day count, and stored values remain current", async () => {
+	test("Key B calibration reads return zero todayPosts when the real daily snapshot is absent", async () => {
+		const originalPrepare = env.DB.prepare.bind(env.DB);
+		let postCountQueries = 0;
+		env.DB.prepare = (sql) => {
+			if (sql.includes("COUNT(*) AS count") && sql.includes("FROM posts")) postCountQueries++;
+			return originalPrepare(sql);
+		};
+		try {
+			const headers = { "X-API-Key": env.ADMIN_API_KEY };
+			const response = await workerFetch(env, "/api/admin/stats/calibrate", {
+				method: "GET",
+				headers,
+			});
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.todayPosts).toBe(0);
+			expect(postCountQueries).toBe(0);
+		} finally {
+			env.DB.prepare = originalPrepare;
+		}
+	});
+
+	test("Key B alone reads stored counters and the real daily estimate, and stored values remain current", async () => {
+		await refreshDailyStatistics(env);
+		const snapshot = await env.KV.get(DAILY_STATISTICS_KEY, "json");
+		expect(snapshot).toMatchObject({
+			day: shanghaiDateLocal(),
+			stats: { todayPosts: 2, yesterdayPosts: 1 },
+		});
 		const headers = { "X-API-Key": env.ADMIN_API_KEY };
 		const response = await workerFetch(env, "/api/admin/stats/calibrate", {
 			method: "GET",
@@ -306,7 +338,8 @@ describe("L2-fast: statistics calibration routing", () => {
 		expect(await env.KV.get(statsReportsGenKey())).toBeNull();
 	});
 
-	test("apply_real commits all three totals and refreshes warm public and admin snapshots", async () => {
+	test("apply_real commits stored totals without rewriting the public base until explicit rebuild", async () => {
+		await refreshDailyStatistics(env);
 		const adminWarm = await workerFetch(env, "/api/admin/stats", {
 			method: "GET",
 			headers: { "X-API-Key": env.ADMIN_API_KEY },
@@ -337,6 +370,29 @@ describe("L2-fast: statistics calibration routing", () => {
 			"stats.yesterday_posts": "20",
 		});
 		expect(await env.KV.get(statsReportsGenKey())).not.toBeNull();
+		const publicBeforeRebuild = await workerFetch(env, "/api/v1/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.API_KEY },
+		});
+		expect((await publicBeforeRebuild.json()).data).toMatchObject({
+			totalThreads: 90,
+			totalPosts: 450,
+			totalMembers: 45,
+			yesterdayPosts: 1,
+			todayPosts: 2,
+		});
+		const adminBeforeRebuild = await workerFetch(env, "/api/admin/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.ADMIN_API_KEY },
+		});
+		expect((await adminBeforeRebuild.json()).data).toMatchObject({
+			users: { total: 4 },
+			threads: { total: 2 },
+			posts: { total: 4 },
+			source: "stored-counters",
+		});
+
+		await refreshDailyStatistics(env);
 		const fresh = await workerFetch(env, "/api/v1/stats", {
 			method: "GET",
 			headers: { "X-API-Key": env.API_KEY },
@@ -345,7 +401,7 @@ describe("L2-fast: statistics calibration routing", () => {
 			totalThreads: 2,
 			totalPosts: 4,
 			totalMembers: 4,
-			yesterdayPosts: 20,
+			yesterdayPosts: 1,
 			todayPosts: 2,
 		});
 		const adminFresh = await workerFetch(env, "/api/admin/stats", {
@@ -413,13 +469,34 @@ describe("L2-fast: statistics calibration routing", () => {
 		},
 	);
 
-	test("a rejected calibration write rolls back earlier updates and leaves the cached totals valid", async () => {
-		await workerFetch(env, "/api/v1/stats", {
+	test("a rejected calibration write rolls back settings and preserves the real public and admin baselines", async () => {
+		await refreshDailyStatistics(env);
+		const dailyBefore = await env.KV.get(DAILY_STATISTICS_KEY, "json");
+		expect(dailyBefore).not.toBeNull();
+		const publicBefore = await workerFetch(env, "/api/v1/stats", {
 			method: "GET",
 			headers: { "X-API-Key": env.API_KEY },
 		});
+		const publicBaseline = await publicBefore.json();
+		const adminBefore = await workerFetch(env, "/api/admin/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.ADMIN_API_KEY },
+		});
+		const adminBaseline = await adminBefore.json();
+		expect(publicBaseline.data).toMatchObject({
+			totalThreads: 90,
+			totalPosts: 450,
+			totalMembers: 45,
+			yesterdayPosts: 1,
+			todayPosts: 2,
+		});
+		expect(adminBaseline.data).toMatchObject({
+			users: { total: 45 },
+			threads: { total: 90 },
+			posts: { total: 450 },
+			source: "stored-counters",
+		});
 		await flushCurrentTestCtx();
-		const cached = await env.KV.get("public-stats");
 		env._sqlite.exec(
 			"CREATE TRIGGER reject_calibration BEFORE UPDATE OF value ON settings WHEN NEW.key = 'stats.total_posts' BEGIN SELECT RAISE(ABORT, 'local calibration write failure'); END",
 		);
@@ -430,7 +507,17 @@ describe("L2-fast: statistics calibration routing", () => {
 		});
 		expect(response.status).toBe(500);
 		expect(counters()).toEqual(initialCounters);
-		expect(await env.KV.get("public-stats")).toBe(cached);
+		expect(await env.KV.get(DAILY_STATISTICS_KEY, "json")).toEqual(dailyBefore);
 		expect(await env.KV.get(statsReportsGenKey())).toBeNull();
+		const publicAfter = await workerFetch(env, "/api/v1/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.API_KEY },
+		});
+		expect((await publicAfter.json()).data).toEqual(publicBaseline.data);
+		const adminAfter = await workerFetch(env, "/api/admin/stats", {
+			method: "GET",
+			headers: { "X-API-Key": env.ADMIN_API_KEY },
+		});
+		expect((await adminAfter.json()).data).toEqual(adminBaseline.data);
 	});
 });

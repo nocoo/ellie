@@ -2,6 +2,7 @@ import "./_helpers/setup";
 
 import { describe, expect, spyOn, test } from "bun:test";
 import { createJwt } from "../../../apps/worker/src/lib/jwt";
+import { USER_CACHE_FAMILY, userMiniCacheKey } from "../../../apps/worker/src/lib/user-cache";
 import { createTestEnv, workerFetch } from "./_helpers/env";
 
 function seedContent(counts = { threads: 151, replies: 120, collateral: 1 }) {
@@ -345,10 +346,35 @@ describe("L2-fast: safe administrative batches", () => {
 		},
 	);
 
-	test("explicit cache deletion fails without claiming success or writing a success audit", async () => {
+	test("explicit current-family cache deletion fails without claiming success or writing a success audit", async () => {
 		const env = createTestEnv();
-		await env.KV.put("user:mini:42", "retained");
+		const key = userMiniCacheKey(42);
+		await env.KV.put(key, "retained");
 		const deletion = spyOn(env.KV, "delete").mockRejectedValue(new Error("local KV failure"));
+		try {
+			const response = await workerFetch(env, "/api/admin/kv/refresh", {
+				method: "POST",
+				headers: { "X-API-Key": env.ADMIN_API_KEY, "Content-Type": "application/json" },
+				body: JSON.stringify({
+					family: USER_CACHE_FAMILY,
+					action: { kind: "delete-user-mini", userId: 42 },
+				}),
+			});
+			expect(response.status).toBe(500);
+			expect(await env.KV.get(key)).toBe("retained");
+			expect(deletion).toHaveBeenCalledWith(key);
+			expect(env._sqlite.query("SELECT * FROM admin_logs").all()).toEqual([]);
+		} finally {
+			deletion.mockRestore();
+			env._sqlite.close();
+		}
+	});
+
+	test("retired mini-cache family is rejected without attempting deletion", async () => {
+		const env = createTestEnv();
+		const retiredKey = "user:mini:42";
+		await env.KV.put(retiredKey, "retained");
+		const deletion = spyOn(env.KV, "delete");
 		try {
 			const response = await workerFetch(env, "/api/admin/kv/refresh", {
 				method: "POST",
@@ -358,8 +384,10 @@ describe("L2-fast: safe administrative batches", () => {
 					action: { kind: "delete-user-mini", userId: 42 },
 				}),
 			});
-			expect(response.status).toBe(500);
-			expect(await env.KV.get("user:mini:42")).toBe("retained");
+			expect(response.status).toBe(404);
+			expect((await response.json()).error.code).toBe("KV_FAMILY_NOT_FOUND");
+			expect(await env.KV.get(retiredKey)).toBe("retained");
+			expect(deletion).not.toHaveBeenCalled();
 			expect(env._sqlite.query("SELECT * FROM admin_logs").all()).toEqual([]);
 		} finally {
 			deletion.mockRestore();
