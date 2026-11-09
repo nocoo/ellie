@@ -455,7 +455,7 @@ The trusted homepage request marker is overwritten by Next.js Proxy. Browser
 notification polling, avatars, token refresh and periodic settings reads remain
 separate requests.
 
-Homepage showcase cards share a two-line item template and an equal-height scrollable viewport. They retain item padding and text line height while making up to seven topics available.
+Homepage showcase cards share a two-line item template and natural-height layouts. Each viewport shows at most five topics without an internal scroll region, while the homepage API keeps at most seven digest and recent candidates available for selection.
 
 The request contains `cachedBucket`, `includeDisplay`, `includeStats`,
 `summaryTopicIds` and `digestTopicIds`. The bucket is a rebuild hint, never

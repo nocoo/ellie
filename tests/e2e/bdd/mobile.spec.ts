@@ -39,6 +39,39 @@ async function shot(page: Page, name: string): Promise<void> {
 	await page.screenshot({ path: path.join(SHOT_DIR, `${name}.png`), fullPage: false });
 }
 
+async function readShowcaseLayout(section: Locator) {
+	return section.evaluate((root) =>
+		Array.from(root.querySelectorAll<HTMLElement>('[data-testid="home-showcase-item"]')).map(
+			(row) => {
+				const rowRect = row.getBoundingClientRect();
+				const scrollers: string[] = [];
+				const clippers: string[] = [];
+				let node: HTMLElement | null = row;
+				let reachedCard = false;
+				while (node) {
+					const style = getComputedStyle(node);
+					const overflowY = style.overflowY;
+					if (overflowY === "auto" || overflowY === "scroll") {
+						scrollers.push(node.tagName.toLowerCase());
+					}
+					if (node !== row && ["auto", "scroll", "clip", "hidden"].includes(overflowY)) {
+						const nodeRect = node.getBoundingClientRect();
+						if (rowRect.top < nodeRect.top - 2 || rowRect.bottom > nodeRect.bottom + 2) {
+							clippers.push(node.tagName.toLowerCase());
+						}
+					}
+					if (node.dataset.slot === "card") {
+						reachedCard = true;
+						break;
+					}
+					node = node.parentElement;
+				}
+				return { clippers, reachedCard, scrollers };
+			},
+		),
+	);
+}
+
 // Reviewer-required viewport widths (freeze msg=8b90cb85).
 const MOBILE_WIDTHS = [
 	{ width: 320, height: 568, label: "iPhone SE 1st gen" },
@@ -640,22 +673,20 @@ test.describe("Feature: Mobile UX Polish", () => {
 			expect(visible, `${labels[i]}: ${visible} rows visible on mobile (expected 5)`).toBe(5);
 			const section = sections.nth(i);
 			await expect(section).not.toHaveAttribute("tabindex");
-			const box = await section.evaluate((el) => {
-				const scrollers: string[] = [];
-				let node: HTMLElement | null = el as HTMLElement;
-				while (node && node !== document.body) {
-					const cs = getComputedStyle(node);
-					if (cs.overflowY === "auto" || cs.overflowY === "scroll") {
-						scrollers.push(node.tagName.toLowerCase());
-					}
-					node = node.parentElement;
-				}
-				return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, scrollers };
-			});
-			expect(box.scrollers, `${labels[i]}: an inner vertical scroller clips the list`).toEqual([]);
-			expect(box.scrollHeight, `${labels[i]}: content overflows its own box`).toBeLessThanOrEqual(
-				box.clientHeight + 2,
-			);
+			const layout = await readShowcaseLayout(section);
+			expect(layout, `${labels[i]}: expected every row to reach the showcase card`).toHaveLength(5);
+			expect(
+				layout.every((row) => row.reachedCard),
+				`${labels[i]}: row escaped its card`,
+			).toBe(true);
+			expect(
+				layout.flatMap((row) => row.scrollers),
+				`${labels[i]}: inner vertical scroller`,
+			).toEqual([]);
+			expect(
+				layout.flatMap((row) => row.clippers),
+				`${labels[i]}: rows are clipped`,
+			).toEqual([]);
 		}
 		await shot(page, "req3-showcase-mobile");
 		await sections.nth(1).scrollIntoViewIfNeeded();
@@ -676,19 +707,20 @@ test.describe("Feature: Mobile UX Polish", () => {
 			expect(visible, "desktop must show the same 5 showcase rows").toBe(5);
 			const section = desktopSections.nth(i);
 			await expect(section).not.toHaveAttribute("tabindex");
-			const scrollers = await section.evaluate((el) => {
-				const matches: string[] = [];
-				let node: HTMLElement | null = el as HTMLElement;
-				while (node && node !== document.body) {
-					const style = getComputedStyle(node);
-					if (style.overflowY === "auto" || style.overflowY === "scroll") {
-						matches.push(node.tagName.toLowerCase());
-					}
-					node = node.parentElement;
-				}
-				return matches;
-			});
-			expect(scrollers, "desktop showcase has an inner vertical scroller").toEqual([]);
+			const layout = await readShowcaseLayout(section);
+			expect(layout, "desktop showcase expected 5 rows reaching the card").toHaveLength(5);
+			expect(
+				layout.every((row) => row.reachedCard),
+				"desktop showcase row escaped its card",
+			).toBe(true);
+			expect(
+				layout.flatMap((row) => row.scrollers),
+				"desktop inner vertical scroller",
+			).toEqual([]);
+			expect(
+				layout.flatMap((row) => row.clippers),
+				"desktop showcase rows are clipped",
+			).toEqual([]);
 		}
 		await shot(page, "req3-showcase-desktop");
 	});

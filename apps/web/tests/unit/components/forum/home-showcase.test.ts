@@ -81,6 +81,7 @@ describe("homepage shared showcase", () => {
 		for (const region of screen.getAllByRole("region")) {
 			const items = within(region).getAllByTestId("home-showcase-item");
 			expect(items).toHaveLength(5);
+			expect(region.firstElementChild?.children).toHaveLength(5);
 			expect(
 				items.map((item) =>
 					item.querySelector<HTMLAnchorElement>('a[href^="/threads/"]')?.getAttribute("href"),
@@ -91,17 +92,21 @@ describe("homepage shared showcase", () => {
 					: ["/threads/11", "/threads/12", "/threads/13", "/threads/14", "/threads/15"],
 			);
 			expect(region.hasAttribute("tabindex")).toBe(false);
-			for (
-				let node: HTMLElement | null = region;
-				node && node !== document.body;
-				node = node.parentElement
-			) {
-				expect(Array.from(node.classList).some((name) => /overflow-(?:x|y-)?auto/.test(name))).toBe(
-					false,
-				);
-				expect(Array.from(node.classList).some((name) => /overflow-y-scroll/.test(name))).toBe(
-					false,
-				);
+			for (const item of items) {
+				let reachedCard = false;
+				for (let node: HTMLElement | null = item; node; node = node.parentElement) {
+					const clippingClasses = Array.from(node.classList).filter((name) =>
+						/(?:^|:)hidden$|overflow-hidden$|overflow-y-(?:auto|scroll|hidden|clip)|(?:^|:)(?:h|max-h)-/.test(
+							name,
+						),
+					);
+					if (node.dataset.slot === "card") {
+						reachedCard = true;
+						break;
+					}
+					expect(clippingClasses).toEqual([]);
+				}
+				expect(reachedCard).toBe(true);
 			}
 		}
 	});
