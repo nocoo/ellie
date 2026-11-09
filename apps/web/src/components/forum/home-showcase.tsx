@@ -1,4 +1,3 @@
-import { HOME_DIGEST_LIMIT } from "@ellie/types";
 import { Eye, MessageSquare, MessagesSquare } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -7,6 +6,8 @@ import type { HomeShowcaseItemViewModel } from "@/viewmodels/forum/home-showcase
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { DigestIcon } from "./digest-icon";
 import { ForumAvatar } from "./user-avatar";
+
+const HOME_SHOWCASE_LIMIT = 5;
 
 export function HomeShowcaseItem({ item }: { item: HomeShowcaseItemViewModel }) {
 	return (
@@ -96,17 +97,12 @@ export function HomeShowcase({
 				{action}
 			</CardHeader>
 			<CardContent>
-				<section
-					className="h-auto overflow-visible sm:h-76 sm:overflow-y-auto sm:overscroll-contain"
-					aria-label={title}
-					// biome-ignore lint/a11y/noNoninteractiveTabindex: this scroll region needs keyboard access
-					tabIndex={0}
-				>
+				<section aria-label={title}>
 					{items.length === 0 ? (
 						<p className="py-4 text-center text-sm text-muted-foreground">{emptyText}</p>
 					) : (
-						<div className="divide-y divide-border/50 [&>*:nth-child(n+6)]:hidden sm:[&>*:nth-child(n+6)]:block">
-							{items.slice(0, HOME_DIGEST_LIMIT).map((item) => (
+						<div className="divide-y divide-border/50">
+							{items.slice(0, HOME_SHOWCASE_LIMIT).map((item) => (
 								<HomeShowcaseItem key={item.id} item={item} />
 							))}
 						</div>

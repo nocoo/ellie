@@ -610,7 +610,7 @@ test.describe("Feature: Mobile UX Polish", () => {
 		}
 	});
 
-	test("Given the homepage at iPhone width, Then both showcases show exactly 5 of their 7 rows without an inner vertical scroller, and desktop keeps all 7 rows", async ({
+	test("Given the homepage at mobile and desktop widths, Then both showcases show only the first 5 rows without an inner vertical scroller or keyboard focus", async ({
 		page,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -633,27 +633,26 @@ test.describe("Feature: Mobile UX Polish", () => {
 
 		for (let i = 0; i < 2; i++) {
 			const items = sections.nth(i).locator('[data-testid="home-showcase-item"]');
-			await expect(items, `${labels[i]}: showcase rows missing`).toHaveCount(7);
+			await expect(items, `${labels[i]}: showcase rows missing`).toHaveCount(5);
 			const visible = await items.evaluateAll(
 				(els: Element[]) => els.filter((el) => el.getClientRects().length > 0).length,
 			);
 			expect(visible, `${labels[i]}: ${visible} rows visible on mobile (expected 5)`).toBe(5);
-			const box = await sections.nth(i).evaluate((el) => {
-				let scroller: string | null = null;
-				let node = el.parentElement;
+			const section = sections.nth(i);
+			await expect(section).not.toHaveAttribute("tabindex");
+			const box = await section.evaluate((el) => {
+				const scrollers: string[] = [];
+				let node: HTMLElement | null = el as HTMLElement;
 				while (node && node !== document.body) {
 					const cs = getComputedStyle(node);
-					if (
-						(cs.overflowY === "auto" || cs.overflowY === "scroll") &&
-						node.scrollHeight > node.clientHeight + 2
-					) {
-						scroller = node.tagName.toLowerCase();
+					if (cs.overflowY === "auto" || cs.overflowY === "scroll") {
+						scrollers.push(node.tagName.toLowerCase());
 					}
 					node = node.parentElement;
 				}
-				return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, scroller };
+				return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, scrollers };
 			});
-			expect(box.scroller, `${labels[i]}: an inner vertical scroller clips the list`).toBeNull();
+			expect(box.scrollers, `${labels[i]}: an inner vertical scroller clips the list`).toEqual([]);
 			expect(box.scrollHeight, `${labels[i]}: content overflows its own box`).toBeLessThanOrEqual(
 				box.clientHeight + 2,
 			);
@@ -662,7 +661,7 @@ test.describe("Feature: Mobile UX Polish", () => {
 		await sections.nth(1).scrollIntoViewIfNeeded();
 		await shot(page, "req3-recent-mobile");
 
-		// Desktop keeps the full list.
+		// Desktop keeps the same capped list.
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.reload();
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
@@ -670,11 +669,26 @@ test.describe("Feature: Mobile UX Polish", () => {
 		await expect(desktopSections).toHaveCount(2);
 		for (let i = 0; i < 2; i++) {
 			const items = desktopSections.nth(i).locator('[data-testid="home-showcase-item"]');
-			await expect(items).toHaveCount(7);
+			await expect(items).toHaveCount(5);
 			const visible = await items.evaluateAll(
 				(els: Element[]) => els.filter((el) => el.getClientRects().length > 0).length,
 			);
-			expect(visible, "desktop must keep all 7 showcase rows").toBe(7);
+			expect(visible, "desktop must show the same 5 showcase rows").toBe(5);
+			const section = desktopSections.nth(i);
+			await expect(section).not.toHaveAttribute("tabindex");
+			const scrollers = await section.evaluate((el) => {
+				const matches: string[] = [];
+				let node: HTMLElement | null = el as HTMLElement;
+				while (node && node !== document.body) {
+					const style = getComputedStyle(node);
+					if (style.overflowY === "auto" || style.overflowY === "scroll") {
+						matches.push(node.tagName.toLowerCase());
+					}
+					node = node.parentElement;
+				}
+				return matches;
+			});
+			expect(scrollers, "desktop showcase has an inner vertical scroller").toEqual([]);
 		}
 		await shot(page, "req3-showcase-desktop");
 	});

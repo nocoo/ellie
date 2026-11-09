@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DigestShowcase } from "@/components/forum/digest-showcase";
@@ -66,23 +66,62 @@ describe("homepage shared showcase", () => {
 		expect(screen.getByText("time:200")).toBeTruthy();
 		expect(screen.getAllByTitle("阅读量")).toHaveLength(1);
 	});
-	it("keeps seven desktop topics while only the first five display on mobile", () => {
+	it("renders only the first five topics in both lists without an inner scroller or focus target", () => {
 		render(
 			createElement(DigestShowcase, {
-				threads: Array.from({ length: 9 }, (_, id) => ({ ...digest, id })),
+				threads: Array.from({ length: 9 }, (_, id) => ({ ...digest, id: id + 1 })),
 			}),
 		);
-		expect(screen.getAllByTestId("home-showcase-item")).toHaveLength(7);
-		const region = screen.getByRole("region", { name: "精华推荐" });
-		expect(region.classList.contains("h-auto")).toBe(true);
-		expect(region.classList.contains("overflow-visible")).toBe(true);
-		expect(region.classList.contains("sm:h-76")).toBe(true);
-		expect(region.classList.contains("sm:overflow-y-auto")).toBe(true);
-		expect(region.firstElementChild?.classList.contains("[&>*:nth-child(n+6)]:hidden")).toBe(true);
-		expect(region.firstElementChild?.classList.contains("sm:[&>*:nth-child(n+6)]:block")).toBe(
-			true,
+		render(
+			createElement(RecentShowcase, {
+				threads: Array.from({ length: 9 }, (_, id) => ({ ...recent, id: id + 11 })),
+			}),
 		);
-		expect(region.tabIndex).toBe(0);
+
+		for (const region of screen.getAllByRole("region")) {
+			const items = within(region).getAllByTestId("home-showcase-item");
+			expect(items).toHaveLength(5);
+			expect(
+				items.map((item) =>
+					item.querySelector<HTMLAnchorElement>('a[href^="/threads/"]')?.getAttribute("href"),
+				),
+			).toEqual(
+				region.getAttribute("aria-label") === "精华推荐"
+					? ["/threads/1", "/threads/2", "/threads/3", "/threads/4", "/threads/5"]
+					: ["/threads/11", "/threads/12", "/threads/13", "/threads/14", "/threads/15"],
+			);
+			expect(region.hasAttribute("tabindex")).toBe(false);
+			for (
+				let node: HTMLElement | null = region;
+				node && node !== document.body;
+				node = node.parentElement
+			) {
+				expect(Array.from(node.classList).some((name) => /overflow-(?:x|y-)?auto/.test(name))).toBe(
+					false,
+				);
+				expect(Array.from(node.classList).some((name) => /overflow-y-scroll/.test(name))).toBe(
+					false,
+				);
+			}
+		}
+	});
+	it("renders all available topics when fewer than five are supplied", () => {
+		render(
+			createElement(DigestShowcase, {
+				threads: Array.from({ length: 3 }, (_, id) => ({ ...digest, id: id + 1 })),
+			}),
+		);
+		render(
+			createElement(RecentShowcase, {
+				threads: Array.from({ length: 4 }, (_, id) => ({ ...recent, id: id + 11 })),
+			}),
+		);
+		expect(
+			within(screen.getByRole("region", { name: "精华推荐" })).getAllByTestId("home-showcase-item"),
+		).toHaveLength(3);
+		expect(
+			within(screen.getByRole("region", { name: "最近讨论" })).getAllByTestId("home-showcase-item"),
+		).toHaveLength(4);
 	});
 	it("shows empty placeholders without requesting profiles", () => {
 		render(createElement(DigestShowcase, { threads: [] }));

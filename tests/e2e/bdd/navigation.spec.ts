@@ -5,7 +5,6 @@
 // not-found, 18 tests) into 14 BDD scenarios. Traceability map lives in the
 // commit message body.
 
-import { HOME_DIGEST_LIMIT } from "@ellie/types";
 import { FORUM } from "../fixtures/selectors";
 import { ForumPage } from "../pages/forum.page";
 import { HomePage } from "../pages/home.page";
@@ -42,11 +41,10 @@ test.describe("Feature: Forum Navigation", () => {
 			.locator('[data-slot="card"]')
 			.filter({ has: page.getByText("最近讨论", { exact: true }) });
 		const topics = discussions.locator('a[href^="/threads/"]');
-		await expect(topics).toHaveCount(HOME_DIGEST_LIMIT);
+		await expect(topics).toHaveCount(5);
 		const viewport = discussions.getByRole("region", { name: "最近讨论" });
-		await expect(viewport).toHaveAttribute("tabindex", "0");
-		await expect(viewport).toHaveCSS("overflow-y", "auto");
-		await topics.last().scrollIntoViewIfNeeded();
+		await expect(viewport).not.toHaveAttribute("tabindex");
+		await expect(viewport).toHaveCSS("overflow-y", "visible");
 		await expect(topics.last()).toBeInViewport();
 
 		// Then: site footer carries copyright text (© or "All rights reserved")
