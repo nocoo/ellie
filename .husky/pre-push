@@ -15,6 +15,10 @@ if [ -z "$_ELLIE_HOOK_BASH" ]; then export _ELLIE_HOOK_BASH=1; exec bash "$0" "$
 
 set -o pipefail
 
+repo=$(git rev-parse --show-toplevel)
+PATH="$repo/node_modules/.bin:/usr/local/bin:${HOME}/.bun/bin:$PATH"
+export PATH
+
 TMPDIR_HOOK=$(mktemp -d -t ellie-prepush-XXXXXX)
 trap 'rm -rf "$TMPDIR_HOOK"' EXIT
 

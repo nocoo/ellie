@@ -20,6 +20,10 @@ check_route_types() {
   local app_dir="$1"
   local routes_dts="$app_dir/.next/types/routes.d.ts"
 
+  if [ "${ELLIE_INDEX_TYPECHECK:-}" = 1 ] && [ -f "$routes_dts" ]; then
+    return 0
+  fi
+
   if [ ! -f "$routes_dts" ]; then
     echo "⚠️  $app_dir/.next/types/routes.d.ts not found — rebuild needed."
     return 1
@@ -45,8 +49,12 @@ for app in apps/web apps/admin; do
 done
 
 if [ "$rebuild_needed" = true ]; then
-  echo "   Rebuilding route types via next build..."
-  bun run build
+  if [ "${ELLIE_INDEX_TYPECHECK:-}" = 1 ]; then
+    echo "⚠️  index typecheck: stale/missing route types — skipping next build in snapshot"
+  else
+    echo "   Rebuilding route types via next build..."
+    bun run build
+  fi
 fi
 
 exec bunx tsc --build
