@@ -37,7 +37,7 @@ This file is the quality contract; hooks, CI and config are enforcement. Close i
 
 ## Commands
 
-Run from root with Bun (manifest and CI 1.4.4), Node 22+, Rust 1.88+ and installed Playwright Chromium. Local Worker runners inject test secrets; browser login needs the documented fixtures. See the linked examples for optional Cap, Google OAuth and mail configuration.
+Run from root with Bun (manifest and CI 1.4.4), Node 26+, Rust 1.88+ and installed Playwright Chromium. Local Worker runners inject test secrets; browser login needs the documented fixtures. See the linked examples for optional Cap, Google OAuth and mail configuration.
 
 ```bash
 bun install --frozen-lockfile

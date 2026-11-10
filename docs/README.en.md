@@ -40,7 +40,7 @@ Use `j` / `k` or the arrow keys to move, `Enter` to open, `Esc` to go back, `n` 
 
 ## Development
 
-Install Node.js 22+ and Bun; the repository's `packageManager` specifies Bun 1.3.14. Rust is optional for website and Worker development. For a fresh checkout:
+Install Node.js 26+ and Bun; the repository's `packageManager` specifies Bun 1.4.4. Rust is optional for website and Worker development. For a fresh checkout:
 
 ```bash
 git clone https://github.com/nocoo/ellie.git

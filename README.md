@@ -40,7 +40,7 @@ ELLIE_API_URL=http://127.0.0.1:8787 ELLIE_API_KEY=LOCAL_FORUM_KEY \
 
 ## 开发
 
-准备 Node.js 22+ 和 Bun；仓库的 `packageManager` 指定 Bun 1.3.14。仅开发网页与 Worker 时无需 Rust。以下步骤用于全新 checkout：
+准备 Node.js 26+ 和 Bun；仓库的 `packageManager` 指定 Bun 1.4.4。仅开发网页与 Worker 时无需 Rust。以下步骤用于全新 checkout：
 
 ```bash
 git clone https://github.com/nocoo/ellie.git
