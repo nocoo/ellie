@@ -66,11 +66,11 @@ test.describe("Admin Basalt integration", () => {
 		await expect(signIn.locator("..")).toHaveAttribute("method", "POST");
 		await page.evaluate(() => localStorage.setItem("theme", "light"));
 		await page.reload();
-		await page.getByRole("button", { name: "切换主题" }).click();
+		await page.getByRole("button", { name: "切换深色主题" }).click();
 		await expect(page.locator("html")).toHaveAttribute("data-mode", "dark");
 		await page.reload();
 		await expect(page.locator("html")).toHaveAttribute("data-mode", "dark");
-		await page.getByRole("button", { name: "切换主题" }).click();
+		await page.getByRole("button", { name: "跟随系统主题" }).click();
 		expect(await page.evaluate(() => localStorage.getItem("theme"))).toBe("system");
 	});
 
@@ -227,7 +227,7 @@ test.describe("Admin Basalt integration", () => {
 			await batch.getByRole("button", { name: "清除选择" }).click();
 			await expect(batch).toBeHidden();
 			await page.goto("/admin/statistics/kv");
-			const trail = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
+			const trail = page.getByRole("navigation", { name: "面包屑导航", exact: true });
 			await expect(trail.getByRole("link", { name: "数据统计" })).toHaveCount(0);
 			await expect(trail.getByText("数据统计", { exact: true })).toBeVisible();
 			const dashboard = trail.getByRole("link", { name: "仪表盘", exact: true });
@@ -239,7 +239,7 @@ test.describe("Admin Basalt integration", () => {
 			await expect(page).toHaveURL(/\/admin$/);
 		}
 		await page.goto("/admin/users/3");
-		const trail = page.getByRole("navigation", { name: "Breadcrumb", exact: true });
+		const trail = page.getByRole("navigation", { name: "面包屑导航", exact: true });
 		await trail.getByRole("link", { name: "用户", exact: true }).click();
 		await expect(page).toHaveURL(/\/admin\/users$/);
 	});

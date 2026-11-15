@@ -7,6 +7,7 @@ import {
 	AvatarFallback,
 	AvatarImage,
 	Sidebar as BasaltSidebar,
+	Button,
 	SidebarBrand,
 	SidebarFooter,
 	SidebarGroup,
@@ -31,6 +32,7 @@ import {
 	Flag,
 	LayoutDashboard,
 	Link as LinkIcon,
+	LogOut,
 	MemoryStick,
 	MessagesSquare,
 	Navigation,
@@ -112,6 +114,7 @@ export function Sidebar({
 	const { collapsed, peek, peeking } = useSidebar();
 	const railCollapsed = collapsed && !(peek && peeking);
 	const userName = session?.user?.name ?? "用户";
+	const handleSignOut = () => signOut({ callbackUrl: "/login" });
 	const avatar = (
 		<Avatar>
 			{session?.user?.image && <AvatarImage src={session.user.image} alt={userName} />}
@@ -165,8 +168,26 @@ export function Sidebar({
 					name={userName}
 					email={session?.user?.email ?? ""}
 					avatar={avatar}
-					signOutLabel="退出登录"
-					onSignOut={() => signOut({ callbackUrl: "/login" })}
+					{...(mobile
+						? {
+								// The native onSignOut control opens a focus tooltip, which would
+								// swallow the first Escape in the drawer instead of closing it.
+								action: (
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										className="shrink-0 text-basalt-muted-foreground hover:text-basalt-foreground"
+										aria-label="退出登录"
+										onClick={handleSignOut}
+									>
+										<LogOut className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
+									</Button>
+								),
+							}
+						: {
+								signOutLabel: "退出登录",
+								onSignOut: handleSignOut,
+							})}
 				/>
 			</SidebarFooter>
 		</BasaltSidebar>
