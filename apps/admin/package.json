@@ -19,7 +19,7 @@
 		"@dnd-kit/utilities": "^3.2.2",
 		"@ellie/shared": "workspace:*",
 		"@ellie/types": "workspace:*",
-		"@nocoo/basalt": "3.2.1",
+		"@nocoo/basalt": "3.3.6",
 		"@tailwindcss/postcss": "^4.3.5",
 		"lucide-react": "1.70.0",
 		"next": "16.4.5",

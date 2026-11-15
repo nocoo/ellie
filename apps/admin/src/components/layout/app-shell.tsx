@@ -1,24 +1,15 @@
 "use client";
 
 import { SITE_ART } from "@ellie/shared";
-import {
-	Button,
-	ContentIsland,
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetTitle,
-	SheetTrigger,
-} from "@nocoo/basalt";
-import { AppHeader } from "@nocoo/basalt/components/app-header";
+import { ContentIsland, SidebarDrawer, SidebarProvider } from "@nocoo/basalt";
+import { AppHeader, AppHeaderMenuButton } from "@nocoo/basalt/components/app-header";
 import {
 	AppMain,
 	AppSkipLink,
 	AppShell as BasaltAppShell,
 } from "@nocoo/basalt/components/app-shell";
-import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { BreadcrumbOverrideProvider, useBreadcrumbOverrideValue } from "./breadcrumb-context";
@@ -30,6 +21,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
 	const [collapsed, setCollapsed] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const pathname = usePathname();
+	const menuButtonRef = useRef<HTMLButtonElement>(null);
+	const drawerId = useId();
 	const breadcrumbOverride = useBreadcrumbOverrideValue();
 	const breadcrumbs = breadcrumbsFromPathname(pathname);
 	const current = breadcrumbs.pop();
@@ -40,47 +33,54 @@ function AppShellInner({ children }: { children: ReactNode }) {
 	return (
 		<BasaltAppShell className="relative" data-area="admin">
 			<AppSkipLink>跳到主要内容</AppSkipLink>
-			<Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-				{isMobile ? (
-					<SheetContent side="left" className="w-[260px] max-w-[260px] gap-0 border-0 p-0">
-						<SheetTitle className="sr-only">管理后台导航</SheetTitle>
-						<SheetDescription className="sr-only">选择要管理的内容或设置。</SheetDescription>
-						<Sidebar collapsed={false} onToggle={() => setMobileOpen(false)} mobile />
-					</SheetContent>
-				) : (
-					<Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
-				)}
-				<AppMain tabIndex={-1}>
-					<AppHeader
-						className="whitespace-nowrap [&_nav]:shrink-0"
-						leading={
-							isMobile ? (
-								<SheetTrigger asChild>
-									<Button variant="ghost" size="icon" className="h-8 w-8" aria-label="打开导航">
-										<Menu aria-hidden="true" strokeWidth={1.5} />
-									</Button>
-								</SheetTrigger>
-							) : null
+			{!isMobile && (
+				<SidebarProvider collapsed={collapsed} onCollapsedChange={setCollapsed}>
+					<Sidebar />
+				</SidebarProvider>
+			)}
+			<SidebarDrawer
+				id={drawerId}
+				open={mobileOpen}
+				onOpenChange={setMobileOpen}
+				returnFocusRef={menuButtonRef}
+				title="管理后台导航"
+				description="选择要管理的内容或设置。"
+			>
+				<Sidebar mobile onDismiss={() => setMobileOpen(false)} />
+			</SidebarDrawer>
+			<AppMain tabIndex={-1}>
+				<AppHeader
+					className="whitespace-nowrap [&_nav]:shrink-0"
+					leading={
+						isMobile ? (
+							<AppHeaderMenuButton
+								ref={menuButtonRef}
+								label="打开导航"
+								aria-controls={drawerId}
+								aria-expanded={mobileOpen}
+								onClick={() => setMobileOpen(true)}
+							/>
+						) : null
+					}
+					breadcrumbs={breadcrumbs}
+					breadcrumbsLabel="面包屑导航"
+					title={breadcrumbOverride ?? current?.label}
+					actions={<HeaderActions />}
+				/>
+				<div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
+					<ContentIsland
+						className="admin-campus relative isolate"
+						style={
+							{
+								"--sketch-light": SITE_ART.admin.light.imageSet,
+								"--sketch-dark": SITE_ART.admin.dark.imageSet,
+							} as CSSProperties
 						}
-						breadcrumbs={breadcrumbs}
-						title={breadcrumbOverride ?? current?.label}
-						actions={<HeaderActions />}
-					/>
-					<div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
-						<ContentIsland
-							className="admin-campus relative isolate"
-							style={
-								{
-									"--sketch-light": SITE_ART.admin.light.imageSet,
-									"--sketch-dark": SITE_ART.admin.dark.imageSet,
-								} as CSSProperties
-							}
-						>
-							{children}
-						</ContentIsland>
-					</div>
-				</AppMain>
-			</Sheet>
+					>
+						{children}
+					</ContentIsland>
+				</div>
+			</AppMain>
 		</BasaltAppShell>
 	);
 }

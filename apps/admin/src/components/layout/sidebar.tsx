@@ -6,18 +6,21 @@ import {
 	Avatar,
 	AvatarFallback,
 	AvatarImage,
-	Badge,
 	Sidebar as BasaltSidebar,
-	Button,
+	SidebarBrand,
 	SidebarFooter,
 	SidebarGroup,
 	SidebarHeader,
+	SidebarIconItem,
+	SidebarItem,
 	SidebarNav,
+	SidebarToggle,
 	SidebarUser,
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "@nocoo/basalt";
+import { useSidebar } from "@nocoo/basalt/components/sidebar";
 import {
 	BarChart3,
 	Calculator,
@@ -28,18 +31,15 @@ import {
 	Flag,
 	LayoutDashboard,
 	Link as LinkIcon,
-	LogOut,
 	MemoryStick,
 	MessagesSquare,
 	Navigation,
-	PanelLeft,
 	Paperclip,
 	Scale,
 	Settings,
 	ShieldBan,
 	ToggleLeft,
 	Users,
-	X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -68,127 +68,85 @@ const ICON_MAP: Record<string, ElementType> = {
 	Users,
 };
 
-function NavLink({
-	item,
-	pathname,
-	collapsed,
-}: {
-	item: NavItemDef;
-	pathname: string;
-	collapsed: boolean;
-}) {
+function NavLink({ item, pathname }: { item: NavItemDef; pathname: string }) {
 	const Icon = ICON_MAP[item.icon] ?? Settings;
 	const active = isNavItemActive(pathname, item.href);
-	const link = (
-		<Button
-			asChild
-			variant="ghost"
-			size={collapsed ? "icon" : "default"}
-			className={[
-				collapsed
-					? "h-10 w-10 self-center shrink-0"
-					: "h-auto w-full justify-start gap-3 px-3 py-2.5 font-normal",
-				active ? "bg-basalt-accent text-basalt-foreground" : "text-basalt-muted-foreground",
-			].join(" ")}
-		>
-			<Link
-				href={item.href}
-				prefetch={false}
-				aria-current={active ? "page" : undefined}
-				aria-label={item.label}
-			>
+	return (
+		<SidebarItem asChild active={active}>
+			<Link href={item.href} prefetch={false}>
 				<Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} aria-hidden="true" />
-				{!collapsed && <span className="truncate">{item.label}</span>}
+				<span className="flex-1 truncate text-left">{item.label}</span>
 			</Link>
-		</Button>
+		</SidebarItem>
 	);
-	return collapsed ? (
-		<Tooltip>
-			<TooltipTrigger asChild>{link}</TooltipTrigger>
+}
+
+function NavIconLink({ item, pathname }: { item: NavItemDef; pathname: string }) {
+	const Icon = ICON_MAP[item.icon] ?? Settings;
+	const active = isNavItemActive(pathname, item.href);
+	return (
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<SidebarIconItem asChild active={active} aria-label={item.label}>
+					<Link href={item.href} prefetch={false}>
+						<Icon className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
+					</Link>
+				</SidebarIconItem>
+			</TooltipTrigger>
 			<TooltipContent side="right" sideOffset={8}>
 				{item.label}
 			</TooltipContent>
 		</Tooltip>
-	) : (
-		link
 	);
 }
 
 export function Sidebar({
-	collapsed,
-	onToggle,
 	mobile = false,
+	onDismiss,
 }: {
-	collapsed: boolean;
-	onToggle: () => void;
 	mobile?: boolean;
+	onDismiss?: () => void;
 }) {
 	const pathname = usePathname();
 	const { data: session } = useSession();
+	const { collapsed, peek, peeking } = useSidebar();
+	const railCollapsed = collapsed && !(peek && peeking);
 	const userName = session?.user?.name ?? "用户";
-	const toggleLabel = mobile ? "关闭导航" : collapsed ? "展开侧栏" : "收起侧栏";
-	const ToggleIcon = mobile ? X : PanelLeft;
 	const avatar = (
-		<Avatar className="h-9 w-9 shrink-0">
+		<Avatar>
 			{session?.user?.image && <AvatarImage src={session.user.image} alt={userName} />}
 			<AvatarFallback>{userName[0] ?? "?"}</AvatarFallback>
 		</Avatar>
 	);
-	const signOutButton = (
-		<Button
-			variant="ghost"
-			size="icon"
-			aria-label="退出登录"
-			onClick={() => signOut({ callbackUrl: "/login" })}
-		>
-			<LogOut className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
-		</Button>
-	);
 	return (
-		<BasaltSidebar collapsed={collapsed} className={mobile ? "h-full" : undefined}>
-			<SidebarHeader className={collapsed ? "gap-3 px-[22px]" : "gap-3 pl-[22px] pr-3"}>
-				<img
-					src={ADMIN_LOGO.src}
-					srcSet={ADMIN_LOGO.srcSet}
-					sizes="24px"
-					alt="Ellie"
-					width={24}
-					height={24}
-					className="shrink-0"
+		<BasaltSidebar resizable={!mobile}>
+			<SidebarHeader>
+				<SidebarBrand
+					logo={
+						<img
+							src={ADMIN_LOGO.src}
+							srcSet={ADMIN_LOGO.srcSet}
+							sizes="24px"
+							alt="Ellie"
+							width={24}
+							height={24}
+						/>
+					}
+					name="Ellie"
+					version={<span className="font-mono">{VERSION_DISPLAY}</span>}
+					action={
+						mobile ? (
+							<SidebarToggle mode="dismiss" onDismiss={onDismiss} dismissLabel="关闭导航" />
+						) : (
+							<SidebarToggle expandLabel="展开侧栏" collapseLabel="收起侧栏" />
+						)
+					}
 				/>
-				{!collapsed && (
-					<>
-						<span className="text-base font-semibold">Ellie</span>
-						<Badge variant="secondary" className="font-mono text-xs">
-							{VERSION_DISPLAY}
-						</Badge>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="ml-auto h-7 w-7 shrink-0"
-							onClick={onToggle}
-							aria-label={toggleLabel}
-						>
-							<ToggleIcon aria-hidden="true" strokeWidth={1.5} />
-						</Button>
-					</>
-				)}
 			</SidebarHeader>
-			{collapsed && (
-				<Button
-					variant="ghost"
-					size="icon"
-					className="mb-2 self-center"
-					onClick={onToggle}
-					aria-label={toggleLabel}
-				>
-					<PanelLeft aria-hidden="true" strokeWidth={1.5} />
-				</Button>
-			)}
-			<SidebarNav aria-label="管理后台" className={collapsed ? "gap-1 pt-1" : "pt-1"}>
-				{collapsed
+			<SidebarNav aria-label="管理后台" className="pt-1">
+				{railCollapsed
 					? NAV_GROUPS.flatMap((group) => group.items).map((item) => (
-							<NavLink key={item.href} item={item} pathname={pathname} collapsed />
+							<NavIconLink key={item.href} item={item} pathname={pathname} />
 						))
 					: NAV_GROUPS.map((group) => (
 							<SidebarGroup
@@ -197,34 +155,19 @@ export function Sidebar({
 								defaultOpen={group.defaultOpen ?? true}
 							>
 								{group.items.map((item) => (
-									<NavLink key={item.href} item={item} pathname={pathname} collapsed={false} />
+									<NavLink key={item.href} item={item} pathname={pathname} />
 								))}
 							</SidebarGroup>
 						))}
 			</SidebarNav>
-			<SidebarFooter className={collapsed ? "flex justify-center px-0" : undefined}>
-				{collapsed ? (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label={`${userName} · 退出登录`}
-								onClick={() => signOut({ callbackUrl: "/login" })}
-							>
-								{avatar}
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="right">{userName} · 点击退出登录</TooltipContent>
-					</Tooltip>
-				) : (
-					<SidebarUser
-						name={userName}
-						email={session?.user?.email ?? ""}
-						avatar={avatar}
-						action={signOutButton}
-					/>
-				)}
+			<SidebarFooter>
+				<SidebarUser
+					name={userName}
+					email={session?.user?.email ?? ""}
+					avatar={avatar}
+					signOutLabel="退出登录"
+					onSignOut={() => signOut({ callbackUrl: "/login" })}
+				/>
 			</SidebarFooter>
 		</BasaltSidebar>
 	);
