@@ -53,24 +53,24 @@ cargo test --locked --workspace --manifest-path packages/cli-rs/Cargo.toml
 
 ## Verification
 
-6DQ retains its name with unified L1, L2/L3, G2 and D1 (test isolation); former G1 merged into L1 on 2026-09-21. Follow the maintained `system0-6dq-l1` contract. Status: `enforced`, `planned`, `manual`, or `N/A`; partial enforcement below does not certify the full required bar.
-L1 requires statements, branches, functions and lines each ≥95%, with no skipped/focused tests; preserve any stricter package threshold. Native tools must identify unmeasured metrics as gaps.
-L1 also requires check-only strict analysis/formatting with zero errors/warnings, installed index-snapshot hooks and proven rejection. G2 requires dependency and secret scans, with missing required scanners failing.
+Quality follows System1 v1.3.0 Native Mode (`nocoo/base-ci v2026.15`) in `.github/workflows/quality-slots.yml` and `.github/workflows/ci.yml`. Status: `enforced`, `planned`, `manual`, or `N/A`.
 
-| Dimension             | Status   | Required proof and current evidence/gap                                                                                                                                                                                                                                     |
-| --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| L1 TypeScript         | planned  | Coverage runs in hooks/CI; web/admin/Worker currently require branches 90%, other metrics 95%. The declared coverage exclusions remain by design; 90% branch floors do not meet the required 95% bar.                                                                       |
-| L1 Rust               | planned  | `cargo test --workspace` exercises core/TUI; no all-four coverage gate. Ignored external API cases are not unit-test proof.                                                                                                                                                 |
-| L2 API / Rust         | planned  | `test:l2` uses real local Worker HTTP; require 100% routes including auth/error paths. `gate:l2` adds strict audit, but hooks use only `test:l2`; Rust external integration is conditional.                                                                                 |
-| L3 web / TUI          | planned  | CI runs local forum/admin BDD; require all pages and real CLI workflows. Cap scenarios are skipped; real OAuth/mail and full TUI interactions remain explicit manual lanes.                                                                                                 |
-| Complete L1 TS / Rust | planned  | Pre-commit runs unified L1 on a `git checkout-index` snapshot with full typecheck, lint, coverage, L2, gitleaks and Rust gates every commit. Branch coverage floors still below 95% on some packages; rejection fixtures and <30s wall time must stay evidenced per change. |
-| G2                    | enforced | Hooks/CI run gitleaks and OSV for Bun/Cargo locks; scanners must be available.                                                                                                                                                                                              |
-| D1                    | planned  | Runners force local mode and test vars, but use fixed lane directories and unguarded recursive cleanup without a checked marker; admin L3 shares dev port 7032.                                                                                                             |
+| Slot              | Status   | Evidence                                                                                                                           |
+| ----------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `S1` Types        | enforced | `bun run typecheck` (pre-commit + CI)                                                                                              |
+| `S2` Lint         | enforced | `bun run lint` (pre-commit + CI)                                                                                                   |
+| `S3` Workflow     | enforced | SHA-pinned workflow action check in CI                                                                                             |
+| `G1` Secrets      | enforced | `gitleaks` (`.gitleaks.toml`) in pre-commit + CI                                                                                   |
+| `G2` Dependencies | enforced | `osv-scanner` (`osv-scanner.toml`, `bun.lock`, `packages/cli-rs/Cargo.lock`) in pre-push + CI                                      |
+| `B1` Build        | planned  | Production Docker images built during `deploy-docker`                                                                              |
+| `L1` Unit         | enforced | `bun run test` in CI; pre-commit `test:coverage` (web/admin/Worker branches 90%, other metrics 95%; Rust `cargo test --workspace`) |
+| `L2` Runtime      | N/A      | Worker unit tests run in vitest threads; API verified in `L3`                                                                      |
+| `L3` Integration  | enforced | `bun run test:e2e:api` in CI + pre-push `test:l2`                                                                                  |
+| `L4` E2E          | enforced | `bun run test:e2e:bdd` (Playwright Chromium) in CI                                                                                 |
+| `P1` Package      | N/A      | Private monorepo, not published to npm                                                                                             |
+| `Z1` Gate         | enforced | `quality / Z1: Gate` required status check on `main`                                                                               |
 
-Pre-commit exports the index to a temp tree (deps symlinked from the worktree), runs `gitleaks protect --staged` on the real index, then parallel full typecheck, Biome lint, `test:coverage`, `test:l2`, and Rust fmt/clippy/tests with no extension-based skips. Pre-push runs full TS checks, then L2 and security; Rust HTTP tests run only when `ELLIE_API_URL` and `ELLIE_API_KEY` are set. Point those only at a disposable local fixture. Pre-push still inspects the working tree, not a push-ref snapshot.
-
-Enforced: pre-commit checks unified L1 against the index snapshot (`git checkout-index`) with a <30s target on the declared toolchain. Target: pre-push checks L2 and G2 in parallel against every stdin push ref/commit in <3min, plus build where applicable. L3 runs in CI or an explicit manual lane.
-Never bypass commit/push hooks, force-push, or use autofix in checks. Documentation changes do not authorize deploying or implementing new gates.
+Pre-commit exports the index to a temp tree (deps symlinked from the worktree), runs `gitleaks protect --staged` on the real index, then parallel full typecheck, Biome lint, `test:coverage`, `test:l2`, and Rust fmt/clippy/tests. Pre-push runs full TS checks, then L2 and security. Never bypass commit/push hooks, force-push, or use autofix in checks.
 
 ## Resources / Isolation
 
