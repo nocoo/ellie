@@ -76,7 +76,7 @@
 		"@tiptap/extension-image": "3.34.0",
 		"@tiptap/extension-placeholder": "3.34.0",
 		"@tiptap/pm": "3.34.0",
-		"@tiptap/react": "3.33.0",
+		"@tiptap/react": "3.34.0",
 		"@tiptap/starter-kit": "3.33.0",
 		"@types/bun": "1.4.4",
 		"@types/node": "26.6.6",
