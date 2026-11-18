@@ -6,7 +6,7 @@
 
 import { formatDate } from "@ellie/shared";
 import { Button } from "@nocoo/basalt";
-import { FileIcon } from "lucide-react";
+import { FileIcon } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import type { ColumnDef } from "@/components/admin/admin-data-table";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";

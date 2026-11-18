@@ -64,7 +64,7 @@ import {
 	Trash2,
 	Trophy,
 	UserRound,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

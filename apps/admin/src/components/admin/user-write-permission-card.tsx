@@ -13,7 +13,7 @@
 
 import { LayerCard } from "@nocoo/basalt";
 
-import { AlertCircle, Check, Info, ShieldCheck, X } from "lucide-react";
+import { AlertCircle, Check, Info, ShieldCheck, X } from "@nocoo/basalt/icons";
 import { useMemo } from "react";
 import { useWritePermissionSettings } from "@/viewmodels/admin/use-write-permission-settings";
 import type { User } from "@/viewmodels/admin/users";

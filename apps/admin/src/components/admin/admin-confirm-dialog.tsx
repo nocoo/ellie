@@ -9,7 +9,7 @@ import {
 	DialogTitle,
 	Input,
 } from "@nocoo/basalt";
-import { CircleCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, TriangleAlert } from "@nocoo/basalt/icons";
 import { useCallback, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "./admin-inline-message";

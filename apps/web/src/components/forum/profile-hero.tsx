@@ -4,14 +4,14 @@
 // Displays user identity and optional edit functionality
 // Includes mod actions for Admin/SuperMod users
 
-import { CalendarDays, Mail, MapPin, Pencil, Settings2 } from "lucide-react";
+import { Badge } from "@nocoo/basalt/components/badge";
+import { Button } from "@nocoo/basalt/components/button";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
+import { CalendarDays, Mail, MapPin, Pencil, Settings2 } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { ProfileEditDialog } from "./profile-edit-dialog";
@@ -54,8 +54,8 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 
 	return (
 		<>
-			<Card className="rounded-2xl border-t-2 border-t-primary py-5">
-				<CardContent className="px-5">
+			<LayerCard padding="none" className="rounded-2xl border-t-2 border-t-primary py-5">
+				<LayerCard.Body className="px-5">
 					<div className="flex flex-wrap items-center gap-4 sm:gap-5">
 						<TrackedUserAvatar
 							uid={user.id}
@@ -66,14 +66,14 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 						/>
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2 flex-wrap">
-								<h1 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+								<h1 className="break-words text-xl font-semibold tracking-tight text-basalt-foreground sm:text-2xl">
 									{user.username}
 								</h1>
 								<Badge variant={getUserRoleBadgeVariant(user.role)}>
 									{formatUserRole(user.role)}
 								</Badge>
 							</div>
-							<div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+							<div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-basalt-muted-foreground">
 								<span className="tabular-nums">UID: {user.id}</span>
 								<span className="inline-flex items-center gap-1.5">
 									<CalendarDays className="size-3.5" aria-hidden="true" />
@@ -101,24 +101,19 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 								</Button>
 							)}
 							{isOwnProfile && (
-								<Button
-									variant="ghost"
-									size="sm"
-									nativeButton={false}
-									render={<Link prefetch={false} href="/me" role="link" />}
-								>
-									<Settings2 className="size-4" aria-hidden="true" />
-									我的账号
+								<Button asChild variant="ghost" size="sm">
+									<Link prefetch={false} href="/me">
+										<Settings2 className="size-4" aria-hidden="true" />
+										我的账号
+									</Link>
 								</Button>
 							)}
 							{session?.user && !isOwnProfile && user.id > 0 && (
-								<Button
-									size="sm"
-									nativeButton={false}
-									render={<Link prefetch={false} href={`/messages?to=${user.id}`} role="link" />}
-								>
-									<Mail className="size-4" aria-hidden="true" />
-									发站内信
+								<Button asChild size="sm">
+									<Link prefetch={false} href={`/messages?to=${user.id}`}>
+										<Mail className="size-4" aria-hidden="true" />
+										发站内信
+									</Link>
 								</Button>
 							)}
 							{/* Report button (any logged-in non-owner). Worker still guards self-report. */}
@@ -139,8 +134,8 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 							/>
 						</div>
 					</div>
-				</CardContent>
-			</Card>
+				</LayerCard.Body>
+			</LayerCard>
 
 			{isOwnProfile && <ProfileEditDialog open={editOpen} onOpenChange={setEditOpen} user={user} />}
 		</>

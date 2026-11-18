@@ -24,7 +24,6 @@ const PACKAGE_FILES = [
 	"apps/admin/package.json",
 	"packages/types/package.json",
 	"packages/test-mocks/package.json",
-	"packages/ui/package.json",
 	"packages/cli/package.json",
 	"packages/shared/package.json",
 	"packages/migrate/package.json",

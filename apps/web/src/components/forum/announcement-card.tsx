@@ -16,9 +16,9 @@
 // The edit button opens `AnnouncementEditDialog`. State for the dialog
 // is owned here so the header doesn't have to thread it through.
 
-import { Megaphone, PenLine } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Megaphone, PenLine } from "@nocoo/basalt/icons";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { AnnouncementEditDialog } from "./announcement-edit-dialog";
 import { SafeRichHtml } from "./safe-rich-html";
 
@@ -41,10 +41,10 @@ export function AnnouncementCard({
 
 	return (
 		<>
-			<div className="mt-3 rounded-sm border border-border bg-card/60 p-3">
+			<div className="mt-3 rounded-sm border border-basalt-border bg-basalt-card/60 p-3">
 				<div className="flex items-start justify-between gap-3">
-					<div className="flex items-center gap-2 text-sm font-medium text-foreground">
-						<Megaphone className="h-4 w-4 text-primary" />
+					<div className="flex items-center gap-2 text-sm font-medium text-basalt-foreground">
+						<Megaphone className="h-4 w-4 text-basalt-primary" />
 						公告
 					</div>
 					{canEdit && (
@@ -52,7 +52,7 @@ export function AnnouncementCard({
 							variant="ghost"
 							size="icon-sm"
 							onClick={() => setEditing(true)}
-							className="text-muted-foreground hover:text-foreground"
+							className="text-basalt-muted-foreground hover:text-basalt-foreground"
 							aria-label="编辑公告"
 						>
 							<PenLine className="h-4 w-4" />
@@ -61,7 +61,7 @@ export function AnnouncementCard({
 				</div>
 				<SafeRichHtml
 					html={announcement}
-					className="mt-2 text-sm text-foreground/90 leading-relaxed"
+					className="mt-2 text-sm text-basalt-foreground/90 leading-relaxed"
 				/>
 			</div>
 			{canEdit && (

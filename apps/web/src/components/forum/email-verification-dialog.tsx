@@ -20,9 +20,7 @@
 //    should carry it, not the dialog.
 
 import type { EmailNotVerifiedCtaVariant } from "@ellie/types";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogClose,
@@ -31,7 +29,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from "@nocoo/basalt/components/dialog";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import {
 	EMAIL_NOT_VERIFIED_EVENT,
 	type EmailNotVerifiedEventDetail,
@@ -98,7 +98,9 @@ export function EmailVerificationDialogView({
 					<DialogDescription>{detail.dialog.body}</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>
-					<DialogClose render={<Button variant="outline" />}>稍后再说</DialogClose>
+					<DialogClose asChild>
+						<Button variant="outline">稍后再说</Button>
+					</DialogClose>
 					<Button type="button" variant={buttonVariant} onClick={onCtaClick}>
 						{detail.dialog.cta_label}
 					</Button>

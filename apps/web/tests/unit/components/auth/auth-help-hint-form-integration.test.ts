@@ -76,41 +76,39 @@ vi.mock("@/app/(auth)/_components/auth-id-card", async () => {
 	};
 });
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, ...props }: any) =>
 		createElement("button", { type: "button", ...props }, children),
+	buttonVariants: () => "button",
 }));
 
-vi.mock("@/components/ui/input", () => ({
+vi.mock("@nocoo/basalt/components/input", () => ({
 	Input: (props: any) => createElement("input", props),
 }));
 
-vi.mock("@/components/ui/label", () => ({
+vi.mock("@nocoo/basalt/components/label", () => ({
 	Label: ({ children, ...props }: any) => createElement("label", props, children),
 }));
 
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@nocoo/basalt/components/dialog", () => ({
 	Dialog: ({ children }: any) => createElement("div", null, children),
-	DialogTrigger: ({ render: renderProp }: any) => createElement("div", null, renderProp),
+	DialogTrigger: ({ children }: any) => createElement("div", null, children),
 	DialogContent: ({ children }: any) => createElement("div", null, children),
 	DialogHeader: ({ children }: any) => createElement("div", null, children),
 	DialogTitle: ({ children }: any) => createElement("h2", null, children),
 	DialogDescription: ({ children }: any) => createElement("p", null, children),
 }));
 
-vi.mock("@/components/ui/select", () => ({
-	Select: ({ options, ...props }: any) =>
-		createElement(
-			"select",
-			{ ...props, "data-testid": props.id },
-			options?.map((opt: any) =>
-				createElement("option", { key: opt.value, value: opt.value }, opt.label),
-			),
-		),
+vi.mock("@nocoo/basalt/components/select", () => ({
+	Select: ({ children }: any) => createElement("div", null, children),
+	SelectTrigger: ({ children }: any) => createElement("div", null, children),
+	SelectValue: () => null,
+	SelectContent: ({ children }: any) => createElement("div", null, children),
+	SelectItem: ({ children, value }: any) => createElement("div", { "data-value": value }, children),
 }));
 
-vi.mock("@/components/ui/textarea", () => ({
-	Textarea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
+vi.mock("@nocoo/basalt/components/input-area", () => ({
+	InputArea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
 }));
 
 vi.mock("@/app/(auth)/register/register-form", async () => {

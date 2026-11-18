@@ -1,6 +1,6 @@
 import { formatNumber } from "@ellie/shared";
 import { LayerCard } from "@nocoo/basalt";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@nocoo/basalt/icons";
 
 interface AdminMetric {
 	label: string;

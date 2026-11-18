@@ -4,7 +4,7 @@
 export function ThreadListHeader() {
 	return (
 		<div
-			className="hidden sm:flex items-center bg-muted/60 border-b border-border text-xs text-muted-foreground font-medium"
+			className="hidden sm:flex items-center bg-basalt-muted/60 border-b border-basalt-border text-xs text-basalt-muted-foreground font-medium"
 			data-testid="thread-list-header"
 		>
 			<div className="min-w-0 flex-1 px-4 py-3">主题</div>

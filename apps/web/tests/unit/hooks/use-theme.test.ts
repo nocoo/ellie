@@ -125,7 +125,7 @@ beforeEach(() => {
 	savedGlobals.document = globalThis.document;
 	savedGlobals.getComputedStyle = globalThis.getComputedStyle;
 	(globalThis as Record<string, unknown>).getComputedStyle = () => ({
-		getPropertyValue: () => (classListMethods._classes.has("dark") ? "218 21% 12%" : "0 0% 100%"),
+		getPropertyValue: () => (classListMethods._classes.has("dark") ? "0 0% 10.6%" : "0 0% 97%"),
 	});
 
 	(globalThis as Record<string, unknown>).localStorage = localStorageMock;
@@ -151,15 +151,15 @@ describe("browser chrome", () => {
 	it("follows explicit overrides and resumed system preferences", () => {
 		const theme = useTheme();
 		theme.setTheme("dark");
-		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(218 21% 12%)");
+		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(0 0% 10.6%)");
 		expect(statusBarMeta.setAttribute).toHaveBeenLastCalledWith("content", "black-translucent");
 		theme.setTheme("light");
-		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(0 0% 100%)");
+		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(0 0% 97%)");
 		expect(statusBarMeta.setAttribute).toHaveBeenLastCalledWith("content", "default");
 		theme.setTheme("system");
 		matchMediaMatches = true;
 		for (const handler of matchMediaHandlers) handler({ matches: true });
-		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(218 21% 12%)");
+		expect(themeColorMeta.setAttribute).toHaveBeenLastCalledWith("content", "hsl(0 0% 10.6%)");
 	});
 });
 

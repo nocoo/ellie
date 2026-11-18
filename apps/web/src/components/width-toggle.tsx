@@ -3,10 +3,10 @@
 
 "use client";
 
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Maximize2, Minimize2 } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { HeaderTooltip } from "./header-links";
-import { Button } from "./ui/button";
 
 type WidthMode = "fixed" | "full";
 

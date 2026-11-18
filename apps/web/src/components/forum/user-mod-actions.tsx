@@ -4,11 +4,11 @@
 // Provides dropdown menu and confirmation dialogs for user moderation.
 // Used by UserPopover and ProfileHero components.
 
-import { Shield } from "lucide-react";
+import { Badge } from "@nocoo/basalt/components/badge";
+import { Button } from "@nocoo/basalt/components/button";
+import { Shield } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { useForumToast } from "./forum-toast";
@@ -36,7 +36,7 @@ interface UserModActionsProps {
 	/** Trigger variant */
 	variant?: "button" | "icon";
 	/** Button size */
-	size?: "xs" | "sm" | "default";
+	size?: "sm" | "default";
 	/** Callback when action completes */
 	onActionComplete?: () => void;
 	/** Optional className for the trigger */
@@ -53,7 +53,7 @@ export function UserModActions({
 	viewerRole,
 	isSelf,
 	variant = "button",
-	size = "xs",
+	size = "sm",
 	onActionComplete,
 	className,
 }: UserModActionsProps) {
@@ -166,7 +166,7 @@ export function UserModActions({
 							variant="ghost"
 							disabled={userStatus === null || modActionLoading}
 							size={size}
-							className={cn("gap-1 text-muted-foreground", className)}
+							className={cn("gap-1 text-basalt-muted-foreground", className)}
 						>
 							<Shield className="h-3.5 w-3.5" />
 							管理
@@ -179,7 +179,7 @@ export function UserModActions({
 					variant="ghost"
 					size="sm"
 					onClick={() => void fetchUserStatus()}
-					className="text-destructive"
+					className="text-basalt-destructive"
 				>
 					{statusError}，重试
 				</Button>

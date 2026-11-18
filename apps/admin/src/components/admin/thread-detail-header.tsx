@@ -19,7 +19,7 @@ import { formatNumber } from "@ellie/shared";
 import { contentToText } from "@ellie/shared/content";
 import { Badge, Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Eye, Files, MessageSquare, Pencil, ThumbsUp, Trash2 } from "lucide-react";
+import { Eye, Files, MessageSquare, Pencil, ThumbsUp, Trash2 } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import {
 	threadClosedVariant,

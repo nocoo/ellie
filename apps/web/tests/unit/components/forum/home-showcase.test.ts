@@ -95,15 +95,15 @@ describe("homepage shared showcase", () => {
 			for (const item of items) {
 				let reachedCard = false;
 				for (let node: HTMLElement | null = item; node; node = node.parentElement) {
+					if (node.hasAttribute("data-basalt-surface")) {
+						reachedCard = true;
+						break;
+					}
 					const clippingClasses = Array.from(node.classList).filter((name) =>
 						/(?:^|:)hidden$|overflow-hidden$|overflow-y-(?:auto|scroll|hidden|clip)|(?:^|:)(?:h|max-h)-/.test(
 							name,
 						),
 					);
-					if (node.dataset.slot === "card") {
-						reachedCard = true;
-						break;
-					}
 					expect(clippingClasses).toEqual([]);
 				}
 				expect(reachedCard).toBe(true);

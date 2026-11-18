@@ -7,7 +7,7 @@
 "use client";
 
 import { Banner } from "@nocoo/basalt/components/banner";
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info } from "@nocoo/basalt/icons";
 
 export type AdminInlineMessageVariant = "success" | "error" | "info";
 

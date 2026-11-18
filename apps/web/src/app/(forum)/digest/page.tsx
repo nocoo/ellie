@@ -1,6 +1,7 @@
 // Ref: 04f §10 — Digest page: hero + tabs filter + card list + pagination
 
 import { getThreadBadges } from "@ellie/types";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DigestCard } from "@/components/forum/digest-card";
@@ -9,7 +10,6 @@ import { DigestHero } from "@/components/forum/digest-hero";
 import { DigestIcon } from "@/components/forum/digest-icon";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { type DigestData, loadDigestList } from "@/viewmodels/forum/digest.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
@@ -33,8 +33,8 @@ function FilterTab({
 			aria-current={active ? "page" : undefined}
 			className={cn(
 				"relative inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-				"hover:text-foreground",
-				active ? "bg-primary/10 text-primary" : "text-muted-foreground",
+				"hover:text-basalt-foreground",
+				active ? "bg-basalt-primary/10 text-basalt-primary" : "text-basalt-muted-foreground",
 			)}
 		>
 			{children}
@@ -87,18 +87,18 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 
 	if (error || !data) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">{error ?? "加载出错"}</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">{error ?? "加载出错"}</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -143,15 +143,15 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 			<DigestHero stats={data.stats} />
 
 			{/* Tabs filter + thread list */}
-			<Card size="sm">
-				<CardHeader className="flex flex-row items-center gap-2 border-b">
+			<LayerCard padding="none">
+				<div className="flex flex-row items-center gap-2 border-b">
 					<DigestIcon level={1} />
-					<CardTitle className="text-base flex-1">精华帖列表</CardTitle>
-				</CardHeader>
+					<h2 className="text-base flex-1">精华帖列表</h2>
+				</div>
 
-				<CardContent className="pt-3">
+				<div className="pt-3">
 					{/* Filter tabs (server-rendered links) */}
-					<div className="flex items-center gap-1 mb-4 overflow-x-auto rounded-xl bg-muted/50 p-1">
+					<div className="flex items-center gap-1 mb-4 overflow-x-auto rounded-xl bg-basalt-muted/50 p-1">
 						<FilterTab href={buildLevelUrl()} active={!validLevel}>
 							全部 ({data.stats.total})
 						</FilterTab>
@@ -178,7 +178,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 
 					{/* Thread list */}
 					{data.results.items.length === 0 ? (
-						<div className="py-8 text-center text-sm text-muted-foreground">暂无精华帖</div>
+						<div className="py-8 text-center text-sm text-basalt-muted-foreground">暂无精华帖</div>
 					) : (
 						<div>
 							{data.results.items.map((thread) => {
@@ -197,8 +197,8 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 						nextHref={data.results.nextCursor ? buildUrl(data.results.nextCursor) : null}
 						className="mt-4 flex items-center justify-between py-2"
 					/>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		</div>
 	);
 }

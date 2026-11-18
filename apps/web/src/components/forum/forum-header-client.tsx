@@ -6,14 +6,14 @@
 // reliably tell us the user is unverified — see `selfEmailVerifiedAt`.
 
 import type { Forum } from "@ellie/types";
-import { Award, Hash, Megaphone, PenLine } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Award, Hash, Megaphone, PenLine } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useState } from "react";
 import { AnnouncementCard } from "@/components/forum/announcement-card";
 import { AnnouncementEditDialog } from "@/components/forum/announcement-edit-dialog";
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
 import { SafeHtml } from "@/components/forum/safe-html";
-import { Button } from "@/components/ui/button";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatNumber } from "@/viewmodels/shared/formatting";
@@ -91,29 +91,29 @@ export function ForumHeaderClient({
 				}
 			>
 				{!isGroup && (
-					<div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground tabular-nums">
+					<div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-basalt-muted-foreground tabular-nums">
 						<span>
 							主题{" "}
-							<strong className="ml-1 text-base font-semibold text-foreground">
+							<strong className="ml-1 text-base font-semibold text-basalt-foreground">
 								{formatNumber(forum.threads)}
 							</strong>
 						</span>
 						<span>
 							帖子{" "}
-							<strong className="ml-1 text-base font-semibold text-foreground">
+							<strong className="ml-1 text-base font-semibold text-basalt-foreground">
 								{formatNumber(forum.posts)}
 							</strong>
 						</span>
 						<span>
 							今日主题{" "}
-							<strong className="ml-1 text-base font-semibold text-primary">
+							<strong className="ml-1 text-base font-semibold text-basalt-primary">
 								{formatNumber(forum.todayThreads)}
 							</strong>
 						</span>
 						<Link
 							prefetch={false}
 							href="/digest"
-							className="ml-auto inline-flex items-center gap-1.5 text-primary hover:underline"
+							className="ml-auto inline-flex items-center gap-1.5 text-basalt-primary hover:underline"
 						>
 							<Award className="size-4" aria-hidden="true" />
 							精华帖

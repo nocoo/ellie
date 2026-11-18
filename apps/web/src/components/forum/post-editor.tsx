@@ -1,13 +1,15 @@
 "use client";
 
 import { renderContent } from "@ellie/shared/content";
+import { Button } from "@nocoo/basalt/components/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@nocoo/basalt/components/tabs";
+import { Check, Eye, FilePenLine, Loader2, PenLine, X } from "@nocoo/basalt/icons";
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Selection, type Transaction } from "@tiptap/pm/state";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Check, Eye, FilePenLine, Loader2, PenLine, X } from "lucide-react";
 import {
 	forwardRef,
 	useCallback,
@@ -20,8 +22,6 @@ import {
 } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { PostEditorToolbar } from "@/components/forum/post-editor-toolbar";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { uploadPostImage } from "@/lib/forum-browser-api";
 import { cn } from "@/lib/utils";
@@ -269,26 +269,26 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 		<Tabs
 			value={mode}
 			onValueChange={(value) => setMode(String(value))}
-			className="composer flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-xl border border-border bg-card transition-shadow focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)]"
+			className="composer flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-xl border border-basalt-border bg-basalt-card transition-shadow focus-within:border-basalt-primary/40 focus-within:shadow-[0_0_0_3px_hsl(var(--basalt-primary)/0.06)]"
 		>
-			<div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+			<div className="flex shrink-0 items-center justify-between gap-2 border-b border-basalt-border px-3 py-2">
 				<TabsList aria-label="编辑器模式" className="h-8">
-					<TabsTrigger value="write" className="gap-1.5 px-3">
+					<TabsTrigger value="write" className="gap-1.5 px-3" onClick={() => setMode("write")}>
 						<PenLine className="size-3.5" />
 						撰写
 					</TabsTrigger>
-					<TabsTrigger value="preview" className="gap-1.5 px-3">
+					<TabsTrigger value="preview" className="gap-1.5 px-3" onClick={() => setMode("preview")}>
 						<Eye className="size-3.5" />
 						预览
 					</TabsTrigger>
 				</TabsList>
-				<span className="hidden text-xs text-muted-foreground sm:block">
+				<span className="hidden text-xs text-basalt-muted-foreground sm:block">
 					{mode === "preview" ? "发布后的阅读效果" : "支持粘贴或拖入图片 · 最大 5 MB"}
 				</span>
 			</div>
 			<TabsContent
 				value="write"
-				keepMounted
+				forceMount
 				className="flex min-h-0 flex-1 flex-col data-hidden:hidden"
 			>
 				{editor && (
@@ -317,7 +317,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 				{/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard focus is provided by the nested contenteditable */}
 				{/* biome-ignore lint/a11y/noStaticElementInteractions: padding clicks extend the editor's focus surface */}
 				<div
-					className="tiptap-content-wrap flex min-h-0 flex-1 cursor-text flex-col overflow-y-auto overscroll-contain"
+					className="tiptap-content-wrap flex min-h-48 flex-1 cursor-text flex-col overflow-y-auto overscroll-contain"
 					onClick={(event) => {
 						if (
 							!editor ||
@@ -337,6 +337,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			</TabsContent>
 			<TabsContent
 				value="preview"
+				forceMount
 				className="composer-preview min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5"
 				onKeyDown={(event) => {
 					handleSubmitShortcut(event.nativeEvent, handleSubmit);
@@ -346,7 +347,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 					<h2 className="mb-5 break-words text-xl font-semibold tracking-tight">{previewTitle}</h2>
 				)}
 				{document?.empty && !previewPrefix ? (
-					<div className="flex h-full min-h-36 flex-col items-center justify-center gap-3 text-muted-foreground">
+					<div className="flex h-full min-h-36 flex-col items-center justify-center gap-3 text-basalt-muted-foreground">
 						<FilePenLine className="size-7 opacity-50" />
 						<p className="text-sm">写点内容，来看看发布后的效果</p>
 					</div>
@@ -361,7 +362,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			{uploadError && (
 				<div
 					role="alert"
-					className="flex shrink-0 items-center gap-2 border-t border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+					className="flex shrink-0 items-center gap-2 border-t border-basalt-destructive/20 bg-basalt-destructive/5 px-3 py-2 text-xs text-basalt-destructive"
 				>
 					<span className="flex-1">{uploadError}</span>
 					{retryFiles.length > 0 && (
@@ -386,12 +387,12 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			)}
 			<div
 				id={statusId}
-				className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border bg-muted/15 px-3 py-2 text-xs text-muted-foreground"
+				className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-basalt-border bg-basalt-muted/15 px-3 py-2 text-xs text-basalt-muted-foreground"
 			>
 				<span
 					className={cn(
 						"flex min-w-0 items-center gap-1.5",
-						draftStatus === "unavailable" && "text-destructive",
+						draftStatus === "unavailable" && "text-basalt-destructive",
 					)}
 					role="status"
 				>
@@ -402,7 +403,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 						</>
 					) : draftStatus ? (
 						<>
-							{draftStatus === "saved" && <Check className="size-3.5 text-primary" />}
+							{draftStatus === "saved" && <Check className="size-3.5 text-basalt-primary" />}
 							{DRAFT_LABELS[draftStatus]}
 						</>
 					) : (
@@ -412,7 +413,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 				<span
 					className={cn(
 						"ml-auto whitespace-nowrap tabular-nums",
-						count >= maxLength && "text-destructive",
+						count >= maxLength && "text-basalt-destructive",
 					)}
 				>
 					{minLength > 0 && count < minLength && <span className="mr-2">至少 {minLength} 字</span>}

@@ -17,7 +17,7 @@ import {
 	LayerCard,
 } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@nocoo/basalt/icons";
 import { useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";

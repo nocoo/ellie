@@ -3,7 +3,7 @@
 import { Badge, Button, Input, Label, LayerCard, Switch } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@nocoo/basalt/icons";
 import {
 	Globe,
 	ListOrdered,
@@ -12,7 +12,7 @@ import {
 	Save,
 	Search,
 	Settings2,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

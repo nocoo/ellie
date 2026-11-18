@@ -11,7 +11,7 @@ import {
 	DropdownMenuTrigger,
 	LayerCard,
 } from "@nocoo/basalt";
-import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Shield, Trash2 } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";

@@ -3,7 +3,6 @@
 import { formatNumber } from "@ellie/shared";
 import type { MemoryCacheEntry, MemoryCacheFamilyId, MemoryCacheOverview } from "@ellie/types";
 import { Badge, Button, DescriptionList, LayerCard } from "@nocoo/basalt";
-import { AreaChart } from "@nocoo/basalt/charts/area";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
@@ -22,12 +21,22 @@ import {
 	TableHeader,
 	TableRow,
 } from "@nocoo/basalt/components/table";
-import { Activity, Clock, Eraser, Gauge, MemoryStick, RefreshCw, Send, Trash2 } from "lucide-react";
+import {
+	Activity,
+	Clock,
+	Eraser,
+	Gauge,
+	MemoryStick,
+	RefreshCw,
+	Send,
+	Trash2,
+} from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminMetrics } from "@/components/admin/admin-metrics";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { AreaChart } from "@/components/admin/area-chart";
 import { formatBytes } from "@/lib/admin-kv-cache";
 import {
 	entryPages,

@@ -19,7 +19,7 @@ vi.mock("@/components/forum/jump-to-page", () => ({
 	},
 }));
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, render: renderProp, disabled, ...rest }: any) => {
 		if (renderProp && !disabled) {
 			// Clone the render element (Link) and inject children

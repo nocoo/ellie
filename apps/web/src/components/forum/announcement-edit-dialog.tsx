@@ -13,12 +13,12 @@
 //     sanitizes back into 4 KiB is legal; we let the Worker decide.
 //   - DialogErrorBanner for save errors (PAYLOAD_TOO_LARGE, FORBIDDEN, …)
 
-import { Eye, Megaphone, Save } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Dialog, DialogContent } from "@nocoo/basalt/components/dialog";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Eye, Megaphone, Save } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api-error";
 import { setForumAnnouncement } from "@/lib/forum-announcement-api";
 import { cn } from "@/lib/utils";
@@ -99,12 +99,9 @@ export function AnnouncementEditDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent
-				className="max-h-[min(90dvh,var(--dialog-max-height))] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
-				showCloseButton={false}
-			>
+			<DialogContent className="max-h-[min(90dvh,var(--dialog-max-height))] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
 				<DialogHeroHeader
-					icon={<Megaphone className="h-5 w-5 text-primary" />}
+					icon={<Megaphone className="h-5 w-5 text-basalt-primary" />}
 					title="编辑版块公告"
 					description={`${forumName} · 支持简单 HTML（链接、图片、加粗、颜色）`}
 					onClose={() => handleOpenChange(false)}
@@ -115,10 +112,13 @@ export function AnnouncementEditDialog({
 
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain grid gap-5 px-5 py-5 sm:grid-cols-2">
 					<div className="min-w-0 flex flex-col gap-2">
-						<label htmlFor="announcement-textarea" className="text-sm font-medium text-foreground">
+						<label
+							htmlFor="announcement-textarea"
+							className="text-sm font-medium text-basalt-foreground"
+						>
 							内容
 						</label>
-						<Textarea
+						<InputArea
 							id="announcement-textarea"
 							value={draft}
 							onChange={(e) => setDraft(e.target.value)}
@@ -127,30 +127,35 @@ export function AnnouncementEditDialog({
 							disabled={submitting}
 							className="min-h-56 flex-1 resize-none font-mono text-sm leading-6"
 						/>
-						<p className={cn("text-xs", overBudget ? "text-destructive" : "text-muted-foreground")}>
+						<p
+							className={cn(
+								"text-xs",
+								overBudget ? "text-basalt-destructive" : "text-basalt-muted-foreground",
+							)}
+						>
 							约 {byteLength} / {ANNOUNCEMENT_SOFT_LIMIT} 字节，过长时请精简内容
 						</p>
 					</div>
 
 					<div className="min-w-0 flex flex-col gap-2">
-						<div className="flex items-center gap-2 text-sm font-medium text-foreground">
-							<Eye className="h-4 w-4 text-primary" />
+						<div className="flex items-center gap-2 text-sm font-medium text-basalt-foreground">
+							<Eye className="h-4 w-4 text-basalt-primary" />
 							预览
 						</div>
-						<div className="min-h-56 flex-1 overflow-hidden break-words rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground">
+						<div className="min-h-56 flex-1 overflow-hidden break-words rounded-lg border border-basalt-border bg-basalt-card px-4 py-3 text-sm text-basalt-foreground">
 							{draft.trim() === "" ? (
-								<span className="text-muted-foreground italic">（无内容）</span>
+								<span className="text-basalt-muted-foreground italic">（无内容）</span>
 							) : (
 								<SafeRichHtml html={draft} className="leading-relaxed" />
 							)}
 						</div>
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-basalt-muted-foreground">
 							保存后会更新版块公告；留空保存可清除公告。
 						</p>
 					</div>
 				</div>
 
-				<div className="shrink-0 px-5 py-4 border-t border-border bg-muted/20">
+				<div className="shrink-0 px-5 py-4 border-t border-basalt-border bg-basalt-muted/20">
 					<div className="flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={submitting}>
 							取消

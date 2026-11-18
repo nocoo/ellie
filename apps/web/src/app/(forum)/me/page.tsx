@@ -22,7 +22,8 @@
 // re-renders into its verified branch on the next paint. There is no
 // long-lived client store to keep in sync.
 
-import { ArrowUpRight, Settings2 } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { ArrowUpRight, Settings2 } from "@nocoo/basalt/icons";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -30,7 +31,6 @@ import { EmailVerificationCard } from "@/components/forum/email-verification-car
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { MeAvatarSection } from "@/components/forum/me-avatar-section";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Button } from "@/components/ui/button";
 import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
@@ -61,13 +61,11 @@ export default async function MePage() {
 				title="我的账号"
 				description="管理邮箱验证与头像，完善你的社区身份。"
 				actions={
-					<Button
-						variant="outline"
-						nativeButton={false}
-						render={<Link prefetch={false} href={`/users/${self.id}`} role="link" />}
-					>
-						个人主页
-						<ArrowUpRight className="size-4" aria-hidden="true" />
+					<Button asChild variant="outline">
+						<Link prefetch={false} href={`/users/${self.id}`}>
+							个人主页
+							<ArrowUpRight className="size-4" aria-hidden="true" />
+						</Link>
 					</Button>
 				}
 			/>

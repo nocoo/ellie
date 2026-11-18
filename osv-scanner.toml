@@ -9,3 +9,8 @@
 #   [[IgnoredVulns]]
 #   id = "GHSA-xxxx-xxxx-xxxx"
 #   reason = "Why this advisory cannot be patched today"
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-12-18T00:00:00Z
+reason = "picomatch 4.0.7 has no upstream fix; used only by the pinned Vitest/tooling graph."

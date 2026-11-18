@@ -3,7 +3,7 @@
 import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Code } from "@nocoo/basalt/components/code";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Activity, Globe, ScrollText, Users, X } from "lucide-react";
+import { Activity, Globe, ScrollText, Users, X } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";

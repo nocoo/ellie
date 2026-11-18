@@ -18,7 +18,7 @@ vi.mock("@/viewmodels/forum/write-gate", () => ({
 }));
 
 // Stub tooltip / popover so they just render children without portals
-vi.mock("@/components/ui/tooltip", () => ({
+vi.mock("@nocoo/basalt/components/tooltip", () => ({
 	TooltipProvider: ({ children }: any) => createElement("div", null, children),
 	Tooltip: ({ children }: any) => createElement("div", null, children),
 	TooltipTrigger: ({ children, render: renderProp }: any) => {
@@ -30,7 +30,7 @@ vi.mock("@/components/ui/tooltip", () => ({
 	TooltipContent: () => null,
 }));
 
-vi.mock("@/components/ui/popover", () => ({
+vi.mock("@nocoo/basalt/components/popover", () => ({
 	Popover: ({ children }: any) => createElement("div", null, children),
 	PopoverTrigger: ({ children, render: renderProp }: any) => {
 		if (renderProp) {

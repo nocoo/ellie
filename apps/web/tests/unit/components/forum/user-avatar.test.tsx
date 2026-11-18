@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ForumAvatar, TrackedUserAvatar, UserAvatar } from "@/components/forum/user-avatar";
 import { FALLBACK_URL } from "@/lib/avatar";
 
-vi.mock("@/components/ui/avatar", () => ({
+vi.mock("@nocoo/basalt/components/avatar", () => ({
 	Avatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 	AvatarImage: (props: ImgHTMLAttributes<HTMLImageElement>) => <img {...props} alt={props.alt} />,
 	AvatarFallback: () => null,

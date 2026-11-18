@@ -24,7 +24,7 @@ import {
 	MoreHorizontal,
 	Paperclip,
 	Trash2,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { twMerge as cn } from "tailwind-merge";

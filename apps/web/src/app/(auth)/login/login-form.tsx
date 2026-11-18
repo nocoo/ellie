@@ -1,10 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, UserRound, UserRoundPlus } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState } from "react";
-import { CapWidget } from "@/components/cap-widget";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -12,9 +8,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@nocoo/basalt/components/dialog";
+import { Input } from "@nocoo/basalt/components/input";
+import { Label } from "@nocoo/basalt/components/label";
+import { ArrowRight, KeyRound, UserRound, UserRoundPlus } from "@nocoo/basalt/icons";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useRef, useState } from "react";
+import { CapWidget } from "@/components/cap-widget";
 import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
@@ -105,7 +105,9 @@ function LoginFormInner() {
 			<div className="mx-auto w-full max-w-sm">
 				<div className="mb-7">
 					<h1 className="text-2xl font-semibold tracking-tight">欢迎回来</h1>
-					<p className="mt-2 text-sm text-muted-foreground">登录同济网论坛，继续你的校园生活。</p>
+					<p className="mt-2 text-sm text-basalt-muted-foreground">
+						登录同济网论坛，继续你的校园生活。
+					</p>
 				</div>
 
 				<form onSubmit={handleSubmit} className="space-y-4">
@@ -115,7 +117,7 @@ function LoginFormInner() {
 					{/* Username */}
 					<div className="space-y-2">
 						<Label htmlFor="username" className="flex items-center gap-2 text-sm">
-							<UserRound className="size-3.5 text-muted-foreground" aria-hidden="true" />
+							<UserRound className="size-3.5 text-basalt-muted-foreground" aria-hidden="true" />
 							用户名
 						</Label>
 						<Input
@@ -133,7 +135,7 @@ function LoginFormInner() {
 					{/* Password */}
 					<div className="space-y-2">
 						<Label htmlFor="password" className="flex items-center gap-2 text-sm">
-							<KeyRound className="size-3.5 text-muted-foreground" aria-hidden="true" />
+							<KeyRound className="size-3.5 text-basalt-muted-foreground" aria-hidden="true" />
 							密码
 						</Label>
 						<Input
@@ -183,18 +185,13 @@ function LoginFormInner() {
 						if (!registerBusy) setRegisterOpen(open);
 					}}
 				>
-					<DialogTrigger
-						render={
-							<Button variant="outline" className="h-11 w-full text-sm">
-								<UserRoundPlus className="size-4" aria-hidden="true" />
-								创建新账号
-							</Button>
-						}
-					/>
-					<DialogContent
-						className="max-h-[min(90dvh,var(--dialog-max-height))] overflow-y-auto sm:max-w-2xl"
-						showCloseButton={!registerBusy}
-					>
+					<DialogTrigger asChild>
+						<Button variant="outline" className="h-11 w-full text-sm">
+							<UserRoundPlus className="size-4" aria-hidden="true" />
+							创建新账号
+						</Button>
+					</DialogTrigger>
+					<DialogContent className="max-h-[min(90dvh,var(--dialog-max-height))] overflow-y-auto sm:max-w-2xl">
 						<DialogHeader>
 							<DialogTitle>注册新账号</DialogTitle>
 							<DialogDescription>创建您的同济网论坛账号</DialogDescription>
@@ -222,7 +219,7 @@ export default function LoginForm() {
 		<Suspense
 			fallback={
 				<div className="flex min-h-screen items-center justify-center">
-					<p className="text-muted-foreground">加载中…</p>
+					<p className="text-basalt-muted-foreground">加载中…</p>
 				</div>
 			}
 		>

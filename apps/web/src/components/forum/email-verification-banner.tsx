@@ -7,8 +7,8 @@
 // bundle. The §5.4 dialog and the backend 403 fallback are the
 // interactive paths — this component does NOT replace them.
 
+import { buttonVariants } from "@nocoo/basalt/components/button";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button-variants";
 import type { SelfForumUser } from "@/lib/forum-self";
 import { pickEmailVerificationBannerVm } from "@/viewmodels/forum/email-verification-banner";
 

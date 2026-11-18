@@ -34,7 +34,7 @@ import {
 	MessageSquare,
 	ShieldCheck,
 	Users,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

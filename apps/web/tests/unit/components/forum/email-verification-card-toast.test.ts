@@ -21,17 +21,17 @@ vi.mock("@/components/cap-widget", () => ({
 }));
 
 // Mock UI components
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, onClick, disabled, type }: any) =>
 		createElement("button", { type: type || "button", onClick, disabled }, children),
 }));
-vi.mock("@/components/ui/card", () => ({
-	Card: ({ children }: any) => createElement("div", null, children),
-	CardContent: ({ children }: any) => createElement("div", null, children),
-	CardHeader: ({ children }: any) => createElement("div", null, children),
-	CardTitle: ({ children }: any) => createElement("h2", null, children),
-}));
-vi.mock("@/components/ui/input", () => ({
+vi.mock("@nocoo/basalt/components/layer-card", () => {
+	const LayerCard = ({ children }: any) => createElement("div", null, children);
+	LayerCard.Header = ({ children }: any) => createElement("div", null, children);
+	LayerCard.Body = ({ children }: any) => createElement("div", null, children);
+	return { LayerCard };
+});
+vi.mock("@nocoo/basalt/components/input", () => ({
 	Input: ({ id, value, onChange, disabled, placeholder, type }: any) =>
 		createElement("input", {
 			id,
@@ -43,7 +43,7 @@ vi.mock("@/components/ui/input", () => ({
 			"aria-label": id,
 		}),
 }));
-vi.mock("@/components/ui/label", () => ({
+vi.mock("@nocoo/basalt/components/label", () => ({
 	Label: ({ children, htmlFor }: any) => createElement("label", { htmlFor }, children),
 }));
 

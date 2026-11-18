@@ -3,6 +3,7 @@
 // components/forum/thread-mod-menu.tsx — Thread moderation action bar
 // Rendered inside ThreadToolbar before the first post and after the last post.
 
+import { ConfirmDialog } from "@nocoo/basalt/components/confirm-dialog";
 import {
 	ArrowRight,
 	BookmarkPlus,
@@ -12,11 +13,10 @@ import {
 	Pin,
 	Star,
 	Trash2,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError } from "@/lib/api-client";
 import {
 	deleteThread,
@@ -322,7 +322,7 @@ export function ThreadModMenu({
 					/>
 				)}
 				{/* Error display */}
-				{error && <span className="text-destructive">{error}</span>}
+				{error && <span className="text-basalt-destructive">{error}</span>}
 			</div>
 
 			{/* Dialogs */}
@@ -359,7 +359,8 @@ export function ThreadModMenu({
 				onOpenChange={setDeleteDialogOpen}
 				title="删除主题"
 				description={error ?? "确定要删除这个主题吗？此操作无法撤销，所有回复将被一同删除。"}
-				confirmText="删除"
+				confirmLabel="删除"
+				cancelLabel="取消"
 				variant="destructive"
 				loading={loading}
 				onConfirm={handleDeleteConfirm}

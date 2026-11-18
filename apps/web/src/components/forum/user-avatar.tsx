@@ -4,7 +4,7 @@
 // UserAvatar: Simple avatar with src/alt (for general use)
 // TrackedUserAvatar: Uses AvatarContext for automatic version tracking (for current user's profile)
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@nocoo/basalt/components/avatar";
 import { useAvatarUrl } from "@/contexts/avatar-context";
 import { FALLBACK_URL } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
@@ -72,7 +72,7 @@ export function TrackedUserAvatar({
 			)}
 		>
 			<AvatarImage src={avatarUrl} alt={username ?? `User ${uid}`} className="rounded-sm" />
-			<AvatarFallback className="text-sm rounded-sm bg-muted p-0 overflow-hidden">
+			<AvatarFallback className="text-sm rounded-sm bg-basalt-muted p-0 overflow-hidden">
 				<img src={FALLBACK_URL} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>
@@ -110,16 +110,16 @@ export function ForumAvatar({
 
 	return (
 		<Avatar
-			size={size === "sm" ? "sm" : undefined}
 			className={cn(
 				"rounded-sm",
+				size === "sm" ? "h-6 w-6" : "",
 				sizeClass,
 				shadow && "shadow-[0_0_2px_rgba(0,0,0,0.1)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]",
 				className,
 			)}
 		>
 			<AvatarImage src={avatarUrl} alt={userName} className="rounded-sm" />
-			<AvatarFallback className={cn("rounded-sm bg-muted p-0 overflow-hidden", "text-xs")}>
+			<AvatarFallback className={cn("rounded-sm bg-basalt-muted p-0 overflow-hidden", "text-xs")}>
 				<img src={FALLBACK_URL} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>

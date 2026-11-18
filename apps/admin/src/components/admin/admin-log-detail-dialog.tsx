@@ -10,7 +10,7 @@ import {
 	DialogTitle,
 } from "@nocoo/basalt";
 import { Code, CodeBlock } from "@nocoo/basalt/components/code";
-import { ScrollText } from "lucide-react";
+import { ScrollText } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { IpLookupInline } from "@/components/admin/ip-lookup-inline";

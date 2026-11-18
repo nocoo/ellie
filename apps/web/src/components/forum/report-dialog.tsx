@@ -2,11 +2,7 @@
 
 // components/forum/report-dialog.tsx — Post report dialog with three-step verification
 
-import { AlertCircle, CheckCircle2, CircleDot, Flag, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CapWidget } from "@/components/cap-widget";
-import { useForumToast } from "@/components/forum/forum-toast";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -14,7 +10,11 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from "@nocoo/basalt/components/dialog";
+import { AlertCircle, CheckCircle2, CircleDot, Flag, Loader2 } from "@nocoo/basalt/icons";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CapWidget } from "@/components/cap-widget";
+import { useForumToast } from "@/components/forum/forum-toast";
 import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { cn } from "@/lib/utils";
 import {
@@ -246,15 +246,17 @@ export function ReportDialog({
 	// Step indicator helper
 	const getStepIcon = (_stepName: Step, state: "pending" | "loading" | "passed" | "failed") => {
 		if (state === "loading") {
-			return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />;
+			return (
+				<Loader2 className="h-4 w-4 animate-spin text-basalt-muted-foreground" aria-hidden="true" />
+			);
 		}
 		if (state === "passed") {
-			return <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />;
+			return <CheckCircle2 className="h-4 w-4 text-basalt-success" aria-hidden="true" />;
 		}
 		if (state === "failed") {
-			return <AlertCircle className="h-4 w-4 text-destructive" aria-hidden="true" />;
+			return <AlertCircle className="h-4 w-4 text-basalt-destructive" aria-hidden="true" />;
 		}
-		return <CircleDot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+		return <CircleDot className="h-4 w-4 text-basalt-muted-foreground" aria-hidden="true" />;
 	};
 
 	return (
@@ -265,14 +267,10 @@ export function ReportDialog({
 				onOpenChange(next);
 			}}
 		>
-			<DialogContent
-				className="flex flex-col overflow-hidden sm:max-w-lg"
-				showCloseButton={!submitting}
-				aria-busy={submitting}
-			>
+			<DialogContent className="flex flex-col overflow-hidden sm:max-w-lg" aria-busy={submitting}>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Flag className="h-5 w-5 text-destructive" aria-hidden="true" />
+						<Flag className="h-5 w-5 text-basalt-destructive" aria-hidden="true" />
 						{copy.title}
 					</DialogTitle>
 					<DialogDescription>请完成以下步骤提交举报</DialogDescription>
@@ -286,13 +284,13 @@ export function ReportDialog({
 							<span>检查权限</span>
 						</div>
 						{step.permission === "loading" && (
-							<p className="text-sm text-muted-foreground pl-6">正在检查...</p>
+							<p className="text-sm text-basalt-muted-foreground pl-6">正在检查...</p>
 						)}
 						{step.permission === "passed" && (
-							<p className="text-sm text-success pl-6">{copy.permissionPassed}</p>
+							<p className="text-sm text-basalt-success pl-6">{copy.permissionPassed}</p>
 						)}
 						{step.permission === "failed" && (
-							<p className="text-sm text-destructive pl-6">{step.permissionError}</p>
+							<p className="text-sm text-basalt-destructive pl-6">{step.permissionError}</p>
 						)}
 					</div>
 
@@ -301,7 +299,7 @@ export function ReportDialog({
 					{step.permission === "passed" && !CAP_CONFIGURED && (
 						<div
 							role="alert"
-							className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"
+							className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm"
 						>
 							<AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
 							<span>人机验证服务未就绪，暂时无法举报，请稍后再试或联系管理员。</span>
@@ -323,7 +321,9 @@ export function ReportDialog({
 									/>
 								</div>
 							)}
-							{step.captcha === "passed" && <p className="text-sm text-success pl-6">验证成功</p>}
+							{step.captcha === "passed" && (
+								<p className="text-sm text-basalt-success pl-6">验证成功</p>
+							)}
 						</div>
 					)}
 
@@ -332,9 +332,9 @@ export function ReportDialog({
 						<div className="space-y-2">
 							<div className="flex items-center gap-2 text-sm font-medium">
 								{step.reason ? (
-									<CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
+									<CheckCircle2 className="h-4 w-4 text-basalt-success" aria-hidden="true" />
 								) : (
-									<CircleDot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+									<CircleDot className="h-4 w-4 text-basalt-muted-foreground" aria-hidden="true" />
 								)}
 								<span>选择举报理由</span>
 							</div>
@@ -346,8 +346,8 @@ export function ReportDialog({
 										className={cn(
 											"w-full flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors text-left text-sm",
 											step.reason === reason
-												? "border-primary bg-primary/5"
-												: "border-border hover:border-primary/50",
+												? "border-basalt-primary bg-basalt-primary/5"
+												: "border-basalt-border hover:border-basalt-primary/50",
 										)}
 										onClick={() => handleReasonSelect(reason)}
 										disabled={submitting || success}
@@ -357,12 +357,12 @@ export function ReportDialog({
 											className={cn(
 												"h-4 w-4 rounded-full border-2 flex items-center justify-center",
 												step.reason === reason
-													? "border-primary bg-primary"
+													? "border-basalt-primary bg-basalt-primary"
 													: "border-muted-foreground/50",
 											)}
 										>
 											{step.reason === reason && (
-												<div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+												<div className="h-1.5 w-1.5 rounded-full bg-basalt-primary-foreground" />
 											)}
 										</div>
 										<span>{reason}</span>
@@ -376,7 +376,7 @@ export function ReportDialog({
 					{success && (
 						<div
 							role="status"
-							className="flex items-center gap-2 p-3 rounded-lg bg-success/15 dark:bg-success/20 text-success text-sm"
+							className="flex items-center gap-2 p-3 rounded-lg bg-basalt-success/15 dark:bg-basalt-success/20 text-basalt-success text-sm"
 						>
 							<CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
 							<span>举报提交成功，感谢您的反馈</span>
@@ -386,7 +386,7 @@ export function ReportDialog({
 					{error && (
 						<div
 							role="alert"
-							className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"
+							className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm"
 						>
 							<AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
 							<span>{error}</span>

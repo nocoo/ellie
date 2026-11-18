@@ -4,7 +4,7 @@
 
 "use client";
 
-import { Mail } from "lucide-react";
+import { Mail } from "@nocoo/basalt/icons";
 import { useState } from "react";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";

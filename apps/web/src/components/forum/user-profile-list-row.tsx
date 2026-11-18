@@ -88,7 +88,7 @@ export function UserProfileListRow({
 		<Link
 			href={`/threads/${thread.id}`}
 			prefetch={false}
-			className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+			className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-basalt-foreground hover:text-basalt-primary transition-colors"
 			style={highlightStyle(hl)}
 		>
 			{thread.subject}
@@ -99,7 +99,7 @@ export function UserProfileListRow({
 		<Link
 			href={`/forums/${thread.forumId}`}
 			prefetch={false}
-			className="block max-w-full truncate text-xs text-muted-foreground hover:text-primary transition-colors"
+			className="block max-w-full truncate text-xs text-basalt-muted-foreground hover:text-basalt-primary transition-colors"
 		>
 			{forumName}
 		</Link>
@@ -109,7 +109,7 @@ export function UserProfileListRow({
 
 	return (
 		<div
-			className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50"
+			className="border-b border-basalt-border/50 last:border-0 transition-colors hover:bg-basalt-accent/50"
 			data-testid="user-profile-list-row"
 		>
 			{/* Desktop layout: explicit 5-column grid so all three tabs align. */}
@@ -133,18 +133,18 @@ export function UserProfileListRow({
 				</div>
 				{/* Col 3: 板块 */}
 				<div className="min-w-0 text-xs" data-testid="row-col-forum">
-					{forumChip ?? <span className="text-muted-foreground/60">—</span>}
+					{forumChip ?? <span className="text-basalt-muted-foreground/60">—</span>}
 				</div>
 				{/* Col 4: 回复 · 查看 */}
 				<div
-					className="tabular-nums text-xs text-muted-foreground text-right"
+					className="tabular-nums text-xs text-basalt-muted-foreground text-right"
 					data-testid="row-col-stats"
 				>
 					{statsText}
 				</div>
 				{/* Col 5: 时间 */}
 				<div
-					className="tabular-nums text-xs text-muted-foreground text-right"
+					className="tabular-nums text-xs text-basalt-muted-foreground text-right"
 					data-testid="row-col-time"
 				>
 					{formatRelativeTime(time)}
@@ -171,12 +171,12 @@ export function UserProfileListRow({
 							{digestSrc && <DigestIcon level={thread.digest} />}
 						</div>
 					</div>
-					<span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+					<span className="shrink-0 text-xs text-basalt-muted-foreground tabular-nums">
 						{formatRelativeTime(time)}
 					</span>
 				</div>
 				{/* Row 2: forum chip · stats */}
-				<div className="mt-2 ml-6 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-2 ml-6 flex flex-wrap items-center gap-1.5 text-xs text-basalt-muted-foreground">
 					{forumChip}
 					{forumChip && <span className="shrink-0">·</span>}
 					<span className="tabular-nums shrink-0">{statsText}</span>
@@ -197,7 +197,7 @@ export function UserProfileListRow({
 export function UserProfileListHeader() {
 	return (
 		<div
-			className="hidden sm:grid items-center gap-2 px-3 py-3 border-b border-border text-xs text-muted-foreground bg-muted/30"
+			className="hidden sm:grid items-center gap-2 px-3 py-3 border-b border-basalt-border text-xs text-basalt-muted-foreground bg-basalt-muted/30"
 			style={{ gridTemplateColumns: PROFILE_ROW_GRID_COLS }}
 			data-testid="user-profile-list-header"
 		>

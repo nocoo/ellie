@@ -38,7 +38,7 @@ test.describe("Feature: Forum Navigation", () => {
 		// Then: digest showcase link is visible
 		await expect(homePage.digestShowcase).toBeVisible();
 		const discussions = page
-			.locator('[data-slot="card"]')
+			.locator("[data-basalt-surface]")
 			.filter({ has: page.getByText("最近讨论", { exact: true }) });
 		const topics = discussions.locator('a[href^="/threads/"]');
 		await expect(topics).toHaveCount(5);
@@ -160,9 +160,9 @@ test.describe("Feature: Forum Navigation", () => {
 		await newThreadBtn.click();
 
 		// Then: Radix dialog renders with the 发表新帖 title
-		// CSS fallback: Radix exposes [data-slot="dialog-content"] (same hook as
+		// CSS fallback: Radix exposes [role="dialog"] (same hook as
 		// dialog-layout.spec.ts) since the dialog has no aria-label.
-		const dialog = page.locator('[data-slot="dialog-content"]').first();
+		const dialog = page.locator('[role="dialog"]').first();
 		await expect(dialog).toBeVisible({ timeout: 10_000 });
 		await expect(dialog.getByText("发表新帖").first()).toBeVisible();
 	});

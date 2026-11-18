@@ -28,16 +28,16 @@ export function ThreadLastPostCell({
 		>
 			{lastPosterId > 0 ? (
 				<UserPopover userId={lastPosterId} triggerClassName="min-w-0 max-w-full">
-					<span className="block text-xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors cursor-pointer">
+					<span className="block text-xs text-basalt-foreground font-medium truncate max-w-full hover:text-basalt-primary transition-colors cursor-pointer">
 						{lastPoster || "-"}
 					</span>
 				</UserPopover>
 			) : (
-				<span className="text-xs text-muted-foreground truncate max-w-full">
+				<span className="text-xs text-basalt-muted-foreground truncate max-w-full">
 					{lastPoster || "-"}
 				</span>
 			)}
-			<span className="text-xs text-muted-foreground">
+			<span className="text-xs text-basalt-muted-foreground">
 				{lastPostAt ? formatRelativeTime(lastPostAt) : "-"}
 			</span>
 		</div>

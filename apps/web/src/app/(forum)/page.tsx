@@ -1,11 +1,11 @@
 import type { ForumTreeNode } from "@ellie/types";
-import { CalendarCheck } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { CalendarCheck } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { DigestShowcase } from "@/components/forum/digest-showcase";
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
 import { RecentShowcase } from "@/components/forum/recent-showcase";
-import { Button } from "@/components/ui/button";
 import { getCachedHomeContext } from "@/lib/forum-cache";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
@@ -41,23 +41,21 @@ export default async function ForumHomePage() {
 						<a
 							key={group.id}
 							href={`#forum-group-${group.id}`}
-							className="shrink-0 rounded-lg border border-border bg-card px-3 py-2 text-muted-foreground hover:border-primary/40 hover:text-primary"
+							className="shrink-0 rounded-lg border border-basalt-border bg-basalt-card px-3 py-2 text-basalt-muted-foreground hover:border-basalt-primary/40 hover:text-basalt-primary"
 						>
 							{group.name}
 						</a>
 					))}
 				</div>
-				<Button
-					className="shrink-0"
-					nativeButton={false}
-					render={<Link href="/checkin" prefetch={false} />}
-				>
-					<CalendarCheck className="size-4" aria-hidden="true" />
-					每日签到
+				<Button asChild className="shrink-0">
+					<Link href="/checkin" prefetch={false}>
+						<CalendarCheck className="size-4" aria-hidden="true" />
+						每日签到
+					</Link>
 				</Button>
 			</nav>
 			{error && (
-				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+				<div className="rounded-lg border border-basalt-destructive/50 bg-basalt-destructive/10 p-4 text-sm text-basalt-destructive">
 					{error}
 				</div>
 			)}
@@ -72,7 +70,7 @@ export default async function ForumHomePage() {
 			))}
 
 			{!error && tree.length === 0 && (
-				<div className="rounded-lg bg-card p-8 text-center text-sm text-muted-foreground ring-1 ring-border">
+				<div className="rounded-lg bg-basalt-card p-8 text-center text-sm text-basalt-muted-foreground ring-1 ring-basalt-border">
 					暂无版块
 				</div>
 			)}

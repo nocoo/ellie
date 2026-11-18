@@ -1,7 +1,7 @@
 "use client";
 
 import type { ForumTreeNode } from "@ellie/types";
-import { MessageSquare, MessagesSquare } from "lucide-react";
+import { MessageSquare, MessagesSquare } from "@nocoo/basalt/icons";
 import Image from "next/image";
 import Link from "next/link";
 import { formatCount, hasRecentForumActivity } from "@/viewmodels/forum/forum-list";
@@ -44,7 +44,7 @@ function LastPosterAvatarLink({
 	if (userId <= 0) return null;
 	return (
 		<Link href={`/users/${userId}`} prefetch={false} className="shrink-0">
-			<ForumAvatar userId={userId} userName={userName} avatarPath={avatarPath} size="xs" shadow />
+			<ForumAvatar userId={userId} userName={userName} avatarPath={avatarPath} size="sm" shadow />
 		</Link>
 	);
 }
@@ -66,7 +66,7 @@ function ForumStats({
 			<span className="inline-flex items-center gap-1" title="主题">
 				<MessagesSquare className="size-3 shrink-0" aria-hidden="true" />
 				<span className="sr-only">主题 </span>
-				<span className={variant === "desktop" ? "text-foreground font-medium" : undefined}>
+				<span className={variant === "desktop" ? "text-basalt-foreground font-medium" : undefined}>
 					{formatCount(threads)}
 				</span>
 			</span>
@@ -78,7 +78,7 @@ function ForumStats({
 		</span>
 	);
 	return variant === "desktop" ? (
-		<div className="flex justify-end self-start text-xs text-muted-foreground tabular-nums leading-5">
+		<div className="flex justify-end self-start text-xs text-basalt-muted-foreground tabular-nums leading-5">
 			{counts}
 		</div>
 	) : (
@@ -129,10 +129,10 @@ function ForumMetaLine({
 			className={`mt-1 flex items-baseline gap-1 flex-wrap leading-5${className ? ` ${className}` : ""}`}
 			data-testid={`forum-meta-${label}`}
 		>
-			<span className="text-muted-foreground/80">{label}</span>
+			<span className="text-basalt-muted-foreground/80">{label}</span>
 			{items.map((item, i) => (
 				<span key={item.id} className="inline-flex items-baseline gap-1">
-					{i > 0 && <span className="text-muted-foreground/50">·</span>}
+					{i > 0 && <span className="text-basalt-muted-foreground/50">·</span>}
 					{renderItem(item)}
 				</span>
 			))}
@@ -177,7 +177,7 @@ function ModeratorLinks({ mods }: { mods: { id: number; name: string }[] }) {
 function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) return null;
 	return (
-		<div className="min-w-0 flex flex-col text-sm text-muted-foreground leading-5">
+		<div className="min-w-0 flex flex-col text-sm text-basalt-muted-foreground leading-5">
 			<Link
 				href={`/threads/${forum.lastThreadId}`}
 				prefetch={false}
@@ -218,7 +218,7 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) {
 		return (
 			<div
-				className="mt-1 flex items-center text-xs text-muted-foreground leading-5"
+				className="mt-1 flex items-center text-xs text-basalt-muted-foreground leading-5"
 				data-testid="mobile-last-post-empty"
 			>
 				<span className="truncate min-w-0">暂无最新主题</span>
@@ -228,7 +228,7 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 	const hasAvatar = forum.lastPosterId > 0;
 	return (
 		<div
-			className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground leading-5 min-w-0"
+			className="mt-1 flex items-center gap-1.5 text-xs text-basalt-muted-foreground leading-5 min-w-0"
 			data-testid="mobile-last-post-row"
 		>
 			<Link
@@ -246,7 +246,7 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 							userId={forum.lastPosterId}
 							userName={forum.lastPoster}
 							avatarPath={forum.lastPosterAvatarPath}
-							size="xs"
+							size="sm"
 						/>
 					</span>
 				)}
@@ -282,7 +282,7 @@ function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 	return (
 		<div
-			className="relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="relative transition-colors hover:bg-basalt-accent focus-within:ring-2 focus-within:ring-basalt-primary/50 focus-within:ring-inset"
 			data-testid="forum-card"
 		>
 			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_160px] lg:grid-cols-[36px_minmax(0,1fr)_160px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
@@ -295,7 +295,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						<Link
 							href={`/forums/${forum.id}`}
 							prefetch={false}
-							className="text-sm font-bold text-foreground hover:text-primary transition-colors leading-5"
+							className="text-sm font-bold text-basalt-foreground hover:text-basalt-primary transition-colors leading-5"
 						>
 							{forum.name}
 						</Link>
@@ -304,7 +304,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					{forum.description && (
 						<SafeHtml
 							html={forum.description}
-							className="mt-1 block text-sm text-muted-foreground leading-5 line-clamp-1"
+							className="mt-1 block text-sm text-basalt-muted-foreground leading-5 line-clamp-1"
 						/>
 					)}
 					<SubForumLinks forums={forum.children} />
@@ -333,7 +333,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 							<Link
 								href={`/forums/${forum.id}`}
 								prefetch={false}
-								className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0 leading-5"
+								className="text-sm font-bold text-basalt-foreground hover:text-basalt-primary transition-colors truncate min-w-0 leading-5"
 							>
 								{forum.name}
 							</Link>
@@ -355,7 +355,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 	return (
 		<div
-			className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-basalt-accent focus-within:ring-2 focus-within:ring-basalt-primary/50 focus-within:ring-inset"
 			data-testid="forum-card"
 		>
 			<div className="mt-0.5 shrink-0">
@@ -368,14 +368,14 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						<Link
 							href={`/forums/${forum.id}`}
 							prefetch={false}
-							className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate min-w-0 leading-5"
+							className="text-sm font-bold text-basalt-foreground hover:text-basalt-primary transition-colors truncate min-w-0 leading-5"
 						>
 							{forum.name}
 						</Link>
 						<TodayThreadBadge count={forum.todayThreads} variant="plus" />
 					</div>
 					<div
-						className="ml-auto shrink-0 text-right text-xs text-muted-foreground tabular-nums leading-5 hidden sm:block"
+						className="ml-auto shrink-0 text-right text-xs text-basalt-muted-foreground tabular-nums leading-5 hidden sm:block"
 						data-testid="grid-stats-row"
 					>
 						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
@@ -391,7 +391,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				    below so wide/grid stay aligned at 2-row density. */}
 				{forum.lastPostAt > 0 && (
 					<div
-						className="mt-1 hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground leading-5"
+						className="mt-1 hidden sm:flex items-center gap-1.5 text-sm text-basalt-muted-foreground leading-5"
 						data-testid="grid-last-post-row"
 					>
 						<Link

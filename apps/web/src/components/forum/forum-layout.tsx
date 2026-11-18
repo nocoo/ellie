@@ -18,13 +18,13 @@ interface ForumLayoutShellProps {
 export function ForumLayoutShell({ headerVm, footerVm, children }: ForumLayoutShellProps) {
 	return (
 		<div
-			className="flex min-h-dvh flex-col bg-background pb-[env(safe-area-inset-bottom)]"
+			className="flex min-h-dvh flex-col bg-basalt-background pb-[env(safe-area-inset-bottom)]"
 			data-area="forum"
 		>
 			{/* Skip link for keyboard users (WCAG 2.4.1) */}
 			<a
 				href="#main-content"
-				className="sr-only focus:not-sr-only focus:fixed focus:top-[calc(env(safe-area-inset-top)+0.5rem)] focus:left-[calc(env(safe-area-inset-left)+0.5rem)] focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:ring-2 focus:ring-ring focus:ring-offset-2"
+				className="sr-only focus:not-sr-only focus:fixed focus:top-[calc(env(safe-area-inset-top)+0.5rem)] focus:left-[calc(env(safe-area-inset-left)+0.5rem)] focus:z-[100] focus:rounded-md focus:bg-basalt-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-basalt-primary-foreground focus:ring-2 focus:ring-basalt-ring focus:ring-offset-2"
 			>
 				跳转到主要内容
 			</a>

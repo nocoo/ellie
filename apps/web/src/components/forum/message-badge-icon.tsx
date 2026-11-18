@@ -5,7 +5,7 @@
 
 "use client";
 
-import { Mail } from "lucide-react";
+import { Mail } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
@@ -79,14 +79,14 @@ export function MessageBadgeIcon() {
 			<Link
 				href="/messages"
 				prefetch={false}
-				className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+				className="relative flex h-8 w-8 items-center justify-center rounded-md text-basalt-muted-foreground hover:bg-basalt-accent hover:text-basalt-foreground transition-colors"
 				aria-label="站内信"
 			>
 				<Mail className="pointer-events-none h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
 				{unreadCount > 0 && (
 					<span
 						className={cn(
-							"absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-medium leading-none",
+							"absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-basalt-destructive text-basalt-destructive-foreground text-xs font-medium leading-none",
 							unreadCount > 99 ? "h-4 min-w-5 px-1" : "h-4 w-4",
 						)}
 						data-testid="message-badge-count"

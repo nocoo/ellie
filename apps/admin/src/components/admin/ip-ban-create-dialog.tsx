@@ -10,7 +10,7 @@ import {
 	Label,
 } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
-import { Save, ShieldBan } from "lucide-react";
+import { Save, ShieldBan } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

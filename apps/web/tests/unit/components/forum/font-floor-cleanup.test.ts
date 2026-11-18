@@ -11,7 +11,7 @@ vi.mock("next/link", () => ({
 	default: ({ href, children, ...rest }: any) => createElement("a", { href, ...rest }, children),
 }));
 
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@nocoo/basalt/components/badge", () => ({
 	Badge: ({ children, className, ...rest }: any) =>
 		createElement("span", { className, ...rest }, children),
 }));

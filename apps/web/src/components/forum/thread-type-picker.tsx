@@ -8,7 +8,7 @@
 // surfaces (quick reply / mobile sheet) later.
 
 import type { ForumThreadType } from "@ellie/types";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import { cn } from "@/lib/utils";
 
 interface ThreadTypePickerProps {
@@ -39,9 +39,9 @@ export function ThreadTypePicker({
 		// biome-ignore lint/a11y/useSemanticElements: not a form control; <fieldset>/<legend> would introduce form/reset semantics we don't want. Pills already expose aria-checked for the single-select state.
 		<div className="px-5 pt-3" data-testid="thread-type-picker" role="group" aria-label="主题分类">
 			<div className="flex flex-wrap items-center gap-2">
-				<span className="text-xs text-muted-foreground">
+				<span className="text-xs text-basalt-muted-foreground">
 					分类
-					{required && <span className="ml-0.5 text-destructive">*</span>}：
+					{required && <span className="ml-0.5 text-basalt-destructive">*</span>}：
 				</span>
 				{!required && (
 					<TypePill
@@ -62,7 +62,7 @@ export function ThreadTypePicker({
 				))}
 			</div>
 			{error && (
-				<p className="mt-1.5 text-xs text-destructive" role="alert">
+				<p className="mt-1.5 text-xs text-basalt-destructive" role="alert">
 					{error}
 				</p>
 			)}
@@ -82,14 +82,14 @@ function TypePill({ label, active, disabled, onClick }: TypePillProps) {
 		<Button
 			type="button"
 			variant={active ? "default" : "outline"}
-			size="xs"
+			size="sm"
 			aria-pressed={active}
 			aria-checked={active}
 			disabled={disabled}
 			onClick={onClick}
 			className={cn(
 				"h-7 px-3 text-xs",
-				active && "bg-primary text-primary-foreground hover:bg-primary/90",
+				active && "bg-basalt-primary text-basalt-primary-foreground hover:bg-basalt-primary/90",
 			)}
 		>
 			{label}

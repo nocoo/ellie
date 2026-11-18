@@ -14,9 +14,7 @@
  * toast notifications, refresh/redirect behavior.
  */
 
-import { Ban, Loader2, Trash2, VolumeX } from "lucide-react";
-import type { ReactElement } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -24,14 +22,16 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from "@nocoo/basalt/components/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@nocoo/basalt/components/dropdown-menu";
+import { Ban, Loader2, Trash2, VolumeX } from "@nocoo/basalt/icons";
+import { DropdownMenuSeparator } from "@nocoo/basalt/primitives/dropdown-menu";
+import type { ReactElement } from "react";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -124,10 +124,10 @@ export function UserModActionDialog({
 		modAction === "nuke" ? Trash2 : modAction === "mute" || modAction === "unmute" ? VolumeX : Ban;
 	return (
 		<Dialog open onOpenChange={(open) => !open && !loading && onClose()}>
-			<DialogContent showCloseButton={false} className="sm:max-w-lg">
+			<DialogContent className="sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<ActionIcon className="h-5 w-5 text-primary" />
+						<ActionIcon className="h-5 w-5 text-basalt-primary" />
 						{config.title}
 					</DialogTitle>
 					<DialogDescription className="break-words leading-6">
@@ -139,8 +139,8 @@ export function UserModActionDialog({
 						className={cn(
 							"text-sm px-3 py-2 rounded-md",
 							message.type === "success"
-								? "bg-success/15 text-success dark:bg-success/20"
-								: "bg-destructive/15 text-destructive dark:bg-destructive/20",
+								? "bg-basalt-success/15 text-basalt-success dark:bg-basalt-success/20"
+								: "bg-basalt-destructive/15 text-basalt-destructive dark:bg-basalt-destructive/20",
 						)}
 					>
 						{message.text}
@@ -189,7 +189,7 @@ export function UserModActionDropdown({
 }: UserModActionDropdownProps) {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger render={trigger} />
+			<DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} side={side} className="min-w-[160px]">
 				{/* Mute/Unmute */}
 				{userIsMuted ? (
@@ -211,14 +211,14 @@ export function UserModActionDropdown({
 						解除封禁
 					</DropdownMenuItem>
 				) : (
-					<DropdownMenuItem variant="destructive" onClick={() => onAction("ban")}>
+					<DropdownMenuItem className="text-basalt-destructive" onClick={() => onAction("ban")}>
 						<Ban className="h-4 w-4" />
 						封禁用户
 					</DropdownMenuItem>
 				)}
 				{/* Nuke (only when not already banned) */}
 				{!userIsBanned && (
-					<DropdownMenuItem variant="destructive" onClick={() => onAction("nuke")}>
+					<DropdownMenuItem className="text-basalt-destructive" onClick={() => onAction("nuke")}>
 						<Trash2 className="h-4 w-4" />
 						封禁并删除内容
 					</DropdownMenuItem>

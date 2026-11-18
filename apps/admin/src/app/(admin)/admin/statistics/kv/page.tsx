@@ -37,7 +37,7 @@ import {
 	RefreshCw,
 	ShieldCheck,
 	Trash2,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";

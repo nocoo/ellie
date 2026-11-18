@@ -32,7 +32,7 @@ vi.mock("next/navigation", () => ({
 
 // Stub the heavy dialog primitives — happy-dom can't drive the real
 // Base-UI dialog reliably, and we only care about the form behaviour.
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@nocoo/basalt/components/dialog", () => ({
 	Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
 		open ? createElement("div", { role: "dialog" }, children) : null,
 	DialogContent: ({ children }: { children: React.ReactNode }) =>

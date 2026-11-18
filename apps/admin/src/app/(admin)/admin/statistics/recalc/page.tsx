@@ -3,7 +3,7 @@
 import { Badge, Button, LayerCard, Meter } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Clock3, Database, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
+import { Clock3, Database, MessageSquare, RefreshCw, RotateCcw, Users } from "@nocoo/basalt/icons";
 import { useCallback, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import {

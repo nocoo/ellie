@@ -84,12 +84,12 @@ vi.mock("@/components/forum/user-avatar", () => ({
 	ForumAvatar: () => createElement("div", { "data-testid": "avatar" }),
 }));
 
-vi.mock("@/components/ui/avatar", () => ({
+vi.mock("@nocoo/basalt/components/avatar", () => ({
 	Avatar: ({ children }: any) => createElement("div", null, children),
 	AvatarFallback: ({ children }: any) => createElement("span", null, children),
 }));
 
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@nocoo/basalt/components/confirm-dialog", () => ({
 	ConfirmDialog: () => null,
 }));
 

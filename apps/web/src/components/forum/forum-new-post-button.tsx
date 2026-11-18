@@ -3,9 +3,9 @@
 // components/forum/forum-new-post-button.tsx — Secondary new-thread action
 // Opens the NewThreadDialog when clicked, with write-gate preflight.
 
-import { PenLine } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { PenLine } from "@nocoo/basalt/icons";
 import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { NewThreadDialog } from "./new-thread-dialog";

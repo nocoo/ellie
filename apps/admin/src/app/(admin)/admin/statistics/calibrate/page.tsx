@@ -19,7 +19,7 @@ import {
 	MessageSquare,
 	RefreshCw,
 	SlidersHorizontal,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminMetrics } from "@/components/admin/admin-metrics";

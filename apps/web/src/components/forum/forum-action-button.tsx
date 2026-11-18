@@ -1,7 +1,7 @@
 // components/forum/forum-action-button.tsx — Shared inline action button
 // Used in post-action-bar (reply/edit/delete) and thread-mod-menu (sticky/move/etc.)
 
-import { Loader2, type LucideIcon } from "lucide-react";
+import { Loader2, type LucideIcon } from "@nocoo/basalt/icons";
 
 interface ForumActionButtonProps {
 	icon: LucideIcon;
@@ -26,10 +26,10 @@ export function ForumActionButton({
 			onClick={onClick}
 			disabled={disabled || busy}
 			aria-busy={busy || undefined}
-			className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
+			className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basalt-ring focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
 				variant === "destructive"
-					? "text-destructive/70 hover:text-destructive"
-					: "text-muted-foreground hover:bg-accent hover:text-foreground"
+					? "text-basalt-destructive/70 hover:text-basalt-destructive"
+					: "text-basalt-muted-foreground hover:bg-basalt-accent hover:text-basalt-foreground"
 			}`}
 		>
 			{busy ? (

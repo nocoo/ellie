@@ -10,10 +10,7 @@
 // thread title `<h1>`, marked `hidden sm:inline-flex` so the affordance
 // is PC-only per the reviewer design freeze (msg=a8ee78db).
 
-import { Pencil, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogClose,
@@ -22,8 +19,11 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@nocoo/basalt/components/dialog";
+import { Input } from "@nocoo/basalt/components/input";
+import { Pencil, Save } from "@nocoo/basalt/icons";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api-client";
 import { editThreadSubject } from "@/lib/moderation-api";
 import { useForumToast } from "./forum-toast";
@@ -87,10 +87,10 @@ export function ThreadTitleEditDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !submittingRef.current && onOpenChange(next)}>
-			<DialogContent className="sm:max-w-2xl" showCloseButton={!submitting}>
+			<DialogContent className="sm:max-w-2xl">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Pencil className="h-4 w-4 text-primary" />
+						<Pencil className="h-4 w-4 text-basalt-primary" />
 						编辑主题标题
 					</DialogTitle>
 					<DialogDescription>标题长度 1–{SUBJECT_MAX} 字符；保存后会立即生效。</DialogDescription>
@@ -114,7 +114,7 @@ export function ThreadTitleEditDialog({
 						}}
 						autoFocus
 					/>
-					<div className="flex items-center justify-between text-xs text-muted-foreground">
+					<div className="flex items-center justify-between text-xs text-basalt-muted-foreground">
 						<span aria-live="polite">
 							{tooLong
 								? `已超出 ${SUBJECT_MAX} 字符上限`
@@ -129,15 +129,17 @@ export function ThreadTitleEditDialog({
 						</span>
 					</div>
 					{error && (
-						<p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+						<p className="rounded-md bg-basalt-destructive/10 px-3 py-2 text-xs text-basalt-destructive">
 							{error}
 						</p>
 					)}
 				</div>
 
 				<DialogFooter>
-					<DialogClose render={<Button variant="outline" disabled={submitting} />}>
-						取消
+					<DialogClose asChild>
+						<Button variant="outline" disabled={submitting}>
+							取消
+						</Button>
 					</DialogClose>
 					<Button onClick={handleSubmit} disabled={!canSubmit}>
 						<Save className="h-4 w-4" />

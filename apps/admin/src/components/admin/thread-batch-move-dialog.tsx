@@ -26,7 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { ArrowRightLeft, FolderOpen } from "lucide-react";
+import { ArrowRightLeft, FolderOpen } from "@nocoo/basalt/icons";
 import { useEffect, useMemo, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";

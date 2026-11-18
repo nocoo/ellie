@@ -86,7 +86,7 @@ vi.mock("@/components/forum/move-dialog", () => ({
 				)
 			: null,
 }));
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@nocoo/basalt/components/confirm-dialog", () => ({
 	ConfirmDialog: ({ open, onConfirm }: any) =>
 		open
 			? createElement(

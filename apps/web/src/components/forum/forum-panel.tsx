@@ -23,7 +23,7 @@ export function ForumPanel({
 			{forums.map((forum, index) => (
 				<div
 					key={forum.id}
-					className={`min-w-0 bg-card ${index === forums.length - 1 && forums.length % 2 ? "sm:col-span-2" : ""}`}
+					className={`min-w-0 bg-basalt-card ${index === forums.length - 1 && forums.length % 2 ? "sm:col-span-2" : ""}`}
 				>
 					<ForumCard forum={forum} layout="grid" />
 				</div>

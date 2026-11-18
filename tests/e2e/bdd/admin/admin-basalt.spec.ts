@@ -23,7 +23,7 @@ test.describe("Admin Basalt integration", () => {
 		await expect(page).toHaveURL(/\/admin\/users$/);
 		await expect(users).toHaveAttribute("aria-current", "page");
 		await page.getByRole("button", { name: "展开侧栏" }).click();
-		await expect(page.getByRole("complementary")).toHaveCSS("width", "260px");
+		await expect(page.getByRole("complementary")).toHaveCSS("width", "240px");
 		expect((await logo.boundingBox())?.x).toBe(before?.x);
 	});
 

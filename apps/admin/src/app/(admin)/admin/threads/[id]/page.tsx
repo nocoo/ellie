@@ -3,7 +3,7 @@
 import { contentToText } from "@ellie/shared/content";
 import { Button, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
-import { ArrowLeft, MessagesSquare } from "lucide-react";
+import { ArrowLeft, MessagesSquare } from "@nocoo/basalt/icons";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";

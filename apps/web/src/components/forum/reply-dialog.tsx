@@ -4,11 +4,11 @@
 // Opens as a modal overlay, contains a simplified PostEditor for replies
 // MVVM: This is the View layer. State and logic are in useReplySubmit hook.
 
-import { MessageSquare, Send, XCircle } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { DialogDescription, DialogTitle } from "@nocoo/basalt/components/dialog";
+import { MessageSquare, Send, XCircle } from "@nocoo/basalt/icons";
 import { useRef, useState } from "react";
 import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
-import { Button } from "@/components/ui/button";
-import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { buildQuotedContent, useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
 import { DialogErrorBanner } from "./dialog-error-banner";
@@ -62,8 +62,8 @@ export function ReplyDialog({
 		return (
 			<EditorDialogFrame open={open} onOpenChange={handleOpenChange}>
 				<div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-						<XCircle className="h-8 w-8 text-muted-foreground" />
+					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-basalt-muted">
+						<XCircle className="h-8 w-8 text-basalt-muted-foreground" />
 					</div>
 					<div className="text-center">
 						<DialogTitle className="mb-2 text-lg">回复功能已暂时关闭</DialogTitle>
@@ -88,7 +88,7 @@ export function ReplyDialog({
 			header={
 				<>
 					<DialogHeroHeader
-						icon={<MessageSquare className="h-5 w-5 text-primary" />}
+						icon={<MessageSquare className="h-5 w-5 text-basalt-primary" />}
 						title="回复主题"
 						description={`回复：${threadSubject}`}
 						onClose={() => handleOpenChange(false)}
@@ -99,9 +99,11 @@ export function ReplyDialog({
 
 					{/* Quote preview */}
 					{quotedContent && quotedAuthor && (
-						<div className="mx-5 mt-4 rounded-lg border border-border/60 bg-muted/30 p-3">
-							<p className="text-xs text-muted-foreground mb-1">引用 {quotedAuthor} 的内容：</p>
-							<p className="text-sm text-foreground/80 line-clamp-2">{quotedContent}</p>
+						<div className="mx-5 mt-4 rounded-lg border border-basalt-border/60 bg-basalt-muted/30 p-3">
+							<p className="text-xs text-basalt-muted-foreground mb-1">
+								引用 {quotedAuthor} 的内容：
+							</p>
+							<p className="text-sm text-basalt-foreground/80 line-clamp-2">{quotedContent}</p>
 						</div>
 					)}
 				</>

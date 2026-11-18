@@ -29,7 +29,7 @@
 //   so a deep link is always informational rather than a surprise
 //   redirect.
 
-import { MailCheck } from "lucide-react";
+import { MailCheck } from "@nocoo/basalt/icons";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";

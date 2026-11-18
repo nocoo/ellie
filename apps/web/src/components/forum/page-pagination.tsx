@@ -1,9 +1,9 @@
 // components/forum/page-pagination.tsx — Discuz classic page-number pagination
 // Server component with Link-based page buttons + client JumpToPage island
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { ChevronLeft, ChevronRight } from "@nocoo/basalt/icons";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import { generatePageNumbers } from "@/viewmodels/shared/pagination";
 import { JumpToPage } from "./jump-to-page";
@@ -62,16 +62,13 @@ export function PagePagination({
 			<div className="flex flex-wrap items-center gap-1">
 				{/* Prev */}
 				{page > 1 ? (
-					<Button
-						variant="outline"
-						size="icon-xs"
-						nativeButton={false}
-						render={<Link href={href(page - 1)} prefetch={false} />}
-					>
-						<ChevronLeft />
+					<Button asChild variant="outline" size="icon-sm">
+						<Link href={href(page - 1)} prefetch={false}>
+							<ChevronLeft />
+						</Link>
 					</Button>
 				) : (
-					<Button variant="outline" size="icon-xs" disabled>
+					<Button variant="outline" size="icon-sm" disabled>
 						<ChevronLeft />
 					</Button>
 				)}
@@ -81,44 +78,39 @@ export function PagePagination({
 					item === "ellipsis" ? (
 						<span
 							key={`ellipsis-${items[i - 1]}`}
-							className="px-1 text-xs text-muted-foreground select-none"
+							className="px-1 text-xs text-basalt-muted-foreground select-none"
 						>
 							...
 						</span>
-					) : (
-						<Button
-							key={item}
-							variant={item === page ? "default" : "outline"}
-							size="xs"
-							className={item === page ? "bg-primary text-primary-foreground" : undefined}
-							{...(item === page
-								? { nativeButton: true, disabled: true }
-								: { nativeButton: false, render: <Link href={href(item)} prefetch={false} /> })}
-						>
+					) : item === page ? (
+						<Button key={item} size="sm" disabled>
 							{item}
+						</Button>
+					) : (
+						<Button key={item} asChild variant="outline" size="sm">
+							<Link href={href(item)} prefetch={false}>
+								{item}
+							</Link>
 						</Button>
 					),
 				)}
 
 				{/* Next */}
 				{page < pages ? (
-					<Button
-						variant="outline"
-						size="icon-xs"
-						nativeButton={false}
-						render={<Link href={href(page + 1)} prefetch={false} />}
-					>
-						<ChevronRight />
+					<Button asChild variant="outline" size="icon-sm">
+						<Link href={href(page + 1)} prefetch={false}>
+							<ChevronRight />
+						</Link>
 					</Button>
 				) : (
-					<Button variant="outline" size="icon-xs" disabled>
+					<Button variant="outline" size="icon-sm" disabled>
 						<ChevronRight />
 					</Button>
 				)}
 			</div>
 
 			<div className="flex items-center gap-3">
-				<span className="text-xs text-muted-foreground">
+				<span className="text-xs text-basalt-muted-foreground">
 					{showPageInfo && (
 						<>
 							第 {page} / {pages} 页 ·{" "}

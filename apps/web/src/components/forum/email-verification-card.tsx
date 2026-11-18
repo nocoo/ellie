@@ -10,15 +10,15 @@
 // file is the wire-up: render the right stack for the user's mode, drive the
 // reducer with form events, fetch the proxy routes, and forward Cap callbacks.
 
-import { CircleCheck, Mail, MailCheck } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { Label } from "@nocoo/basalt/components/label";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
+import { CircleCheck, Mail, MailCheck } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { CapWidget } from "@/components/cap-widget";
 import { useForumToast } from "@/components/forum/forum-toast";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api-client";
 import {
 	correctPendingEmailAddress,
@@ -76,25 +76,25 @@ export function EmailVerificationCard({
 	// ── Verified branch ──────────────────────────────────────────────────────
 	if (mode.kind === "verified") {
 		return (
-			<Card className="h-full rounded-2xl">
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2">
-						<MailCheck className="size-4 text-primary" aria-hidden="true" />
+			<LayerCard padding="none" className="h-full rounded-2xl">
+				<LayerCard.Header>
+					<h2 className="flex items-center gap-2">
+						<MailCheck className="size-4 text-basalt-primary" aria-hidden="true" />
 						邮箱验证
-					</CardTitle>
-				</CardHeader>
-				<CardContent className="flex flex-1 flex-col justify-center px-4">
-					<div className="flex flex-wrap items-center gap-3 rounded-xl border border-success/20 bg-success/5 p-4 text-sm">
-						<span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-success/15 px-2 py-1 text-success text-xs dark:bg-success/20">
+					</h2>
+				</LayerCard.Header>
+				<LayerCard.Body className="flex flex-1 flex-col justify-center px-4">
+					<div className="flex flex-wrap items-center gap-3 rounded-xl border border-basalt-success/20 bg-basalt-success/5 p-4 text-sm">
+						<span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-basalt-success/15 px-2 py-1 text-basalt-success text-xs dark:bg-basalt-success/20">
 							<CircleCheck className="size-3.5" aria-hidden="true" />
 							已验证
 						</span>
-						<span className="break-all text-foreground">
+						<span className="break-all text-basalt-foreground">
 							{mode.email !== "" ? mode.email : "已验证邮箱（系统未保留地址）"}
 						</span>
 					</div>
-				</CardContent>
-			</Card>
+				</LayerCard.Body>
+			</LayerCard>
 		);
 	}
 
@@ -376,18 +376,18 @@ function EmailVerificationForm({
 	const codeExpired = showCodeInput && codeExpiryLeft === 0;
 
 	return (
-		<Card className="h-full rounded-2xl">
-			<CardHeader>
-				<CardTitle className="flex items-center gap-2">
-					<Mail className="size-4 text-primary" aria-hidden="true" />
+		<LayerCard padding="none" className="h-full rounded-2xl">
+			<LayerCard.Header>
+				<h2 className="flex items-center gap-2">
+					<Mail className="size-4 text-basalt-primary" aria-hidden="true" />
 					{isUnbound ? "绑定并验证邮箱" : "验证邮箱"}
-				</CardTitle>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-4 px-4 [&_input]:h-10">
+				</h2>
+			</LayerCard.Header>
+			<LayerCard.Body className="flex flex-col gap-4 px-4 [&_input]:h-10">
 				{isConfigError && (
 					<div
 						role="alert"
-						className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive text-sm"
+						className="rounded-md border border-basalt-destructive/40 bg-basalt-destructive/5 p-3 text-basalt-destructive text-sm"
 					>
 						{configErrorReason}
 					</div>
@@ -428,7 +428,7 @@ function EmailVerificationForm({
 									placeholder="you@example.com"
 								/>
 								{correctionError && (
-									<div role="alert" className="text-destructive">
+									<div role="alert" className="text-basalt-destructive">
 										{correctionError}
 									</div>
 								)}
@@ -500,9 +500,9 @@ function EmailVerificationForm({
 							disabled={isBusy || isConfigError || codeExpired}
 							placeholder="6 位数字"
 						/>
-						<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+						<div className="flex flex-wrap items-center gap-3 text-xs text-basalt-muted-foreground">
 							{codeExpired ? (
-								<span className="text-destructive">验证码已过期，请重新发送</span>
+								<span className="text-basalt-destructive">验证码已过期，请重新发送</span>
 							) : (
 								<span>有效期剩余 {formatCountdown(codeExpiryLeft)}</span>
 							)}
@@ -513,7 +513,7 @@ function EmailVerificationForm({
 						{resendCooldownLeft === 0 && !isBusy && (
 							<button
 								type="button"
-								className="self-start text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+								className="self-start text-xs text-basalt-muted-foreground underline underline-offset-2 hover:text-basalt-foreground"
 								onClick={handleChangeEmail}
 							>
 								没收到？修改邮箱
@@ -523,13 +523,13 @@ function EmailVerificationForm({
 				)}
 
 				{inlineError && (
-					<div role="alert" className="text-destructive text-sm">
+					<div role="alert" className="text-basalt-destructive text-sm">
 						{inlineError}
 					</div>
 				)}
 
 				{isVerified ? (
-					<output className="flex items-center gap-2 rounded-md bg-success/10 p-3 text-sm text-success">
+					<output className="flex items-center gap-2 rounded-md bg-basalt-success/10 p-3 text-sm text-basalt-success">
 						<CircleCheck className="size-4" aria-hidden="true" />
 						<span>邮箱验证成功</span>
 					</output>
@@ -561,7 +561,7 @@ function EmailVerificationForm({
 						)}
 					</div>
 				)}
-			</CardContent>
-		</Card>
+			</LayerCard.Body>
+		</LayerCard>
 	);
 }

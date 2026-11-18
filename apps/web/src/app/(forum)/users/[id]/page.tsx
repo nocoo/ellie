@@ -1,6 +1,7 @@
 // Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
-import { Award, Coins, MessageCircle, MessageSquare, Sparkles } from "lucide-react";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
+import { Award, Coins, MessageCircle, MessageSquare, Sparkles } from "@nocoo/basalt/icons";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
@@ -10,7 +11,6 @@ import { UserInfoCard } from "@/components/forum/user-info-card";
 import { UserPostsTab } from "@/components/forum/user-posts-tab";
 import { UserThreadsTab } from "@/components/forum/user-threads-tab";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { getUserTitle } from "@/viewmodels/forum/title.server";
@@ -43,18 +43,18 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 
 	if (userId == null) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">无效的用户 ID</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">无效的用户 ID</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -75,18 +75,18 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 
 	if (error || !data) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">{error ?? "用户不存在"}</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">{error ?? "用户不存在"}</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -128,15 +128,15 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			{/* Hero: avatar + identity + edit button */}
 			<ProfileHero user={data.user} />
 
-			<div className="grid grid-cols-5 divide-x divide-border overflow-hidden rounded-2xl border border-border bg-card">
+			<div className="grid grid-cols-5 divide-x divide-border overflow-hidden rounded-2xl border border-basalt-border bg-basalt-card">
 				{stats.map(({ label, value, icon: Icon, href }) => {
 					const content = (
 						<>
-							<Icon className="size-4 text-primary" aria-hidden="true" />
-							<span className="text-lg font-semibold tabular-nums text-foreground sm:text-xl">
+							<Icon className="size-4 text-basalt-primary" aria-hidden="true" />
+							<span className="text-lg font-semibold tabular-nums text-basalt-foreground sm:text-xl">
 								{formatCompactNumber(value)}
 							</span>
-							<span className="text-xs text-muted-foreground">{label}</span>
+							<span className="text-xs text-basalt-muted-foreground">{label}</span>
 						</>
 					);
 					const className = "flex min-w-0 flex-col items-center gap-1.5 px-1 py-4";
@@ -145,7 +145,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 							prefetch={false}
 							key={label}
 							href={href}
-							className={`${className} transition-colors hover:bg-accent`}
+							className={`${className} transition-colors hover:bg-basalt-accent`}
 						>
 							{content}
 						</Link>
@@ -161,9 +161,9 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			<UserInfoCard user={data.user} />
 
 			{/* Tabs + content */}
-			<Card className="rounded-2xl">
+			<LayerCard padding="none" className="rounded-2xl">
 				{/* Tabs (Link-based for RSC) */}
-				<CardHeader className="border-b">
+				<div className="border-b">
 					<nav aria-label="用户内容分类" className="flex flex-wrap items-center gap-1">
 						{PROFILE_TABS.map((t) => {
 							const active = data.tab === t.key;
@@ -175,7 +175,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 							return active ? (
 								<span
 									key={t.key}
-									className="inline-flex h-9 items-center rounded-lg bg-primary/10 px-3 text-sm font-semibold text-primary"
+									className="inline-flex h-9 items-center rounded-lg bg-basalt-primary/10 px-3 text-sm font-semibold text-basalt-primary"
 									aria-current="page"
 									data-testid="user-profile-tab-active"
 								>
@@ -186,21 +186,21 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 									prefetch={false}
 									key={t.key}
 									href={`/users/${userId}?tab=${t.key}`}
-									className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+									className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-basalt-muted-foreground hover:bg-basalt-muted hover:text-basalt-foreground transition-colors"
 									data-testid="user-profile-tab-inactive"
 								>
 									{label}
 								</Link>
 							);
 						})}
-						<span className="ml-auto text-xs text-muted-foreground tabular-nums">
+						<span className="ml-auto text-xs text-basalt-muted-foreground tabular-nums">
 							共 {activeData.total} 条
 						</span>
 					</nav>
-				</CardHeader>
+				</div>
 
 				{/* Tab content */}
-				<CardContent>
+				<div>
 					{data.tab === "threads" ? (
 						<UserThreadsTab threads={data.threads} forumsById={data.forumsById} />
 					) : data.tab === "posts" ? (
@@ -227,8 +227,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								: null
 						}
 					/>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		</div>
 	);
 }

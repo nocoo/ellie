@@ -3,13 +3,19 @@
 
 "use client";
 
-import { Check, ChevronsUpDown, Search, X } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@nocoo/basalt/components/popover";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { Check, ChevronsUpDown, Search, X } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, type SelectOption } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { DigestFilterForum } from "@/viewmodels/forum/digest.server";
 
@@ -35,7 +41,7 @@ export function DigestFiltersClient({
 	const [forumSearch, setForumSearch] = useState("");
 
 	// Build year options for select
-	const yearOptions: SelectOption[] = useMemo(
+	const yearOptions = useMemo(
 		() => [
 			{ value: "all", label: "全部年份" },
 			...years.map((year) => ({ value: String(year), label: `${year} 年` })),
@@ -67,8 +73,7 @@ export function DigestFiltersClient({
 		return qs ? `/digest?${qs}` : "/digest";
 	};
 
-	const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-		const value = e.target.value;
+	const handleYearChange = (value: string) => {
 		if (value === "all") {
 			router.push(buildFilterUrl({ year: null }));
 		} else {
@@ -96,27 +101,44 @@ export function DigestFiltersClient({
 	const hasActiveFilters = currentYear || currentForumId;
 
 	return (
-		<div className="flex flex-wrap items-center gap-2 mb-4 rounded-xl border border-border bg-muted/20 p-3">
+		<div className="flex flex-wrap items-center gap-2 mb-4 rounded-xl border border-basalt-border bg-basalt-muted/20 p-3">
 			{/* Year filter */}
 			<div className="w-[120px]">
-				<Select
-					aria-label="精华年份"
-					options={yearOptions}
-					value={currentYear ? String(currentYear) : "all"}
-					onChange={handleYearChange}
-					className="text-xs"
-				/>
+				<Select value={currentYear ? String(currentYear) : "all"} onValueChange={handleYearChange}>
+					<select
+						id="digest-year"
+						className="sr-only"
+						value={currentYear ? String(currentYear) : "all"}
+						onChange={(event) => handleYearChange(event.target.value)}
+					>
+						{yearOptions.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					<SelectTrigger aria-label="打开精华年份选项" size="sm" className="w-full text-xs">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{yearOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			{/* Forum filter with search */}
 			<Popover open={forumOpen} onOpenChange={setForumOpen}>
 				<PopoverTrigger
 					className={cn(
-						"inline-flex items-center justify-between gap-1 h-8 px-2.5 text-xs rounded-lg border border-input bg-transparent transition-colors",
-						"hover:bg-accent hover:text-accent-foreground",
-						"focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none",
+						"inline-flex items-center justify-between gap-1 h-8 px-2.5 text-xs rounded-lg border border-basalt-input bg-transparent transition-colors",
+						"hover:bg-basalt-accent hover:text-basalt-accent-foreground",
+						"focus-visible:border-basalt-ring focus-visible:ring-3 focus-visible:ring-basalt-ring/50 outline-none",
 						"min-w-[140px] max-w-[200px]",
-						!currentForumId && "text-muted-foreground",
+						!currentForumId && "text-basalt-muted-foreground",
 					)}
 				>
 					<span className="truncate">{currentForumName || "选择版块"}</span>
@@ -125,7 +147,7 @@ export function DigestFiltersClient({
 				<PopoverContent align="start" className="w-[260px] p-2">
 					{/* Search input */}
 					<div className="relative mb-2">
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-basalt-muted-foreground" />
 						<Input
 							type="text"
 							placeholder="搜索版块..."
@@ -140,7 +162,9 @@ export function DigestFiltersClient({
 					{/* Forum list */}
 					<div className="max-h-[240px] overflow-y-auto">
 						{filteredForums.length === 0 ? (
-							<div className="py-4 text-center text-xs text-muted-foreground">未找到版块</div>
+							<div className="py-4 text-center text-xs text-basalt-muted-foreground">
+								未找到版块
+							</div>
 						) : (
 							<div className="space-y-0.5">
 								{filteredForums.map((forum) => (
@@ -150,8 +174,8 @@ export function DigestFiltersClient({
 										onClick={() => handleForumSelect(forum.id)}
 										className={cn(
 											"flex items-center w-full px-2 py-1.5 text-xs rounded-md transition-colors",
-											"hover:bg-accent hover:text-accent-foreground",
-											currentForumId === forum.id && "bg-accent",
+											"hover:bg-basalt-accent hover:text-basalt-accent-foreground",
+											currentForumId === forum.id && "bg-basalt-accent",
 										)}
 									>
 										<Check
@@ -161,7 +185,7 @@ export function DigestFiltersClient({
 											)}
 										/>
 										<span className="truncate flex-1 text-left">{forum.name}</span>
-										<span className="text-muted-foreground ml-1">({forum.digestCount})</span>
+										<span className="text-basalt-muted-foreground ml-1">({forum.digestCount})</span>
 									</button>
 								))}
 							</div>
@@ -175,7 +199,7 @@ export function DigestFiltersClient({
 				<Button
 					variant="ghost"
 					size="sm"
-					className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+					className="h-8 px-2 text-xs text-basalt-muted-foreground hover:text-basalt-foreground"
 					onClick={handleClearAll}
 				>
 					<X className="h-3 w-3 mr-1" />
@@ -185,26 +209,26 @@ export function DigestFiltersClient({
 
 			{/* Active filter badges */}
 			{currentYear && (
-				<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+				<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-basalt-primary/10 text-basalt-primary text-xs rounded-full">
 					{currentYear} 年
 					<button
 						type="button"
 						aria-label="清除年份筛选"
 						onClick={() => router.push(buildFilterUrl({ year: null }))}
-						className="hover:bg-primary/20 rounded-full p-0.5"
+						className="hover:bg-basalt-primary/20 rounded-full p-0.5"
 					>
 						<X className="h-3 w-3" />
 					</button>
 				</span>
 			)}
 			{currentForumName && (
-				<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+				<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-basalt-primary/10 text-basalt-primary text-xs rounded-full">
 					{currentForumName}
 					<button
 						type="button"
 						aria-label="清除版块筛选"
 						onClick={handleClearForum}
-						className="hover:bg-primary/20 rounded-full p-0.5"
+						className="hover:bg-basalt-primary/20 rounded-full p-0.5"
 					>
 						<X className="h-3 w-3" />
 					</button>

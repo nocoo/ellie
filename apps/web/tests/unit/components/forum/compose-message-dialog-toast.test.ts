@@ -1,5 +1,17 @@
 // @vitest-environment happy-dom
 // Tests for ComposeMessageDialog toast integration
+
+vi.mock("@nocoo/basalt/components/dialog", () => ({
+	Dialog: ({ children }: any) => createElement("div", null, children),
+	DialogClose: ({ children }: any) => children,
+	DialogContent: ({ children, ...props }: any) => createElement("div", props, children),
+	DialogDescription: ({ children }: any) => createElement("p", null, children),
+	DialogFooter: ({ children }: any) => createElement("div", null, children),
+	DialogHeader: ({ children }: any) => createElement("div", null, children),
+	DialogTitle: ({ children }: any) => createElement("h2", null, children),
+	DialogTrigger: ({ children }: any) => children,
+}));
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

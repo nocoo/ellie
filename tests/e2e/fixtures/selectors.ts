@@ -49,7 +49,7 @@ export const FORUM = {
 
 export const THREAD = {
 	/** Post card container */
-	postCard: '[data-testid="post-card"], .bg-card',
+	postCard: '[data-testid="post-card"], .bg-basalt-card',
 	/** Reply button (floating actions) */
 	replyButton: 'button:has-text("回复")',
 	/** Post content area */

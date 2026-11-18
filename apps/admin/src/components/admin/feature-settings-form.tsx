@@ -2,7 +2,7 @@
 
 import { Badge, Button, Input, Label, LayerCard, Switch } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@nocoo/basalt/icons";
 import {
 	ListOrdered,
 	MessagesSquare,
@@ -11,7 +11,7 @@ import {
 	ShieldCheck,
 	SlidersHorizontal,
 	Users,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { twMerge as cn } from "tailwind-merge";

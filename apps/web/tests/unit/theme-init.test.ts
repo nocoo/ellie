@@ -16,7 +16,7 @@ function browserContext(root: { classList: { toggle: ReturnType<typeof vi.fn> } 
 			querySelectorAll: () => colors.map((meta) => ({ setAttribute: meta.set.bind(meta) })),
 			querySelector: () => ({ setAttribute: status.set.bind(status) }),
 		},
-		getComputedStyle: () => ({ getPropertyValue: () => (isDark() ? "218 21% 12%" : "0 0% 100%") }),
+		getComputedStyle: () => ({ getPropertyValue: () => (isDark() ? "0 0% 10.6%" : "0 0% 97%") }),
 	};
 }
 
@@ -40,7 +40,7 @@ describe("first-paint appearance", () => {
 		expect(root.style).toEqual({ colorScheme: expectedDark ? "dark" : "light" });
 		expect(root.dataset).toEqual({ widthMode: "full" });
 		for (const color of browser.colors) {
-			expect(color.get("content")).toBe(expectedDark ? "hsl(218 21% 12%)" : "hsl(0 0% 100%)");
+			expect(color.get("content")).toBe(expectedDark ? "hsl(0 0% 10.6%)" : "hsl(0 0% 97%)");
 		}
 		expect(browser.status.get("content")).toBe(expectedDark ? "black-translucent" : "default");
 	});
@@ -71,13 +71,12 @@ describe("first-paint appearance", () => {
 		expect(root.dataset).toEqual({});
 	});
 
-	it("keeps viewport fallback colors aligned with the header surface tokens", () => {
+	it("keeps viewport fallback colors aligned with Basalt surfaces", () => {
 		const css = readFileSync(new URL("../../src/app/tailwind.css", import.meta.url), "utf8");
 		const layout = readFileSync(new URL("../../src/app/layout.tsx", import.meta.url), "utf8");
-		for (const token of ["0 0% 100%", "218 21% 12%"]) {
-			expect(css).toContain(`--card: ${token};`);
-			expect(layout).toContain(`color: "hsl(${token})"`);
-		}
+		expect(css).toContain('@import "@nocoo/basalt/styles"');
+		expect(layout).toContain('color: "#f7f7f7"');
+		expect(layout).toContain('color: "#1b1b1b"');
 		expect(layout).toContain('viewportFit: "cover"');
 	});
 });

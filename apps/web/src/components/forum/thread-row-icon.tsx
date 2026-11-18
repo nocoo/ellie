@@ -1,4 +1,4 @@
-import { CircleDollarSign, Pin } from "lucide-react";
+import { CircleDollarSign, Pin } from "@nocoo/basalt/icons";
 
 import Image from "next/image";
 
@@ -70,7 +70,7 @@ export function ThreadRowIcon({
 		<Icon
 			role="img"
 			aria-label={label}
-			className={`size-4 shrink-0 text-primary/70 ${extraClass}`}
+			className={`size-4 shrink-0 text-basalt-primary/70 ${extraClass}`}
 		/>
 	);
 }

@@ -3,7 +3,9 @@
 
 "use client";
 
-import { CheckCheck, Inbox, Loader2, Mail, PenLine, Send, Trash2 } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { ConfirmDialog } from "@nocoo/basalt/components/confirm-dialog";
+import { CheckCheck, Inbox, Loader2, Mail, PenLine, Send, Trash2 } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,8 +13,6 @@ import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
-import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { MessageListItem, SidebarItem } from "@/viewmodels/forum/messages";
 import {
@@ -100,7 +100,10 @@ function MessagesHeader({
 	unreadCount: number;
 }) {
 	return (
-		<nav aria-label="站内信分类" className="flex items-center gap-2 border-b border-border p-3">
+		<nav
+			aria-label="站内信分类"
+			className="flex items-center gap-2 border-b border-basalt-border p-3"
+		>
 			{SIDEBAR_ITEMS.map((item) => {
 				const Icon = SIDEBAR_ICONS[item.icon];
 				return (
@@ -113,7 +116,7 @@ function MessagesHeader({
 						<Icon className="size-4" aria-hidden="true" />
 						{item.label}
 						{item.value === "inbox" && unreadCount > 0 && (
-							<span className="rounded-md bg-primary/10 px-1.5 text-xs font-semibold text-primary tabular-nums">
+							<span className="rounded-md bg-basalt-primary/10 px-1.5 text-xs font-semibold text-basalt-primary tabular-nums">
 								{unreadCount}
 							</span>
 						)}
@@ -162,8 +165,8 @@ function MessageRow({
 	return (
 		<div
 			className={cn(
-				"group flex min-w-0 gap-3 border-b border-border/60 px-4 py-4 last:border-b-0 transition-colors hover:bg-accent/50",
-				!message.isRead && isInbox && "bg-primary/[0.03]",
+				"group flex min-w-0 gap-3 border-b border-basalt-border/60 px-4 py-4 last:border-b-0 transition-colors hover:bg-basalt-accent/50",
+				!message.isRead && isInbox && "bg-basalt-primary/[0.03]",
 			)}
 		>
 			{peerId > 0 ? (
@@ -174,13 +177,13 @@ function MessageRow({
 				<ForumAvatar userId={0} userName={peerName || "未知用户"} avatarPath="" size="md" />
 			)}
 			<div className="min-w-0 flex-1">
-				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+				<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-basalt-muted-foreground">
 					{!isInbox && <span>发送给</span>}
 					{peerId > 0 ? (
 						<Link
 							href={`/users/${peerId}`}
 							prefetch={false}
-							className="max-w-40 truncate font-medium text-foreground hover:text-primary"
+							className="max-w-40 truncate font-medium text-basalt-foreground hover:text-basalt-primary"
 						>
 							{peerName}
 						</Link>
@@ -201,13 +204,13 @@ function MessageRow({
 				>
 					<span
 						className={cn(
-							"block break-words line-clamp-2 text-sm text-foreground",
+							"block break-words line-clamp-2 text-sm text-basalt-foreground",
 							!message.isRead && isInbox ? "font-semibold" : "font-medium",
 						)}
 					>
 						{message.subject || "无主题"}
 					</span>
-					<span className="block break-words line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+					<span className="block break-words line-clamp-2 text-sm leading-relaxed text-basalt-muted-foreground">
 						{message.preview}
 					</span>
 				</Link>
@@ -215,7 +218,7 @@ function MessageRow({
 					<span
 						className={cn(
 							"inline-flex items-center gap-1.5",
-							!message.isRead && isInbox ? "text-primary" : "text-muted-foreground",
+							!message.isRead && isInbox ? "text-basalt-primary" : "text-basalt-muted-foreground",
 						)}
 					>
 						{message.isRead ? (
@@ -228,7 +231,7 @@ function MessageRow({
 					<Link
 						href={`/messages/${message.id}`}
 						prefetch={false}
-						className="text-primary hover:underline"
+						className="text-basalt-primary hover:underline"
 					>
 						查看
 					</Link>
@@ -237,7 +240,7 @@ function MessageRow({
 			<Button
 				variant="ghost"
 				size="icon"
-				className="shrink-0 self-center text-muted-foreground hover:text-destructive"
+				className="shrink-0 self-center text-basalt-muted-foreground hover:text-basalt-destructive"
 				onClick={() => onDelete(message.id)}
 				title="删除"
 				aria-label="删除站内信"
@@ -273,7 +276,7 @@ function MessageList({
 }) {
 	if (isLoading && messages.length === 0) {
 		return (
-			<div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+			<div className="flex items-center justify-center gap-2 py-16 text-sm text-basalt-muted-foreground">
 				<Loader2 className="size-4 animate-spin" aria-hidden="true" />
 				加载中...
 			</div>
@@ -282,8 +285,8 @@ function MessageList({
 
 	if (messages.length === 0) {
 		return (
-			<div className="flex flex-col items-center gap-3 py-16 text-center text-sm text-muted-foreground">
-				<Inbox className="size-8 text-primary/60" aria-hidden="true" />
+			<div className="flex flex-col items-center gap-3 py-16 text-center text-sm text-basalt-muted-foreground">
+				<Inbox className="size-8 text-basalt-primary/60" aria-hidden="true" />
 				{box === "inbox" ? "收信箱为空" : "发信箱为空"}
 			</div>
 		);
@@ -529,7 +532,7 @@ export function MessagesPageClient({
 				isComposing={isComposing}
 			/>
 
-			<div className="overflow-hidden rounded-2xl border border-border bg-card">
+			<div className="overflow-hidden rounded-2xl border border-basalt-border bg-basalt-card">
 				<MessagesHeader
 					activeBox={activeBox}
 					onBoxChange={handleBoxChange}
@@ -538,7 +541,7 @@ export function MessagesPageClient({
 				{error && (
 					<div
 						role="alert"
-						className="m-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+						className="m-4 flex flex-wrap items-center gap-3 rounded-xl border border-basalt-destructive/30 bg-basalt-destructive/5 p-3 text-sm text-basalt-destructive"
 					>
 						<span className="flex-1">{error}</span>
 						<Button
@@ -564,7 +567,7 @@ export function MessagesPageClient({
 					/>
 				) : null}
 				{!isLoading && !error && messages.length > 0 && (
-					<div className="border-t border-border px-4 py-3 text-xs text-muted-foreground tabular-nums">
+					<div className="border-t border-basalt-border px-4 py-3 text-xs text-basalt-muted-foreground tabular-nums">
 						已加载 {messages.length} 封站内信
 					</div>
 				)}
@@ -577,7 +580,8 @@ export function MessagesPageClient({
 				}}
 				title="删除站内信"
 				description="确定要删除这条站内信吗？删除后将从你的信箱中移除。"
-				confirmText="确认删除"
+				confirmLabel="确认删除"
+				cancelLabel="取消"
 				variant="destructive"
 				loading={isDeleting}
 				onConfirm={handleDelete}

@@ -2,7 +2,7 @@
 
 import { Button, LayerCard } from "@nocoo/basalt";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Link2, RotateCcw, Save } from "lucide-react";
+import { Link2, RotateCcw, Save } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

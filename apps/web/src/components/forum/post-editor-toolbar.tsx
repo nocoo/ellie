@@ -1,6 +1,19 @@
 "use client";
 
-import { type Editor, useEditorState } from "@tiptap/react";
+import { Button } from "@nocoo/basalt/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+} from "@nocoo/basalt/components/dropdown-menu";
+import { Input } from "@nocoo/basalt/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@nocoo/basalt/components/popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@nocoo/basalt/components/tooltip";
 import {
 	Bold,
 	ChevronDown,
@@ -21,20 +34,14 @@ import {
 	Strikethrough,
 	Underline,
 	Undo2,
-} from "lucide-react";
-import { type FormEvent, type ReactNode, useCallback, useId, useState } from "react";
-import { UnifiedEmojiPicker } from "@/components/forum/unified-emoji-picker";
-import { Button } from "@/components/ui/button";
+} from "@nocoo/basalt/icons";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+} from "@nocoo/basalt/primitives/dropdown-menu";
+import { type Editor, useEditorState } from "@tiptap/react";
+import { type FormEvent, type ReactNode, useCallback, useId, useState } from "react";
+import { UnifiedEmojiPicker } from "@/components/forum/unified-emoji-picker";
 import { cn } from "@/lib/utils";
 import { emojiTokenToInsertion } from "@/viewmodels/forum/post-editor";
 import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
@@ -56,22 +63,20 @@ function Tool({
 }) {
 	return (
 		<Tooltip>
-			<TooltipTrigger
-				render={
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						onClick={onClick}
-						aria-label={title}
-						aria-pressed={active}
-						disabled={disabled}
-						className={cn("composer-tool", active && "bg-primary/10 text-primary")}
-					>
-						{children}
-					</Button>
-				}
-			/>
+			<TooltipTrigger asChild>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					onClick={onClick}
+					aria-label={title}
+					aria-pressed={active}
+					disabled={disabled}
+					className={cn("composer-tool", active && "bg-basalt-primary/10 text-basalt-primary")}
+				>
+					{children}
+				</Button>
+			</TooltipTrigger>
 			<TooltipContent className="flex items-center gap-3">
 				{title}
 				{shortcut && <span className="opacity-65">{shortcut}</span>}
@@ -148,30 +153,29 @@ function LinkPopover({ editor, disabled }: { editor: Editor; disabled: boolean }
 	return (
 		<Popover open={open && !disabled} onOpenChange={handleOpenChange}>
 			<Tooltip>
-				<TooltipTrigger
-					render={
-						<PopoverTrigger
-							render={
-								<Button
-									type="button"
-									aria-label="插入链接"
-									disabled={disabled}
-									variant="ghost"
-									size="icon-sm"
-									aria-pressed={isLinkActive}
-									className={cn("composer-tool", isLinkActive && "bg-primary/10 text-primary")}
-								>
-									<LinkIcon className="h-4 w-4" />
-								</Button>
-							}
-						/>
-					}
-				/>
+				<TooltipTrigger asChild>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							aria-label="插入链接"
+							disabled={disabled}
+							variant="ghost"
+							size="icon-sm"
+							aria-pressed={isLinkActive}
+							className={cn(
+								"composer-tool",
+								isLinkActive && "bg-basalt-primary/10 text-basalt-primary",
+							)}
+						>
+							<LinkIcon className="h-4 w-4" />
+						</Button>
+					</PopoverTrigger>
+				</TooltipTrigger>
 				<TooltipContent>插入链接</TooltipContent>
 			</Tooltip>
 			<PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">
 				<form onSubmit={handleSubmit} className="flex flex-col gap-2">
-					<label className="text-xs text-muted-foreground" htmlFor={`${id}-url`}>
+					<label className="text-xs text-basalt-muted-foreground" htmlFor={`${id}-url`}>
 						链接地址
 					</label>
 					<Input
@@ -185,7 +189,7 @@ function LinkPopover({ editor, disabled }: { editor: Editor; disabled: boolean }
 						}}
 						autoFocus
 					/>
-					<label className="text-xs text-muted-foreground" htmlFor={`${id}-text`}>
+					<label className="text-xs text-basalt-muted-foreground" htmlFor={`${id}-text`}>
 						显示文字（可选，未选中文本时使用）
 					</label>
 					<Input
@@ -196,7 +200,7 @@ function LinkPopover({ editor, disabled }: { editor: Editor; disabled: boolean }
 						onChange={(e) => setText(e.target.value)}
 					/>
 					{error && (
-						<p role="alert" className="text-xs text-destructive">
+						<p role="alert" className="text-xs text-basalt-destructive">
 							{error}
 						</p>
 					)}
@@ -256,33 +260,31 @@ export function PostEditorToolbar({
 		}),
 	});
 	return (
-		<TooltipProvider delay={350}>
+		<TooltipProvider delayDuration={350}>
 			<fieldset
 				disabled={disabled}
-				className="flex min-w-0 flex-wrap items-center gap-0.5 border-b border-border bg-muted/25 p-1.5 sm:px-2"
+				className="flex min-w-0 flex-wrap items-center gap-0.5 border-b border-basalt-border bg-basalt-muted/25 p-1.5 sm:px-2"
 			>
 				<legend className="sr-only">文本格式</legend>
 				<DropdownMenu>
-					<DropdownMenuTrigger
-						disabled={disabled}
-						render={
-							<Button
-								variant="ghost"
-								size="sm"
-								aria-label="段落样式"
-								className="gap-2 font-normal"
-							/>
-						}
-					>
-						{active.block === "h2" ? (
-							<Heading2 className="size-4" />
-						) : active.block === "h3" ? (
-							<Heading3 className="size-4" />
-						) : (
-							<Pilcrow className="size-4" />
-						)}
-						{active.block === "h2" ? "大标题" : active.block === "h3" ? "小标题" : "正文"}
-						<ChevronDown className="size-3.5 text-muted-foreground" />
+					<DropdownMenuTrigger asChild>
+						<Button
+							disabled={disabled}
+							variant="ghost"
+							size="sm"
+							aria-label="段落样式"
+							className="gap-2 font-normal"
+						>
+							{active.block === "h2" ? (
+								<Heading2 className="size-4" />
+							) : active.block === "h3" ? (
+								<Heading3 className="size-4" />
+							) : (
+								<Pilcrow className="size-4" />
+							)}
+							{active.block === "h2" ? "大标题" : active.block === "h3" ? "小标题" : "正文"}
+							<ChevronDown className="size-3.5 text-basalt-muted-foreground" />
+						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent className="w-40">
 						<DropdownMenuRadioGroup
@@ -297,15 +299,24 @@ export function PostEditorToolbar({
 										.run();
 							}}
 						>
-							<DropdownMenuRadioItem value="p" closeOnClick>
+							<DropdownMenuRadioItem
+								className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm outline-none"
+								value="p"
+							>
 								<Pilcrow />
 								正文
 							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="h2" closeOnClick>
+							<DropdownMenuRadioItem
+								className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm outline-none"
+								value="h2"
+							>
 								<Heading2 />
 								大标题
 							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="h3" closeOnClick>
+							<DropdownMenuRadioItem
+								className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm outline-none"
+								value="h3"
+							>
 								<Heading3 />
 								小标题
 							</DropdownMenuRadioItem>

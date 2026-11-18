@@ -1,17 +1,28 @@
 "use client";
 
-import { ArrowRight, ChevronDown, GraduationCap, UserRound, UserRoundPlus } from "lucide-react";
+import { Button, buttonVariants } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Label } from "@nocoo/basalt/components/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import {
+	ArrowRight,
+	ChevronDown,
+	GraduationCap,
+	UserRound,
+	UserRoundPlus,
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { registerUser } from "@/actions/auth";
 import { CapWidget } from "@/components/cap-widget";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { resolveCapApiEndpoint } from "@/lib/cap-endpoint";
 import { checkUsernameAvailability } from "@/lib/forum-browser-api";
 import { safeRedirect } from "@/lib/safe-redirect";
@@ -65,13 +76,13 @@ function usernameStatusText(status: UsernameStatus): string | null {
 function usernameStatusColor(status: UsernameStatus): string {
 	switch (status) {
 		case "available":
-			return "text-success";
+			return "text-basalt-success";
 		case "taken":
 		case "banned":
 		case "invalid":
-			return "text-destructive";
+			return "text-basalt-destructive";
 		case "checking":
-			return "text-muted-foreground";
+			return "text-basalt-muted-foreground";
 		default:
 			return "";
 	}
@@ -85,17 +96,17 @@ function StrengthBar({ strength }: { strength: PasswordStrength }) {
 	if (strength === "none") return null;
 
 	const config = {
-		weak: { width: "w-1/3", color: "bg-destructive", label: "弱" },
+		weak: { width: "w-1/3", color: "bg-basalt-destructive", label: "弱" },
 		medium: { width: "w-2/3", color: "bg-forum-accent", label: "中" },
-		strong: { width: "w-full", color: "bg-success", label: "强" },
+		strong: { width: "w-full", color: "bg-basalt-success", label: "强" },
 	}[strength];
 
 	return (
 		<div className="mt-1.5 space-y-1">
-			<div className="h-1 w-full rounded-full bg-muted">
+			<div className="h-1 w-full rounded-full bg-basalt-muted">
 				<div className={`h-full rounded-full transition-all ${config.width} ${config.color}`} />
 			</div>
-			<p className="text-xs text-muted-foreground">密码强度：{config.label}</p>
+			<p className="text-xs text-basalt-muted-foreground">密码强度：{config.label}</p>
 		</div>
 	);
 }
@@ -119,8 +130,8 @@ const GENDER_OPTIONS = [
 
 function PostingConditionsNote() {
 	return (
-		<div className="rounded-lg bg-muted/60 border border-border px-3.5 py-3 text-xs text-muted-foreground space-y-1.5">
-			<p className="font-medium text-foreground/80">新用户须知</p>
+		<div className="rounded-lg bg-basalt-muted/60 border border-basalt-border px-3.5 py-3 text-xs text-basalt-muted-foreground space-y-1.5">
+			<p className="font-medium text-basalt-foreground/80">新用户须知</p>
 			<ul className="list-disc list-inside space-y-0.5 leading-relaxed">
 				<li>注册后需完成邮箱验证方可发帖</li>
 				<li>请设置头像以获得完整的社区体验</li>
@@ -312,7 +323,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					className="h-11 min-w-0 text-base"
 				/>
 				{usernameError && username.trim() && (
-					<p className="text-xs text-destructive">{usernameError}</p>
+					<p className="text-xs text-basalt-destructive">{usernameError}</p>
 				)}
 				{!usernameError && usernameStatusText(usernameStatus) && (
 					<p className={`text-xs ${usernameStatusColor(usernameStatus)}`}>
@@ -354,7 +365,9 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					autoComplete="new-password"
 					className="h-11 min-w-0 text-base"
 				/>
-				{passwordMismatch && <p className="text-xs text-destructive">两次输入的密码不一致</p>}
+				{passwordMismatch && (
+					<p className="text-xs text-basalt-destructive">两次输入的密码不一致</p>
+				)}
 			</div>
 
 			{/* Email */}
@@ -372,7 +385,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					autoComplete="email"
 					className="h-11 min-w-0 text-base"
 				/>
-				{emailError && <p className="text-xs text-destructive">{emailError}</p>}
+				{emailError && <p className="text-xs text-basalt-destructive">{emailError}</p>}
 			</div>
 
 			{/* Birthday */}
@@ -411,7 +424,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					/>
 				</div>
 				{birthdayError && (birthYear || birthMonth || birthDay) && (
-					<p className="text-xs text-destructive">{birthdayError}</p>
+					<p className="text-xs text-basalt-destructive">{birthdayError}</p>
 				)}
 			</div>
 		</>
@@ -425,14 +438,31 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				<Label htmlFor="reg-identity" className="text-sm">
 					身份类型
 				</Label>
-				<Select
-					id="reg-identity"
-					options={IDENTITY_OPTIONS}
-					value={graduateSchool}
-					onChange={(e) => setGraduateSchool(e.target.value)}
-					disabled={loading}
-					className="h-11 min-w-0 text-base"
-				/>
+				<Select value={graduateSchool} onValueChange={setGraduateSchool} disabled={loading}>
+					<select
+						id="reg-identity"
+						data-testid="reg-identity"
+						className="sr-only"
+						value={graduateSchool}
+						onChange={(event) => setGraduateSchool(event.target.value)}
+					>
+						{IDENTITY_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					<SelectTrigger aria-label="打开身份类型选项" size="lg" className="h-11 min-w-0 text-base">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{IDENTITY_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={String(option.value)}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			{/* Campus */}
@@ -440,14 +470,31 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				<Label htmlFor="reg-campus" className="text-sm">
 					校区
 				</Label>
-				<Select
-					id="reg-campus"
-					options={CAMPUS_OPTIONS}
-					value={campus}
-					onChange={(e) => setCampus(e.target.value)}
-					disabled={loading}
-					className="h-11 min-w-0 text-base"
-				/>
+				<Select value={campus} onValueChange={setCampus} disabled={loading}>
+					<select
+						id="reg-campus"
+						data-testid="reg-campus"
+						className="sr-only"
+						value={campus}
+						onChange={(event) => setCampus(event.target.value)}
+					>
+						{CAMPUS_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					<SelectTrigger aria-label="打开校区选项" size="lg" className="h-11 min-w-0 text-base">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{CAMPUS_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={String(option.value)}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 		</>
 	);
@@ -461,13 +508,34 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					性别
 				</Label>
 				<Select
-					id="reg-gender"
-					options={GENDER_OPTIONS}
-					value={gender}
-					onChange={(e) => setGender(Number(e.target.value))}
+					value={String(gender)}
+					onValueChange={(value) => setGender(Number(value))}
 					disabled={loading}
-					className="h-11 min-w-0 text-base"
-				/>
+				>
+					<select
+						id="reg-gender"
+						data-testid="reg-gender"
+						className="sr-only"
+						value={gender}
+						onChange={(event) => setGender(Number(event.target.value))}
+					>
+						{GENDER_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					<SelectTrigger aria-label="打开性别选项" size="lg" className="h-11 min-w-0 text-base">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{GENDER_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={String(option.value)}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			{/* Residence */}
@@ -500,7 +568,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				<Label htmlFor="reg-bio" className="text-sm">
 					个人简介
 				</Label>
-				<Textarea
+				<InputArea
 					id="reg-bio"
 					value={bio}
 					onChange={(e) => setBio(e.target.value)}
@@ -542,7 +610,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					className="h-11 min-w-0 text-base"
 					inputMode="numeric"
 				/>
-				{qqError && <p className="text-xs text-destructive">{qqError}</p>}
+				{qqError && <p className="text-xs text-basalt-destructive">{qqError}</p>}
 			</div>
 
 			{/* Site */}
@@ -559,13 +627,13 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 					disabled={loading}
 					className="h-11 min-w-0 text-base"
 				/>
-				{siteError && <p className="text-xs text-destructive">{siteError}</p>}
+				{siteError && <p className="text-xs text-basalt-destructive">{siteError}</p>}
 			</div>
 			<div className="space-y-2 sm:col-span-2">
 				<Label htmlFor="reg-signature" className="text-sm">
 					个性签名
 				</Label>
-				<Textarea
+				<InputArea
 					id="reg-signature"
 					value={signature}
 					onChange={(e) => setSignature(e.target.value)}
@@ -597,30 +665,30 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 			{error && <AuthErrorBanner message={error} />}
 			<fieldset className="min-w-0">
 				<legend className="mb-3 flex items-center gap-2 text-sm font-semibold">
-					<UserRound className="size-4 text-primary" aria-hidden="true" />
+					<UserRound className="size-4 text-basalt-primary" aria-hidden="true" />
 					账号信息
 				</legend>
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{accountFields}</div>
 			</fieldset>
-			<fieldset className="min-w-0 border-t border-border pt-4">
+			<fieldset className="min-w-0 border-t border-basalt-border pt-4">
 				<legend className="flex items-center gap-2 pr-3 text-sm font-semibold">
-					<GraduationCap className="size-4 text-primary" aria-hidden="true" />
+					<GraduationCap className="size-4 text-basalt-primary" aria-hidden="true" />
 					教育信息
 				</legend>
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{educationFields}</div>
 			</fieldset>
-			<details className="group rounded-xl border border-border bg-muted/20 p-4">
+			<details className="group rounded-xl border border-basalt-border bg-basalt-muted/20 p-4">
 				<summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
 					个人信息（选填）
 					<ChevronDown
-						className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+						className="size-4 shrink-0 text-basalt-muted-foreground transition-transform group-open:rotate-180"
 						aria-hidden="true"
 					/>
 				</summary>
 				<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">{personalFields}</div>
 			</details>
 			<PostingConditionsNote />
-			<div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
+			<div className="flex flex-col gap-3 border-t border-basalt-border pt-4 sm:flex-row sm:items-center">
 				{captchaField}
 				<Button type="submit" disabled={!canSubmit || loading} className="h-11 shrink-0 sm:flex-1">
 					<UserRoundPlus className="size-4" aria-hidden="true" />
@@ -636,7 +704,9 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 		<AuthIdCard topCenter="Since 2002">
 			<div className="mb-6">
 				<h1 className="text-2xl font-semibold tracking-tight">加入我们</h1>
-				<p className="mt-2 text-sm text-muted-foreground">创建您的账号，和同济人一起分享与交流。</p>
+				<p className="mt-2 text-sm text-basalt-muted-foreground">
+					创建您的账号，和同济人一起分享与交流。
+				</p>
 			</div>
 			{form}
 			<AuthDivider label="已有账号" />
@@ -662,7 +732,7 @@ export default function RegisterForm() {
 		<Suspense
 			fallback={
 				<div className="flex min-h-screen items-center justify-center">
-					<p className="text-muted-foreground">加载中…</p>
+					<p className="text-basalt-muted-foreground">加载中…</p>
 				</div>
 			}
 		>
@@ -683,7 +753,7 @@ export function RegisterFormDialog({
 		<Suspense
 			fallback={
 				<div className="flex items-center justify-center py-12">
-					<p className="text-muted-foreground">加载中…</p>
+					<p className="text-basalt-muted-foreground">加载中…</p>
 				</div>
 			}
 		>

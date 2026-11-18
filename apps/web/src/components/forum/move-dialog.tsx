@@ -4,9 +4,7 @@
 
 import type { Forum } from "@ellie/types";
 import { buildForumTree, type ForumTreeNode } from "@ellie/types";
-import { ArrowRight, Folder, FolderOpen, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -14,7 +12,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from "@nocoo/basalt/components/dialog";
+import { ArrowRight, Folder, FolderOpen, RefreshCw } from "@nocoo/basalt/icons";
+import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -85,23 +85,27 @@ export function MoveDialog({
 						aria-pressed={selected === node.id}
 						className={cn(
 							"w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-left",
-							canSelect && selected === node.id && "bg-primary/10 border border-primary",
-							canSelect && selected !== node.id && "hover:bg-muted",
+							canSelect &&
+								selected === node.id &&
+								"bg-basalt-primary/10 border border-basalt-primary",
+							canSelect && selected !== node.id && "hover:bg-basalt-muted",
 							!canSelect && "opacity-50 cursor-not-allowed",
-							isCurrent && "bg-muted",
+							isCurrent && "bg-basalt-muted",
 						)}
 						style={{ paddingLeft: `${depth * 16 + 12}px` }}
 						onClick={() => canSelect && setSelected(node.id)}
 					>
 						{isGroup ? (
-							<FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+							<FolderOpen className="h-4 w-4 shrink-0 text-basalt-muted-foreground" />
 						) : (
-							<Folder className="h-4 w-4 shrink-0 text-primary" />
+							<Folder className="h-4 w-4 shrink-0 text-basalt-primary" />
 						)}
 						<span className={cn("min-w-0 flex-1 break-words", isGroup && "font-medium")}>
 							{node.name}
 						</span>
-						{isCurrent && <span className="shrink-0 text-xs text-muted-foreground">当前</span>}
+						{isCurrent && (
+							<span className="shrink-0 text-xs text-basalt-muted-foreground">当前</span>
+						)}
 					</button>
 					{node.children && node.children.length > 0 && renderTree(node.children, depth + 1)}
 				</div>
@@ -111,13 +115,10 @@ export function MoveDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
-			<DialogContent
-				className="flex flex-col overflow-hidden sm:max-w-lg"
-				showCloseButton={!loading}
-			>
+			<DialogContent className="flex flex-col overflow-hidden sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<ArrowRight className="h-5 w-5 text-primary" />
+						<ArrowRight className="h-5 w-5 text-basalt-primary" />
 						移动主题
 					</DialogTitle>
 					<DialogDescription>选择要移动到的目标版块</DialogDescription>
@@ -125,12 +126,12 @@ export function MoveDialog({
 
 				<div className="min-h-0 max-h-96 flex-1 overflow-y-auto overscroll-contain space-y-1 py-2">
 					{loadingForums ? (
-						<div className="flex items-center justify-center py-8 text-muted-foreground">
+						<div className="flex items-center justify-center py-8 text-basalt-muted-foreground">
 							加载版块列表...
 						</div>
 					) : error ? (
-						<div className="space-y-3 rounded-lg bg-muted/40 p-5 text-center">
-							<p role="alert" className="text-sm text-destructive">
+						<div className="space-y-3 rounded-lg bg-basalt-muted/40 p-5 text-center">
+							<p role="alert" className="text-sm text-basalt-destructive">
 								{error}
 							</p>
 							<Button variant="outline" onClick={() => setAttempt((value) => value + 1)}>
@@ -139,7 +140,7 @@ export function MoveDialog({
 							</Button>
 						</div>
 					) : tree.length === 0 ? (
-						<div className="flex items-center justify-center py-8 text-muted-foreground">
+						<div className="flex items-center justify-center py-8 text-basalt-muted-foreground">
 							没有可用的版块
 						</div>
 					) : (

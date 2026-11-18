@@ -57,7 +57,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 
 	return (
 		<div
-			className={`border-l-2 ${borderClass} border-b border-border/50 last:border-b-0 transition-colors hover:bg-accent/50`}
+			className={`border-l-2 ${borderClass} border-b border-basalt-border/50 last:border-b-0 transition-colors hover:bg-basalt-accent/50`}
 		>
 			{/* Desktop layout: multi-column */}
 			<div className="hidden sm:flex items-center">
@@ -88,7 +88,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 							<Link
 								href={`/threads/${thread.id}`}
 								prefetch={false}
-								className="forum-thread-title min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+								className="forum-thread-title min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium text-basalt-foreground hover:text-basalt-primary transition-colors"
 								style={titleStyle}
 							>
 								{thread.subject}
@@ -100,21 +100,21 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 				{/* Column 2: Author + Time (fixed) */}
 				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
 					{isAnonAuthor ? (
-						<span className="text-xs text-muted-foreground font-medium truncate max-w-full">
+						<span className="text-xs text-basalt-muted-foreground font-medium truncate max-w-full">
 							匿名
 						</span>
 					) : isOrphanAuthor ? (
-						<span className="text-xs text-muted-foreground font-medium truncate max-w-full">
+						<span className="text-xs text-basalt-muted-foreground font-medium truncate max-w-full">
 							未知用户
 						</span>
 					) : (
 						<UserPopover userId={thread.authorId} triggerClassName="min-w-0 max-w-full">
-							<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
+							<span className="text-xs text-basalt-foreground font-medium hover:text-basalt-primary transition-colors truncate max-w-full cursor-pointer">
 								{thread.authorName}
 							</span>
 						</UserPopover>
 					)}
-					<span className="text-xs text-muted-foreground">
+					<span className="text-xs text-basalt-muted-foreground">
 						{formatRelativeTime(thread.createdAt)}
 					</span>
 				</div>
@@ -160,7 +160,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 						<Link
 							href={`/threads/${thread.id}`}
 							prefetch={false}
-							className="forum-thread-title block line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+							className="forum-thread-title block line-clamp-2 break-words text-sm font-medium text-basalt-foreground hover:text-basalt-primary transition-colors"
 							style={titleStyle}
 						>
 							{thread.subject}
@@ -168,14 +168,14 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 					</div>
 				</div>
 				{/* Row 2: author · time · stats */}
-				<div className="mt-2 ml-8 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-2 ml-8 flex flex-wrap items-center gap-1.5 text-xs text-basalt-muted-foreground">
 					{isAnonAuthor ? (
-						<span className="text-muted-foreground">匿名</span>
+						<span className="text-basalt-muted-foreground">匿名</span>
 					) : isOrphanAuthor ? (
-						<span className="text-muted-foreground">未知用户</span>
+						<span className="text-basalt-muted-foreground">未知用户</span>
 					) : (
 						<UserPopover userId={thread.authorId} triggerClassName="min-w-0 max-w-full">
-							<span className="block max-w-28 truncate text-foreground hover:text-primary cursor-pointer">
+							<span className="block max-w-28 truncate text-basalt-foreground hover:text-basalt-primary cursor-pointer">
 								{thread.authorName}
 							</span>
 						</UserPopover>

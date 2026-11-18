@@ -17,6 +17,8 @@ import {
 	RatingDimension,
 	type UserRole,
 } from "@ellie/types";
+import { Avatar, AvatarFallback } from "@nocoo/basalt/components/avatar";
+import { ConfirmDialog } from "@nocoo/basalt/components/confirm-dialog";
 import Link from "next/link";
 import { useState } from "react";
 import { PostActionBar } from "@/components/forum/post-action-bar";
@@ -29,8 +31,6 @@ import { PostRatingSummary } from "@/components/forum/post-rating-summary";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ReportDialog } from "@/components/forum/report-dialog";
 import { ForumAvatar } from "@/components/forum/user-avatar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FALLBACK_URL } from "@/lib/avatar";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
@@ -69,7 +69,7 @@ function MobileHeaderAvatar({ post }: { post: EnrichedPost }) {
 	if (post.authorId === 0 && post.anonymous === 1) {
 		return (
 			<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
-				<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
+				<AvatarFallback className="text-xs rounded-sm bg-basalt-muted p-0 overflow-hidden">
 					<img src={FALLBACK_URL} alt="匿名" className="h-full w-full object-cover" />
 				</AvatarFallback>
 			</Avatar>
@@ -104,7 +104,7 @@ function MobileHeaderAuthorLabel({ post }: { post: EnrichedPost }) {
 	if (post.authorId === 0 && post.anonymous === 1) {
 		return (
 			<span
-				className="text-xs font-medium text-muted-foreground truncate"
+				className="text-xs font-medium text-basalt-muted-foreground truncate"
 				data-testid="post-card-mobile-author"
 			>
 				匿名
@@ -125,7 +125,7 @@ function MobileHeaderAuthorLabel({ post }: { post: EnrichedPost }) {
 	}
 	return (
 		<span
-			className="text-xs font-medium text-muted-foreground truncate"
+			className="text-xs font-medium text-basalt-muted-foreground truncate"
 			data-testid="post-card-mobile-author"
 		>
 			未知用户
@@ -267,7 +267,7 @@ export function PostCard({
 	return (
 		<div
 			id={`post-${post.id}`}
-			className="scroll-mt-4 overflow-hidden rounded-xl border border-border bg-card"
+			className="scroll-mt-4 overflow-hidden rounded-xl border border-basalt-border bg-basalt-card"
 		>
 			<div className="md:flex">
 				<div className="hidden md:flex">
@@ -293,12 +293,12 @@ export function PostCard({
 				</div>
 				<div className="flex min-w-0 flex-1 flex-col">
 					{/* Compact header row */}
-					<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border md:hidden">
+					<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-basalt-border md:hidden">
 						<MobileHeaderAvatar post={post} />
 						<div className="flex flex-col min-w-0">
 							<MobileHeaderAuthorLabel post={post} />
 							<span
-								className="text-xs text-muted-foreground flex items-center gap-1"
+								className="text-xs text-basalt-muted-foreground flex items-center gap-1"
 								data-testid="post-card-mobile-time"
 							>
 								<PostAuthorStatusIcon
@@ -311,7 +311,7 @@ export function PostCard({
 							</span>
 						</div>
 						<span
-							className="ml-auto text-xs font-medium text-muted-foreground shrink-0"
+							className="ml-auto text-xs font-medium text-basalt-muted-foreground shrink-0"
 							data-testid="post-card-mobile-floor"
 						>
 							{floorLabel(post.position, isFirst)}
@@ -346,7 +346,8 @@ export function PostCard({
 				onOpenChange={actions.handleDeleteClose}
 				title="删除回复"
 				description={state.deleteError ?? "确定要删除这条回复吗？此操作无法撤销。"}
-				confirmText="删除"
+				confirmLabel="删除"
+				cancelLabel="取消"
 				variant="destructive"
 				loading={state.deleting}
 				onConfirm={actions.handleDeleteConfirm}

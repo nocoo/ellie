@@ -65,7 +65,10 @@ test("private messages support keyboard recipient selection, multiline drafts, f
 	await expect(page).toHaveURL(/\/messages\/\d+$/);
 	await expect(page.getByText("The second line stays intact.", { exact: false })).toBeVisible();
 	await page.getByRole("button", { name: "删除站内信", exact: true }).click();
-	await page.getByRole("dialog").getByRole("button", { name: "确认删除", exact: true }).click();
+	await page
+		.getByRole("alertdialog")
+		.getByRole("button", { name: "确认删除", exact: true })
+		.click();
 	await expect(page).toHaveURL(/\/messages$/);
 	await expect(page.getByRole("alert", { name: "站内信已删除", exact: true })).toBeVisible();
 });

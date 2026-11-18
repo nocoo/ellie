@@ -1,7 +1,7 @@
 // components/forum/thread-row-stats.tsx — Shared stats display for thread rows
 // Used by thread-item.tsx and digest-card.tsx
 
-import { Eye, Heart, MessageSquare } from "lucide-react";
+import { Eye, Heart, MessageSquare } from "@nocoo/basalt/icons";
 import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 
 interface ThreadRowStatsProps {
@@ -24,17 +24,17 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 				className="flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums"
 				data-testid="thread-row-stats-desktop"
 			>
-				<span className="text-xs text-foreground font-medium">
+				<span className="text-xs text-basalt-foreground font-medium">
 					{formatCompactNumber(replies)} / {formatCompactNumber(views)}
 				</span>
 				{recommends > 0 ? (
-					<span className="inline-flex items-center gap-0.5 text-xs text-destructive">
+					<span className="inline-flex items-center gap-0.5 text-xs text-basalt-destructive">
 						<Heart className="h-3 w-3 fill-current" aria-hidden="true" />
 						<span className="sr-only">推荐 </span>
 						{formatCompactNumber(recommends)}
 					</span>
 				) : (
-					<span className="text-xs text-muted-foreground">回/览</span>
+					<span className="text-xs text-basalt-muted-foreground">回/览</span>
 				)}
 			</div>
 		);
@@ -56,7 +56,7 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 				{formatCompactNumber(views)}
 			</span>
 			{recommends > 0 && (
-				<span className="inline-flex items-center gap-0.5 ml-1.5 text-destructive">
+				<span className="inline-flex items-center gap-0.5 ml-1.5 text-basalt-destructive">
 					<Heart className="h-3 w-3 fill-current" aria-hidden="true" />
 					<span className="sr-only">推荐 </span>
 					{formatCompactNumber(recommends)}

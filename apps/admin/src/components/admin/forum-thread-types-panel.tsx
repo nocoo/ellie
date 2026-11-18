@@ -53,7 +53,7 @@ import {
 	Plus,
 	Trash2,
 	X,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { extractErrorMessage } from "@/lib/admin-error";
 import {

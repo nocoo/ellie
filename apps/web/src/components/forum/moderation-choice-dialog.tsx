@@ -10,9 +10,7 @@
  * (options, icons, confirm callback) is passed in by the caller.
  */
 
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -20,7 +18,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from "@nocoo/basalt/components/dialog";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export interface ModerationChoiceOption<T> {
@@ -64,10 +64,7 @@ export function ModerationChoiceDialog<T>({
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
-			<DialogContent
-				className="flex flex-col overflow-hidden sm:max-w-lg"
-				showCloseButton={!loading}
-			>
+			<DialogContent className="flex flex-col overflow-hidden sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						{titleIcon}
@@ -87,15 +84,15 @@ export function ModerationChoiceDialog<T>({
 							className={cn(
 								"w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left",
 								selected === option.value
-									? "border-primary bg-primary/5"
-									: "border-border hover:border-primary/50",
+									? "border-basalt-primary bg-basalt-primary/5"
+									: "border-basalt-border hover:border-basalt-primary/50",
 							)}
 							onClick={() => setSelected(option.value)}
 						>
 							{option.icon}
 							<div className="min-w-0 flex-1">
 								<div className="font-medium">{option.label}</div>
-								<div className="text-sm text-muted-foreground">{option.description}</div>
+								<div className="text-sm text-basalt-muted-foreground">{option.description}</div>
 							</div>
 						</button>
 					))}

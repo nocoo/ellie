@@ -82,16 +82,16 @@ vi.mock("./user-avatar", () => ({
 	UserAvatar: () => createElement("img", { alt: "avatar" }),
 }));
 
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@nocoo/basalt/components/badge", () => ({
 	Badge: ({ children }: any) => createElement("span", null, children),
 }));
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, onClick, disabled, title }: any) =>
 		createElement("button", { type: "button", onClick, disabled, title }, children),
 }));
 
-vi.mock("@/components/ui/popover", () => ({
+vi.mock("@nocoo/basalt/components/popover", () => ({
 	Popover: ({ children, open, onOpenChange }: any) => {
 		// Auto-open for test convenience
 		if (!open) onOpenChange?.(true);
@@ -101,7 +101,7 @@ vi.mock("@/components/ui/popover", () => ({
 	PopoverTrigger: ({ children }: any) => createElement("div", null, children),
 }));
 
-vi.mock("@/components/ui/dropdown-menu", () => ({
+vi.mock("@nocoo/basalt/components/dropdown-menu", () => ({
 	DropdownMenu: ({ children }: any) => createElement("div", null, children),
 	DropdownMenuContent: ({ children }: any) => createElement("div", null, children),
 	DropdownMenuItem: ({ children, onClick, disabled }: any) =>
@@ -110,7 +110,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 	DropdownMenuTrigger: ({ render }: any) => render,
 }));
 
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@nocoo/basalt/components/dialog", () => ({
 	Dialog: ({ children, open }: any) => (open ? createElement("div", null, children) : null),
 	DialogContent: ({ children }: any) => createElement("div", null, children),
 	DialogDescription: ({ children }: any) => createElement("p", null, children),

@@ -3,7 +3,7 @@
 import { formatNumber } from "@ellie/shared";
 
 import { Button } from "@nocoo/basalt";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "@nocoo/basalt/icons";
 
 // ---------------------------------------------------------------------------
 // Types

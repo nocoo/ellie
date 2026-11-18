@@ -5,6 +5,18 @@
 // dynamically import ReportDialog so the constant is initialized to a
 // non-empty value. CapWidget is mocked to auto-solve on mount so the
 // fail-closed CAPTCHA gate clears and the reason picker appears.
+
+vi.mock("@nocoo/basalt/components/dialog", () => ({
+	Dialog: ({ children }: any) => createElement("div", null, children),
+	DialogClose: ({ children }: any) => children,
+	DialogContent: ({ children, ...props }: any) => createElement("div", props, children),
+	DialogDescription: ({ children }: any) => createElement("p", null, children),
+	DialogFooter: ({ children }: any) => createElement("div", null, children),
+	DialogHeader: ({ children }: any) => createElement("div", null, children),
+	DialogTitle: ({ children }: any) => createElement("h2", null, children),
+	DialogTrigger: ({ children }: any) => children,
+}));
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, useEffect } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";

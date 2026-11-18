@@ -4,13 +4,13 @@ import { getSmileyImageUrl, SMILEY_PACKS } from "@ellie/shared/smiley";
 import data from "@emoji-mart/data";
 import zh from "@emoji-mart/data/i18n/zh.json";
 import Picker from "@emoji-mart/react";
-import { MessageCircle, Search, Smile } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@nocoo/basalt/components/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@nocoo/basalt/components/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@nocoo/basalt/components/tooltip";
+import { MessageCircle, Search, Smile } from "@nocoo/basalt/icons";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTheme } from "@/hooks/use-theme";
 import {
 	addRecentEmoji,
@@ -26,6 +26,7 @@ interface UnifiedEmojiPickerProps {
 
 export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiPickerProps) {
 	const [open, setOpen] = useState(false);
+	const [tab, setTab] = useState("forum");
 	const [recent, setRecent] = useState<RecentEmoji[]>([]);
 	const [searchQuery, setSearchQuery] = useState("");
 	const { resolved } = useTheme();
@@ -53,17 +54,17 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 			}}
 		>
 			<Tooltip>
-				<TooltipTrigger
-					render={
-						<PopoverTrigger
+				<TooltipTrigger asChild>
+					<PopoverTrigger asChild disabled={disabled}>
+						<button
+							type="button"
 							aria-label="插入表情"
-							disabled={disabled}
-							className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+							className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-basalt-muted text-basalt-muted-foreground hover:text-basalt-foreground transition-colors shrink-0"
 						>
 							<Smile className="h-4 w-4" />
-						</PopoverTrigger>
-					}
-				/>
+						</button>
+					</PopoverTrigger>
+				</TooltipTrigger>
 				<TooltipContent>插入表情</TooltipContent>
 			</Tooltip>
 			<PopoverContent
@@ -71,10 +72,11 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 				align="end"
 				sideOffset={8}
 			>
-				<Tabs defaultValue="forum" className="w-full flex-col gap-0">
-					<TabsList variant="line" className="h-9 w-full shrink-0 border-b bg-muted/30 p-0">
+				<Tabs value={tab} onValueChange={setTab} className="w-full flex-col gap-0">
+					<TabsList className="h-9 w-full shrink-0 border-b bg-basalt-muted/30 p-0">
 						<TabsTrigger
 							value="forum"
+							onClick={() => setTab("forum")}
 							className="rounded-none border-b-2 data-active:border-b-primary after:bottom-0"
 						>
 							<MessageCircle aria-hidden="true" />
@@ -82,6 +84,7 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 						</TabsTrigger>
 						<TabsTrigger
 							value="unicode"
+							onClick={() => setTab("unicode")}
 							className="rounded-none border-b-2 data-active:border-b-primary after:bottom-0"
 						>
 							<Smile aria-hidden="true" />
@@ -92,7 +95,7 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 						<TabsContent value="forum" className="flex h-full min-h-0 flex-col">
 							<div className="shrink-0 px-3 py-2">
 								<div className="relative">
-									<Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+									<Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-basalt-muted-foreground" />
 									<Input
 										placeholder="搜索表情..."
 										aria-label="搜索论坛表情"
@@ -130,7 +133,9 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 									))}
 								</div>
 								{smileys.length === 0 && (
-									<p className="py-4 text-center text-sm text-muted-foreground">没有找到表情</p>
+									<p className="py-4 text-center text-sm text-basalt-muted-foreground">
+										没有找到表情
+									</p>
 								)}
 							</div>
 						</TabsContent>
@@ -157,9 +162,9 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 				</Tabs>
 				<section
 					aria-label="最近使用的表情"
-					className="flex h-12 shrink-0 items-center gap-2 border-t bg-muted/20 px-3 py-2"
+					className="flex h-12 shrink-0 items-center gap-2 border-t bg-basalt-muted/20 px-3 py-2"
 				>
-					<span className="shrink-0 text-xs text-muted-foreground">最近</span>
+					<span className="shrink-0 text-xs text-basalt-muted-foreground">最近</span>
 					{recent.length ? (
 						<div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
 							{recent.map((item) => (
@@ -185,7 +190,9 @@ export function UnifiedEmojiPicker({ onSelect, disabled = false }: UnifiedEmojiP
 							))}
 						</div>
 					) : (
-						<p className="shrink-0 text-xs text-muted-foreground">使用过的表情会显示在这里</p>
+						<p className="shrink-0 text-xs text-basalt-muted-foreground">
+							使用过的表情会显示在这里
+						</p>
 					)}
 				</section>
 			</PopoverContent>
