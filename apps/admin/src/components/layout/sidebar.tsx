@@ -146,7 +146,7 @@ export function Sidebar({
 					}
 				/>
 			</SidebarHeader>
-			<SidebarNav aria-label="管理后台" className="pt-1">
+			<SidebarNav aria-label="管理后台">
 				{railCollapsed
 					? NAV_GROUPS.flatMap((group) => group.items).map((item) => (
 							<NavIconLink key={item.href} item={item} pathname={pathname} />
