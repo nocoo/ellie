@@ -18,7 +18,6 @@ COPY apps/worker/package.json ./apps/worker/
 COPY packages/types/package.json ./packages/types/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/test-mocks/package.json ./packages/test-mocks/
-COPY packages/ui/package.json ./packages/ui/
 COPY packages/cli/package.json ./packages/cli/
 COPY packages/db/package.json ./packages/db/
 COPY packages/migrate/package.json ./packages/migrate/

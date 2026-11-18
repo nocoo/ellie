@@ -76,22 +76,6 @@
 	"overrides": [
 		{
 			"includes": [
-				"**/src/components/ui/**",
-				"**/apps/web/src/components/ui/**",
-				"**/packages/ui/src/components/**"
-			],
-			"linter": {
-				"rules": {
-					"a11y": {
-						"noLabelWithoutControl": "off",
-						"useKeyWithClickEvents": "off",
-						"useSemanticElements": "off"
-					}
-				}
-			}
-		},
-		{
-			"includes": [
 				"**/src/components/forum/post-content.tsx",
 				"**/apps/web/src/components/forum/post-content.tsx",
 				"**/apps/admin/src/app/layout.tsx"
