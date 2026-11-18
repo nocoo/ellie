@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, LayerCard, Separator } from "@nocoo/basalt";
-import { X } from "lucide-react";
+import { X } from "@nocoo/basalt/icons";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,7 +41,7 @@ export function AdminBatchBar({
 		>
 			<LayerCard
 				padding="none"
-				className="flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 shadow-lg [&>*]:shrink-0"
+				className="flex flex-wrap items-center justify-center gap-3 px-4 py-2.5 shadow-basalt-card [&>*]:shrink-0"
 			>
 				<span className="text-sm font-medium text-basalt-foreground">{selectedCount} 已选</span>
 				<Separator orientation="vertical" className="h-4" />

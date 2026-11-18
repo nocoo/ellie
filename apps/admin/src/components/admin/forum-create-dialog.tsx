@@ -18,7 +18,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { FolderPlus, Save } from "lucide-react";
+import { FolderPlus, Save } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import type { Forum, ForumCreate, ForumType } from "@/viewmodels/admin/forums";

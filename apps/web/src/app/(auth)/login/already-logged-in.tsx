@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowRight, CircleUserRound, LogOut } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { ArrowRight, CircleUserRound, LogOut } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { AuthIdCard } from "../_components/auth-id-card";
 
 interface AlreadyLoggedInProps {
@@ -45,13 +45,13 @@ export default function AlreadyLoggedIn({ username }: AlreadyLoggedInProps) {
 	return (
 		<AuthIdCard topCenter="Since 2002">
 			<div className="mx-auto w-full max-w-sm space-y-5">
-				<div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+				<div className="flex size-12 items-center justify-center rounded-2xl bg-basalt-primary/10 text-basalt-primary">
 					<CircleUserRound className="size-6" aria-hidden="true" />
 				</div>
 				<div className="space-y-2">
 					<h1 className="text-2xl font-semibold tracking-tight">你已登录</h1>
 					{username && (
-						<p className="break-words text-sm text-muted-foreground">当前账号：{username}</p>
+						<p className="break-words text-sm text-basalt-muted-foreground">当前账号：{username}</p>
 					)}
 				</div>
 

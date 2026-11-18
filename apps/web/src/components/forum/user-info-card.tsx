@@ -1,9 +1,11 @@
+"use client";
+
 // components/forum/user-info-card.tsx — Personal info card for user profile
 // Shows non-empty profile fields: gender, birthday, location, etc.
 
-import { Star, UserRound } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@nocoo/basalt/components/badge";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
+import { Star, UserRound } from "@nocoo/basalt/icons";
 import {
 	formatBirthday,
 	formatCheckinDays,
@@ -46,14 +48,14 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 	}
 
 	return (
-		<Card className="rounded-2xl">
-			<CardHeader className="border-b">
-				<h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-					<UserRound className="size-4 text-primary" aria-hidden="true" />
+		<LayerCard padding="none" className="rounded-2xl">
+			<LayerCard.Header className="border-b">
+				<h2 className="flex items-center gap-2 text-sm font-semibold text-basalt-foreground">
+					<UserRound className="size-4 text-basalt-primary" aria-hidden="true" />
 					个人信息
 				</h2>
-			</CardHeader>
-			<CardContent>
+			</LayerCard.Header>
+			<LayerCard.Body>
 				<div className="space-y-4">
 					{/* Group title + custom title */}
 					{(user.groupTitle || user.customTitle) && (
@@ -78,7 +80,7 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 							)}
 							{user.customTitle && (
 								<span
-									className="text-muted-foreground italic text-sm"
+									className="text-basalt-muted-foreground italic text-sm"
 									data-testid="user-info-custom-title"
 								>
 									{user.customTitle}
@@ -92,21 +94,23 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 						<dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
 							{infoRows.map((row) => (
 								<div key={row.label} className="flex min-w-0 items-baseline gap-3">
-									<dt className="w-16 text-muted-foreground text-xs shrink-0">{row.label}</dt>
+									<dt className="w-16 text-basalt-muted-foreground text-xs shrink-0">
+										{row.label}
+									</dt>
 									<dd className="min-w-0 flex-1">
 										{row.label === "个人网站" ? (
 											<a
 												href={row.value.startsWith("http") ? row.value : `https://${row.value}`}
 												target="_blank"
 												rel="noopener noreferrer"
-												className="block text-primary hover:underline break-all text-sm"
+												className="block text-basalt-primary hover:underline break-all text-sm"
 												data-testid="user-info-value"
 											>
 												{row.value}
 											</a>
 										) : (
 											<span
-												className="text-foreground break-words text-sm"
+												className="text-basalt-foreground break-words text-sm"
 												data-testid="user-info-value"
 											>
 												{row.value}
@@ -121,8 +125,8 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 					{/* Bio */}
 					{user.bio && (
 						<div>
-							<p className="text-xs text-muted-foreground mb-0.5">个人简介</p>
-							<p className="text-sm leading-relaxed text-foreground break-words whitespace-pre-line">
+							<p className="text-xs text-basalt-muted-foreground mb-0.5">个人简介</p>
+							<p className="text-sm leading-relaxed text-basalt-foreground break-words whitespace-pre-line">
 								{user.bio}
 							</p>
 						</div>
@@ -131,14 +135,14 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 					{/* Interest */}
 					{user.interest && (
 						<div>
-							<p className="text-xs text-muted-foreground mb-0.5">兴趣爱好</p>
-							<p className="text-sm leading-relaxed text-foreground break-words whitespace-pre-line">
+							<p className="text-xs text-basalt-muted-foreground mb-0.5">兴趣爱好</p>
+							<p className="text-sm leading-relaxed text-basalt-foreground break-words whitespace-pre-line">
 								{user.interest}
 							</p>
 						</div>
 					)}
 				</div>
-			</CardContent>
-		</Card>
+			</LayerCard.Body>
+		</LayerCard>
 	);
 }

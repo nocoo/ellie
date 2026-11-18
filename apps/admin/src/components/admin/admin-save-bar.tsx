@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, LayerCard } from "@nocoo/basalt";
-import { CircleDot, RotateCcw, Save } from "lucide-react";
+import { CircleDot, RotateCcw, Save } from "@nocoo/basalt/icons";
 
 export function AdminSaveBar({
 	dirty,
@@ -18,7 +18,7 @@ export function AdminSaveBar({
 	return (
 		<LayerCard
 			padding="none"
-			className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border border-basalt-primary/20 p-3 shadow-lg"
+			className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border border-basalt-primary/20 p-3 shadow-basalt-card"
 		>
 			<p role="status" className="flex items-center gap-2 text-sm">
 				<CircleDot aria-hidden="true" className="h-4 w-4 text-basalt-primary" />

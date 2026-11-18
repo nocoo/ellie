@@ -67,32 +67,30 @@ vi.mock("@/app/(auth)/_components/auth-id-card", () => ({
 		visible ? createElement("div", { "data-testid": "auth-help-hint" }) : null,
 }));
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, ...props }: any) =>
 		createElement("button", { type: "button", ...props }, children),
+	buttonVariants: () => "button",
 }));
 
-vi.mock("@/components/ui/input", () => ({
+vi.mock("@nocoo/basalt/components/input", () => ({
 	Input: (props: any) => createElement("input", props),
 }));
 
-vi.mock("@/components/ui/label", () => ({
+vi.mock("@nocoo/basalt/components/label", () => ({
 	Label: ({ children, ...props }: any) => createElement("label", props, children),
 }));
 
-vi.mock("@/components/ui/select", () => ({
-	Select: ({ options, ...props }: any) =>
-		createElement(
-			"select",
-			{ ...props, "data-testid": props.id },
-			options?.map((opt: any) =>
-				createElement("option", { key: opt.value, value: opt.value }, opt.label),
-			),
-		),
+vi.mock("@nocoo/basalt/components/select", () => ({
+	Select: ({ children }: any) => createElement("div", null, children),
+	SelectTrigger: ({ children }: any) => createElement("div", null, children),
+	SelectValue: () => null,
+	SelectContent: ({ children }: any) => createElement("div", null, children),
+	SelectItem: ({ children, value }: any) => createElement("div", { "data-value": value }, children),
 }));
 
-vi.mock("@/components/ui/textarea", () => ({
-	Textarea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
+vi.mock("@nocoo/basalt/components/input-area", () => ({
+	InputArea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
 }));
 
 // Static import is intentionally avoided — see beforeEach. Use

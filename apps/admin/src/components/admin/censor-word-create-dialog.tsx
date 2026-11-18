@@ -16,7 +16,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
-import { ListFilter, Save } from "lucide-react";
+import { ListFilter, Save } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";

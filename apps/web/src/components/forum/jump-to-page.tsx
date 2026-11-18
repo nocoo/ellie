@@ -1,9 +1,9 @@
 // components/forum/jump-to-page.tsx — Client island for jump-to-page input
 "use client";
 
+import { Button } from "@nocoo/basalt/components/button";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 
 interface JumpToPageProps {
 	basePath: string;
@@ -35,7 +35,7 @@ export function JumpToPage({ basePath, pages, extraParams }: JumpToPageProps) {
 
 	return (
 		<div className="flex items-center gap-1">
-			<span className="text-xs text-muted-foreground whitespace-nowrap">去第</span>
+			<span className="text-xs text-basalt-muted-foreground whitespace-nowrap">去第</span>
 			<input
 				type="number"
 				min={1}
@@ -43,10 +43,10 @@ export function JumpToPage({ basePath, pages, extraParams }: JumpToPageProps) {
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
 				onKeyDown={(e) => e.key === "Enter" && handleGo()}
-				className="h-6 w-12 rounded-md border border-border bg-background px-1.5 text-xs text-center tabular-nums outline-none focus:border-ring focus:ring-1 focus:ring-ring/50"
+				className="h-6 w-12 rounded-md border border-basalt-border bg-basalt-background px-1.5 text-xs text-center tabular-nums outline-none focus:border-basalt-ring focus:ring-1 focus:ring-basalt-ring/50"
 			/>
-			<span className="text-xs text-muted-foreground">页</span>
-			<Button variant="outline" size="xs" onClick={handleGo}>
+			<span className="text-xs text-basalt-muted-foreground">页</span>
+			<Button variant="outline" size="sm" onClick={handleGo}>
 				Go
 			</Button>
 		</div>

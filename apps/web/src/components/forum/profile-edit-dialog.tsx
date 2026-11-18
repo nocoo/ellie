@@ -4,15 +4,21 @@
 // Opens as a modal overlay with form fields
 // MVVM: This is the View layer. State and logic are in useProfileEdit hook.
 
-import { Save, User as UserIcon } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Dialog, DialogContent } from "@nocoo/basalt/components/dialog";
+import { Input } from "@nocoo/basalt/components/input";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Label } from "@nocoo/basalt/components/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { Save, User as UserIcon } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useAvatarContext, useAvatarUrl } from "@/contexts/avatar-context";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
@@ -26,8 +32,8 @@ import { DialogHeroHeader } from "./dialog-hero-header";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
 	return (
-		<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-			<span className="h-1 w-1 rounded-full bg-primary" />
+		<h3 className="text-sm font-medium text-basalt-foreground flex items-center gap-2">
+			<span className="h-1 w-1 rounded-full bg-basalt-primary" />
 			{children}
 		</h3>
 	);
@@ -94,13 +100,10 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent
-				className="max-h-[min(90dvh,var(--dialog-max-height))] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
-				showCloseButton={false}
-			>
+			<DialogContent className="max-h-[min(90dvh,var(--dialog-max-height))] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
 				{/* Header */}
 				<DialogHeroHeader
-					icon={<UserIcon className="h-5 w-5 text-primary" />}
+					icon={<UserIcon className="h-5 w-5 text-basalt-primary" />}
 					title="编辑个人资料"
 					description="完善个人介绍，让同济社区更了解你"
 					onClose={() => handleOpenChange(false)}
@@ -131,12 +134,33 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							<div className="grid gap-2">
 								<Label htmlFor="edit-gender">性别</Label>
 								<Select
-									id="edit-gender"
-									value={state.form.gender}
-									onChange={(e) => actions.setField("gender", Number(e.target.value))}
-									options={GENDER_OPTIONS}
+									value={String(state.form.gender)}
+									onValueChange={(value) => actions.setField("gender", Number(value))}
 									disabled={state.submitting}
-								/>
+								>
+									<select
+										id="edit-gender"
+										className="sr-only"
+										value={state.form.gender}
+										onChange={(event) => actions.setField("gender", Number(event.target.value))}
+									>
+										{GENDER_OPTIONS.map((option) => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</select>
+									<SelectTrigger aria-label="打开性别选项">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{GENDER_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={String(option.value)}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 
 							<div className="grid gap-2">
@@ -215,22 +239,64 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							<div className="grid gap-2">
 								<Label htmlFor="edit-school">身份类型</Label>
 								<Select
-									id="edit-school"
 									value={state.form.graduateSchool}
-									onChange={(e) => actions.setField("graduateSchool", e.target.value)}
-									options={IDENTITY_OPTIONS}
+									onValueChange={(value) => actions.setField("graduateSchool", value)}
 									disabled={state.submitting}
-								/>
+								>
+									<select
+										id="edit-school"
+										className="sr-only"
+										value={state.form.graduateSchool}
+										onChange={(event) => actions.setField("graduateSchool", event.target.value)}
+									>
+										{IDENTITY_OPTIONS.map((option) => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</select>
+									<SelectTrigger aria-label="打开身份类型选项">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{IDENTITY_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={String(option.value)}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-campus">校区</Label>
 								<Select
-									id="edit-campus"
 									value={state.form.campus}
-									onChange={(e) => actions.setField("campus", e.target.value)}
-									options={CAMPUS_OPTIONS}
+									onValueChange={(value) => actions.setField("campus", value)}
 									disabled={state.submitting}
-								/>
+								>
+									<select
+										id="edit-campus"
+										className="sr-only"
+										value={state.form.campus}
+										onChange={(event) => actions.setField("campus", event.target.value)}
+									>
+										{CAMPUS_OPTIONS.map((option) => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</select>
+									<SelectTrigger aria-label="打开校区选项">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{CAMPUS_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={String(option.value)}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 						</div>
 					</div>
@@ -272,7 +338,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-bio">简介</Label>
-								<Textarea
+								<InputArea
 									id="edit-bio"
 									value={state.form.bio}
 									onChange={(e) => actions.setField("bio", e.target.value)}
@@ -285,7 +351,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-interest">兴趣爱好</Label>
-								<Textarea
+								<InputArea
 									id="edit-interest"
 									value={state.form.interest}
 									onChange={(e) => actions.setField("interest", e.target.value)}
@@ -298,7 +364,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							</div>
 							<div className="grid gap-2 sm:col-span-2">
 								<Label htmlFor="edit-signature">个性签名</Label>
-								<Textarea
+								<InputArea
 									id="edit-signature"
 									value={state.form.signature}
 									onChange={(e) => actions.setField("signature", e.target.value)}
@@ -314,7 +380,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				</div>
 
 				{/* Footer */}
-				<div className="shrink-0 px-5 py-4 border-t border-border bg-muted/20">
+				<div className="shrink-0 px-5 py-4 border-t border-basalt-border bg-basalt-muted/20">
 					<div className="flex items-center justify-end gap-2">
 						<Button
 							variant="ghost"

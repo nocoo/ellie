@@ -4,9 +4,7 @@
 "use client";
 
 import { Combobox } from "@base-ui/react/combobox";
-import { AlertCircle, Loader2, Send, User, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nocoo/basalt/components/button";
 import {
 	Dialog,
 	DialogClose,
@@ -15,10 +13,12 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@nocoo/basalt/components/dialog";
+import { Input } from "@nocoo/basalt/components/input";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Label } from "@nocoo/basalt/components/label";
+import { AlertCircle, Loader2, Send, User, X } from "@nocoo/basalt/icons";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { cn } from "@/lib/utils";
 import {
@@ -56,6 +56,7 @@ interface UserAutocompleteProps {
 	disabled?: boolean;
 	invalid?: boolean;
 	describedBy?: string;
+	portalContainer: React.RefObject<HTMLElement | null>;
 }
 
 function UserAutocomplete({
@@ -66,6 +67,7 @@ function UserAutocomplete({
 	disabled,
 	invalid,
 	describedBy,
+	portalContainer,
 }: UserAutocompleteProps) {
 	const [results, setResults] = useState<UserSearchResult[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
@@ -137,11 +139,11 @@ function UserAutocomplete({
 					aria-invalid={invalid || undefined}
 					aria-describedby={describedBy}
 					aria-busy={isSearching}
-					className={cn("h-10 pr-10", selectedUser && "text-primary font-medium")}
+					className={cn("h-10 pr-10", selectedUser && "text-basalt-primary font-medium")}
 				/>
 				{isSearching && (
 					<Loader2
-						className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground"
+						className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-basalt-muted-foreground"
 						aria-hidden="true"
 					/>
 				)}
@@ -150,17 +152,17 @@ function UserAutocomplete({
 						render={<Button variant="ghost" size="icon-sm" />}
 						disabled={disabled}
 						aria-label="清除收信人"
-						className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+						className="absolute right-1 top-1/2 -translate-y-1/2 text-basalt-muted-foreground"
 					>
 						<X className="h-4 w-4" />
 					</Combobox.Clear>
 				)}
 			</div>
 
-			<Combobox.Portal>
+			<Combobox.Portal container={portalContainer}>
 				<Combobox.Positioner sideOffset={6} className="z-50">
-					<Combobox.Popup className="max-h-64 w-(--anchor-width) overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg outline-none">
-						<Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
+					<Combobox.Popup className="max-h-64 w-(--anchor-width) overflow-y-auto rounded-xl border border-basalt-border bg-popover p-1 shadow-lg outline-none">
+						<Combobox.Empty className="px-3 py-3 text-sm text-basalt-muted-foreground">
 							{searchError ? (
 								<div role="alert" className="flex items-center justify-between gap-2">
 									<span>{searchError}</span>
@@ -185,9 +187,12 @@ function UserAutocomplete({
 								<Combobox.Item
 									key={user.id}
 									value={user}
-									className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm outline-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+									className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm outline-none data-highlighted:bg-basalt-accent data-highlighted:text-basalt-accent-foreground"
 								>
-									<User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+									<User
+										className="h-4 w-4 shrink-0 text-basalt-muted-foreground"
+										aria-hidden="true"
+									/>
 									<span className="min-w-0 break-words">{user.username}</span>
 								</Combobox.Item>
 							)}
@@ -221,6 +226,7 @@ export function ComposeMessageDialog({
 	// UI state
 	const [isSending, setIsSending] = useState(false);
 	const sendingRef = useRef(false);
+	const dialogRef = useRef<HTMLDivElement>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	// Initialize with pre-selected recipient
@@ -302,8 +308,8 @@ export function ComposeMessageDialog({
 	return (
 		<Dialog open={open} onOpenChange={(next) => !sendingRef.current && onOpenChange(next)}>
 			<DialogContent
+				ref={dialogRef}
 				className="flex flex-col overflow-hidden sm:max-w-xl"
-				showCloseButton={!isSending}
 				aria-busy={isSending}
 				onKeyDownCapture={(event) => {
 					handleSubmitShortcut(event.nativeEvent, () => {
@@ -313,7 +319,7 @@ export function ComposeMessageDialog({
 			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Send className="h-5 w-5 text-primary" aria-hidden="true" />
+						<Send className="h-5 w-5 text-basalt-primary" aria-hidden="true" />
 						写站内信
 					</DialogTitle>
 					<DialogDescription>与社区成员一对一交流，已发送的消息可在发件箱查看。</DialogDescription>
@@ -324,7 +330,7 @@ export function ComposeMessageDialog({
 						<div
 							id={formErrorId}
 							role="alert"
-							className="flex items-center gap-2 rounded border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive"
+							className="flex items-center gap-2 rounded border border-basalt-destructive/50 bg-basalt-destructive/10 p-2 text-sm text-basalt-destructive"
 						>
 							<AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
 							<span>{error}</span>
@@ -341,13 +347,14 @@ export function ComposeMessageDialog({
 							disabled={isSending}
 							invalid={recipientInvalid}
 							describedBy={recipientInvalid ? formErrorId : undefined}
+							portalContainer={dialogRef}
 						/>
 					</div>
 
 					{/* Subject */}
 					<div className="grid gap-2">
 						<Label htmlFor="subject">
-							主题 <span className="text-muted-foreground">(可选)</span>
+							主题 <span className="text-basalt-muted-foreground">(可选)</span>
 						</Label>
 						<Input
 							id="subject"
@@ -363,7 +370,7 @@ export function ComposeMessageDialog({
 					{/* Content */}
 					<div className="grid gap-2">
 						<Label htmlFor="content">内容</Label>
-						<Textarea
+						<InputArea
 							id="content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
@@ -376,7 +383,7 @@ export function ComposeMessageDialog({
 							aria-keyshortcuts="Control+Enter Meta+Enter"
 							className="resize-none leading-7"
 						/>
-						<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+						<div className="flex items-center justify-between gap-3 text-xs text-basalt-muted-foreground">
 							<span>Enter 换行，Ctrl/⌘+Enter 发送</span>
 							<span>{content.length}/10000</span>
 						</div>
@@ -384,7 +391,11 @@ export function ComposeMessageDialog({
 				</div>
 
 				<DialogFooter>
-					<DialogClose render={<Button variant="outline" disabled={isSending} />}>取消</DialogClose>
+					<DialogClose asChild>
+						<Button variant="outline" disabled={isSending}>
+							取消
+						</Button>
+					</DialogClose>
 					<Button onClick={() => void handleSubmit()} disabled={isSending} aria-busy={isSending}>
 						{isSending ? (
 							<>

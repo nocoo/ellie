@@ -5,7 +5,7 @@
  * (new-thread, reply, post-edit).
  *
  * Owns: Dialog wrapper, bounded editor layout,
- * showCloseButton={false}, editor area with flex-1/min-h-0 layout
+ *, editor area with flex-1/min-h-0 layout
  * and footer bar with hint text
  * and cancel/submit buttons.
  *
@@ -14,9 +14,9 @@
  * handler, button labels, and disabled/submitting state.
  */
 
+import { Button } from "@nocoo/basalt/components/button";
+import { Dialog, DialogContent } from "@nocoo/basalt/components/dialog";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -42,7 +42,6 @@ export function EditorDialogFrame({
 					"h-[90dvh] max-h-[min(90dvh,var(--dialog-max-height))] overflow-hidden flex flex-col gap-0",
 					"rounded-2xl p-0",
 				)}
-				showCloseButton={false}
 			>
 				{children}
 			</DialogContent>
@@ -110,9 +109,9 @@ export function EditorDialogShell({
 			</div>
 
 			{/* Footer — stacks vertically on narrow screens, row at sm+ */}
-			<div className="shrink-0 border-t border-border bg-muted/20 px-5 py-3">
+			<div className="shrink-0 border-t border-basalt-border bg-basalt-muted/20 px-5 py-3">
 				<div className="flex flex-wrap items-center justify-between gap-2">
-					<p className="hidden text-xs text-muted-foreground sm:block">{footerHint}</p>
+					<p className="hidden text-xs text-basalt-muted-foreground sm:block">{footerHint}</p>
 					<div className="ml-auto flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={onCancel} disabled={busy}>
 							取消

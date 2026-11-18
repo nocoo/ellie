@@ -1,6 +1,7 @@
 // Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
 import { canModerate, ForumType } from "@ellie/types";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
@@ -13,7 +14,6 @@ import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
-import { Card, CardContent } from "@/components/ui/card";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import {
 	loadThreadListPaged,
@@ -44,18 +44,18 @@ export default async function ForumThreadsPage({ params }: ForumThreadsPageProps
 
 	if (forumId == null) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">无效的版块 ID</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">无效的版块 ID</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -125,14 +125,14 @@ export default async function ForumThreadsPage({ params }: ForumThreadsPageProps
 			)}
 
 			{error && (
-				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+				<div className="rounded-lg border border-basalt-destructive/50 bg-basalt-destructive/10 p-4 text-sm text-basalt-destructive">
 					{error}
 				</div>
 			)}
 
 			{isGroup && data.forum ? (
 				/* Group forum — render children as forum cards instead of thread list */
-				<div className="overflow-hidden rounded-xl border border-border bg-card">
+				<div className="overflow-hidden rounded-xl border border-basalt-border bg-basalt-card">
 					<ForumPanel forums={data.forum.children} layout="auto" />
 				</div>
 			) : (
@@ -140,7 +140,7 @@ export default async function ForumThreadsPage({ params }: ForumThreadsPageProps
 				<>
 					{/* Sub-forums above recommended threads */}
 					{data.forum && data.forum.children.length > 0 && (
-						<div className="overflow-hidden rounded-xl border border-border bg-card">
+						<div className="overflow-hidden rounded-xl border border-basalt-border bg-basalt-card">
 							<ForumPanel forums={data.forum.children} layout="auto" />
 						</div>
 					)}
@@ -178,12 +178,14 @@ export default async function ForumThreadsPage({ params }: ForumThreadsPageProps
 						/>
 					</div>
 
-					<Card className="py-0">
-						<CardContent className="p-0">
+					<LayerCard padding="none" className="py-0">
+						<div className="p-0">
 							<ThreadListHeader />
 
 							{data.items.length === 0 ? (
-								<div className="py-8 text-center text-sm text-muted-foreground">暂无主题</div>
+								<div className="py-8 text-center text-sm text-basalt-muted-foreground">
+									暂无主题
+								</div>
 							) : (
 								<div>
 									{data.items.map((item) => (
@@ -196,8 +198,8 @@ export default async function ForumThreadsPage({ params }: ForumThreadsPageProps
 									))}
 								</div>
 							)}
-						</CardContent>
-					</Card>
+						</div>
+					</LayerCard>
 
 					{/* Toolbar: same layout below the list */}
 					<div className="flex flex-wrap items-center gap-2 py-1">

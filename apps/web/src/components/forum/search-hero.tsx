@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search } from "@nocoo/basalt/icons";
 import { ForumPageHeader } from "./forum-page-header";
 
 export function SearchHero() {

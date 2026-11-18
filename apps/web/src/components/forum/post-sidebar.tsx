@@ -38,11 +38,14 @@ export function PostSidebar({
 	// missing-user fallback so the anonymous social contract holds.
 	if (isAnonymous) {
 		return (
-			<div className="w-[168px] shrink-0 bg-forum-sidebar-bg/70 border-r border-border p-3 flex flex-col items-center gap-1.5">
-				<span className="text-xs font-bold text-muted-foreground" data-testid="post-sidebar-author">
+			<div className="w-[168px] shrink-0 bg-forum-sidebar-bg/70 border-r border-basalt-border p-3 flex flex-col items-center gap-1.5">
+				<span
+					className="text-xs font-bold text-basalt-muted-foreground"
+					data-testid="post-sidebar-author"
+				>
 					匿名
 				</span>
-				<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1">
+				<div className="mt-1 overflow-hidden rounded-xl border border-basalt-border bg-basalt-card p-1">
 					<img src={FALLBACK_URL} alt="匿名" className="block size-20 rounded-lg object-cover" />
 				</div>
 			</div>
@@ -52,7 +55,7 @@ export function PostSidebar({
 	const checkinLevel = author ? formatCheckinLevel(author.checkin) : null;
 	const checkinDays = author ? formatCheckinDays(author.checkin?.totalDays) : null;
 	return (
-		<div className="w-[168px] shrink-0 bg-forum-sidebar-bg/70 border-r border-border p-3 flex flex-col items-center gap-1.5">
+		<div className="w-[168px] shrink-0 bg-forum-sidebar-bg/70 border-r border-basalt-border p-3 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
 			{author ? (
 				<UserPopover
@@ -70,7 +73,7 @@ export function PostSidebar({
 					</span>
 				</UserPopover>
 			) : (
-				<span className="text-xs text-muted-foreground" data-testid="post-sidebar-author">
+				<span className="text-xs text-basalt-muted-foreground" data-testid="post-sidebar-author">
 					未知用户
 				</span>
 			)}
@@ -84,7 +87,7 @@ export function PostSidebar({
 					align="start"
 					triggerClassName="min-w-0 max-w-full"
 				>
-					<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1 cursor-pointer">
+					<div className="mt-1 overflow-hidden rounded-xl border border-basalt-border bg-basalt-card p-1 cursor-pointer">
 						<UserAvatar
 							src={getAvatarUrl(avatarPath)}
 							alt={author.username}
@@ -93,7 +96,7 @@ export function PostSidebar({
 					</div>
 				</UserPopover>
 			) : (
-				<div className="mt-1 overflow-hidden rounded-xl border border-border bg-card p-1">
+				<div className="mt-1 overflow-hidden rounded-xl border border-basalt-border bg-basalt-card p-1">
 					<UserAvatar
 						src={getAvatarUrl(avatarPath)}
 						alt="默认头像"
@@ -118,7 +121,7 @@ export function PostSidebar({
 						)}
 						{checkinDays && (
 							<div
-								className="text-xs text-muted-foreground truncate"
+								className="text-xs text-basalt-muted-foreground truncate"
 								title={checkinDays}
 								data-testid="post-sidebar-checkin-days"
 							>
@@ -126,7 +129,7 @@ export function PostSidebar({
 							</div>
 						)}
 						{author.campus && (
-							<div className="text-xs text-muted-foreground truncate" title={author.campus}>
+							<div className="text-xs text-basalt-muted-foreground truncate" title={author.campus}>
 								{author.campus}
 							</div>
 						)}
@@ -141,7 +144,7 @@ export function PostSidebar({
 						)}
 						{author.customTitle && (
 							<div
-								className="text-xs italic text-muted-foreground truncate"
+								className="text-xs italic text-basalt-muted-foreground truncate"
 								title={author.customTitle}
 							>
 								{author.customTitle}
@@ -157,27 +160,27 @@ export function PostSidebar({
 						<div className="text-sm font-medium text-forum-link">
 							{formatNumber(author.threads)}
 						</div>
-						<div className="text-xs leading-3 text-muted-foreground">主题</div>
+						<div className="text-xs leading-3 text-basalt-muted-foreground">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="text-sm font-medium text-forum-link">{formatNumber(author.posts)}</div>
-						<div className="text-xs leading-3 text-muted-foreground">回复</div>
+						<div className="text-xs leading-3 text-basalt-muted-foreground">回复</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="text-sm font-medium text-forum-link">
 							{formatNumber(author.credits)}
 						</div>
-						<div className="text-xs leading-3 text-muted-foreground">积分</div>
+						<div className="text-xs leading-3 text-basalt-muted-foreground">积分</div>
 					</div>
 				</div>
 			)}
 
 			{/* Detail rows — aligned label:value pairs, separated from identity card above */}
 			{author && (
-				<div className="w-full space-y-1 text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+				<div className="w-full space-y-1 text-xs text-basalt-muted-foreground mt-2 pt-2 border-t border-basalt-border/50">
 					{/* UID */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-xs leading-3 text-muted-foreground">UID:</span>
+						<span className="shrink-0 text-xs leading-3 text-basalt-muted-foreground">UID:</span>
 						<Link
 							href={`/users/${author.id}`}
 							prefetch={false}
@@ -189,20 +192,20 @@ export function PostSidebar({
 
 					{/* Credits */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-xs leading-3 text-muted-foreground">同钱:</span>
+						<span className="shrink-0 text-xs leading-3 text-basalt-muted-foreground">同钱:</span>
 						<span>{formatNumber(author.coins ?? 0)}</span>
 					</div>
 
 					{/* Registration date */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-xs leading-3 text-muted-foreground">注册:</span>
+						<span className="shrink-0 text-xs leading-3 text-basalt-muted-foreground">注册:</span>
 						<span>{formatDate(author.regDate)}</span>
 					</div>
 
 					{/* Digest posts */}
 					{author.digestPosts > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-xs leading-3 text-muted-foreground">精华:</span>
+							<span className="shrink-0 text-xs leading-3 text-basalt-muted-foreground">精华:</span>
 							<span>{formatNumber(author.digestPosts)}</span>
 						</div>
 					)}

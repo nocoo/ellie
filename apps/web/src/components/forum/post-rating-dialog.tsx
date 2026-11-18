@@ -25,11 +25,8 @@ import {
 	type RatingDimensionKey,
 	ratingDimensionToKey,
 } from "@ellie/types";
-import { Award, Coins } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useForumToast } from "@/components/forum/forum-toast";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@nocoo/basalt/components/button";
+import { Checkbox } from "@nocoo/basalt/components/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -37,10 +34,19 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@nocoo/basalt/components/dialog";
+import { Input } from "@nocoo/basalt/components/input";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nocoo/basalt/components/select";
+import { Award, Coins } from "@nocoo/basalt/icons";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useForumToast } from "@/components/forum/forum-toast";
 import { handleSubmitShortcut } from "@/lib/composer-keyboard";
 import { cn } from "@/lib/utils";
 import {
@@ -203,8 +209,7 @@ export function PostRatingDialog({
 		setScoreInput(String(n));
 	};
 
-	const handleReasonPreset = (e: React.ChangeEvent<HTMLSelectElement>) => {
-		const value = e.target.value;
+	const handleReasonPreset = (value: string) => {
 		if (value !== "") {
 			setReason(value);
 		}
@@ -241,7 +246,6 @@ export function PostRatingDialog({
 		<Dialog open={open} onOpenChange={(next) => !submittingRef.current && onOpenChange(next)}>
 			<DialogContent
 				className="flex flex-col overflow-hidden sm:max-w-lg"
-				showCloseButton={!submitting}
 				aria-busy={submitting}
 				onKeyDownCapture={(event) => {
 					handleSubmitShortcut(event.nativeEvent, () => {
@@ -251,7 +255,7 @@ export function PostRatingDialog({
 			>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<ActiveIcon className="h-5 w-5 text-primary" aria-hidden="true" />
+						<ActiveIcon className="h-5 w-5 text-basalt-primary" aria-hidden="true" />
 						评分
 					</DialogTitle>
 					<DialogDescription>
@@ -263,7 +267,7 @@ export function PostRatingDialog({
 					{/* Dimension toggle — locked when only one dimension is allowed */}
 					<div className="space-y-2">
 						<div className="text-sm font-medium">维度</div>
-						<div className="inline-flex rounded-lg border border-input p-0.5" role="tablist">
+						<div className="inline-flex rounded-lg border border-basalt-input p-0.5" role="tablist">
 							{([RatingDimension.Coins, RatingDimension.Credits] as const).map((d) => {
 								const meta = dimensionMeta[d];
 								const Icon = meta.icon;
@@ -280,8 +284,8 @@ export function PostRatingDialog({
 										className={cn(
 											"flex items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors",
 											active
-												? "bg-primary text-primary-foreground"
-												: "text-muted-foreground hover:text-foreground",
+												? "bg-basalt-primary text-basalt-primary-foreground"
+												: "text-basalt-muted-foreground hover:text-basalt-foreground",
 											disabled && "opacity-50 cursor-not-allowed",
 										)}
 									>
@@ -299,7 +303,7 @@ export function PostRatingDialog({
 							<label htmlFor={customScoreId} className="text-sm font-medium">
 								分值
 							</label>
-							<span className="text-xs text-muted-foreground">
+							<span className="text-xs text-basalt-muted-foreground">
 								每次 ±{bounds.min} 至 ±{bounds.max}
 							</span>
 						</div>
@@ -314,8 +318,8 @@ export function PostRatingDialog({
 									className={cn(
 										"px-2.5 py-1 rounded-md border text-sm transition-colors min-w-[3rem]",
 										parsedScore === n
-											? "border-primary bg-primary/10 text-foreground"
-											: "border-border hover:border-primary/50",
+											? "border-basalt-primary bg-basalt-primary/10 text-basalt-foreground"
+											: "border-basalt-border hover:border-basalt-primary/50",
 									)}
 								>
 									{n > 0 ? `+${n}` : n}
@@ -334,7 +338,7 @@ export function PostRatingDialog({
 							aria-describedby={scoreInput !== "" && !scoreValid ? scoreErrorId : undefined}
 						/>
 						{scoreInput !== "" && !scoreValid && (
-							<p id={scoreErrorId} className="text-xs text-destructive">
+							<p id={scoreErrorId} className="text-xs text-basalt-destructive">
 								请输入 ±{bounds.min}..±{bounds.max} 范围内的非零整数
 							</p>
 						)}
@@ -345,18 +349,34 @@ export function PostRatingDialog({
 						<label htmlFor={reasonInputId} className="text-sm font-medium">
 							理由
 						</label>
-						<Select
-							id={presetReasonId}
-							onChange={handleReasonPreset}
-							value=""
-							disabled={submitting}
-							aria-label="选择预设理由"
-							options={[
-								{ value: "", label: "选择预设理由…" },
-								...reasons.map((reason) => ({ value: reason, label: reason })),
-							]}
-						/>
-						<Textarea
+						<Select value="" onValueChange={handleReasonPreset} disabled={submitting}>
+							<select
+								id={presetReasonId}
+								className="sr-only"
+								value=""
+								onChange={(event) => handleReasonPreset(event.target.value)}
+								disabled={submitting}
+								aria-label="选择预设理由"
+							>
+								<option value="">选择预设理由…</option>
+								{reasons.map((reason) => (
+									<option key={reason} value={reason}>
+										{reason}
+									</option>
+								))}
+							</select>
+							<SelectTrigger aria-label="展开预设理由">
+								<SelectValue placeholder="选择预设理由…" />
+							</SelectTrigger>
+							<SelectContent>
+								{reasons.map((reason) => (
+									<SelectItem key={reason} value={reason}>
+										{reason}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<InputArea
 							id={reasonInputId}
 							value={reason}
 							onChange={(e) => setReason(e.target.value)}
@@ -371,8 +391,8 @@ export function PostRatingDialog({
 							className={cn(
 								"flex items-center justify-between gap-3 text-xs",
 								reasonTrimmed.length > RATING_REASON_MAX_LENGTH
-									? "text-destructive"
-									: "text-muted-foreground",
+									? "text-basalt-destructive"
+									: "text-basalt-muted-foreground",
 							)}
 						>
 							<span>Enter 换行，Ctrl/⌘+Enter 提交</span>
@@ -397,7 +417,7 @@ export function PostRatingDialog({
 					{error && (
 						<div
 							role="alert"
-							className="rounded-lg bg-destructive/10 text-destructive text-sm p-2.5"
+							className="rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm p-2.5"
 						>
 							{error}
 						</div>

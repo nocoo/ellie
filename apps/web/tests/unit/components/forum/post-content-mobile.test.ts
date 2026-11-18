@@ -12,7 +12,7 @@ vi.mock("@/components/forum/post-author-status-icon", () => ({
 	PostAuthorStatusIcon: () => createElement("span", { "data-testid": "post-author-status" }),
 }));
 
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@nocoo/basalt/components/badge", () => ({
 	Badge: ({ children, ...rest }: any) => createElement("span", rest, children),
 }));
 

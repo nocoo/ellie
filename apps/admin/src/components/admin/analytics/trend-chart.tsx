@@ -1,11 +1,22 @@
 "use client";
 
 import { formatNumber } from "@ellie/shared";
-import { AXIS_CONFIG, GRID_PROPS } from "@nocoo/basalt/charts/config";
-import { ChartFrame } from "@nocoo/basalt/charts/frame";
-import { ChartTooltipContent } from "@nocoo/basalt/charts/tooltip";
+import {
+	AXIS_CONFIG,
+	ChartFrame,
+	ChartTooltipContent,
+	GRID_PROPS,
+} from "@nocoo/basalt/components/chart";
 import { useId } from "react";
-import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from "recharts";
 import { type AnalyticsTrendPoint, summarizeTrend } from "@/viewmodels/admin/analytics";
 
 interface TrendChartProps {
@@ -62,41 +73,48 @@ export function TrendChart({
 				))}
 			</dl>
 			<ChartFrame ariaLabel={`${valueLabel}趋势`} size="h-60 w-full">
-				<AreaChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-					<defs>
-						<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-							<stop offset="0%" stopColor={color} stopOpacity={0.35} />
-							<stop offset="100%" stopColor={color} stopOpacity={0} />
-						</linearGradient>
-					</defs>
-					<CartesianGrid {...GRID_PROPS} />
-					<XAxis
-						{...AXIS_CONFIG}
-						dataKey="date"
-						minTickGap={24}
-						tickFormatter={(date) => String(date).slice(5)}
-					/>
-					<YAxis
-						{...AXIS_CONFIG}
-						allowDecimals={false}
-						width={44}
-						tickFormatter={(value: number) =>
-							value.toLocaleString("zh-CN", { notation: "compact", maximumFractionDigits: 1 })
-						}
-					/>
-					<Tooltip
-						cursor={{ stroke: "hsl(var(--basalt-border))", strokeDasharray: "3 3" }}
-						content={<ChartTooltipContent />}
-					/>
-					<Area
-						type="monotone"
-						dataKey="count"
-						name={valueLabel}
-						stroke={color}
-						strokeWidth={2}
-						fill={fillRef}
-					/>
-				</AreaChart>
+				<ResponsiveContainer width="100%" height="100%">
+					<AreaChart
+						accessibilityLayer
+						aria-label={`${valueLabel}趋势`}
+						data={series}
+						margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+					>
+						<defs>
+							<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+								<stop offset="0%" stopColor={color} stopOpacity={0.35} />
+								<stop offset="100%" stopColor={color} stopOpacity={0} />
+							</linearGradient>
+						</defs>
+						<CartesianGrid {...GRID_PROPS} />
+						<XAxis
+							{...AXIS_CONFIG}
+							dataKey="date"
+							minTickGap={24}
+							tickFormatter={(date) => String(date).slice(5)}
+						/>
+						<YAxis
+							{...AXIS_CONFIG}
+							allowDecimals={false}
+							width={44}
+							tickFormatter={(value: number) =>
+								value.toLocaleString("zh-CN", { notation: "compact", maximumFractionDigits: 1 })
+							}
+						/>
+						<Tooltip
+							cursor={{ stroke: "hsl(var(--basalt-border))", strokeDasharray: "3 3" }}
+							content={<ChartTooltipContent />}
+						/>
+						<Area
+							type="monotone"
+							dataKey="count"
+							name={valueLabel}
+							stroke={color}
+							strokeWidth={2}
+							fill={fillRef}
+						/>
+					</AreaChart>
+				</ResponsiveContainer>
 			</ChartFrame>
 		</div>
 	);

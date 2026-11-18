@@ -15,6 +15,12 @@ vi.mock("next-auth/react", () => ({
 	signOut: vi.fn(),
 }));
 
+vi.mock("@nocoo/basalt/components/tooltip", () => ({
+	Tooltip: ({ children }: any) => createElement("div", null, children),
+	TooltipTrigger: ({ children }: any) => children,
+	TooltipContent: ({ children }: any) => createElement("span", null, children),
+}));
+
 // Track UserPopover trigger count and props
 let userPopoverCount = 0;
 const userPopoverCalls: any[] = [];
@@ -169,7 +175,7 @@ describe("ForumHeader — TopBar profile card", () => {
 		// Trigger should carry the card's layout/focus/hover classes
 		expect(triggerClass).toContain("inline-flex");
 		expect(triggerClass).toContain("focus-visible:");
-		expect(triggerClass).toContain("hover:bg-accent");
+		expect(triggerClass).toContain("hover:bg-basalt-accent");
 	});
 
 	it("uses span elements (not div) for profile content inside trigger", () => {

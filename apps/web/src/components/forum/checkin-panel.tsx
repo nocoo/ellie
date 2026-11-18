@@ -1,6 +1,10 @@
 "use client";
 
 import { CHECKIN_MOODS, type CheckinLevel, type CheckinMood, type UserCheckin } from "@ellie/types";
+import { Badge } from "@nocoo/basalt/components/badge";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
 import {
 	Award,
 	CalendarCheck2,
@@ -11,15 +15,11 @@ import {
 	Flame,
 	Loader2,
 	Smile,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import { useForumToast } from "@/components/forum/forum-toast";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { ApiError, apiClient } from "@/lib/api-client";
 
 // ─── Types ─────────────────────────────────────────────────
@@ -65,12 +65,12 @@ function MoodButton({
 			aria-pressed={selected}
 			className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
 				selected
-					? "border-primary bg-primary/10"
-					: "border-border bg-card hover:border-primary/40 hover:bg-muted/50"
+					? "border-basalt-primary bg-basalt-primary/10"
+					: "border-basalt-border bg-basalt-card hover:border-basalt-primary/40 hover:bg-basalt-muted/50"
 			}`}
 		>
 			<Image src={`/emot/${code}.gif`} alt="" width={48} height={48} unoptimized />
-			<span className="text-xs text-muted-foreground">{label}</span>
+			<span className="text-xs text-basalt-muted-foreground">{label}</span>
 		</button>
 	);
 }
@@ -140,7 +140,7 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 				actions={
 					level && (
 						<Badge variant="outline" className="gap-1.5 py-1.5">
-							<Award className="size-4 text-primary" aria-hidden="true" />
+							<Award className="size-4 text-basalt-primary" aria-hidden="true" />
 							LV.{level.level} {level.label}
 						</Badge>
 					)
@@ -149,17 +149,19 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 				<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 					{stats.map(({ label, value, icon: Icon }) => (
 						<div key={label} className="min-w-0">
-							<dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<dt className="flex items-center gap-1.5 text-xs text-basalt-muted-foreground">
 								<Icon className="size-3.5" aria-hidden="true" />
 								{label}
 							</dt>
-							<dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</dd>
+							<dd className="mt-1 text-lg font-semibold tabular-nums text-basalt-foreground">
+								{value}
+							</dd>
 						</div>
 					))}
 				</dl>
 			</ForumPageHeader>
-			<Card className="rounded-2xl">
-				<CardContent className="p-4 sm:px-5">
+			<LayerCard padding="none" className="rounded-2xl">
+				<LayerCard.Body className="p-4 sm:px-5">
 					{status.checkedInToday ? (
 						<div className="flex flex-col items-center gap-4 py-6 text-center">
 							{checkin?.mood && (
@@ -171,27 +173,29 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 									unoptimized
 								/>
 							)}
-							<h2 className="flex items-center gap-2 text-lg font-semibold text-success">
+							<h2 className="flex items-center gap-2 text-lg font-semibold text-basalt-success">
 								<CircleCheck className="size-5" aria-hidden="true" />
 								今天已签到
 							</h2>
 							{result && (
-								<p className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm">
-									<Coins className="size-4 text-primary" aria-hidden="true" />
-									获得 <strong className="font-semibold text-primary">{result.reward}</strong> 同钱
+								<p className="inline-flex items-center gap-2 rounded-full bg-basalt-primary/10 px-4 py-2 text-sm">
+									<Coins className="size-4 text-basalt-primary" aria-hidden="true" />
+									获得{" "}
+									<strong className="font-semibold text-basalt-primary">{result.reward}</strong>{" "}
+									同钱
 								</p>
 							)}
 							{checkin?.message && (
-								<p className="max-w-xl break-words text-sm leading-relaxed text-muted-foreground">
+								<p className="max-w-xl break-words text-sm leading-relaxed text-basalt-muted-foreground">
 									“{checkin.message}”
 								</p>
 							)}
 						</div>
 					) : !status.withinWindow ? (
 						<div className="flex flex-col items-center gap-3 py-8 text-center">
-							<Clock3 className="size-10 text-primary/60" aria-hidden="true" />
+							<Clock3 className="size-10 text-basalt-primary/60" aria-hidden="true" />
 							<h2 className="text-lg font-semibold">签到尚未开放</h2>
-							<p className="text-sm text-muted-foreground">当前不在签到时段内，请稍后再来</p>
+							<p className="text-sm text-basalt-muted-foreground">当前不在签到时段内，请稍后再来</p>
 						</div>
 					) : (
 						<form
@@ -203,7 +207,7 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 						>
 							<fieldset disabled={submitting}>
 								<legend className="mb-3 flex items-center gap-2 text-sm font-semibold">
-									<Smile className="size-4 text-primary" aria-hidden="true" />
+									<Smile className="size-4 text-basalt-primary" aria-hidden="true" />
 									今天的心情
 								</legend>
 								<div className="grid grid-cols-3 gap-2 lg:grid-cols-9">
@@ -224,7 +228,7 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 									className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium"
 								>
 									想说的话{" "}
-									<span className="text-xs font-normal text-muted-foreground">
+									<span className="text-xs font-normal text-basalt-muted-foreground">
 										可选 · {message.length}/100 字
 									</span>
 								</label>
@@ -239,7 +243,7 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 									className="h-11"
 								/>
 							</div>
-							<div className="flex justify-end border-t border-border pt-4">
+							<div className="flex justify-end border-t border-basalt-border pt-4">
 								<Button
 									type="submit"
 									disabled={!selectedMood || submitting}
@@ -255,8 +259,8 @@ export function CheckinPanel({ initial }: CheckinPanelProps) {
 							</div>
 						</form>
 					)}
-				</CardContent>
-			</Card>
+				</LayerCard.Body>
+			</LayerCard>
 		</div>
 	);
 }

@@ -1,6 +1,9 @@
 // Ref: 04f §9 — Single Card: search form + results + pagination
 
-import { Search } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
+import { Search } from "@nocoo/basalt/icons";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
@@ -8,9 +11,6 @@ import { SearchHero } from "@/components/forum/search-hero";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { loadSearchResults, type SearchData } from "@/viewmodels/forum/search.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
@@ -45,18 +45,18 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
 	if (error || !data) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">{error ?? "搜索出错"}</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">{error ?? "搜索出错"}</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -73,11 +73,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 					/>
 				</div>
 				<SearchHero />
-				<Card size="sm">
-					<CardContent className="text-center py-8">
-						<p className="text-sm text-muted-foreground">搜索功能暂时关闭</p>
-					</CardContent>
-				</Card>
+				<LayerCard padding="none">
+					<div className="text-center py-8">
+						<p className="text-sm text-basalt-muted-foreground">搜索功能暂时关闭</p>
+					</div>
+				</LayerCard>
 			</div>
 		);
 	}
@@ -100,12 +100,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 			{/* Hero section */}
 			<SearchHero />
 
-			<Card size="sm">
-				<CardHeader>
-					<CardTitle className="text-base">搜索主题</CardTitle>
-				</CardHeader>
+			<LayerCard padding="none">
+				<div>
+					<h2 className="text-base">搜索主题</h2>
+				</div>
 
-				<CardContent className="space-y-3">
+				<div className="space-y-3">
 					{/* Search form */}
 					<form className="flex gap-2" action="/search" method="get">
 						<Input
@@ -126,16 +126,18 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 					{data.query ? (
 						<>
 							{data.query.length < 2 ? (
-								<div className="py-8 text-center text-sm text-muted-foreground">
+								<div className="py-8 text-center text-sm text-basalt-muted-foreground">
 									请输入至少 2 个字符
 								</div>
 							) : data.results.items.length === 0 ? (
-								<div className="py-8 text-center text-sm text-muted-foreground">未找到相关结果</div>
+								<div className="py-8 text-center text-sm text-basalt-muted-foreground">
+									未找到相关结果
+								</div>
 							) : (
-								<div className="overflow-hidden rounded-xl border border-border">
-									<div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
+								<div className="overflow-hidden rounded-xl border border-basalt-border">
+									<div className="border-b border-basalt-border px-4 py-3 text-xs text-basalt-muted-foreground">
 										{countLabel}{" "}
-										<strong className="font-semibold text-foreground">
+										<strong className="font-semibold text-basalt-foreground">
 											{total ?? items.length}
 										</strong>{" "}
 										条相关主题
@@ -161,10 +163,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 							)}
 						</>
 					) : (
-						<div className="py-8 text-center text-sm text-muted-foreground">输入关键词开始搜索</div>
+						<div className="py-8 text-center text-sm text-basalt-muted-foreground">
+							输入关键词开始搜索
+						</div>
 					)}
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		</div>
 	);
 }

@@ -1,163 +1,36 @@
+/* biome-ignore-all lint/correctness/noInvalidPositionAtImportRule: Basalt styles must load before Tailwind. */
+@import "@nocoo/basalt/styles";
 @import "tailwindcss";
-@import "tw-animate-css";
 @import "@ellie/shared/content.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/*
- * Design System: Minimal CSS Variables
- *
- * Colors (3 text + 3 semantic):
- *   - foreground/muted-foreground/primary (text)
- *   - success/destructive/accent (semantic)
- *
- * Font sizes (4):
- *   - text-2xs (11px) / text-xs (12px) / text-sm (14px) / text-base (16px)
- */
-
 @theme inline {
-	/* Core semantic colors */
-	--color-background: hsl(var(--background));
-	--color-foreground: hsl(var(--foreground));
-	--color-card: hsl(var(--card));
-	--color-card-foreground: hsl(var(--card-foreground));
-	--color-primary: hsl(var(--primary));
-	--color-primary-foreground: hsl(var(--primary-foreground));
-	--color-secondary: hsl(var(--secondary));
-	--color-secondary-foreground: hsl(var(--secondary-foreground));
-	--color-muted: hsl(var(--muted));
-	--color-muted-foreground: hsl(var(--muted-foreground));
-	--color-accent: hsl(var(--accent));
-	--color-accent-foreground: hsl(var(--accent-foreground));
-	--color-destructive: hsl(var(--destructive));
-	--color-destructive-foreground: hsl(var(--destructive-foreground));
-	--color-success: hsl(var(--success));
-	--color-success-foreground: hsl(var(--success-foreground));
-	--color-popover: hsl(var(--popover));
-	--color-popover-foreground: hsl(var(--popover-foreground));
-	--color-border: hsl(var(--border));
-	--color-input: hsl(var(--input));
-	--color-ring: hsl(var(--ring));
-
-	/* Badge */
-	--color-badge-red: hsl(var(--badge-red));
-	--color-badge-red-foreground: hsl(var(--badge-red-foreground));
-
-	/* Forum-specific (only what's actually used) */
 	--color-forum-sidebar-bg: hsl(var(--forum-sidebar-bg));
 	--color-forum-header-from: hsl(var(--forum-header-from));
 	--color-forum-header-to: hsl(var(--forum-header-to));
 	--color-forum-accent: hsl(var(--forum-accent));
-	/* Aliases to core colors for backwards compatibility */
-	--color-forum-link: hsl(var(--primary));
-	--color-forum-text-muted: hsl(var(--muted-foreground));
-
-	/* Discuz header (only what's actually used) */
+	--color-forum-link: hsl(var(--basalt-primary));
+	--color-forum-text-muted: hsl(var(--basalt-muted-foreground));
 	--color-dz-nav-bg: hsl(var(--dz-nav-bg));
 	--color-dz-nav-hover: hsl(var(--dz-nav-hover));
 	--color-dz-nav-text: hsl(var(--dz-nav-text));
 	--color-dz-topbar-bg: hsl(var(--dz-topbar-bg));
 	--color-dz-reminder-text: hsl(var(--dz-reminder-text));
-
-	/* Typography */
 	--font-size-2xs: 0.6875rem;
 	--font-size-2xs--line-height: 1rem;
-
-	/* Radius */
-	--radius-lg: var(--radius);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-sm: calc(var(--radius) - 4px);
-
-	/* Animations */
-	--animate-accordion-down: accordion-down 0.2s ease-out;
-	--animate-accordion-up: accordion-up 0.2s ease-out;
-	--animate-collapsible-down: collapsible-down 0.2s ease-out;
-	--animate-collapsible-up: collapsible-up 0.2s ease-out;
 }
 
-@keyframes accordion-down {
-	from {
-		height: 0;
-	}
-	to {
-		height: var(--radix-accordion-content-height);
-	}
-}
-@keyframes accordion-up {
-	from {
-		height: var(--radix-accordion-content-height);
-	}
-	to {
-		height: 0;
-	}
-}
-@keyframes collapsible-down {
-	from {
-		height: 0;
-	}
-	to {
-		height: var(--radix-collapsible-content-height);
-	}
-}
-@keyframes collapsible-up {
-	from {
-		height: var(--radix-collapsible-content-height);
-	}
-	to {
-		height: 0;
-	}
-}
-
-/* ==========================================================================
-   Light Mode (default)
-   ========================================================================== */
 :root {
-	/* Surfaces: L0 body → L1 card → L2 secondary */
-	--background: 216 33% 97%;
-	--foreground: 218 30% 16%;
-	--card: 0 0% 100%;
-	--card-foreground: 218 30% 16%;
-	--secondary: 216 25% 96%;
-	--secondary-foreground: 218 30% 16%;
-	--popover: 0 0% 100%;
-	--popover-foreground: 218 30% 16%;
-
-	/* Tongji blue */
-	--primary: 204 86% 36%;
-	--primary-foreground: 0 0% 100%;
-
-	/* UI states */
-	--muted: 215 25% 94%;
-	--muted-foreground: 215 14% 43%;
-	--accent: 214 32% 95%;
-	--accent-foreground: 218 30% 16%;
-	--destructive: 0 72% 51%;
-	--destructive-foreground: 0 0% 100%;
-	--success: 142 65% 33%;
-	--success-foreground: 0 0% 100%;
-	--badge-red: 340 82% 55%;
-	--badge-red-foreground: 0 0% 100%;
-
-	/* Borders & inputs */
-	--border: 215 24% 88%;
-	--input: 215 20% 84%;
-	--ring: 204 86% 36%;
-	--radius: 0.75rem;
-
-	/* Forum-specific */
 	--forum-sidebar-bg: 204 33% 97%;
 	--forum-header-from: 207 26% 91%;
 	--forum-header-to: 0 0% 97%;
 	--forum-accent: 27 81% 49%;
-
-	/* Discuz header */
 	--dz-nav-bg: 211 76% 45%;
 	--dz-nav-hover: 211 76% 38%;
 	--dz-nav-text: 0 0% 100%;
 	--dz-topbar-bg: 0 0% 100%;
 	--dz-reminder-text: 27 90% 50%;
-
-	/* Layout */
 	--content-max-width: 1280px;
 	--content-px: 1rem;
 	--dialog-max-width: calc(
@@ -172,44 +45,11 @@
 	);
 }
 
-/* ==========================================================================
-   Dark Mode
-   ========================================================================== */
 .dark {
-	/* Surfaces */
-	--background: 218 23% 9%;
-	--foreground: 210 22% 94%;
-	--card: 218 21% 12%;
-	--card-foreground: 210 22% 94%;
-	--secondary: 217 20% 16%;
-	--secondary-foreground: 210 22% 94%;
-	--popover: 218 21% 12%;
-	--popover-foreground: 210 22% 94%;
-
-	/* Primary: brighter for dark bg */
-	--primary: 204 93% 67%;
-	--primary-foreground: 218 40% 10%;
-
-	/* UI states */
-	--muted: 217 20% 16%;
-	--muted-foreground: 215 16% 68%;
-	--accent: 216 22% 18%;
-	--accent-foreground: 210 22% 94%;
-
-	--success: 142 58% 56%;
-
-	/* Borders & inputs */
-	--border: 216 19% 23%;
-	--input: 216 19% 28%;
-	--ring: 204 93% 67%;
-
-	/* Forum-specific */
 	--forum-sidebar-bg: 218 21% 14%;
 	--forum-header-from: 210 10% 15%;
 	--forum-header-to: 210 10% 12%;
 	--forum-accent: 27 81% 59%;
-
-	/* Discuz header */
 	--dz-nav-bg: 211 60% 30%;
 	--dz-nav-hover: 211 60% 25%;
 	--dz-nav-text: 0 0% 90%;
@@ -217,15 +57,12 @@
 	--dz-reminder-text: 27 90% 60%;
 }
 
-/* ==========================================================================
-   Base Styles
-   ========================================================================== */
 @layer base {
 	* {
-		@apply border-border;
+		@apply border-basalt-border;
 	}
 	html {
-		@apply bg-background;
+		@apply bg-basalt-background;
 		color-scheme: light;
 	}
 	html:has([data-home-sections]) {
@@ -235,7 +72,7 @@
 		color-scheme: dark;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-basalt-background text-basalt-foreground;
 		font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
 	}
 }
@@ -272,28 +109,28 @@ cap-widget {
 	width: 100%;
 	--cap-background: transparent;
 	--cap-border-color: transparent;
-	--cap-border-radius: var(--radius);
-	--cap-color: hsl(var(--foreground));
+	--cap-border-radius: var(--basalt-radius-lg);
+	--cap-color: hsl(var(--basalt-foreground));
 	--cap-widget-width: 100%;
 	--cap-widget-height: 2.75rem;
 	--cap-widget-padding: 0 0.625rem;
 	--cap-gap: 0.5rem;
 	--cap-checkbox-size: 1.125rem;
 	--cap-checkbox-margin: 0;
-	--cap-checkbox-background: hsl(var(--muted));
-	--cap-checkbox-border: 1px solid hsl(var(--border));
-	--cap-spinner-color: hsl(var(--primary));
-	--cap-spinner-background-color: hsl(var(--muted));
+	--cap-checkbox-background: hsl(var(--basalt-muted));
+	--cap-checkbox-border: 1px solid hsl(var(--basalt-border));
+	--cap-spinner-color: hsl(var(--basalt-primary));
+	--cap-spinner-background-color: hsl(var(--basalt-muted));
 	--cap-font: var(--font-sans), system-ui, sans-serif;
 }
 .dark cap-widget {
 	--cap-background: transparent;
 	--cap-border-color: transparent;
-	--cap-color: hsl(var(--foreground));
-	--cap-checkbox-background: hsl(var(--muted));
-	--cap-checkbox-border: 1px solid hsl(var(--border));
-	--cap-spinner-color: hsl(var(--primary));
-	--cap-spinner-background-color: hsl(var(--accent));
+	--cap-color: hsl(var(--basalt-foreground));
+	--cap-checkbox-background: hsl(var(--basalt-muted));
+	--cap-checkbox-border: 1px solid hsl(var(--basalt-border));
+	--cap-spinner-color: hsl(var(--basalt-primary));
+	--cap-spinner-background-color: hsl(var(--basalt-accent));
 }
 cap-widget::part(label) {
 	font-size: 0.875rem;
@@ -389,7 +226,7 @@ cap-widget::part(label) {
 	content: attr(data-placeholder);
 	float: left;
 	height: 0;
-	color: hsl(var(--muted-foreground) / 0.7);
+	color: hsl(var(--basalt-muted-foreground) / 0.7);
 	pointer-events: none;
 }
 .composer-tool {

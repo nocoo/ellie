@@ -1,9 +1,9 @@
 "use client";
 
 import { Toast } from "@base-ui/react/toast";
-import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { AlertCircle, CheckCircle2, Info, X } from "@nocoo/basalt/icons";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ToastType = "success" | "error" | "info";
@@ -34,9 +34,9 @@ export function useForumToast(): ForumToastContextValue {
 
 const icons = { success: CheckCircle2, error: AlertCircle, info: Info };
 const colors = {
-	success: "bg-success/10 text-success",
-	error: "bg-destructive/10 text-destructive",
-	info: "bg-primary/10 text-primary",
+	success: "bg-basalt-success/10 text-basalt-success",
+	error: "bg-basalt-destructive/10 text-basalt-destructive",
+	info: "bg-basalt-primary/10 text-basalt-primary",
 };
 
 function ForumToastContent({ children }: { children: ReactNode }) {
@@ -76,7 +76,7 @@ function ForumToastContent({ children }: { children: ReactNode }) {
 								aria-live={type === "error" ? "assertive" : "polite"}
 								aria-hidden={!!toast.limited || toast.transitionStatus === "ending"}
 								swipeDirection={["right", "up"]}
-								className="forum-toast pointer-events-auto rounded-xl border border-border bg-card text-card-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring data-limited:hidden"
+								className="forum-toast pointer-events-auto rounded-xl border border-basalt-border bg-basalt-card text-basalt-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-basalt-ring data-limited:hidden"
 							>
 								<Toast.Content className="flex items-start gap-3 p-3.5">
 									<span
@@ -90,7 +90,7 @@ function ForumToastContent({ children }: { children: ReactNode }) {
 									<div className="min-w-0 flex-1 py-1">
 										<Toast.Title className="text-sm font-medium leading-5" />
 										{toast.description && (
-											<Toast.Description className="mt-1 break-words text-xs leading-5 text-muted-foreground" />
+											<Toast.Description className="mt-1 break-words text-xs leading-5 text-basalt-muted-foreground" />
 										)}
 									</div>
 									<Toast.Close
@@ -99,7 +99,7 @@ function ForumToastContent({ children }: { children: ReactNode }) {
 												variant="ghost"
 												size="icon-sm"
 												aria-label="关闭"
-												className="size-7 shrink-0 text-muted-foreground"
+												className="size-7 shrink-0 text-basalt-muted-foreground"
 											/>
 										}
 									>

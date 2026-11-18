@@ -2,7 +2,7 @@
 
 import { Button, Dialog, DialogFooter, DialogHeader, DialogTitle, Label } from "@nocoo/basalt";
 import { InputArea } from "@nocoo/basalt/components/input-area";
-import { MessageSquare, Save } from "lucide-react";
+import { MessageSquare, Save } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
 import type { Post, PostUpdate } from "@/viewmodels/admin/posts";

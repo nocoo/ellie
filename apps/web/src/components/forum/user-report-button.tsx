@@ -2,10 +2,10 @@
 
 // components/forum/user-report-button.tsx — User-facing "举报用户" entry on profile hero.
 
-import { Flag } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Flag } from "@nocoo/basalt/icons";
 import { useState } from "react";
 import { ReportDialog } from "@/components/forum/report-dialog";
-import { Button } from "@/components/ui/button";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 
 interface UserReportButtonProps {

@@ -3,10 +3,10 @@
 
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Monitor, Moon, Sun } from "@nocoo/basalt/icons";
 import { type Theme, useTheme } from "@/hooks/use-theme";
 import { HeaderTooltip } from "./header-links";
-import { Button } from "./ui/button";
 
 const ICONS: Record<Theme, typeof Sun> = {
 	light: Sun,

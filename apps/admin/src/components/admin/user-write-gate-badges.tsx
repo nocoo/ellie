@@ -8,7 +8,7 @@
 // "✓ 可发布" pill so the column is never mysteriously empty.
 
 import { Badge } from "@nocoo/basalt";
-import { Check } from "lucide-react";
+import { Check } from "@nocoo/basalt/icons";
 import { useMemo } from "react";
 import type { User } from "@/viewmodels/admin/users";
 import {

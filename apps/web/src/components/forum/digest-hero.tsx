@@ -23,16 +23,16 @@ export function DigestHero({
 		>
 			<dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 				{metrics.map(([label, value]) => (
-					<div key={label} className="border-l-2 border-primary/20 pl-3">
-						<dt className="text-xs text-muted-foreground">{label}</dt>
-						<dd className="mt-1 text-xl font-semibold text-foreground tabular-nums">
+					<div key={label} className="border-l-2 border-basalt-primary/20 pl-3">
+						<dt className="text-xs text-basalt-muted-foreground">{label}</dt>
+						<dd className="mt-1 text-xl font-semibold text-basalt-foreground tabular-nums">
 							{formatNumber(value)}
 						</dd>
 					</div>
 				))}
 			</dl>
 			{authorCount !== undefined && authorCount > 0 && (
-				<p className="mt-3 text-xs text-muted-foreground">
+				<p className="mt-3 text-xs text-basalt-muted-foreground">
 					{formatNumber(authorCount)} 位作者贡献了这些内容
 				</p>
 			)}

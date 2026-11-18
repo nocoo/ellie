@@ -6,16 +6,17 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@nocoo/basalt/components/badge", () => ({
 	Badge: ({ children, className, ...rest }: any) =>
 		createElement("span", { className, ...rest }, children),
 }));
 
-vi.mock("@/components/ui/card", () => ({
-	Card: ({ children }: any) => createElement("div", null, children),
-	CardHeader: ({ children }: any) => createElement("div", null, children),
-	CardContent: ({ children }: any) => createElement("div", null, children),
-}));
+vi.mock("@nocoo/basalt/components/layer-card", () => {
+	const LayerCard = ({ children }: any) => createElement("div", null, children);
+	LayerCard.Header = ({ children }: any) => createElement("div", null, children);
+	LayerCard.Body = ({ children }: any) => createElement("div", null, children);
+	return { LayerCard };
+});
 
 vi.mock("@/viewmodels/forum/user-profile", () => ({
 	formatGender: (g: any) => (g ? "男" : null),

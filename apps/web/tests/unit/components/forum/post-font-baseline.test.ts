@@ -57,16 +57,16 @@ vi.mock("@/components/forum/report-dialog", () => ({
 	ReportDialog: () => null,
 }));
 
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@nocoo/basalt/components/confirm-dialog", () => ({
 	ConfirmDialog: () => null,
 }));
 
-vi.mock("@/components/ui/avatar", () => ({
+vi.mock("@nocoo/basalt/components/avatar", () => ({
 	Avatar: ({ children }: any) => createElement("div", null, children),
 	AvatarFallback: ({ children }: any) => createElement("div", null, children),
 }));
 
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@nocoo/basalt/components/badge", () => ({
 	Badge: ({ children, className, ...rest }: any) =>
 		createElement("span", { className, ...rest }, children),
 }));

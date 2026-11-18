@@ -1,12 +1,12 @@
 "use client";
 import type { Thread, UserRole } from "@ellie/types";
-import { MessageSquarePlus } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { MessageSquarePlus } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
-import { Button } from "@/components/ui/button";
 import { buildQuoteSnippet } from "@/lib/text";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";

@@ -4,20 +4,14 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { bucketCacheOpPoints, KvMetricsChart } from "@/components/admin/kv-metrics-chart";
 
-vi.mock("@nocoo/basalt/charts/frame", () => ({
+vi.mock("@nocoo/basalt/components/chart", () => ({
+	AXIS_CONFIG: {},
 	ChartFrame: ({ ariaLabel, children }: { ariaLabel: string; children: React.ReactNode }) => (
 		<section aria-label={ariaLabel}>{children}</section>
 	),
-}));
-
-vi.mock("@nocoo/basalt/charts/tooltip", () => ({
 	ChartTooltipContent: () => null,
-}));
-
-vi.mock("@nocoo/basalt/charts/config", () => ({
-	AXIS_CONFIG: {},
-	GRID_PROPS: {},
 	getChartColor: () => "#000",
+	GRID_PROPS: {},
 }));
 
 vi.mock("recharts", () => ({
@@ -26,6 +20,7 @@ vi.mock("recharts", () => ({
 	LineChart: ({ data }: { data: unknown[] }) => (
 		<pre data-testid="chart-data">{JSON.stringify(data)}</pre>
 	),
+	ResponsiveContainer: ({ children }: { children: React.ReactNode }) => children,
 	Tooltip: () => null,
 	XAxis: () => null,
 	YAxis: () => null,

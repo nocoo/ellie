@@ -2,7 +2,7 @@
 
 // components/forum/digest-dialog.tsx — Digest (featured) level selection dialog
 
-import { StarOff } from "lucide-react";
+import { StarOff } from "@nocoo/basalt/icons";
 import { DigestIcon } from "./digest-icon";
 import { ModerationChoiceDialog, type ModerationChoiceOption } from "./moderation-choice-dialog";
 
@@ -19,7 +19,7 @@ const DIGEST_OPTIONS: ModerationChoiceOption<number>[] = [
 		value: 0,
 		label: "取消精华",
 		description: "恢复普通主题",
-		icon: <StarOff className="h-5 w-5 text-muted-foreground" />,
+		icon: <StarOff className="h-5 w-5 text-basalt-muted-foreground" />,
 	},
 	{
 		value: 1,

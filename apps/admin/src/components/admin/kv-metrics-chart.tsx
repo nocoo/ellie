@@ -1,9 +1,21 @@
 "use client";
 
-import { AXIS_CONFIG, GRID_PROPS, getChartColor } from "@nocoo/basalt/charts/config";
-import { ChartFrame } from "@nocoo/basalt/charts/frame";
-import { ChartTooltipContent } from "@nocoo/basalt/charts/tooltip";
-import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
+import {
+	AXIS_CONFIG,
+	ChartFrame,
+	ChartTooltipContent,
+	GRID_PROPS,
+	getChartColor,
+} from "@nocoo/basalt/components/chart";
+import {
+	CartesianGrid,
+	Line,
+	LineChart,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from "recharts";
 import {
 	d1ObservationPoints,
 	formatBytes,
@@ -137,35 +149,42 @@ export function KvMetricsChart({
 					size="h-56 w-full"
 					summary="应用记录的命中、未命中、回源装载、失败和物理 KV 调用；缺失记录留空，不插值。"
 				>
-					<LineChart data={opPoints} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-						<CartesianGrid {...GRID_PROPS} />
-						<XAxis
-							{...AXIS_CONFIG}
-							dataKey="tsMinute"
-							type="number"
-							domain={["dataMin", "dataMax"]}
-							tickFormatter={timeLabel}
-							minTickGap={32}
-						/>
-						<YAxis {...AXIS_CONFIG} allowDecimals={false} width={42} />
-						<Tooltip
-							content={<ChartTooltipContent />}
-							labelFormatter={(value) => `${bucketLabel(Number(value))} · ${source}`}
-						/>
-						{OPS_SERIES.map((item, index) => (
-							<Line
-								key={item.key}
-								dataKey={item.key}
-								name={`${item.label}（${item.unit}）`}
-								type="linear"
-								stroke={getChartColor(index)}
-								strokeWidth={2}
-								dot={{ r: 2 }}
-								connectNulls={false}
-								isAnimationActive={false}
+					<ResponsiveContainer width="100%" height="100%">
+						<LineChart
+							accessibilityLayer
+							aria-label="缓存运行趋势"
+							data={opPoints}
+							margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+						>
+							<CartesianGrid {...GRID_PROPS} />
+							<XAxis
+								{...AXIS_CONFIG}
+								dataKey="tsMinute"
+								type="number"
+								domain={["dataMin", "dataMax"]}
+								tickFormatter={timeLabel}
+								minTickGap={32}
 							/>
-						))}
-					</LineChart>
+							<YAxis {...AXIS_CONFIG} allowDecimals={false} width={42} />
+							<Tooltip
+								content={<ChartTooltipContent />}
+								labelFormatter={(value) => `${bucketLabel(Number(value))} · ${source}`}
+							/>
+							{OPS_SERIES.map((item, index) => (
+								<Line
+									key={item.key}
+									dataKey={item.key}
+									name={`${item.label}（${item.unit}）`}
+									type="linear"
+									stroke={getChartColor(index)}
+									strokeWidth={2}
+									dot={{ r: 2 }}
+									connectNulls={false}
+									isAnimationActive={false}
+								/>
+							))}
+						</LineChart>
+					</ResponsiveContainer>
 				</ChartFrame>
 			</div>
 			{d1Points.length > 0 && (
@@ -204,37 +223,44 @@ export function KvMetricsChart({
 						size="h-56 w-full"
 						summary="已返回 meta 的语句次数、耗时，以及有行数时的读/写行；缺测分钟留空。"
 					>
-						<LineChart data={d1Chart} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-							<CartesianGrid {...GRID_PROPS} />
-							<XAxis
-								{...AXIS_CONFIG}
-								dataKey="tsMinute"
-								type="number"
-								domain={["dataMin", "dataMax"]}
-								tickFormatter={timeLabel}
-								minTickGap={32}
-							/>
-							<YAxis {...AXIS_CONFIG} allowDecimals={false} width={52} />
-							<Tooltip
-								content={<ChartTooltipContent />}
-								labelFormatter={(value) => `${bucketLabel(Number(value))} · application:d1`}
-							/>
-							{D1_SERIES.filter(
-								(item) => showD1Rows || (item.key !== "rowsRead" && item.key !== "rowsWritten"),
-							).map((item, index) => (
-								<Line
-									key={item.key}
-									dataKey={item.key}
-									name={`${item.label}（${item.unit}）`}
-									type="linear"
-									stroke={getChartColor(index + 8)}
-									strokeWidth={2}
-									dot={{ r: 2 }}
-									connectNulls={false}
-									isAnimationActive={false}
+						<ResponsiveContainer width="100%" height="100%">
+							<LineChart
+								accessibilityLayer
+								aria-label="应用观测 D1"
+								data={d1Chart}
+								margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+							>
+								<CartesianGrid {...GRID_PROPS} />
+								<XAxis
+									{...AXIS_CONFIG}
+									dataKey="tsMinute"
+									type="number"
+									domain={["dataMin", "dataMax"]}
+									tickFormatter={timeLabel}
+									minTickGap={32}
 								/>
-							))}
-						</LineChart>
+								<YAxis {...AXIS_CONFIG} allowDecimals={false} width={52} />
+								<Tooltip
+									content={<ChartTooltipContent />}
+									labelFormatter={(value) => `${bucketLabel(Number(value))} · application:d1`}
+								/>
+								{D1_SERIES.filter(
+									(item) => showD1Rows || (item.key !== "rowsRead" && item.key !== "rowsWritten"),
+								).map((item, index) => (
+									<Line
+										key={item.key}
+										dataKey={item.key}
+										name={`${item.label}（${item.unit}）`}
+										type="linear"
+										stroke={getChartColor(index + 8)}
+										strokeWidth={2}
+										dot={{ r: 2 }}
+										connectNulls={false}
+										isAnimationActive={false}
+									/>
+								))}
+							</LineChart>
+						</ResponsiveContainer>
 					</ChartFrame>
 				</div>
 			)}
@@ -260,40 +286,47 @@ export function KvMetricsChart({
 						size="h-56 w-full"
 						summary="已观察的有效条目、旧版本和内容字节；采样范围变化时看标记，不能当作业务增长。"
 					>
-						<LineChart data={occPoints} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-							<CartesianGrid {...GRID_PROPS} />
-							<XAxis
-								{...AXIS_CONFIG}
-								dataKey="tsMinute"
-								type="number"
-								domain={["dataMin", "dataMax"]}
-								tickFormatter={timeLabel}
-								minTickGap={32}
-							/>
-							<YAxis {...AXIS_CONFIG} allowDecimals={false} width={42} />
-							<Tooltip
-								content={<ChartTooltipContent />}
-								labelFormatter={(value) => bucketLabel(Number(value))}
-								formatter={(value, name) =>
-									name?.toString().includes("字节") && typeof value === "number"
-										? formatBytes(value)
-										: value
-								}
-							/>
-							{OCCUPANCY_SERIES.map((item, index) => (
-								<Line
-									key={item.key}
-									dataKey={item.key}
-									name={`${item.label}（${item.unit}）`}
-									type="linear"
-									stroke={getChartColor(index + OPS_SERIES.length)}
-									strokeWidth={2}
-									dot={{ r: 2 }}
-									connectNulls={false}
-									isAnimationActive={false}
+						<ResponsiveContainer width="100%" height="100%">
+							<LineChart
+								accessibilityLayer
+								aria-label="缓存内容量趋势"
+								data={occPoints}
+								margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+							>
+								<CartesianGrid {...GRID_PROPS} />
+								<XAxis
+									{...AXIS_CONFIG}
+									dataKey="tsMinute"
+									type="number"
+									domain={["dataMin", "dataMax"]}
+									tickFormatter={timeLabel}
+									minTickGap={32}
 								/>
-							))}
-						</LineChart>
+								<YAxis {...AXIS_CONFIG} allowDecimals={false} width={42} />
+								<Tooltip
+									content={<ChartTooltipContent />}
+									labelFormatter={(value) => bucketLabel(Number(value))}
+									formatter={(value, name) =>
+										name?.toString().includes("字节") && typeof value === "number"
+											? formatBytes(value)
+											: value
+									}
+								/>
+								{OCCUPANCY_SERIES.map((item, index) => (
+									<Line
+										key={item.key}
+										dataKey={item.key}
+										name={`${item.label}（${item.unit}）`}
+										type="linear"
+										stroke={getChartColor(index + OPS_SERIES.length)}
+										strokeWidth={2}
+										dot={{ r: 2 }}
+										connectNulls={false}
+										isAnimationActive={false}
+									/>
+								))}
+							</LineChart>
+						</ResponsiveContainer>
 					</ChartFrame>
 				</div>
 			)}

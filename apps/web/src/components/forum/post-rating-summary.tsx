@@ -11,12 +11,12 @@
 // click+keyboard trigger) instead of a CSS hover popover.
 
 import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
-import { Award, ChevronDown, Coins, Loader2, Undo2 } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@nocoo/basalt/components/popover";
+import { Award, ChevronDown, Coins, Loader2, Undo2 } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { fetchPostRatings, revokePostRating } from "@/viewmodels/forum/rating-reasons";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
@@ -172,10 +172,10 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 
 	return (
 		<div
-			className="border-t border-dashed border-border px-3 py-2 flex items-center gap-3 flex-wrap text-xs text-muted-foreground"
+			className="border-t border-dashed border-basalt-border px-3 py-2 flex items-center gap-3 flex-wrap text-xs text-basalt-muted-foreground"
 			data-testid="post-rating-summary"
 		>
-			<span className="font-medium text-foreground">
+			<span className="font-medium text-basalt-foreground">
 				评分 · <span data-testid="post-rating-summary-total">{effective.total}</span> 人参与
 			</span>
 			{effective.credits.count > 0 && (
@@ -191,27 +191,28 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 				</span>
 			)}
 			<Popover open={open} onOpenChange={handleOpenChange}>
-				<PopoverTrigger
-					render={
-						<button
-							type="button"
-							className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline focus-visible:underline focus-visible:outline-none"
-							data-testid="post-rating-summary-toggle"
-						>
-							展开
-							<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-						</button>
-					}
-				/>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						className="ml-auto inline-flex items-center gap-0.5 text-basalt-primary hover:underline focus-visible:underline focus-visible:outline-none"
+						data-testid="post-rating-summary-toggle"
+					>
+						展开
+						<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+					</button>
+				</PopoverTrigger>
 				<PopoverContent className="w-80 max-h-96 overflow-auto" align="end" side="top">
 					{detail.loading && (
-						<div className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+						<div
+							className="flex items-center gap-2 text-xs text-basalt-muted-foreground"
+							role="status"
+						>
 							<Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
 							加载中…
 						</div>
 					)}
 					{detail.error && (
-						<div role="alert" className="space-y-2 text-xs text-destructive">
+						<div role="alert" className="space-y-2 text-xs text-basalt-destructive">
 							<p>{detail.error}</p>
 							<Button
 								variant="outline"
@@ -224,19 +225,19 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 						</div>
 					)}
 					{revokeError && (
-						<p role="alert" className="text-xs text-destructive">
+						<p role="alert" className="text-xs text-basalt-destructive">
 							{revokeError}
 						</p>
 					)}
 					{!detail.loading && !detail.error && detail.items.length === 0 && (
-						<div className="text-xs text-muted-foreground">暂无评分明细</div>
+						<div className="text-xs text-basalt-muted-foreground">暂无评分明细</div>
 					)}
 					{!detail.loading && !detail.error && detail.items.length > 0 && (
 						<ul className="flex flex-col gap-1" data-testid="post-rating-summary-list">
 							{detail.items.map((row) => (
 								<li
 									key={row.id}
-									className="flex items-start gap-2 py-1 border-b border-dashed border-border last:border-0"
+									className="flex items-start gap-2 py-1 border-b border-dashed border-basalt-border last:border-0"
 								>
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-1.5 text-xs">
@@ -250,7 +251,7 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 											<span
 												className={cn(
 													"inline-flex items-center gap-0.5 font-medium",
-													row.score >= 0 ? "text-success" : "text-destructive",
+													row.score >= 0 ? "text-basalt-success" : "text-basalt-destructive",
 												)}
 											>
 												{row.dimension === "credits" ? (
@@ -263,11 +264,14 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 											</span>
 										</div>
 										{row.reason && (
-											<div className="text-xs text-muted-foreground truncate" title={row.reason}>
+											<div
+												className="text-xs text-basalt-muted-foreground truncate"
+												title={row.reason}
+											>
 												「{row.reason}」
 											</div>
 										)}
-										<div className="text-xs text-muted-foreground">
+										<div className="text-xs text-basalt-muted-foreground">
 											{formatRelativeTime(row.createdAt)}
 										</div>
 									</div>

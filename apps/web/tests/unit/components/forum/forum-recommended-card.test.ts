@@ -13,7 +13,7 @@ vi.mock("next/link", () => ({
 	default: ({ href, children, ...rest }: any) => createElement("a", { href, ...rest }, children),
 }));
 
-vi.mock("lucide-react", () => ({
+vi.mock("@nocoo/basalt/icons", () => ({
 	ThumbsUp: () => createElement("span", { "data-testid": "thumbsup" }),
 }));
 

@@ -40,7 +40,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 
 	return (
 		<div
-			className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			className="border-b border-basalt-border/50 last:border-0 transition-colors hover:bg-basalt-accent/50 focus-within:ring-2 focus-within:ring-basalt-primary/50 focus-within:ring-inset"
 			data-testid="thread-item"
 		>
 			{/* Desktop layout: single row with columns */}
@@ -81,7 +81,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					<Link
 						href={threadHref}
 						prefetch={false}
-						className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+						className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-basalt-foreground hover:text-basalt-primary transition-colors"
 						style={highlightStyle(hl)}
 					>
 						{thread.subject}
@@ -100,21 +100,21 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				{/* Column 2: Author (fixed, centered) */}
 				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
 					{isAnonAuthor ? (
-						<span className="block text-xs text-muted-foreground font-medium truncate max-w-full">
+						<span className="block text-xs text-basalt-muted-foreground font-medium truncate max-w-full">
 							匿名
 						</span>
 					) : isOrphanAuthor ? (
-						<span className="block text-xs text-muted-foreground font-medium truncate max-w-full">
+						<span className="block text-xs text-basalt-muted-foreground font-medium truncate max-w-full">
 							未知用户
 						</span>
 					) : (
 						<UserPopover userId={thread.authorId} triggerClassName="max-w-full min-w-0">
-							<span className="block text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
+							<span className="block text-xs text-basalt-foreground font-medium hover:text-basalt-primary transition-colors truncate max-w-full cursor-pointer">
 								{thread.authorName}
 							</span>
 						</UserPopover>
 					)}
-					<span className="text-xs text-muted-foreground">
+					<span className="text-xs text-basalt-muted-foreground">
 						{formatRelativeTime(thread.createdAt)}
 					</span>
 				</div>
@@ -156,7 +156,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 							<Link
 								href={threadHref}
 								prefetch={false}
-								className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-foreground hover:text-primary transition-colors"
+								className="forum-thread-title min-w-0 line-clamp-2 break-words text-sm font-medium text-basalt-foreground hover:text-basalt-primary transition-colors"
 								style={highlightStyle(hl)}
 								data-testid="thread-item-mobile-title-link"
 							>
@@ -174,14 +174,14 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 						</div>
 					</div>
 				</div>
-				<div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-basalt-muted-foreground">
 					{isAnonAuthor || isOrphanAuthor ? (
 						<div className="shrink-0" data-testid="thread-item-mobile-avatar-link">
 							<ForumAvatar
 								userId={0}
 								userName={isAnonAuthor ? "匿名" : "未知用户"}
 								avatarPath=""
-								size="xs"
+								size="sm"
 							/>
 						</div>
 					) : (
@@ -195,18 +195,18 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 								userId={thread.authorId}
 								userName={thread.authorName}
 								avatarPath={thread.authorAvatarPath}
-								size="xs"
+								size="sm"
 							/>
 						</Link>
 					)}
 					<span className="min-w-0 max-w-32 truncate">
 						{isAnonAuthor ? (
-							<span className="block truncate text-muted-foreground">匿名</span>
+							<span className="block truncate text-basalt-muted-foreground">匿名</span>
 						) : isOrphanAuthor ? (
-							<span className="block truncate text-muted-foreground">未知用户</span>
+							<span className="block truncate text-basalt-muted-foreground">未知用户</span>
 						) : (
 							<UserPopover userId={thread.authorId} triggerClassName="max-w-full min-w-0">
-								<span className="block truncate text-foreground hover:text-primary cursor-pointer">
+								<span className="block truncate text-basalt-foreground hover:text-basalt-primary cursor-pointer">
 									{thread.authorName}
 								</span>
 							</UserPopover>

@@ -4,11 +4,11 @@
 // interactive CheckinPanel client component.
 
 import type { CheckinLevel, UserCheckin } from "@ellie/types";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckinPanel } from "@/components/forum/checkin-panel";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
@@ -34,24 +34,24 @@ export default async function CheckinPage() {
 				<Breadcrumbs
 					items={[{ label: homeLabel, href: "/", icon: "home" as const }, { label: "每日签到" }]}
 				/>
-				<Card>
-					<CardHeader>
-						<CardTitle>每日签到</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<p className="text-muted-foreground">
+				<LayerCard padding="none">
+					<div>
+						<h2>每日签到</h2>
+					</div>
+					<div>
+						<p className="text-basalt-muted-foreground">
 							请先{" "}
 							<Link
 								prefetch={false}
 								href="/login?redirect=/checkin"
-								className="text-primary underline"
+								className="text-basalt-primary underline"
 							>
 								登录
 							</Link>{" "}
 							后再签到。
 						</p>
-					</CardContent>
-				</Card>
+					</div>
+				</LayerCard>
 			</div>
 		);
 	}
@@ -69,14 +69,14 @@ export default async function CheckinPage() {
 		return (
 			<div className="flex flex-col gap-4">
 				<Breadcrumbs items={breadcrumbs} />
-				<Card>
-					<CardHeader>
-						<CardTitle>每日签到</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<p className="text-muted-foreground">签到状态加载失败，请稍后刷新重试。</p>
-					</CardContent>
-				</Card>
+				<LayerCard padding="none">
+					<div>
+						<h2>每日签到</h2>
+					</div>
+					<div>
+						<p className="text-basalt-muted-foreground">签到状态加载失败，请稍后刷新重试。</p>
+					</div>
+				</LayerCard>
 			</div>
 		);
 	}

@@ -4,13 +4,13 @@
 // Opens as a modal overlay for creating new forum threads
 // MVVM: This is the View layer. State and logic are in useThreadSubmit hook.
 
-import { PenLine, Send, XCircle } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { DialogDescription, DialogTitle } from "@nocoo/basalt/components/dialog";
+import { Input } from "@nocoo/basalt/components/input";
+import { PenLine, Send, XCircle } from "@nocoo/basalt/icons";
 import { useRef, useState } from "react";
 import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
 import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
-import { Button } from "@/components/ui/button";
-import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { type ForumThreadTypesPublic, shouldShowPicker } from "@/viewmodels/forum/thread-types";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
@@ -66,8 +66,8 @@ export function NewThreadDialog({
 		return (
 			<EditorDialogFrame open={open} onOpenChange={handleOpenChange}>
 				<div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-						<XCircle className="h-8 w-8 text-muted-foreground" />
+					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-basalt-muted">
+						<XCircle className="h-8 w-8 text-basalt-muted-foreground" />
 					</div>
 					<div className="text-center">
 						<DialogTitle className="mb-2 text-lg">发帖功能已暂时关闭</DialogTitle>
@@ -92,7 +92,7 @@ export function NewThreadDialog({
 			header={
 				<>
 					<DialogHeroHeader
-						icon={<PenLine className="h-5 w-5 text-primary" />}
+						icon={<PenLine className="h-5 w-5 text-basalt-primary" />}
 						title="发表新帖"
 						description={`发布到：${forumName}`}
 						onClose={() => handleOpenChange(false)}
@@ -127,12 +127,12 @@ export function NewThreadDialog({
 								maxLength={100}
 								className="h-11 pr-16 text-base font-medium"
 							/>
-							<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+							<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-basalt-muted-foreground">
 								{state.subject.length}/100
 							</span>
 						</div>
 						{validation.subjectError && (
-							<p className="mt-1.5 text-xs text-destructive">{validation.subjectError}</p>
+							<p className="mt-1.5 text-xs text-basalt-destructive">{validation.subjectError}</p>
 						)}
 					</div>
 				</>

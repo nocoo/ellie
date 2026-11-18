@@ -25,7 +25,7 @@ import {
 	ShieldCheck,
 	UserPlus,
 	Users,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminMetrics } from "@/components/admin/admin-metrics";

@@ -7,7 +7,7 @@
 // permission checks.
 
 import { contentToText } from "@ellie/shared/content";
-import { Pencil, Save } from "lucide-react";
+import { Pencil, Save } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
@@ -105,7 +105,7 @@ export function PostEditDialog({
 			header={
 				<>
 					<DialogHeroHeader
-						icon={<Pencil className="h-5 w-5 text-primary" />}
+						icon={<Pencil className="h-5 w-5 text-basalt-primary" />}
 						title="编辑回复"
 						description="修改回复内容"
 						onClose={() => onOpenChange(false)}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, DialogClose, DialogContent } from "@nocoo/basalt";
-import { X } from "lucide-react";
+import { X } from "@nocoo/basalt/icons";
 import { type ComponentProps, useRef } from "react";
 import { twMerge } from "tailwind-merge";
 

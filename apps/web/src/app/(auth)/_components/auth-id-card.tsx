@@ -1,4 +1,10 @@
-import { BookOpen, GraduationCap, MessageCircle, ShieldCheck, TriangleAlert } from "lucide-react";
+import {
+	BookOpen,
+	GraduationCap,
+	MessageCircle,
+	ShieldCheck,
+	TriangleAlert,
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { ForumLogo } from "@/components/forum/forum-logo";
@@ -11,12 +17,12 @@ interface AuthIdCardProps {
 
 export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 	return (
-		<div className="relative flex min-h-dvh flex-col bg-background">
+		<div className="relative flex min-h-dvh flex-col bg-basalt-background">
 			<div className="flex items-center justify-end gap-0.5 px-4 pt-3 sm:px-6">
 				<ThemeToggle />
 			</div>
 			<main className="flex flex-1 items-center justify-center px-4 pb-8 pt-3 sm:px-6 sm:pb-12">
-				<div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border bg-card shadow-sm lg:grid-cols-[0.8fr_1.2fr]">
+				<div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-basalt-border bg-basalt-card shadow-sm lg:grid-cols-[0.8fr_1.2fr]">
 					<div className="relative flex flex-col overflow-hidden bg-[#123a56] p-6 text-white sm:p-8 lg:p-10">
 						<div className="relative z-10 flex items-center justify-between gap-4">
 							<Link prefetch={false} href="/" aria-label="同济网论坛首页">
@@ -54,7 +60,7 @@ export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 					</div>
 					<div className="flex min-w-0 flex-col justify-center p-5 sm:p-8 lg:p-10">
 						{children}
-						<p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+						<p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-basalt-muted-foreground">
 							<ShieldCheck className="size-3.5" aria-hidden="true" />
 							请使用自己的账号登录
 						</p>
@@ -74,7 +80,7 @@ export function AuthErrorBanner({ message }: { message: string }) {
 	return (
 		<div
 			role="alert"
-			className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-3 text-sm leading-relaxed text-destructive"
+			className="flex items-start gap-2 rounded-xl border border-basalt-destructive/20 bg-basalt-destructive/5 px-3 py-3 text-sm leading-relaxed text-basalt-destructive"
 		>
 			<TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 			<span>{message}</span>
@@ -86,7 +92,7 @@ export function AuthDivider({ label = "或" }: { label?: string }) {
 	return (
 		<div className="my-5 flex items-center gap-3">
 			<div className="h-px flex-1 bg-border" />
-			<span className="text-xs text-muted-foreground">{label}</span>
+			<span className="text-xs text-basalt-muted-foreground">{label}</span>
 			<div className="h-px flex-1 bg-border" />
 		</div>
 	);
@@ -141,9 +147,12 @@ export function AuthHelpHint({ visible }: { visible: boolean }) {
 
 	if (!visible || !email) return null;
 	return (
-		<p className="mt-4 text-center text-xs text-muted-foreground" data-testid="auth-help-hint">
+		<p
+			className="mt-4 text-center text-xs text-basalt-muted-foreground"
+			data-testid="auth-help-hint"
+		>
 			如遇问题，请发邮件到:{" "}
-			<a href={`mailto:${email}`} className="text-primary hover:underline">
+			<a href={`mailto:${email}`} className="text-basalt-primary hover:underline">
 				{email}
 			</a>
 		</p>

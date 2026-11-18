@@ -107,7 +107,7 @@ test.describe("Feature: System & Layout", () => {
 			expect(frame).toEqual({
 				dark: expected === "dark",
 				colorScheme: expected,
-				background: expected === "dark" ? "rgb(18, 22, 28)" : "rgb(245, 247, 250)",
+				background: expected === "dark" ? "rgb(23, 23, 23)" : "rgb(244, 244, 244)",
 				widthMode: "full",
 			});
 		});
@@ -226,7 +226,7 @@ test.describe("Feature: System & Layout", () => {
 		await forumPage.newThreadButton.click();
 		// CSS fallback: Radix dialog content has no aria-label; data-slot is
 		// the only stable hook shared by all editor dialogs.
-		const dialog = page.locator('[data-slot="dialog-content"]');
+		const dialog = page.locator('[role="dialog"]');
 		await expect(dialog).toBeVisible();
 		await expect(dialog.getByText("发表新帖")).toBeVisible();
 
@@ -294,7 +294,7 @@ test.describe("Feature: System & Layout", () => {
 				await page.goto(scenario.path);
 				const entry = scenario.postId ? page.locator(`#post-${scenario.postId}`) : page;
 				await entry.getByRole("button", { name: scenario.openLabel, exact: true }).first().click();
-				const dialog = page.locator('[data-slot="dialog-content"]');
+				const dialog = page.locator('[role="dialog"]');
 				await expect(dialog).toBeVisible();
 				if (scenario.kind === "new-thread") {
 					await dialog.getByRole("textbox", { name: "主题标题", exact: true }).fill("Valid title");
@@ -344,7 +344,7 @@ test.describe("Feature: System & Layout", () => {
 		// When: open reply dialog at desktop
 		await page.setViewportSize(DESKTOP);
 		await threadPage.replyButton.click();
-		const dialog = page.locator('[data-slot="dialog-content"]');
+		const dialog = page.locator('[role="dialog"]');
 		await expect(dialog).toBeVisible();
 
 		// Then: desktop dialog + footer invariants
@@ -356,7 +356,7 @@ test.describe("Feature: System & Layout", () => {
 		await expect(smileyTrigger).toBeVisible();
 		await smileyTrigger.click();
 
-		const picker = page.locator('[data-slot="popover-content"]');
+		const picker = page.locator('[data-radix-popper-content-wrapper] [role="dialog"]');
 		await expect(picker.getByRole("tab")).toHaveText(["论坛", "Emoji"]);
 		await expect(picker.getByRole("tab", { name: "论坛", exact: true })).toHaveAttribute(
 			"aria-selected",

@@ -2,7 +2,6 @@
 
 import { formatNumber } from "@ellie/shared";
 import { Badge, Button, LayerCard } from "@nocoo/basalt";
-import { AreaChart } from "@nocoo/basalt/charts/area";
 import {
 	ArrowUpRight,
 	ChartNoAxesCombined,
@@ -10,7 +9,7 @@ import {
 	LogIn,
 	MessagesSquare,
 	ShieldCheck,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { metricShare, summarizeTrend } from "@/viewmodels/admin/analytics";
 import {
@@ -18,6 +17,7 @@ import {
 	contentTrendRows,
 } from "@/viewmodels/admin/dashboard";
 import { AdminMetrics } from "./admin-metrics";
+import { AreaChart } from "./area-chart";
 
 const CONTENT_SERIES = [
 	{ key: "threads" as const, label: "新主题", color: "hsl(var(--basalt-chart-1))" },

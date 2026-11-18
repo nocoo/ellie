@@ -5,6 +5,13 @@
 // and context action (new thread / quick reply) into a single widget.
 // All actions have keyboard shortcuts; tooltips show labels + shortcut keys.
 
+import { Popover, PopoverContent, PopoverTrigger } from "@nocoo/basalt/components/popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@nocoo/basalt/components/tooltip";
 import {
 	ArrowUp,
 	ChevronLeft,
@@ -13,11 +20,9 @@ import {
 	MessageSquarePlus,
 	SquarePen,
 	Undo2,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -86,29 +91,27 @@ function ToolbarButton({
 }) {
 	return (
 		<Tooltip>
-			<TooltipTrigger
-				render={
-					<button
-						type="button"
-						aria-label={label}
-						onClick={disabled ? undefined : onClick}
-						disabled={disabled}
-						className={cn(
-							"inline-flex items-center justify-center size-10 rounded-xl transition-colors sm:size-8 sm:rounded-lg",
-							disabled
-								? "text-muted-foreground/40 cursor-not-allowed"
-								: "text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer",
-							className,
-						)}
-					/>
-				}
-			>
-				{children}
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={label}
+					onClick={disabled ? undefined : onClick}
+					disabled={disabled}
+					className={cn(
+						"inline-flex items-center justify-center size-10 rounded-xl transition-colors sm:size-8 sm:rounded-lg",
+						disabled
+							? "text-basalt-muted-foreground/40 cursor-not-allowed"
+							: "text-basalt-muted-foreground hover:text-basalt-foreground hover:bg-basalt-accent cursor-pointer",
+						className,
+					)}
+				>
+					{children}
+				</button>
 			</TooltipTrigger>
 			<TooltipContent side="top">
 				{label}
 				{shortcut && (
-					<kbd className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-background/20 px-1 font-mono text-xs">
+					<kbd className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-basalt-background/20 px-1 font-mono text-xs">
 						{shortcut}
 					</kbd>
 				)}
@@ -170,31 +173,27 @@ function JumpPagePopover({
 	return (
 		<Popover open={open} onOpenChange={onOpenChange}>
 			<Tooltip>
-				<TooltipTrigger
-					render={
-						<PopoverTrigger
-							render={
-								<button
-									type="button"
-									aria-label="跳页"
-									className="inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
-								/>
-							}
-						/>
-					}
-				>
-					<Hash className="h-4 w-4" />
+				<TooltipTrigger asChild>
+					<PopoverTrigger asChild>
+						<button
+							type="button"
+							aria-label="跳页"
+							className="inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors text-basalt-muted-foreground hover:text-basalt-foreground hover:bg-basalt-accent cursor-pointer"
+						>
+							<Hash className="h-4 w-4" />
+						</button>
+					</PopoverTrigger>
 				</TooltipTrigger>
 				<TooltipContent side="top">
 					跳页
-					<kbd className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-background/20 px-1 font-mono text-xs">
+					<kbd className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-basalt-background/20 px-1 font-mono text-xs">
 						g
 					</kbd>
 				</TooltipContent>
 			</Tooltip>
 			<PopoverContent side="top" sideOffset={8} align="end" className="w-auto p-2">
 				<div className="flex items-center gap-1.5">
-					<span className="text-xs text-muted-foreground whitespace-nowrap">第</span>
+					<span className="text-xs text-basalt-muted-foreground whitespace-nowrap">第</span>
 					<input
 						ref={inputRef}
 						type="number"
@@ -207,14 +206,14 @@ function JumpPagePopover({
 							if (e.key === "Enter" && !e.nativeEvent.isComposing) handleGo();
 							if (e.key === "Escape") onOpenChange(false);
 						}}
-						className="h-7 w-14 rounded-md border border-border bg-background px-1.5 text-xs text-center tabular-nums outline-none focus:border-ring focus:ring-1 focus:ring-ring/50"
+						className="h-7 w-14 rounded-md border border-basalt-border bg-basalt-background px-1.5 text-xs text-center tabular-nums outline-none focus:border-basalt-ring focus:ring-1 focus:ring-basalt-ring/50"
 						placeholder={`1-${pages}`}
 					/>
-					<span className="text-xs text-muted-foreground">页</span>
+					<span className="text-xs text-basalt-muted-foreground">页</span>
 					<button
 						type="button"
 						onClick={handleGo}
-						className="inline-flex h-7 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+						className="inline-flex h-7 items-center rounded-md bg-basalt-primary px-2.5 text-xs font-medium text-basalt-primary-foreground hover:bg-basalt-primary/90 transition-colors cursor-pointer"
 					>
 						跳转
 					</button>
@@ -290,10 +289,10 @@ export function FloatingToolbar({
 
 	return (
 		<div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40">
-			<TooltipProvider delay={300}>
+			<TooltipProvider delayDuration={300}>
 				<fieldset
 					aria-label="阅读工具"
-					className="flex items-center gap-0.5 rounded-2xl bg-card/95 backdrop-blur-sm border border-border shadow-lg px-1 py-1 sm:rounded-xl"
+					className="flex items-center gap-0.5 rounded-2xl bg-basalt-card/95 backdrop-blur-sm border border-basalt-border shadow-lg px-1 py-1 sm:rounded-xl"
 				>
 					{/* Scroll to top */}
 					<ToolbarButton
@@ -356,7 +355,7 @@ export function FloatingToolbar({
 								onClick={onAction}
 								label={actionType === "reply" ? "快速回帖" : "发表新帖"}
 								shortcut={actionType === "reply" ? "r" : "n"}
-								className="text-primary hover:text-primary hover:bg-primary/10"
+								className="text-basalt-primary hover:text-basalt-primary hover:bg-basalt-primary/10"
 							>
 								{actionType === "reply" ? (
 									<MessageSquarePlus className="h-4 w-4" />

@@ -1,7 +1,9 @@
 "use client";
 
 import { SITE_ART } from "@ellie/shared";
-import { House, LogOut, Search } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { House, LogOut, Search } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -12,8 +14,6 @@ import { TrackedUserAvatar } from "@/components/forum/user-avatar";
 import { UserPopover } from "@/components/forum/user-popover";
 import { HeaderTooltip } from "@/components/header-links";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { WidthToggle } from "@/components/width-toggle";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
@@ -44,7 +44,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						viewerUserId={user.uid}
 						side="bottom"
 						align="end"
-						triggerClassName="inline-flex min-w-0 items-center gap-2.5 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-[320px] sm:px-3 sm:py-2"
+						triggerClassName="inline-flex min-w-0 items-center gap-2.5 rounded-xl p-1 transition-colors hover:bg-basalt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-basalt-ring sm:max-w-[320px] sm:px-3 sm:py-2"
 					>
 						<TrackedUserAvatar
 							uid={user.uid}
@@ -58,10 +58,14 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						>
 							<span className="flex min-w-0 items-center gap-2">
 								<span className="truncate text-sm font-semibold">{user.username}</span>
-								<span className="shrink-0 text-xs text-muted-foreground">UID: {user.uid}</span>
-								<span className="truncate text-xs text-muted-foreground">{user.groupTitle}</span>
+								<span className="shrink-0 text-xs text-basalt-muted-foreground">
+									UID: {user.uid}
+								</span>
+								<span className="truncate text-xs text-basalt-muted-foreground">
+									{user.groupTitle}
+								</span>
 							</span>
-							<span className="flex gap-3 text-xs text-muted-foreground tabular-nums">
+							<span className="flex gap-3 text-xs text-basalt-muted-foreground tabular-nums">
 								<span>积分 {user.credits}</span>
 								<span>同钱 {user.coins}</span>
 							</span>
@@ -92,21 +96,15 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						</>
 					) : (
 						<>
-							<Button
-								variant="ghost"
-								nativeButton={false}
-								role="link"
-								render={<Link prefetch={false} href="/login" />}
-							>
-								登录
+							<Button asChild variant="ghost">
+								<Link prefetch={false} href="/login">
+									登录
+								</Link>
 							</Button>
-							<Button
-								size="sm"
-								nativeButton={false}
-								role="link"
-								render={<Link prefetch={false} href="/register" />}
-							>
-								注册
+							<Button asChild size="sm">
+								<Link prefetch={false} href="/register">
+									注册
+								</Link>
 							</Button>
 						</>
 					)}
@@ -135,8 +133,10 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 							href={tab.href}
 							aria-current={isActive ? "page" : undefined}
 							className={cn(
-								"inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-primary",
-								isActive ? "bg-primary/10 text-primary" : "text-muted-foreground",
+								"inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors hover:bg-basalt-accent hover:text-basalt-primary",
+								isActive
+									? "bg-basalt-primary/10 text-basalt-primary"
+									: "text-basalt-muted-foreground",
 							)}
 							data-testid="forum-nav-link"
 						>
@@ -196,7 +196,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 					}}
 				>
 					<Search
-						className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+						className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-basalt-muted-foreground"
 						aria-hidden="true"
 					/>
 					<Input
@@ -207,11 +207,11 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 						minLength={2}
 						aria-label="搜索主题"
 						placeholder="搜索主题，发现更多讨论"
-						className="h-9 bg-muted/50 pl-9 pr-14 text-sm"
+						className="h-9 bg-basalt-muted/50 pl-9 pr-14 text-sm"
 					/>
 					<button
 						type="submit"
-						className="absolute right-1 top-1 flex h-7 items-center rounded-md px-2 text-xs font-medium text-primary hover:bg-primary/10"
+						className="absolute right-1 top-1 flex h-7 items-center rounded-md px-2 text-xs font-medium text-basalt-primary hover:bg-basalt-primary/10"
 						aria-label="提交搜索"
 					>
 						搜索
@@ -221,8 +221,8 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 			<dl className="hidden items-center gap-4 text-xs tabular-nums md:flex lg:gap-6">
 				{stats.map(([label, value]) => (
 					<div key={label} className="flex items-baseline gap-1.5">
-						<dt className="text-muted-foreground">{label}</dt>
-						<dd className="font-semibold text-foreground">
+						<dt className="text-basalt-muted-foreground">{label}</dt>
+						<dd className="font-semibold text-basalt-foreground">
 							{value == null ? "—" : formatNumber(value)}
 						</dd>
 					</div>
@@ -234,7 +234,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 
 export function ForumHeader({ vm }: { vm: HeaderViewModel }) {
 	return (
-		<header className="forum-header relative isolate border-b border-border bg-card pt-[env(safe-area-inset-top)]">
+		<header className="forum-header relative isolate border-b border-basalt-border bg-basalt-card pt-[env(safe-area-inset-top)]">
 			<div className="site-art-frame width-container" aria-hidden="true">
 				<div
 					className="forum-header-art"

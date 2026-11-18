@@ -1,15 +1,15 @@
 "use client";
 
-import { ArrowLeft, PenLine, Send } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Input } from "@nocoo/basalt/components/input";
+import { Label } from "@nocoo/basalt/components/label";
+import { ArrowLeft, PenLine, Send } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { PostEditor, type PostEditorRef } from "@/components/forum/post-editor";
 import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { type ForumThreadTypesPublic, shouldShowPicker } from "@/viewmodels/forum/thread-types";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
@@ -60,42 +60,38 @@ export function NewThreadForm({
 			<BreadcrumbBar items={breadcrumbs} />
 			<div className="flex items-center justify-between gap-3 py-1">
 				<div className="flex min-w-0 items-center gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+					<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-basalt-primary/10 text-basalt-primary">
 						<PenLine className="size-5" aria-hidden="true" />
 					</div>
 					<div className="min-w-0">
 						<h1 className="text-xl font-semibold tracking-tight">发表主题</h1>
-						<p className="truncate text-sm text-muted-foreground">发布到 {forumName}</p>
+						<p className="truncate text-sm text-basalt-muted-foreground">发布到 {forumName}</p>
 					</div>
 				</div>
-				<Button
-					variant="outline"
-					size="sm"
-					render={<Link prefetch={false} href={`/forums/${forumId}`} />}
-					nativeButton={false}
-					disabled={busy || uploading}
-				>
-					<ArrowLeft className="size-4" aria-hidden="true" />
-					返回版块
+				<Button asChild variant="outline" size="sm" disabled={busy || uploading}>
+					<Link prefetch={false} href={`/forums/${forumId}`}>
+						<ArrowLeft className="size-4" aria-hidden="true" />
+						返回版块
+					</Link>
 				</Button>
 			</div>
 			{!canCreateThread ? (
 				<div
-					className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground"
+					className="rounded-2xl border border-basalt-border bg-basalt-card p-6 text-sm text-basalt-muted-foreground"
 					role="status"
 				>
 					发帖功能已暂时关闭，请稍后再试。
 				</div>
 			) : (
 				<section
-					className="overflow-hidden rounded-2xl border border-border bg-card"
+					className="overflow-hidden rounded-2xl border border-basalt-border bg-basalt-card"
 					aria-label="编辑主题"
 					aria-busy={busy}
 				>
 					<div className="space-y-2 px-5 pt-5">
 						<div className="flex items-center justify-between gap-3">
 							<Label htmlFor="new-thread-subject">主题标题</Label>
-							<span className="text-xs tabular-nums text-muted-foreground">
+							<span className="text-xs tabular-nums text-basalt-muted-foreground">
 								{state.subject.length}/100
 							</span>
 						</div>
@@ -112,8 +108,8 @@ export function NewThreadForm({
 						<p
 							className={
 								validation.subjectError
-									? "text-xs text-destructive"
-									: "text-xs text-muted-foreground"
+									? "text-xs text-basalt-destructive"
+									: "text-xs text-basalt-muted-foreground"
 							}
 						>
 							{validation.subjectError ?? "标题 4–100 字，正文至少 10 字。"}
@@ -132,7 +128,7 @@ export function NewThreadForm({
 					{state.error && (
 						<p
 							role="alert"
-							className="mx-5 mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"
+							className="mx-5 mt-4 rounded-xl bg-basalt-destructive/10 p-3 text-sm text-basalt-destructive"
 						>
 							{state.error}
 						</p>
@@ -155,8 +151,8 @@ export function NewThreadForm({
 							/>
 						)}
 					</div>
-					<div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-5 py-4">
-						<span className="text-xs text-muted-foreground">
+					<div className="flex flex-wrap items-center justify-between gap-3 border-t border-basalt-border bg-basalt-muted/20 px-5 py-4">
+						<span className="text-xs text-basalt-muted-foreground">
 							<span className="sm:hidden">Enter 换行</span>
 							<span className="hidden sm:inline">
 								Enter 换行 · Ctrl+Enter 发布（Mac 也可 ⌘+Enter）

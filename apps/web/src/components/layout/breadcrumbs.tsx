@@ -1,5 +1,5 @@
 import type { BreadcrumbItem } from "@ellie/shared";
-import { ChevronRight, Home } from "lucide-react";
+import { ChevronRight, Home } from "@nocoo/basalt/icons";
 import Link from "next/link";
 
 export type { BreadcrumbItem } from "@ellie/shared";
@@ -53,7 +53,7 @@ export function Breadcrumbs({ items, mobileCompact = "none" }: BreadcrumbsProps)
 	return (
 		<nav
 			aria-label="面包屑"
-			className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground"
+			className="flex flex-wrap items-center gap-1 text-sm text-basalt-muted-foreground"
 		>
 			{items.map((item, index) => {
 				// On mobile, hide the segment AND the chevron-prefix as a single
@@ -71,7 +71,7 @@ export function Breadcrumbs({ items, mobileCompact = "none" }: BreadcrumbsProps)
 							<Link
 								prefetch={false}
 								href={item.href}
-								className="flex min-w-0 items-center gap-1 break-words hover:text-foreground transition-colors"
+								className="flex min-w-0 items-center gap-1 break-words hover:text-basalt-foreground transition-colors"
 							>
 								{item.icon === "home" && (
 									<Home className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -81,7 +81,7 @@ export function Breadcrumbs({ items, mobileCompact = "none" }: BreadcrumbsProps)
 						) : (
 							<span
 								aria-current={index === items.length - 1 ? "page" : undefined}
-								className="min-w-0 break-words text-foreground font-medium"
+								className="min-w-0 break-words text-basalt-foreground font-medium"
 							>
 								{item.label}
 							</span>

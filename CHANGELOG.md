@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.34] - 2026-11-18
+
+### Changed
+
+- Upgrade the forum and admin applications to `@nocoo/basalt` 3.5.1, using Basalt icons, primitives, chart chrome, stat cards, and semantic design tokens.
+
+### Removed
+
+- Remove the duplicated web and shared UI component shims, direct Radix/Lucide packages, the `tw-animate-css` stylesheet, and the retired `packages/ui` workspace.
+
+### Security
+
+- Add a time-bounded OSV waiver for the unresolved `picomatch` 4.0.7 tooling advisory.
+
 ## [1.14.33] - 2026-11-09
 
 ### Added

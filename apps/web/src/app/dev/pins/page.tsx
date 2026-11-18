@@ -94,16 +94,16 @@ export default function PinPreviewPage() {
 	return (
 		<main className="mx-auto max-w-6xl p-6">
 			<h1 className="mb-2 text-xl font-semibold">主题图标预览</h1>
-			<p className="mb-6 text-sm text-muted-foreground">
+			<p className="mb-6 text-sm text-basalt-muted-foreground">
 				置顶与文件夹状态 · 原尺寸 SVG · 调整窗口宽度可查看手机布局
 			</p>
-			<div className="overflow-hidden rounded-lg border border-border bg-card">
+			<div className="overflow-hidden rounded-lg border border-basalt-border bg-basalt-card">
 				{enrichThreads(threads).map((item) => (
 					<ThreadItem key={item.thread.id} item={item} postsPerPage={20} />
 				))}
 			</div>
 			<h2 className="mb-3 mt-8 text-xl font-semibold">论坛首页图标预览</h2>
-			<div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+			<div className="divide-y divide-border overflow-hidden rounded-lg border border-basalt-border bg-basalt-card">
 				{forums.map((forum) => (
 					<ForumCard key={forum.id} forum={forum} />
 				))}
@@ -111,7 +111,7 @@ export default function PinPreviewPage() {
 			<h2 className="mb-3 mt-8 text-xl font-semibold">首页精华推荐</h2>
 			<DigestShowcase threads={digestThreads} />
 			<h2 className="mb-3 mt-8 text-xl font-semibold">精华页列表</h2>
-			<div className="overflow-hidden rounded-lg border border-border bg-card">
+			<div className="overflow-hidden rounded-lg border border-basalt-border bg-basalt-card">
 				{digestThreads.map((thread) => (
 					<DigestCard key={thread.id} thread={thread} badges={getThreadBadges(thread)} />
 				))}

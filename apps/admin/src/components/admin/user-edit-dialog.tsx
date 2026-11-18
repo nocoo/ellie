@@ -29,7 +29,7 @@ import {
 	ShieldCheck,
 	User as UserIcon,
 	X,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import { twMerge as cn } from "tailwind-merge";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";

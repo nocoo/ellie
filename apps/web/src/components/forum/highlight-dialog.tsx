@@ -3,10 +3,8 @@
 // components/forum/highlight-dialog.tsx — Thread highlight color/style dialog
 
 import { decodeHighlight } from "@ellie/types";
-import { Highlighter } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@nocoo/basalt/components/button";
+import { Checkbox } from "@nocoo/basalt/components/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -14,7 +12,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
+} from "@nocoo/basalt/components/dialog";
+import { Highlighter } from "@nocoo/basalt/icons";
+import { useEffect, useState } from "react";
 import type { HighlightOptions } from "@/lib/moderation-api";
 import { cn } from "@/lib/utils";
 
@@ -80,13 +80,10 @@ export function HighlightDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
-			<DialogContent
-				className="flex flex-col overflow-hidden sm:max-w-lg"
-				showCloseButton={!loading}
-			>
+			<DialogContent className="flex flex-col overflow-hidden sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Highlighter className="h-5 w-5 text-primary" />
+						<Highlighter className="h-5 w-5 text-basalt-primary" />
 						设置高亮
 					</DialogTitle>
 					<DialogDescription>选择主题标题的颜色和样式</DialogDescription>
@@ -107,8 +104,8 @@ export function HighlightDialog({
 									className={cn(
 										"w-9 h-9 rounded-full border-2 transition-colors disabled:opacity-50",
 										selectedColor === item.color
-											? "border-primary ring-2 ring-primary/30"
-											: "border-border hover:border-primary/50",
+											? "border-basalt-primary ring-2 ring-basalt-primary/30"
+											: "border-basalt-border hover:border-basalt-primary/50",
 									)}
 									style={{
 										backgroundColor: item.color || "transparent",
@@ -116,7 +113,9 @@ export function HighlightDialog({
 									onClick={() => setSelectedColor(item.color)}
 									title={item.label}
 								>
-									{item.color === null && <span className="text-xs text-muted-foreground">无</span>}
+									{item.color === null && (
+										<span className="text-xs text-basalt-muted-foreground">无</span>
+									)}
 								</button>
 							))}
 						</div>
@@ -152,7 +151,7 @@ export function HighlightDialog({
 					{/* Preview */}
 					<div>
 						<div className="text-sm font-medium mb-2">预览</div>
-						<div className="p-3 rounded-lg border border-border bg-muted/30">
+						<div className="p-3 rounded-lg border border-basalt-border bg-basalt-muted/30">
 							<span style={previewStyle}>这是一个示例标题</span>
 						</div>
 					</div>

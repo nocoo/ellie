@@ -5,8 +5,8 @@
 // pill clears the typeId query entirely.
 
 import type { ForumThreadType } from "@ellie/types";
+import { Button } from "@nocoo/basalt/components/button";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { buildForumListUrl } from "@/viewmodels/forum/thread-types";
 
@@ -23,12 +23,12 @@ export function ThreadTypeFilter({ forumId, types, activeTypeId }: ThreadTypeFil
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: not a form control; <fieldset>/<legend> carries form/reset semantics we don't want here. This is a navigational group of links.
 		<div
-			className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3"
+			className="flex flex-wrap items-center gap-2 rounded-xl border border-basalt-border bg-basalt-card p-3"
 			data-testid="thread-type-filter"
 			role="group"
 			aria-label="主题分类筛选"
 		>
-			<span className="text-xs text-muted-foreground">分类：</span>
+			<span className="text-xs text-basalt-muted-foreground">分类：</span>
 			<Pill
 				href={buildForumListUrl({ forumId, typeId: null })}
 				active={activeTypeId == null}
@@ -53,23 +53,19 @@ interface PillProps {
 }
 
 function Pill({ href, active, label }: PillProps) {
-	return (
-		<Button
-			variant={active ? "default" : "outline"}
-			size="xs"
-			className={cn(
-				"h-7 px-3 text-xs",
-				active && "bg-primary text-primary-foreground hover:bg-primary/90",
-			)}
-			{...(active
-				? { nativeButton: true, disabled: true, "aria-pressed": true }
-				: {
-						nativeButton: false,
-						"aria-pressed": false,
-						render: <Link href={href} prefetch={false} />,
-					})}
-		>
+	const className = cn(
+		"h-7 px-3 text-xs",
+		active && "bg-basalt-primary text-basalt-primary-foreground hover:bg-basalt-primary/90",
+	);
+	return active ? (
+		<Button size="sm" className={className} disabled aria-pressed>
 			{label}
+		</Button>
+	) : (
+		<Button asChild variant="outline" size="sm" className={className} aria-pressed={false}>
+			<Link href={href} prefetch={false}>
+				{label}
+			</Link>
 		</Button>
 	);
 }

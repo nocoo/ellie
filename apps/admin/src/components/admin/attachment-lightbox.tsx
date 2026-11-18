@@ -2,7 +2,7 @@
 
 import { Button, Dialog, DialogClose, DialogTitle, LayerCard, Separator } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
-import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from "@nocoo/basalt/icons";
 import { useState } from "react";
 import { AdminDialogContent } from "./admin-dialog-content";
 import { AdminInlineMessage } from "./admin-inline-message";

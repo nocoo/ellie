@@ -20,7 +20,7 @@
 import { Button, Input, Label, LayerCard } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 
-import { AlertCircle, CalendarCheck, Check } from "lucide-react";
+import { AlertCircle, CalendarCheck, Check } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { extractErrorMessage } from "@/lib/admin-error";

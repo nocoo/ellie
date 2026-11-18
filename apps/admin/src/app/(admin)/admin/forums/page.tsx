@@ -24,7 +24,7 @@ import {
 	Plus,
 	SquareStack,
 	Trash2,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";

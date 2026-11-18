@@ -1,6 +1,6 @@
 export function syncBrowserTheme() {
 	const root = document.documentElement;
-	const color = `hsl(${getComputedStyle(root).getPropertyValue("--card").trim()})`;
+	const color = `hsl(${getComputedStyle(root).getPropertyValue("--basalt-card").trim()})`;
 	for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
 		meta.setAttribute("content", color);
 	}

@@ -30,7 +30,7 @@ export function ThreadInlinePages({
 	const items = getInlinePageItems(pageCount);
 
 	return (
-		<span className="inline-flex items-center gap-0.5 shrink-0 text-xs text-muted-foreground">
+		<span className="inline-flex items-center gap-0.5 shrink-0 text-xs text-basalt-muted-foreground">
 			{items.map((item, i) => (
 				<InlinePageLink
 					key={itemKey(item, i)}
@@ -59,7 +59,7 @@ function InlinePageLink({
 		<Link
 			href={getThreadPageUrl(threadId, item, returnTo)}
 			prefetch={false}
-			className="px-0.5 hover:text-primary transition-colors tabular-nums"
+			className="px-0.5 hover:text-basalt-primary transition-colors tabular-nums"
 		>
 			{item}
 		</Link>

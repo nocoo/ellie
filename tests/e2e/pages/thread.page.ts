@@ -13,7 +13,7 @@ export class ThreadPage {
 		// fetch after "load" fires. Wait explicitly for post-card content or
 		// an empty/error state to surface, so callers don't race the fetch.
 		await this.page
-			.locator('h1, [data-testid="post-card"], .bg-card, :text("该帖子不存在")')
+			.locator('h1, [data-testid="post-card"], .bg-basalt-card, :text("该帖子不存在")')
 			.first()
 			.waitFor({ state: "visible", timeout: 15_000 })
 			.catch(() => {

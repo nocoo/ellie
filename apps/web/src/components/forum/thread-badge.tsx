@@ -2,11 +2,11 @@
 // Ref: 04d §ThreadBadge — sticky/digest/closed/special labels
 
 import type { ThreadBadge } from "@ellie/types";
-import type { VariantProps } from "class-variance-authority";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@nocoo/basalt/components/badge";
+import type { ComponentProps } from "react";
 import { DigestIcon } from "./digest-icon";
 
-type BadgeVariant = NonNullable<VariantProps<typeof Badge>["variant"]>;
+type BadgeVariant = NonNullable<ComponentProps<typeof Badge>["variant"]>;
 
 /**
  * Map model badge variant to shadcn Badge variant.
@@ -27,7 +27,7 @@ function toBadgeVariant(variant: ThreadBadge["variant"]): BadgeVariant {
 		case "success":
 			return "success";
 		case "secondary":
-			return "muted";
+			return "secondary";
 		default:
 			return "default";
 	}

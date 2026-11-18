@@ -1,7 +1,8 @@
 // Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
 import { getThreadBadges } from "@ellie/types";
-import { Clock3, Eye, MessageCircle, MessageSquare } from "lucide-react";
+import { LayerCard } from "@nocoo/basalt/components/layer-card";
+import { Clock3, Eye, MessageCircle, MessageSquare } from "@nocoo/basalt/icons";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -13,7 +14,6 @@ import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { ThreadReportButton } from "@/components/forum/thread-report-button";
 import { ThreadTitleEditButton } from "@/components/forum/thread-title-edit-button";
-import { Card, CardContent } from "@/components/ui/card";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { parseThreadLocation, THREAD_LOCATION_HEADER } from "@/lib/thread-location";
 import {
@@ -61,16 +61,16 @@ function ThreadHeaderAuthor({
 	thread: { authorId: number; authorName: string; anonymousAuthor?: number };
 }) {
 	if (thread.anonymousAuthor === 1 && thread.authorId === 0) {
-		return <span className="text-muted-foreground">匿名</span>;
+		return <span className="text-basalt-muted-foreground">匿名</span>;
 	}
 	if (thread.authorId === 0) {
-		return <span className="text-muted-foreground">未知用户</span>;
+		return <span className="text-basalt-muted-foreground">未知用户</span>;
 	}
 	return (
 		<Link
 			prefetch={false}
 			href={`/users/${thread.authorId}`}
-			className="hover:text-primary transition-colors"
+			className="hover:text-basalt-primary transition-colors"
 		>
 			{thread.authorName}
 		</Link>
@@ -84,18 +84,18 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	if (threadId == null) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">无效的主题 ID</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">无效的主题 ID</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -129,18 +129,18 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	if (error || !data.thread) {
 		return (
-			<Card size="sm">
-				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">{error ?? "主题不存在"}</p>
+			<LayerCard padding="none">
+				<div className="text-center py-4">
+					<p className="text-sm text-basalt-destructive">{error ?? "主题不存在"}</p>
 					<Link
 						prefetch={false}
 						href="/"
-						className="mt-4 inline-block text-sm text-primary hover:underline"
+						className="mt-4 inline-block text-sm text-basalt-primary hover:underline"
 					>
 						返回首页
 					</Link>
-				</CardContent>
-			</Card>
+				</div>
+			</LayerCard>
 		);
 	}
 
@@ -204,7 +204,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 						<Link
 							prefetch={false}
 							href={`/forums/${thread.forumId}`}
-							className="font-medium text-primary hover:underline"
+							className="font-medium text-basalt-primary hover:underline"
 						>
 							{data.forum?.name ?? "版块"}
 						</Link>
@@ -213,7 +213,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					</div>
 				}
 			>
-				<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground tabular-nums">
+				<div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-basalt-muted-foreground tabular-nums">
 					<span className="inline-flex items-center gap-1.5">
 						<Eye className="size-4" aria-hidden="true" />
 						{formatNumber(thread.views)} 次查看
@@ -226,7 +226,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 						<Link
 							prefetch={false}
 							href={getThreadPageUrl(thread.id, threadPages, validReturnTo ?? undefined)}
-							className="inline-flex items-center gap-1.5 hover:text-primary"
+							className="inline-flex items-center gap-1.5 hover:text-basalt-primary"
 						>
 							<Clock3 className="size-4" aria-hidden="true" />
 							最后回复 {formatRelativeTime(thread.lastPostAt)}
@@ -274,11 +274,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			</ModProvider>
 
 			{data.posts.length === 0 && (
-				<Card size="sm">
-					<CardContent className="text-center py-4 text-sm text-muted-foreground">
-						暂无回复
-					</CardContent>
-				</Card>
+				<LayerCard padding="none">
+					<div className="text-center py-4 text-sm text-basalt-muted-foreground">暂无回复</div>
+				</LayerCard>
 			)}
 
 			{/* Bottom pagination */}

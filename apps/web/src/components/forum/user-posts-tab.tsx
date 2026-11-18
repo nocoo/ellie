@@ -28,7 +28,7 @@ export function UserPostsTab({
 		return (
 			<div
 				role="alert"
-				className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive"
+				className="rounded-md border border-basalt-destructive/40 bg-basalt-destructive/5 px-3 py-3 text-sm text-basalt-destructive"
 				data-testid="posts-legacy-error"
 			>
 				回复列表加载失败：Worker 接口未同步至新数据形态，请先部署后端更新

@@ -17,9 +17,21 @@ import { cloneElement, type ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Happy DOM has no layout; supply dimensions while exercising the real charts.
-vi.mock("@nocoo/basalt/charts/frame", () => ({
+vi.mock("recharts", async (importOriginal) => ({
+	...((await importOriginal()) as object),
+	ResponsiveContainer: ({
+		children,
+	}: {
+		children: ReactElement<{ width: number; height: number }>;
+	}) => cloneElement(children, { width: 600, height: 300 }),
+}));
+
+vi.mock("@nocoo/basalt/components/chart", () => ({
+	AXIS_CONFIG: {},
 	ChartFrame: ({ children }: { children: ReactElement<{ width: number; height: number }> }) =>
 		cloneElement(children, { width: 600, height: 300 }),
+	ChartTooltipContent: () => null,
+	GRID_PROPS: {},
 }));
 
 import { cleanup, render } from "@testing-library/react";

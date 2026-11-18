@@ -18,7 +18,7 @@
 // `router.refresh()` after the toggle.
 
 import type { ForumListRecommended } from "@ellie/types";
-import { ThumbsUp } from "lucide-react";
+import { ThumbsUp } from "@nocoo/basalt/icons";
 import Link from "next/link";
 
 interface ForumRecommendedCardProps {
@@ -29,9 +29,9 @@ export function ForumRecommendedCard({ threads }: ForumRecommendedCardProps) {
 	if (threads.length === 0) return null;
 
 	return (
-		<div className="mt-3 rounded-sm border border-border bg-card/60 p-3">
-			<div className="flex items-center gap-2 text-sm font-medium text-foreground">
-				<ThumbsUp className="h-4 w-4 text-primary" />
+		<div className="mt-3 rounded-sm border border-basalt-border bg-basalt-card/60 p-3">
+			<div className="flex items-center gap-2 text-sm font-medium text-basalt-foreground">
+				<ThumbsUp className="h-4 w-4 text-basalt-primary" />
 				推荐主题
 			</div>
 			{/* Mobile: single column to avoid title truncation at 320/375. Desktop
@@ -43,19 +43,19 @@ export function ForumRecommendedCard({ threads }: ForumRecommendedCardProps) {
 				{threads.map((t) => (
 					<li
 						key={t.id}
-						className="flex items-baseline gap-2 text-sm text-foreground/90 leading-relaxed min-w-0"
+						className="flex items-baseline gap-2 text-sm text-basalt-foreground/90 leading-relaxed min-w-0"
 					>
 						<Link
 							href={`/threads/${t.id}`}
 							prefetch={false}
-							className="truncate hover:underline hover:text-primary"
+							className="truncate hover:underline hover:text-basalt-primary"
 						>
 							{t.subject}
 						</Link>
 						{/* Author + reply meta — hidden on mobile per reviewer freeze
 						    msg=5a91dfd3. Desktop unchanged. */}
 						<span
-							className="ml-auto shrink-0 text-xs text-muted-foreground hidden sm:inline"
+							className="ml-auto shrink-0 text-xs text-basalt-muted-foreground hidden sm:inline"
 							data-testid="forum-recommended-meta"
 						>
 							{t.authorName} · {t.replies} 回复

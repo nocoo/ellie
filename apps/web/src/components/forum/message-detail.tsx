@@ -2,7 +2,9 @@
 
 "use client";
 
-import { ArrowLeft, Loader2, Mail, Reply, Trash2 } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { ConfirmDialog } from "@nocoo/basalt/components/confirm-dialog";
+import { ArrowLeft, Loader2, Mail, Reply, Trash2 } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -11,8 +13,6 @@ import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { ForumPageHeader } from "@/components/forum/forum-page-header";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
-import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError, deleteMessage, fetchMessage, type Message } from "@/viewmodels/forum/messages";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { useForumToast } from "./forum-toast";
@@ -141,10 +141,10 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 		return (
 			<div className="py-12 text-center" role="status" aria-busy="true">
 				<Loader2
-					className="mx-auto h-6 w-6 animate-spin text-muted-foreground"
+					className="mx-auto h-6 w-6 animate-spin text-basalt-muted-foreground"
 					aria-hidden="true"
 				/>
-				<p className="mt-2 text-sm text-muted-foreground">加载中...</p>
+				<p className="mt-2 text-sm text-basalt-muted-foreground">加载中...</p>
 			</div>
 		);
 	}
@@ -152,7 +152,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	if (error) {
 		return (
 			<div className="py-12 text-center" role="alert">
-				<p className="text-sm text-destructive">{error}</p>
+				<p className="text-sm text-basalt-destructive">{error}</p>
 				<div className="mt-4 flex justify-center gap-2">
 					<Button variant="outline" size="sm" onClick={() => void loadMessage()}>
 						重试
@@ -168,7 +168,9 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	// No message
 	if (!message) {
 		return (
-			<div className="py-12 text-center text-sm text-muted-foreground">站内信不存在或已被删除</div>
+			<div className="py-12 text-center text-sm text-basalt-muted-foreground">
+				站内信不存在或已被删除
+			</div>
 		);
 	}
 
@@ -183,13 +185,11 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 				description={formatMessageDate(message.createdAt)}
 				actions={
 					<>
-						<Button
-							variant="ghost"
-							nativeButton={false}
-							render={<Link prefetch={false} href="/messages" role="link" />}
-						>
-							<ArrowLeft className="size-4" aria-hidden="true" />
-							返回列表
+						<Button asChild variant="ghost">
+							<Link prefetch={false} href="/messages">
+								<ArrowLeft className="size-4" aria-hidden="true" />
+								返回列表
+							</Link>
 						</Button>
 						<Button onClick={() => void handleReply()} disabled={replyBusy} aria-busy={replyBusy}>
 							<Reply className="size-4" aria-hidden="true" />
@@ -202,15 +202,15 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 							disabled={isDeleting}
 							aria-busy={isDeleting}
 							aria-label="删除站内信"
-							className="text-destructive hover:text-destructive"
+							className="text-basalt-destructive hover:text-basalt-destructive"
 						>
 							<Trash2 className="size-4" aria-hidden="true" />
 						</Button>
 					</>
 				}
 			/>
-			<article className="overflow-hidden rounded-2xl border border-border bg-card">
-				<div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-4 sm:px-5">
+			<article className="overflow-hidden rounded-2xl border border-basalt-border bg-basalt-card">
+				<div className="flex min-w-0 items-center gap-3 border-b border-basalt-border px-4 py-4 sm:px-5">
 					{message.senderId > 0 ? (
 						<Link prefetch={false} href={`/users/${message.senderId}`} className="shrink-0">
 							<ForumAvatar
@@ -233,19 +233,19 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 							<Link
 								prefetch={false}
 								href={`/users/${message.senderId}`}
-								className="break-all font-medium hover:text-primary"
+								className="break-all font-medium hover:text-basalt-primary"
 							>
 								{message.senderName}
 							</Link>
 						) : (
 							<span>{message.senderName || "未知用户"}</span>
 						)}
-						<span className="text-xs text-muted-foreground">发给</span>
+						<span className="text-xs text-basalt-muted-foreground">发给</span>
 						{message.receiverId > 0 ? (
 							<Link
 								prefetch={false}
 								href={`/users/${message.receiverId}`}
-								className="break-all font-medium hover:text-primary"
+								className="break-all font-medium hover:text-basalt-primary"
 							>
 								{message.receiverName}
 							</Link>
@@ -254,7 +254,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 						)}
 					</div>
 				</div>
-				<div className="min-h-40 whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-4 py-5 text-[15px] leading-7 text-foreground sm:px-5">
+				<div className="min-h-40 whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-4 py-5 text-[15px] leading-7 text-basalt-foreground sm:px-5">
 					{message.content}
 				</div>
 			</article>
@@ -266,7 +266,8 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 				}}
 				title="删除站内信"
 				description="确定要删除这条站内信吗？删除后将从你的信箱中移除。"
-				confirmText="确认删除"
+				confirmLabel="确认删除"
+				cancelLabel="取消"
 				variant="destructive"
 				loading={isDeleting}
 				onConfirm={handleDelete}

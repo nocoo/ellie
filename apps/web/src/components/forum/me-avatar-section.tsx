@@ -17,7 +17,7 @@
 //   page repaints from the fresh URL, then call `router.refresh()` to
 //   re-run the server component for any avatar-dependent rendering.
 
-import { ImagePlus } from "lucide-react";
+import { ImagePlus } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "@/components/forum/avatar-upload";
 import { useAvatarContext, useAvatarUrl } from "@/contexts/avatar-context";
@@ -38,14 +38,14 @@ export function MeAvatarSection({ userId, avatarPath }: MeAvatarSectionProps) {
 	};
 
 	return (
-		<div className="flex h-full flex-col rounded-2xl border border-border bg-card p-4 sm:p-5">
+		<div className="flex h-full flex-col rounded-2xl border border-basalt-border bg-basalt-card p-4 sm:p-5">
 			<div className="mb-3 flex items-center gap-2">
-				<ImagePlus className="size-4 text-primary" aria-hidden="true" />
-				<h2 id="avatar-section-heading" className="text-base font-semibold text-foreground">
+				<ImagePlus className="size-4 text-basalt-primary" aria-hidden="true" />
+				<h2 id="avatar-section-heading" className="text-base font-semibold text-basalt-foreground">
 					头像
 				</h2>
 			</div>
-			<p className="mb-4 text-xs text-muted-foreground leading-relaxed">
+			<p className="mb-4 text-xs text-basalt-muted-foreground leading-relaxed">
 				上传一张便于识别的头像，上传后会自动压缩。
 			</p>
 			<AvatarUpload currentUrl={avatarUrl} onUploadComplete={handleAvatarUploadComplete} />

@@ -22,14 +22,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Mock UI components to simplify rendering
-vi.mock("@/components/ui/badge", () => ({
+vi.mock("@nocoo/basalt/components/badge", () => ({
 	Badge: ({ children }: any) => createElement("span", null, children),
 }));
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, onClick, disabled }: any) =>
 		createElement("button", { type: "button", onClick, disabled }, children),
 }));
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@nocoo/basalt/components/dialog", () => ({
 	Dialog: ({ children, open }: any) => (open ? createElement("div", null, children) : null),
 	DialogContent: ({ children }: any) => createElement("div", null, children),
 	DialogDescription: ({ children }: any) => createElement("p", null, children),
@@ -37,7 +37,7 @@ vi.mock("@/components/ui/dialog", () => ({
 	DialogHeader: ({ children }: any) => createElement("div", null, children),
 	DialogTitle: ({ children }: any) => createElement("h2", null, children),
 }));
-vi.mock("@/components/ui/dropdown-menu", () => ({
+vi.mock("@nocoo/basalt/components/dropdown-menu", () => ({
 	DropdownMenu: ({ children }: any) => createElement("div", null, children),
 	DropdownMenuContent: ({ children }: any) => createElement("div", null, children),
 	DropdownMenuItem: ({ children, onClick, disabled }: any) =>

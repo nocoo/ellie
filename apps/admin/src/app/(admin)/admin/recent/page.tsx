@@ -13,7 +13,14 @@ import {
 } from "@nocoo/basalt";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import { Activity, MessageSquare, MessagesSquare, Paperclip, Trash2, Users } from "lucide-react";
+import {
+	Activity,
+	MessageSquare,
+	MessagesSquare,
+	Paperclip,
+	Trash2,
+	Users,
+} from "@nocoo/basalt/icons";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";

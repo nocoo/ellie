@@ -19,7 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { Badge, Button, Input, Label, LayerCard } from "@nocoo/basalt";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2 } from "@nocoo/basalt/icons";
 import { useCallback, useId, useMemo } from "react";
 import type { NavLinkItem } from "@/viewmodels/admin/settings";
 

@@ -13,7 +13,7 @@
 // / `SELF_RATING` etc. — the dialog must surface those errors verbatim.
 "use client";
 
-import { Award, Coins, Flag, MessageCircle, Pencil, Reply, Trash2 } from "lucide-react";
+import { Award, Coins, Flag, MessageCircle, Pencil, Reply, Trash2 } from "@nocoo/basalt/icons";
 import { useRef, useState } from "react";
 import { ForumActionButton } from "./forum-action-button";
 import { useForumToast } from "./forum-toast";
@@ -83,7 +83,7 @@ export function PostActionBar({
 
 	return (
 		<div
-			className="flex items-center justify-between gap-1 overflow-x-auto whitespace-nowrap border-t border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground sm:flex-wrap sm:overflow-visible"
+			className="flex items-center justify-between gap-1 overflow-x-auto whitespace-nowrap border-t border-basalt-border bg-basalt-muted/30 px-2 py-1.5 text-xs text-basalt-muted-foreground sm:flex-wrap sm:overflow-visible"
 			data-testid="post-action-bar"
 		>
 			<div className="flex shrink-0 items-center gap-1 sm:shrink sm:flex-wrap">

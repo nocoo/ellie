@@ -5,7 +5,7 @@
 // Keeping desktop and mobile on a single component prevents the two surfaces
 // from drifting on the role→icon mapping.
 
-import { Crown, PenLine, Shield, ShieldCheck, UserRound } from "lucide-react";
+import { Crown, PenLine, Shield, ShieldCheck, UserRound } from "@nocoo/basalt/icons";
 import {
 	getPostAuthorIconAlt,
 	getPostAuthorIconName,
@@ -31,7 +31,11 @@ export function PostAuthorStatusIcon({
 		"online_member.gif": UserRound,
 	}[name];
 	return (
-		<Icon role="img" aria-label={alt} className={className ?? "h-3.5 w-3.5 shrink-0 text-primary"}>
+		<Icon
+			role="img"
+			aria-label={alt}
+			className={className ?? "h-3.5 w-3.5 shrink-0 text-basalt-primary"}
+		>
 			<title>{alt}</title>
 		</Icon>
 	);

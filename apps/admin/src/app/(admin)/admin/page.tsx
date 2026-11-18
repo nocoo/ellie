@@ -13,7 +13,7 @@ import {
 	MessagesSquare,
 	ShieldBan,
 	Users,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";

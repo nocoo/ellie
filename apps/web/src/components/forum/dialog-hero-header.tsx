@@ -5,14 +5,14 @@
 // + close button layout. Scope is intentionally narrow: A-class (hero shell)
 // dialogs only. Footer / error / width / height are NOT owned here.
 
-import { X } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { DialogDescription, DialogHeader, DialogTitle } from "@nocoo/basalt/components/dialog";
+import { X } from "@nocoo/basalt/icons";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface DialogHeroHeaderProps {
-	/** Pre-sized lucide icon (typically `h-5 w-5 text-primary`) */
+	/** Pre-sized lucide icon (typically `h-5 w-5 text-basalt-primary`) */
 	icon: ReactNode;
 	title: string;
 	description?: ReactNode;
@@ -30,11 +30,11 @@ export function DialogHeroHeader({
 	className,
 }: DialogHeroHeaderProps) {
 	return (
-		<DialogHeader className={cn("border-b border-border px-5 py-4", className)}>
+		<DialogHeader className={cn("border-b border-basalt-border px-5 py-4", className)}>
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3 min-w-0">
 					<div
-						className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+						className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-basalt-primary/10"
 						aria-hidden="true"
 					>
 						{icon}
@@ -54,7 +54,7 @@ export function DialogHeroHeader({
 						size="icon-sm"
 						onClick={onClose}
 						disabled={closeDisabled}
-						className="text-muted-foreground hover:text-foreground shrink-0"
+						className="text-basalt-muted-foreground hover:text-basalt-foreground shrink-0"
 					>
 						<span className="sr-only">关闭</span>
 						<X className="h-4 w-4" />

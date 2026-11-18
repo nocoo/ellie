@@ -42,7 +42,7 @@ import {
 	ShieldBan,
 	ToggleLeft,
 	Users,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";

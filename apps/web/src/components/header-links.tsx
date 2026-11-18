@@ -1,12 +1,14 @@
 "use client";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@nocoo/basalt/components/tooltip";
 import type { ReactElement } from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function HeaderTooltip({ label, children }: { label: string; children: ReactElement }) {
 	return (
-		<Tooltip>
-			<TooltipTrigger render={children} delay={200} className="cursor-pointer" />
+		<Tooltip delayDuration={200}>
+			<TooltipTrigger asChild className="cursor-pointer">
+				{children}
+			</TooltipTrigger>
 			<TooltipContent side="bottom">{label}</TooltipContent>
 		</Tooltip>
 	);

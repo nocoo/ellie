@@ -20,7 +20,7 @@ import {
 	ShieldCheck,
 	SlidersHorizontal,
 	Users,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";

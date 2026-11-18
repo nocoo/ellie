@@ -3,7 +3,7 @@
 // Avatar upload component with drag-and-drop support
 // Validates client-side then uploads to /api/v1/upload with purpose=avatar
 
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload } from "@nocoo/basalt/icons";
 import { type DragEvent, useCallback, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { UserAvatar } from "@/components/forum/user-avatar";
@@ -128,7 +128,7 @@ export function AvatarUpload({
 				aria-label="头像上传拖放区"
 				className={cn(
 					"relative rounded-lg border-2 border-dashed p-4 transition-colors",
-					isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25",
+					isDragging ? "border-basalt-primary bg-basalt-primary/5" : "border-muted-foreground/25",
 					isDisabled && "pointer-events-none opacity-50",
 				)}
 			>
@@ -141,19 +141,19 @@ export function AvatarUpload({
 							className="h-20 w-20 rounded-full object-cover border-2 border-background shadow-sm"
 						/>
 						{isUploading && (
-							<div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
-								<Loader2 className="h-6 w-6 animate-spin text-primary" />
+							<div className="absolute inset-0 flex items-center justify-center rounded-full bg-basalt-background/70">
+								<Loader2 className="h-6 w-6 animate-spin text-basalt-primary" />
 							</div>
 						)}
 					</div>
 
 					{/* Instructions */}
 					<div className="text-center">
-						<div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+						<div className="flex items-center justify-center gap-1.5 text-sm text-basalt-muted-foreground">
 							<Upload className="h-4 w-4" />
 							<span>拖拽图片到此处，或点击上传</span>
 						</div>
-						<p className="text-xs text-muted-foreground/70 mt-1">
+						<p className="text-xs text-basalt-muted-foreground/70 mt-1">
 							JPG / PNG，最大 {AVATAR_MAX_UPLOAD_MB} MB，上传后自动压缩并立即生效
 						</p>
 					</div>
@@ -171,7 +171,7 @@ export function AvatarUpload({
 			</section>
 
 			{/* Error message */}
-			{error && <p className="text-sm text-destructive text-center">{error}</p>}
+			{error && <p className="text-sm text-basalt-destructive text-center">{error}</p>}
 		</div>
 	);
 }

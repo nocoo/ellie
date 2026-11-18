@@ -58,23 +58,23 @@ vi.mock("@/app/(auth)/_components/auth-id-card", () => ({
 		visible ? createElement("div", { "data-testid": "auth-help-hint" }) : null,
 }));
 
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@nocoo/basalt/components/button", () => ({
 	Button: ({ children, ...props }: any) =>
 		createElement("button", { type: "button", ...props }, children),
 }));
 
-vi.mock("@/components/ui/input", () => ({
+vi.mock("@nocoo/basalt/components/input", () => ({
 	Input: (props: any) => createElement("input", props),
 }));
 
-vi.mock("@/components/ui/label", () => ({
+vi.mock("@nocoo/basalt/components/label", () => ({
 	Label: ({ children, ...props }: any) => createElement("label", props, children),
 }));
 
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@nocoo/basalt/components/dialog", () => ({
 	Dialog: ({ children }: any) => createElement("div", { "data-testid": "dialog" }, children),
-	DialogTrigger: ({ render: renderProp }: any) =>
-		createElement("div", { "data-testid": "dialog-trigger" }, renderProp),
+	DialogTrigger: ({ children }: any) =>
+		createElement("div", { "data-testid": "dialog-trigger" }, children),
 	DialogContent: ({ children }: any) =>
 		createElement("div", { "data-testid": "dialog-content" }, children),
 	DialogHeader: ({ children }: any) =>

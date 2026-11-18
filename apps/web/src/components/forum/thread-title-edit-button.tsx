@@ -5,10 +5,10 @@
 // msg=a8ee78db. Mounting the dialog state is the only reason this needs to
 // be a client component — the dialog itself owns submit/error wiring.
 
-import { Pencil } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Pencil } from "@nocoo/basalt/icons";
 import { useState } from "react";
 import { ThreadTitleEditDialog } from "@/components/forum/thread-title-edit-dialog";
-import { Button } from "@/components/ui/button";
 
 interface ThreadTitleEditButtonProps {
 	threadId: number;
@@ -25,7 +25,7 @@ export function ThreadTitleEditButton({ threadId, currentSubject }: ThreadTitleE
 				size="icon-sm"
 				aria-label="编辑主题标题"
 				title="编辑标题"
-				className="hidden sm:inline-flex shrink-0 text-muted-foreground hover:text-primary"
+				className="hidden sm:inline-flex shrink-0 text-basalt-muted-foreground hover:text-basalt-primary"
 				onClick={() => setOpen(true)}
 			>
 				<Pencil className="h-4 w-4" />

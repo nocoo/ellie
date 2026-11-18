@@ -13,7 +13,7 @@ import {
 	Star,
 	Trash2,
 	Unlock,
-} from "lucide-react";
+} from "@nocoo/basalt/icons";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";

@@ -4,14 +4,14 @@
 "use client";
 
 import type { PostComment } from "@ellie/types";
-import { Loader2, MessageCircle, Send } from "lucide-react";
+import { Button } from "@nocoo/basalt/components/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@nocoo/basalt/components/dialog";
+import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Label } from "@nocoo/basalt/components/label";
+import { Loader2, MessageCircle, Send } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { handleSubmitShortcut } from "@/lib/composer-keyboard";
@@ -88,7 +88,7 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !submittingRef.current && onOpenChange(next)}>
-			<DialogContent className="max-w-md" showCloseButton={!submitting} aria-busy={submitting}>
+			<DialogContent className="max-w-md" aria-busy={submitting}>
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<MessageCircle className="h-5 w-5" aria-hidden="true" />
@@ -98,7 +98,7 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 				<div className="space-y-4">
 					<div className="space-y-1">
 						<Label htmlFor={fieldId}>点评内容</Label>
-						<Textarea
+						<InputArea
 							id={fieldId}
 							placeholder="写下你的点评（最多255字）"
 							value={content}
@@ -115,13 +115,13 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 								});
 							}}
 						/>
-						<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+						<div className="flex items-center justify-between gap-3 text-xs text-basalt-muted-foreground">
 							<span>Enter 换行，Ctrl/⌘+Enter 发送</span>
 							<span>{content.length}/255</span>
 						</div>
 					</div>
 					{error && (
-						<p id={errorId} role="alert" className="text-sm text-destructive">
+						<p id={errorId} role="alert" className="text-sm text-basalt-destructive">
 							{error}
 						</p>
 					)}
@@ -195,7 +195,7 @@ export function PostComments({
 	);
 
 	const loadErrorAlert = commentLoadError ? (
-		<div role="alert" className="py-1.5 text-xs text-destructive">
+		<div role="alert" className="py-1.5 text-xs text-basalt-destructive">
 			{commentLoadError === "too_large" ? "点评数据过多，无法一次加载" : "点评加载失败"}
 			<button
 				type="button"
@@ -227,11 +227,11 @@ export function PostComments({
 	const hasMore = comments.length > MAX_COLLAPSED;
 
 	return (
-		<div className="border-t border-dashed border-border">
+		<div className="border-t border-dashed border-basalt-border">
 			{loadErrorAlert}
 			{/* Header - theme-aware colors */}
-			<div className="flex items-center justify-between px-3 py-1.5 bg-muted/30">
-				<span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+			<div className="flex items-center justify-between px-3 py-1.5 bg-basalt-muted/30">
+				<span className="text-xs text-basalt-muted-foreground font-medium flex items-center gap-1">
 					<MessageCircle className="h-3.5 w-3.5" />
 					点评
 				</span>
@@ -268,7 +268,7 @@ export function PostComments({
 								userId={comment.authorId}
 								userName={comment.authorName}
 								avatarPath={comment.authorAvatarPath}
-								size="xs"
+								size="sm"
 							/>
 						</Link>
 						<Link
@@ -280,7 +280,7 @@ export function PostComments({
 						</Link>
 						<span className="text-forum-text break-all">{comment.content}</span>
 						<span
-							className="text-xs text-muted-foreground flex-shrink-0 ml-auto"
+							className="text-xs text-basalt-muted-foreground flex-shrink-0 ml-auto"
 							data-testid="post-comment-time"
 						>
 							{formatCommentTime(comment.createdAt)}
@@ -294,7 +294,7 @@ export function PostComments({
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
-					className="w-full text-center text-xs text-forum-link hover:underline py-1.5 bg-muted/30 cursor-pointer"
+					className="w-full text-center text-xs text-forum-link hover:underline py-1.5 bg-basalt-muted/30 cursor-pointer"
 				>
 					{expanded ? "收起" : `查看全部 ${comments.length} 条点评`}
 				</button>
