@@ -59,7 +59,7 @@ wait_stage bun_tests
 echo "[pre-push] Phase 2: L2 + G2 gates..."
 
 run_bg l2         bun run test:l2
-run_bg osv        osv-scanner scan --lockfile bun.lock
+run_bg osv        osv-scanner scan --config osv-scanner.toml --lockfile bun.lock
 run_bg gitleaks   gitleaks detect --no-banner
 
 # Rust L2 + G2 (conditional)
@@ -71,7 +71,7 @@ if [ -f "packages/cli-rs/Cargo.toml" ]; then
     else
       echo "Skipping Rust L2: ELLIE_API_URL/ELLIE_API_KEY not set"
     fi
-    osv-scanner scan --lockfile Cargo.lock
+    osv-scanner scan --config ../../osv-scanner.toml --lockfile Cargo.lock
   '
 fi
 
