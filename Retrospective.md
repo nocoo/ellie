@@ -1,5 +1,10 @@
 # Retrospective
 
+### 2026-11-18: Reconcile deleted workspaces with release packaging
+
+- Removing the unused `packages/ui` workspace from manifests and source still left a `COPY packages/ui/package.json` in the release Dockerfile, so local gates passed while the Release build failed on a missing path.
+- Treat workspace deletion as a package-graph change: search Dockerfiles, hooks, release scripts, Biome config and docs for the old workspace path before committing, and run the affected release build rather than relying only on application builds.
+
 ### 2026-11-09: Use one regex for fd content patterns
 
 - During release preparation, `fd` was invoked twice with multiple `--glob` arguments. Those arguments combined into an unintended filename-only search, so the expected source references were not searched and the commands only failed later or returned unusable results.
