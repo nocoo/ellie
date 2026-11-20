@@ -3,7 +3,7 @@
 # Copy to /.dev.vars (repo root) and fill in real values. The
 # apps/worker/.dev.vars path is a symlink → ../../.dev.vars so both
 # `wrangler dev` and any tooling that reads from apps/worker/ share the
-# same file (see CLAUDE.md > Secrets & Environment).
+# same file (see docs/26-agent-development.md > Secrets & Environment).
 #
 #   cp apps/worker/.dev.vars.example .dev.vars
 #   ln -s ../../.dev.vars apps/worker/.dev.vars
