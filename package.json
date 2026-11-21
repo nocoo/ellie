@@ -105,7 +105,7 @@
 		"@cap.js/widget": "0.1.63",
 		"@cloudflare/workers-types": "5.20261120.1",
 		"fast-uri": "4.2.3",
-		"tailwind-merge": "3.7.0"
+		"tailwind-merge": "3.7.1"
 	},
 	"overrides": {
 		"react": "19.3.1",
