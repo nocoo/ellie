@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.14.35] - 2026-11-21
+
+### Fixed
+
+- Remove `pt-1` override on admin `SidebarNav` to prevent collapsed toggle overlap (#998).
+
+### Changed
+
+- Upgrade workspace dependencies: `@biomejs/biome` 2.6.8, `@tiptap/*` 3.35.0, `vitest` & `@vitest/coverage-v8` 5.1.1, `@types/bun` & `bun-types` 1.4.5, `@cloudflare/workers-types` 5.20261120.1, `wrangler` 4.166.0, `tailwind-merge` 3.7.1, `capjs-core` 0.1.18, and `lint-staged` 17.6.1.
+- Bump `base-ci` workflow revision to `v2026.16`.
+
 ## [1.14.34] - 2026-11-18
 
 ### Changed

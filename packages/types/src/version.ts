@@ -1,5 +1,5 @@
 // Version constant — single source of truth from root package.json
-// Display format: "v1.14.34" (with "v" prefix for frontend/docs)
+// Display format: "v1.14.35" (with "v" prefix for frontend/docs)
 
-export const VERSION = "1.14.34";
+export const VERSION = "1.14.35";
 export const VERSION_DISPLAY = `v${VERSION}`;
