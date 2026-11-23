@@ -22,6 +22,7 @@ export function AdminDialogContent({
 	const returnFocus = useRef<HTMLElement | null>(null);
 	return (
 		<DialogContent
+			showCloseButton={false}
 			{...props}
 			className={twMerge("grid gap-4", className)}
 			onOpenAutoFocus={(event) => {

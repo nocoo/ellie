@@ -544,8 +544,8 @@ test.describe("Feature: Mobile UX Polish", () => {
 			light.effectiveNorm,
 			`theme-color "${light.effective}" !== header bg "${light.headerBg}"`,
 		).toBe(light.headerBgNorm);
-		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(244, 244, 244)");
-		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(244, 244, 244)");
+		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(242, 242, 242)");
+		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(242, 242, 242)");
 		await shot(page, "req1-theme-light");
 
 		// Stored override (dark) must win over the OS (light) and repaint the
@@ -560,8 +560,8 @@ test.describe("Feature: Mobile UX Polish", () => {
 			`theme-color "${overridden.effective}" !== dark header bg "${overridden.headerBg}"`,
 		).toBe(overridden.headerBgNorm);
 		expect(overridden.effectiveNorm).not.toBe(light.headerBgNorm);
-		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(23, 23, 23)");
-		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(23, 23, 23)");
+		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(19, 19, 19)");
+		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(19, 19, 19)");
 		await shot(page, "req1-theme-stored-dark");
 
 		// OS dark without an override resolves to the dark theme as well.
@@ -576,8 +576,8 @@ test.describe("Feature: Mobile UX Polish", () => {
 			`theme-color "${dark.effective}" !== dark header bg "${dark.headerBg}"`,
 		).toBe(dark.headerBgNorm);
 		expect(dark.effectiveNorm).not.toBe(light.headerBgNorm);
-		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(23, 23, 23)");
-		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(23, 23, 23)");
+		await expect(page.locator("html")).toHaveCSS("background-color", "rgb(19, 19, 19)");
+		await expect(page.locator("body")).toHaveCSS("background-color", "rgb(19, 19, 19)");
 		await shot(page, "req1-theme-os-dark");
 	});
 

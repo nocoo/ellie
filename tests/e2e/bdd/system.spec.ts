@@ -107,7 +107,7 @@ test.describe("Feature: System & Layout", () => {
 			expect(frame).toEqual({
 				dark: expected === "dark",
 				colorScheme: expected,
-				background: expected === "dark" ? "rgb(23, 23, 23)" : "rgb(244, 244, 244)",
+				background: expected === "dark" ? "rgb(19, 19, 19)" : "rgb(242, 242, 242)",
 				widthMode: "full",
 			});
 		});
