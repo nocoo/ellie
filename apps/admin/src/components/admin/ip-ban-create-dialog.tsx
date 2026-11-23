@@ -9,7 +9,7 @@ import {
 	Input,
 	Label,
 } from "@nocoo/basalt";
-import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { Save, ShieldBan } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
@@ -129,7 +129,7 @@ export function IpBanCreateDialog({
 
 						<div className="grid gap-2">
 							<Label htmlFor="ipban-reason">原因</Label>
-							<InputArea
+							<Textarea
 								id="ipban-reason"
 								value={reason}
 								onChange={(e) => setReason(e.target.value)}

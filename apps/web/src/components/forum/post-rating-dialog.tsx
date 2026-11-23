@@ -36,7 +36,6 @@ import {
 	DialogTitle,
 } from "@nocoo/basalt/components/dialog";
 import { Input } from "@nocoo/basalt/components/input";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import {
 	Select,
 	SelectContent,
@@ -44,6 +43,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { Award, Coins } from "@nocoo/basalt/icons";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
@@ -376,7 +376,7 @@ export function PostRatingDialog({
 								))}
 							</SelectContent>
 						</Select>
-						<InputArea
+						<Textarea
 							id={reasonInputId}
 							value={reason}
 							onChange={(e) => setReason(e.target.value)}

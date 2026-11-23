@@ -116,7 +116,7 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 				<span className="max-w-48 truncate" title={row.email}>
 					{row.email || "—"}
 				</span>
-				{row.status === 0 && !row.emailVerifiedAt && <Badge variant="destructive">未验证</Badge>}
+				{row.status === 0 && !row.emailVerifiedAt && <Badge tone="danger">未验证</Badge>}
 			</div>
 		),
 	};
@@ -124,13 +124,13 @@ export function buildUserColumns(opts: BuildUserColumnsOpts): ColumnDef<User>[] 
 	const roleCell: ColumnDef<User> = {
 		key: "role",
 		header: "角色",
-		cell: (row) => <Badge variant={userRoleVariant(row.role)}>{roleLabel(row.role)}</Badge>,
+		cell: (row) => <Badge tone={userRoleVariant(row.role)}>{roleLabel(row.role)}</Badge>,
 	};
 
 	const statusCell: ColumnDef<User> = {
 		key: "status",
 		header: "状态",
-		cell: (row) => <Badge variant={userStatusVariant(row.status)}>{statusLabel(row.status)}</Badge>,
+		cell: (row) => <Badge tone={userStatusVariant(row.status)}>{statusLabel(row.status)}</Badge>,
 	};
 
 	const writeGateCell: ColumnDef<User> | null =

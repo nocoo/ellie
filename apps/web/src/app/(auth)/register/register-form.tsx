@@ -2,7 +2,6 @@
 
 import { Button, buttonVariants } from "@nocoo/basalt/components/button";
 import { Input } from "@nocoo/basalt/components/input";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { Label } from "@nocoo/basalt/components/label";
 import {
 	Select,
@@ -11,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import {
 	ArrowRight,
 	ChevronDown,
@@ -568,7 +568,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				<Label htmlFor="reg-bio" className="text-sm">
 					个人简介
 				</Label>
-				<InputArea
+				<Textarea
 					id="reg-bio"
 					value={bio}
 					onChange={(e) => setBio(e.target.value)}
@@ -633,7 +633,7 @@ function RegisterFormCore({ variant, onSuccess, onPendingChange }: RegisterFormC
 				<Label htmlFor="reg-signature" className="text-sm">
 					个性签名
 				</Label>
-				<InputArea
+				<Textarea
 					id="reg-signature"
 					value={signature}
 					onChange={(e) => setSignature(e.target.value)}

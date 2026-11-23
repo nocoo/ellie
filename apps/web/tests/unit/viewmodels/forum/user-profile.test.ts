@@ -12,7 +12,7 @@ import {
 	formatOlTime,
 	formatUserRole,
 	formatUserStatus,
-	getUserRoleBadgeVariant,
+	getUserRoleBadgeProps,
 	PROFILE_TABS,
 	resolveTab,
 } from "@/viewmodels/forum/user-profile";
@@ -127,24 +127,24 @@ describe("buildProfileStats", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getUserRoleBadgeVariant
+// getUserRoleBadgeProps
 // ---------------------------------------------------------------------------
 
-describe("getUserRoleBadgeVariant", () => {
-	it("returns destructive for Admin", () => {
-		expect(getUserRoleBadgeVariant(UserRole.Admin)).toBe("destructive");
+describe("getUserRoleBadgeProps", () => {
+	it("returns danger tone for Admin", () => {
+		expect(getUserRoleBadgeProps(UserRole.Admin)).toEqual({ tone: "danger" });
 	});
 
-	it("returns default for SuperMod", () => {
-		expect(getUserRoleBadgeVariant(UserRole.SuperMod)).toBe("default");
+	it("returns info tone for SuperMod", () => {
+		expect(getUserRoleBadgeProps(UserRole.SuperMod)).toEqual({ tone: "info" });
 	});
 
-	it("returns secondary for Mod", () => {
-		expect(getUserRoleBadgeVariant(UserRole.Mod)).toBe("secondary");
+	it("returns neutral tone for Mod", () => {
+		expect(getUserRoleBadgeProps(UserRole.Mod)).toEqual({ tone: "neutral" });
 	});
 
-	it("returns outline for User", () => {
-		expect(getUserRoleBadgeVariant(UserRole.User)).toBe("outline");
+	it("returns outline neutral for User", () => {
+		expect(getUserRoleBadgeProps(UserRole.User)).toEqual({ tone: "neutral", variant: "outline" });
 	});
 });
 

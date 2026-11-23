@@ -6,30 +6,20 @@ import { Badge } from "@nocoo/basalt/components/badge";
 import type { ComponentProps } from "react";
 import { DigestIcon } from "./digest-icon";
 
-type BadgeVariant = NonNullable<ComponentProps<typeof Badge>["variant"]>;
+type BadgeTone = NonNullable<ComponentProps<typeof Badge>["tone"]>;
 
-/**
- * Map model badge variant to shadcn Badge variant.
- *
- * Model variants → UI variants:
- * - destructive → destructive (red, global sticky)
- * - warning → warning (amber, category sticky / trade / bounty)
- * - success → success (green, digest)
- * - secondary → muted (gray, closed / typeName)
- * - default → default (primary blue, forum sticky / vote / activity / debate)
- */
-function toBadgeVariant(variant: ThreadBadge["variant"]): BadgeVariant {
+function toBadgeTone(variant: ThreadBadge["variant"]): BadgeTone {
 	switch (variant) {
 		case "destructive":
-			return "destructive";
+			return "danger";
 		case "warning":
 			return "warning";
 		case "success":
 			return "success";
 		case "secondary":
-			return "secondary";
+			return "neutral";
 		default:
-			return "default";
+			return "info";
 	}
 }
 
@@ -49,7 +39,7 @@ export function ThreadBadgeList({ badges, digestLevel }: ThreadBadgeListProps) {
 				) : (
 					<Badge
 						key={`${badge.type}-${badge.label}`}
-						variant={toBadgeVariant(badge.variant)}
+						tone={toBadgeTone(badge.variant)}
 						className="text-xs px-1 py-0 leading-tight"
 						data-testid="thread-badge"
 					>

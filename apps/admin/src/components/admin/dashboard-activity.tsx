@@ -119,7 +119,7 @@ export function DashboardActivity({ activity }: { activity: ActivityData }) {
 							<MessagesSquare className="h-4 w-4 text-basalt-primary" aria-hidden="true" />
 							版块活跃度
 						</h2>
-						<Badge variant="secondary">近 7 天 · 帖子数</Badge>
+						<Badge tone="neutral">近 7 天 · 帖子数</Badge>
 					</LayerCard.Header>
 					<LayerCard.Well className="flex-1 space-y-3">
 						{forums?.rows.length ? (

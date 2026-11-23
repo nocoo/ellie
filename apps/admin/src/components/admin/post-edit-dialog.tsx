@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Dialog, DialogFooter, DialogHeader, DialogTitle, Label } from "@nocoo/basalt";
-import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { MessageSquare, Save } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
@@ -67,7 +67,7 @@ export function PostEditDialog({
 					<fieldset disabled={loading} className="grid min-w-0 gap-4">
 						<div className="grid gap-2">
 							<Label htmlFor="edit-content">内容</Label>
-							<InputArea
+							<Textarea
 								id="edit-content"
 								value={content}
 								onChange={(e) => setContent(e.target.value)}

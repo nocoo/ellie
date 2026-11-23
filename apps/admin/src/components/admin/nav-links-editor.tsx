@@ -209,7 +209,7 @@ export function NavLinksEditor({ settingKey, value, onChange }: NavLinksEditorPr
 				<p className="text-xs text-basalt-muted-foreground">
 					拖动手柄排序；键盘可用空格选中、方向键移动。
 				</p>
-				<Badge variant="secondary">{itemsWithIds.length} 个链接</Badge>
+				<Badge tone="neutral">{itemsWithIds.length} 个链接</Badge>
 			</div>
 			{itemsWithIds.length === 0 && (
 				<p className="py-6 text-center text-sm text-basalt-muted-foreground">

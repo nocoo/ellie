@@ -35,8 +35,8 @@ export function AdminInlineMessage({
 	return (
 		<Banner
 			role={variant === "error" ? "alert" : "status"}
-			variant={variant === "error" ? "error" : "secondary"}
-			size={dense ? "sm" : "base"}
+			tone={variant === "error" ? "danger" : "neutral"}
+			size={dense ? "sm" : "md"}
 			icon={<Icon className="h-4 w-4" aria-hidden="true" />}
 			description={text}
 			className={className}

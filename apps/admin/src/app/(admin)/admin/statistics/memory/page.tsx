@@ -314,7 +314,7 @@ function BuffersCard({
 				</h2>
 				<div className="flex items-center gap-2">
 					{buffers.flushing ? (
-						<Badge variant="secondary">冲刷进行中</Badge>
+						<Badge tone="neutral">冲刷进行中</Badge>
 					) : (
 						<Badge variant="outline">空闲</Badge>
 					)}

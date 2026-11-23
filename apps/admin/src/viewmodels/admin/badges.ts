@@ -1,75 +1,62 @@
 /**
- * Admin badge variant mapping — single source of truth for the colour
+ * Admin badge tone mapping — single source of truth for the colour
  * scheme of every status/role/type pill in the admin console.
  *
  * Pure module: imports nothing from React or Basalt. Each helper
- * returns an `AdminBadgeVariant` that the call site passes straight to
- * `<Badge variant={...}>`. The goal is to eliminate ad-hoc Tailwind
- * classes (e.g. raw `bg-yellow-100/text-yellow-800` and inline
- * `text-basalt-badge-green-foreground border-basalt-badge-green-foreground/50`) and the white "transparent" look
- * that comes from misusing `outline` for actual status.
+ * returns an `AdminBadgeVariant` (mapped to Basalt `BadgeTone`) that
+ * the call site passes to `<Badge tone={...}>`.
  *
  * Convention:
- *  - `success`  — positive / active / resolved
- *  - `warning`  — pending / sticky (needs attention, but not destructive)
- *  - `destructive` — banned / blocked / hard violation
- *  - `secondary` — neutral default (visible chip, not transparent)
- *  - `default`  — primary highlight (group / first-post marker)
- *  - `outline`  — reserved for low-priority structural labels only;
- *                 must NOT be used to communicate state.
+ *  - `success` — positive / active / resolved
+ *  - `warning` — pending / sticky (needs attention, but not danger)
+ *  - `danger`  — banned / blocked / hard violation
+ *  - `neutral` — muted default (visible chip, not transparent)
+ *  - `info`    — primary highlight (group / first-post marker)
  */
 
-export type AdminBadgeVariant =
-	| "default"
-	| "secondary"
-	| "destructive"
-	| "success"
-	| "warning"
-	| "outline";
+export type AdminBadgeVariant = "info" | "neutral" | "danger" | "success" | "warning";
 
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
 
 /**
- * Map a numeric user `status` column to a badge variant.
+ * Map a numeric user `status` column to a badge tone.
  *  - 1 (normal)     → success
- *  - -1 (banned)    → destructive
- *  - -2 (archived)  → secondary
- *  - -99 (tombstone)→ secondary   (unified with archived; previously `outline`
- *                              which rendered as a transparent white pill)
+ *  - -1 (banned)    → danger
+ *  - -2 (archived)  → neutral
+ *  - -99 (tombstone)→ neutral
  */
 export function userStatusVariant(status: number): AdminBadgeVariant {
 	switch (status) {
 		case -1:
-			return "destructive";
+			return "danger";
 		case -2:
-			return "secondary";
+			return "neutral";
 		case -99:
-			return "secondary";
+			return "neutral";
 		default:
 			return "success";
 	}
 }
 
 /**
- * Map a numeric user `role` column to a badge variant.
- *  - 1 (admin)     → destructive  (highest privilege; signals risk on actions)
+ * Map a numeric user `role` column to a badge tone.
+ *  - 1 (admin)     → danger
  *  - 2 (supermod)  → warning
- *  - 3 (mod)       → default
- *  - other         → secondary    (regular member; replaces `outline` so the
- *                                   chip has a visible background)
+ *  - 3 (mod)       → info
+ *  - other         → neutral
  */
 export function userRoleVariant(role: number): AdminBadgeVariant {
 	switch (role) {
 		case 1:
-			return "destructive";
+			return "danger";
 		case 2:
 			return "warning";
 		case 3:
-			return "default";
+			return "info";
 		default:
-			return "secondary";
+			return "neutral";
 	}
 }
 
@@ -77,35 +64,35 @@ export function userRoleVariant(role: number): AdminBadgeVariant {
 // Threads
 // ---------------------------------------------------------------------------
 
-/** Sticky level (>0) → warning; 0 → secondary (caller usually hides at 0). */
+/** Sticky level (>0) → warning; 0 → neutral (caller usually hides at 0). */
 export function threadStickyVariant(level: number): AdminBadgeVariant {
-	return level > 0 ? "warning" : "secondary";
+	return level > 0 ? "warning" : "neutral";
 }
 
-/** Digest level (>0) → success; 0 → secondary. */
+/** Digest level (>0) → success; 0 → neutral. */
 export function threadDigestVariant(level: number): AdminBadgeVariant {
-	return level > 0 ? "success" : "secondary";
+	return level > 0 ? "success" : "neutral";
 }
 
-/** Closed flag (>0) → destructive; 0 → secondary. */
+/** Closed flag (>0) → danger; 0 → neutral. */
 export function threadClosedVariant(closed: number): AdminBadgeVariant {
-	return closed > 0 ? "destructive" : "secondary";
+	return closed > 0 ? "danger" : "neutral";
 }
 
 /**
  * Highlight is an encoded RGB+style bitmask (see worker `encodeHighlight`),
- * so the variant only differentiates "set" vs "unset" — any non-zero value
+ * so the tone only differentiates "set" vs "unset" — any non-zero value
  * means a custom title style was applied.
  */
 export function threadHighlightVariant(highlight: number): AdminBadgeVariant {
-	return highlight > 0 ? "default" : "secondary";
+	return highlight > 0 ? "info" : "neutral";
 }
 
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
 
-/** Report `status` text → variant. Replaces the raw STATUS_COLORS map. */
+/** Report `status` text → tone. */
 export function reportStatusVariant(
 	status: "pending" | "resolved" | "dismissed",
 ): AdminBadgeVariant {
@@ -115,21 +102,17 @@ export function reportStatusVariant(
 		case "resolved":
 			return "success";
 		case "dismissed":
-			return "secondary";
+			return "neutral";
 	}
 }
 
-/**
- * Report target `type` → variant. All three categories are structural
- * labels (not state) so we use distinct visible variants instead of
- * `outline`, which previously rendered as a colourless border on white.
- */
+/** Report target `type` → tone. */
 export function reportTypeVariant(type: "thread" | "post" | "user"): AdminBadgeVariant {
 	switch (type) {
 		case "thread":
-			return "default";
+			return "info";
 		case "post":
-			return "secondary";
+			return "neutral";
 		case "user":
 			return "warning";
 	}
@@ -139,26 +122,20 @@ export function reportTypeVariant(type: "thread" | "post" | "user"): AdminBadgeV
 // Forums
 // ---------------------------------------------------------------------------
 
-/** Forum status: 1 (visible) → success; 0 (hidden) → secondary. */
+/** Forum status: 1 (visible) → success; 0 (hidden) → neutral. */
 export function forumStatusVariant(status: number): AdminBadgeVariant {
-	return status === 1 ? "success" : "secondary";
+	return status === 1 ? "success" : "neutral";
 }
 
-/**
- * Forum hierarchy `type` → variant. These are structural taxonomy
- * labels; reviewer asked that `outline` be removed everywhere it was
- * used to look like state, so we map each level to a distinct visible
- * variant. `group` is the highlight, `forum` is the default visible
- * pill, `sub` uses secondary to read as "lower in the tree".
- */
+/** Forum hierarchy `type` → tone. */
 export function forumTypeVariant(type: "group" | "forum" | "sub"): AdminBadgeVariant {
 	switch (type) {
 		case "group":
-			return "default";
+			return "info";
 		case "forum":
-			return "secondary";
+			return "neutral";
 		case "sub":
-			return "secondary";
+			return "neutral";
 	}
 }
 
@@ -166,23 +143,23 @@ export function forumTypeVariant(type: "group" | "forum" | "sub"): AdminBadgeVar
 // Censor words
 // ---------------------------------------------------------------------------
 
-/** Censor word action: ban → destructive; replace → secondary. */
+/** Censor word action: ban → danger; replace → neutral. */
 export function censorActionVariant(action: "ban" | "replace"): AdminBadgeVariant {
-	return action === "ban" ? "destructive" : "secondary";
+	return action === "ban" ? "danger" : "neutral";
 }
 
 // ---------------------------------------------------------------------------
 // IP bans
 // ---------------------------------------------------------------------------
 
-/** IP-check result: banned → destructive; clear → success. */
+/** IP-check result: banned → danger; clear → success. */
 export function ipBanStateVariant(banned: boolean): AdminBadgeVariant {
-	return banned ? "destructive" : "success";
+	return banned ? "danger" : "success";
 }
 
 /** Permanent ban marker (no expiry) → warning. */
 export function ipBanExpiryVariant(hasExpiry: boolean): AdminBadgeVariant {
-	return hasExpiry ? "secondary" : "warning";
+	return hasExpiry ? "neutral" : "warning";
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +167,7 @@ export function ipBanExpiryVariant(hasExpiry: boolean): AdminBadgeVariant {
 // ---------------------------------------------------------------------------
 
 /** First-post / 楼主 marker. */
-export const FIRST_POST_VARIANT: AdminBadgeVariant = "default";
+export const FIRST_POST_VARIANT: AdminBadgeVariant = "info";
 
 // ---------------------------------------------------------------------------
 // Statistics

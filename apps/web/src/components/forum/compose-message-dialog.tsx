@@ -15,8 +15,8 @@ import {
 	DialogTitle,
 } from "@nocoo/basalt/components/dialog";
 import { Input } from "@nocoo/basalt/components/input";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { Label } from "@nocoo/basalt/components/label";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { AlertCircle, Loader2, Send, User, X } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { handleSubmitShortcut } from "@/lib/composer-keyboard";
@@ -370,7 +370,7 @@ export function ComposeMessageDialog({
 					{/* Content */}
 					<div className="grid gap-2">
 						<Label htmlFor="content">内容</Label>
-						<InputArea
+						<Textarea
 							id="content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}

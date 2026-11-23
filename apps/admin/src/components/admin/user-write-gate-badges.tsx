@@ -58,7 +58,7 @@ export function UserWriteGateBadges({ user, settings, nowSeconds }: UserWriteGat
 		// gray afterthought".
 		return (
 			<Badge
-				variant="success"
+				tone="success"
 				className="text-xs font-normal"
 				title="所有写权限门槛通过"
 				data-testid="write-gate-pass"
@@ -76,12 +76,7 @@ export function UserWriteGateBadges({ user, settings, nowSeconds }: UserWriteGat
 	return (
 		<div className="flex flex-wrap gap-1" data-testid="write-gate-fail-list">
 			{fails.map((item) => (
-				<Badge
-					key={item.id}
-					variant="destructive"
-					className="text-xs font-normal"
-					title={item.detail}
-				>
+				<Badge key={item.id} tone="danger" className="text-xs font-normal" title={item.detail}>
 					{FAIL_LABEL[item.code] ?? item.label}
 				</Badge>
 			))}

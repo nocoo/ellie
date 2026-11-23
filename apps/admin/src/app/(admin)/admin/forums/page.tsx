@@ -85,7 +85,7 @@ const FILTERS: FilterDef[] = [
 // ---------------------------------------------------------------------------
 
 function StatusBadge({ status }: { status: number }) {
-	return <Badge variant={forumStatusVariant(status)}>{statusLabel(status)}</Badge>;
+	return <Badge tone={forumStatusVariant(status)}>{statusLabel(status)}</Badge>;
 }
 
 function TypeIcon({ type }: { type: string }) {
@@ -315,7 +315,7 @@ export default function ForumsPage() {
 									{node.name}
 								</Link>
 							)}
-							<Badge variant={forumTypeVariant(node.type)}>{typeLabel(node.type)}</Badge>
+							<Badge tone={forumTypeVariant(node.type)}>{typeLabel(node.type)}</Badge>
 						</div>
 						<p
 							className="mt-0.5 max-w-80 truncate text-[11px] text-basalt-muted-foreground"

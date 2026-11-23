@@ -107,8 +107,8 @@ vi.mock("@nocoo/basalt/components/select", () => ({
 	SelectItem: ({ children, value }: any) => createElement("div", { "data-value": value }, children),
 }));
 
-vi.mock("@nocoo/basalt/components/input-area", () => ({
-	InputArea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
+vi.mock("@nocoo/basalt/components/textarea", () => ({
+	Textarea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
 }));
 
 vi.mock("@/app/(auth)/register/register-form", async () => {

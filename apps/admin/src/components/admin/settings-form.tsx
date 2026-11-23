@@ -1,8 +1,8 @@
 "use client";
 
 import { Badge, Button, Input, Label, LayerCard, Switch } from "@nocoo/basalt";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import type { LucideIcon } from "@nocoo/basalt/icons";
 import {
 	Globe,
@@ -148,7 +148,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 									</h2>
 									<p className="mt-1 text-xs text-basalt-muted-foreground">{group.description}</p>
 								</div>
-								<Badge variant="secondary">{group.fields.length} 项</Badge>
+								<Badge tone="neutral">{group.fields.length} 项</Badge>
 							</div>
 
 							<div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
@@ -210,7 +210,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 		return (
 			<div className="space-y-1.5 sm:col-span-2">
 				<Label htmlFor={field.key}>{field.label}</Label>
-				<InputArea
+				<Textarea
 					id={field.key}
 					value={value}
 					placeholder={field.placeholder}

@@ -47,19 +47,20 @@ export function formatUserRole(role: UserRole): string {
 	}
 }
 
-/** Map user role to badge variant for colored display. */
-export function getUserRoleBadgeVariant(
-	role: UserRole,
-): "default" | "secondary" | "destructive" | "outline" {
+/** Map user role to badge tone/variant props for display. */
+export function getUserRoleBadgeProps(role: UserRole): {
+	tone: "neutral" | "info" | "danger";
+	variant?: "outline";
+} {
 	switch (role) {
 		case UserRole.Admin:
-			return "destructive";
+			return { tone: "danger" };
 		case UserRole.SuperMod:
-			return "default";
+			return { tone: "info" };
 		case UserRole.Mod:
-			return "secondary";
+			return { tone: "neutral" };
 		default:
-			return "outline";
+			return { tone: "neutral", variant: "outline" };
 	}
 }
 

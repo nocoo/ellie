@@ -120,13 +120,13 @@ export function buildThreadColumns(opts: BuildThreadColumnsOpts): ColumnDef<Thre
 		cell: (row) => (
 			<div className="flex max-w-40 flex-wrap gap-1">
 				{row.sticky > 0 && (
-					<Badge variant={threadStickyVariant(row.sticky)}>{stickyLabel(row.sticky)}</Badge>
+					<Badge tone={threadStickyVariant(row.sticky)}>{stickyLabel(row.sticky)}</Badge>
 				)}
-				{row.closed > 0 && <Badge variant={threadClosedVariant(row.closed)}>已锁定</Badge>}
+				{row.closed > 0 && <Badge tone={threadClosedVariant(row.closed)}>已锁定</Badge>}
 				{row.digest > 0 && (
-					<Badge variant={threadDigestVariant(row.digest)}>{digestLabel(row.digest)}</Badge>
+					<Badge tone={threadDigestVariant(row.digest)}>{digestLabel(row.digest)}</Badge>
 				)}
-				{row.highlight > 0 && <Badge variant={threadHighlightVariant(row.highlight)}>高亮</Badge>}
+				{row.highlight > 0 && <Badge tone={threadHighlightVariant(row.highlight)}>高亮</Badge>}
 				{!row.sticky && !row.closed && !row.digest && !row.highlight && (
 					<span className="text-xs text-basalt-muted-foreground">开放</span>
 				)}

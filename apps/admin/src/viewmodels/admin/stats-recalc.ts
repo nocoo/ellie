@@ -146,11 +146,11 @@ export function isSoftConflictCode(code: string): boolean {
 export function snapshotStatusVariant(status: StatsJobStatus): AdminBadgeVariant {
 	switch (status) {
 		case "running":
-			return "secondary";
+			return "neutral";
 		case "done":
 			return "success";
 		case "failed":
-			return "destructive";
+			return "danger";
 	}
 }
 

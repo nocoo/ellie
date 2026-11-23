@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
+import { formatUserRole, getUserRoleBadgeProps } from "@/viewmodels/forum/user-profile";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { ProfileEditDialog } from "./profile-edit-dialog";
 import { TrackedUserAvatar } from "./user-avatar";
@@ -69,9 +69,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 								<h1 className="break-words text-xl font-semibold tracking-tight text-basalt-foreground sm:text-2xl">
 									{user.username}
 								</h1>
-								<Badge variant={getUserRoleBadgeVariant(user.role)}>
-									{formatUserRole(user.role)}
-								</Badge>
+								<Badge {...getUserRoleBadgeProps(user.role)}>{formatUserRole(user.role)}</Badge>
 							</div>
 							<div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-basalt-muted-foreground">
 								<span className="tabular-nums">UID: {user.id}</span>

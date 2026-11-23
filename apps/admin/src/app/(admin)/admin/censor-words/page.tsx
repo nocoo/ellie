@@ -9,8 +9,8 @@ import {
 	DropdownMenuTrigger,
 	LayerCard,
 } from "@nocoo/basalt";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import {
 	Eraser,
 	FlaskConical,
@@ -267,7 +267,7 @@ export default function CensorWordsPage() {
 			key: "action",
 			header: "动作",
 			cell: (row) => (
-				<Badge variant={censorActionVariant(row.action)}>{actionLabel(row.action)}</Badge>
+				<Badge tone={censorActionVariant(row.action)}>{actionLabel(row.action)}</Badge>
 			),
 		},
 		{
@@ -407,7 +407,7 @@ export default function CensorWordsPage() {
 				</p>
 				<div className="grid gap-4 lg:grid-cols-2">
 					<div className="flex min-w-0 flex-col gap-3">
-						<InputArea
+						<Textarea
 							className="min-h-28 flex-1"
 							aria-label="要测试的内容"
 							value={testInput}

@@ -10,7 +10,6 @@ import {
 	Label,
 	LayerCard,
 } from "@nocoo/basalt";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import {
 	Select,
@@ -19,6 +18,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import {
 	BookUser,
 	ChartNoAxesCombined,
@@ -313,7 +313,7 @@ function TextareaField(props: {
 	return (
 		<div className="grid gap-2 min-w-0">
 			<Label htmlFor={props.id}>{props.label}</Label>
-			<InputArea
+			<Textarea
 				id={props.id}
 				value={props.value}
 				onChange={(e) => props.onChange(e.target.value)}

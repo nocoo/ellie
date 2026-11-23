@@ -7,7 +7,6 @@
 import { Button } from "@nocoo/basalt/components/button";
 import { Dialog, DialogContent } from "@nocoo/basalt/components/dialog";
 import { Input } from "@nocoo/basalt/components/input";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { Label } from "@nocoo/basalt/components/label";
 import {
 	Select,
@@ -16,6 +15,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { Save, User as UserIcon } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -338,7 +338,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-bio">简介</Label>
-								<InputArea
+								<Textarea
 									id="edit-bio"
 									value={state.form.bio}
 									onChange={(e) => actions.setField("bio", e.target.value)}
@@ -351,7 +351,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-interest">兴趣爱好</Label>
-								<InputArea
+								<Textarea
 									id="edit-interest"
 									value={state.form.interest}
 									onChange={(e) => actions.setField("interest", e.target.value)}
@@ -364,7 +364,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							</div>
 							<div className="grid gap-2 sm:col-span-2">
 								<Label htmlFor="edit-signature">个性签名</Label>
-								<InputArea
+								<Textarea
 									id="edit-signature"
 									value={state.form.signature}
 									onChange={(e) => actions.setField("signature", e.target.value)}

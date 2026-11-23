@@ -15,7 +15,7 @@
 
 import { Button } from "@nocoo/basalt/components/button";
 import { Dialog, DialogContent } from "@nocoo/basalt/components/dialog";
-import { InputArea } from "@nocoo/basalt/components/input-area";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { Eye, Megaphone, Save } from "@nocoo/basalt/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -118,7 +118,7 @@ export function AnnouncementEditDialog({
 						>
 							内容
 						</label>
-						<InputArea
+						<Textarea
 							id="announcement-textarea"
 							value={draft}
 							onChange={(e) => setDraft(e.target.value)}

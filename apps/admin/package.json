@@ -19,7 +19,7 @@
 		"@dnd-kit/utilities": "^3.2.2",
 		"@ellie/shared": "workspace:*",
 		"@ellie/types": "workspace:*",
-		"@nocoo/basalt": "^3.5.1",
+		"@nocoo/basalt": "^3.6.0",
 		"@tailwindcss/postcss": "^4.3.5",
 		"next": "16.4.6",
 		"next-auth": "^5.0.0-beta.32",

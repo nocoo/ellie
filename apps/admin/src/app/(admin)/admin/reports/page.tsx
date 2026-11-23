@@ -263,7 +263,7 @@ export default function ReportsPage() {
 		{
 			key: "type",
 			header: "类型",
-			cell: (row) => <Badge variant={reportTypeVariant(row.type)}>{TYPE_LABELS[row.type]}</Badge>,
+			cell: (row) => <Badge tone={reportTypeVariant(row.type)}>{TYPE_LABELS[row.type]}</Badge>,
 			className: "w-16",
 		},
 		{
@@ -322,7 +322,7 @@ export default function ReportsPage() {
 			header: "状态",
 			cell: (row) => (
 				<div>
-					<Badge variant={reportStatusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
+					<Badge tone={reportStatusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
 					{row.handledAt && (
 						<div className="mt-0.5 text-[11px] text-basalt-muted-foreground">
 							{formatDateTime(row.handledAt)}
@@ -527,7 +527,7 @@ export default function ReportsPage() {
 							<div className="grid grid-cols-[72px_1fr] gap-x-4 gap-y-3 rounded-lg border border-basalt-border p-4 text-sm [&>span:nth-child(even)]:min-w-0 [&>span:nth-child(even)]:break-words">
 								<span className="text-basalt-muted-foreground">类型</span>
 								<span>
-									<Badge variant={reportTypeVariant(detailReport.type)}>
+									<Badge tone={reportTypeVariant(detailReport.type)}>
 										{TYPE_LABELS[detailReport.type]}
 									</Badge>
 								</span>
@@ -579,7 +579,7 @@ export default function ReportsPage() {
 
 								<span className="text-basalt-muted-foreground">当前状态</span>
 								<span>
-									<Badge variant={reportStatusVariant(detailReport.status)}>
+									<Badge tone={reportStatusVariant(detailReport.status)}>
 										{STATUS_LABELS[detailReport.status]}
 									</Badge>
 								</span>

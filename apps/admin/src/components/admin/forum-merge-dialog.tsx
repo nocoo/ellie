@@ -140,7 +140,7 @@ export function ForumMergeDialog({
 						</div>
 
 						{source && source.threads > 0 && (
-							<Banner variant="alert" size="sm">
+							<Banner tone="warning" size="sm">
 								此版块包含 <strong>{source.threads}</strong> 个主题和{" "}
 								<strong>{source.posts}</strong> 个帖子，合并后将全部转移到目标版块。
 							</Banner>

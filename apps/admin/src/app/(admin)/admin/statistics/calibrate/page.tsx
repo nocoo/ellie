@@ -242,13 +242,13 @@ export default function StatsCalibratePage() {
 						<div className="flex flex-wrap items-center gap-2">
 							<h2 className="text-base font-medium">计数器校准</h2>
 							{hasDrift && (
-								<Badge variant="destructive" className="gap-1">
+								<Badge tone="danger" className="gap-1">
 									<AlertCircle className="h-3 w-3" />
 									存在偏差
 								</Badge>
 							)}
 							{!hasDrift && counters.some((r) => r.real !== null) && (
-								<Badge variant="default" className="gap-1">
+								<Badge tone="info" className="gap-1">
 									<CheckCircle2 className="h-3 w-3" />
 									数据一致
 								</Badge>

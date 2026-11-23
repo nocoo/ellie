@@ -325,7 +325,7 @@ export function ForumThreadTypesPanel({ forumId, resetKey = 0 }: ForumThreadType
 							)}
 							<span>主题分类</span>
 							{state.kind === "ready" && (
-								<Badge variant={masterEnabled ? "default" : "secondary"}>
+								<Badge tone={masterEnabled ? "info" : "neutral"}>
 									{masterEnabled ? "已启用" : "未启用"}
 								</Badge>
 							)}
@@ -665,9 +665,7 @@ function ThreadTypeRow(props: ThreadTypeRowProps) {
 				</div>
 			</TableCell>
 			<TableCell className="text-right">
-				<Badge variant={row.enabled ? "default" : "secondary"}>
-					{row.enabled ? "启用" : "已停用"}
-				</Badge>
+				<Badge tone={row.enabled ? "info" : "neutral"}>{row.enabled ? "启用" : "已停用"}</Badge>
 			</TableCell>
 			<TableCell
 				className="hidden text-right text-xs text-basalt-muted-foreground tabular-nums sm:table-cell"

@@ -193,13 +193,16 @@ const PRESENCE_LABEL: Record<Presence, string> = {
 	"sensitive-hidden": "敏感(隐藏)",
 };
 
-const PRESENCE_VARIANT: Record<Presence, "default" | "secondary" | "destructive" | "outline"> = {
-	present: "default",
-	absent: "secondary",
-	planned: "outline",
-	historical: "secondary",
-	"dead-builder-reserved": "outline",
-	"sensitive-hidden": "secondary",
+const PRESENCE_BADGE: Record<
+	Presence,
+	{ tone: "info" | "neutral" | "danger"; variant?: "outline" }
+> = {
+	present: { tone: "info" },
+	absent: { tone: "neutral" },
+	planned: { tone: "neutral", variant: "outline" },
+	historical: { tone: "neutral" },
+	"dead-builder-reserved": { tone: "neutral", variant: "outline" },
+	"sensitive-hidden": { tone: "neutral" },
 };
 
 function rowActions(row: OverviewRow): FamilyActions {
@@ -492,7 +495,10 @@ function OverviewTable({
 									</div>
 								</TableCell>
 								<TableCell>
-									<Badge variant={PRESENCE_VARIANT[row.presence]}>
+									<Badge
+										tone={PRESENCE_BADGE[row.presence].tone}
+										variant={PRESENCE_BADGE[row.presence].variant}
+									>
 										{PRESENCE_LABEL[row.presence]}
 									</Badge>
 								</TableCell>

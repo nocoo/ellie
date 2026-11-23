@@ -6,8 +6,8 @@
 import type { PostComment } from "@ellie/types";
 import { Button } from "@nocoo/basalt/components/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@nocoo/basalt/components/dialog";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import { Label } from "@nocoo/basalt/components/label";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { Loader2, MessageCircle, Send } from "@nocoo/basalt/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -98,7 +98,7 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 				<div className="space-y-4">
 					<div className="space-y-1">
 						<Label htmlFor={fieldId}>点评内容</Label>
-						<InputArea
+						<Textarea
 							id={fieldId}
 							placeholder="写下你的点评（最多255字）"
 							value={content}

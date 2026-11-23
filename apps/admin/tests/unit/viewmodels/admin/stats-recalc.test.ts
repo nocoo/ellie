@@ -159,16 +159,16 @@ describe("isSoftConflictCode", () => {
 });
 
 describe("snapshotStatusVariant + label", () => {
-	it("maps running → secondary", () => {
-		expect(snapshotStatusVariant("running")).toBe("secondary");
+	it("maps running → neutral", () => {
+		expect(snapshotStatusVariant("running")).toBe("neutral");
 		expect(snapshotStatusLabel("running")).toBe("运行中");
 	});
 	it("maps done → success", () => {
 		expect(snapshotStatusVariant("done")).toBe("success");
 		expect(snapshotStatusLabel("done")).toBe("已完成");
 	});
-	it("maps failed → destructive", () => {
-		expect(snapshotStatusVariant("failed")).toBe("destructive");
+	it("maps failed → danger", () => {
+		expect(snapshotStatusVariant("failed")).toBe("danger");
 		expect(snapshotStatusLabel("failed")).toBe("失败");
 	});
 });

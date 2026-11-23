@@ -14,21 +14,21 @@ describe("getRoleBadge", () => {
 	it("returns 管理员 badge for Admin (role = 1)", () => {
 		expect(getRoleBadge(UserRole.Admin)).toEqual({
 			label: "管理员",
-			variant: "default",
+			tone: "info",
 		});
 	});
 
 	it("returns 超级版主 badge for SuperMod (role = 2)", () => {
 		expect(getRoleBadge(UserRole.SuperMod)).toEqual({
 			label: "超级版主",
-			variant: "secondary",
+			tone: "neutral",
 		});
 	});
 
 	it("returns 版主 badge for Mod (role = 3)", () => {
 		expect(getRoleBadge(UserRole.Mod)).toEqual({
 			label: "版主",
-			variant: "secondary",
+			tone: "neutral",
 		});
 	});
 

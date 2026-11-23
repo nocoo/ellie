@@ -148,7 +148,7 @@ export function FeatureSettingsForm({ initialSettings }: FeatureSettingsFormProp
 									</h2>
 									<p className="mt-1 text-xs text-basalt-muted-foreground">{group.description}</p>
 								</div>
-								<Badge variant="secondary">{group.fields.length} 项</Badge>
+								<Badge tone="neutral">{group.fields.length} 项</Badge>
 							</div>
 
 							<div className="grid gap-3 lg:grid-cols-2">

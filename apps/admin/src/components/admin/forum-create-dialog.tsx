@@ -10,7 +10,6 @@ import {
 	Label,
 	SegmentControl,
 } from "@nocoo/basalt";
-import { InputArea } from "@nocoo/basalt/components/input-area";
 import {
 	Select,
 	SelectContent,
@@ -18,6 +17,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@nocoo/basalt/components/select";
+import { Textarea } from "@nocoo/basalt/components/textarea";
 import { FolderPlus, Save } from "@nocoo/basalt/icons";
 import { useCallback, useEffect, useState } from "react";
 import { AdminDialogContent } from "@/components/admin/admin-dialog-content";
@@ -202,7 +202,7 @@ export function ForumCreateDialog({
 						{/* Description */}
 						<div className="grid gap-2 sm:col-span-2">
 							<Label htmlFor="create-description">描述</Label>
-							<InputArea
+							<Textarea
 								id="create-description"
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}

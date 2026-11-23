@@ -36,7 +36,7 @@ interface UserModActionsProps {
 	/** Trigger variant */
 	variant?: "button" | "icon";
 	/** Button size */
-	size?: "sm" | "default";
+	size?: "sm" | "md";
 	/** Callback when action completes */
 	onActionComplete?: () => void;
 	/** Optional className for the trigger */
@@ -211,7 +211,7 @@ interface UserStatusBadgeProps {
 export function UserStatusBadge({ status }: UserStatusBadgeProps) {
 	if (status === -1) {
 		return (
-			<Badge variant="destructive" className="text-xs">
+			<Badge tone="danger" className="text-xs">
 				已封禁
 			</Badge>
 		);

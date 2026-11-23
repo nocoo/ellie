@@ -245,7 +245,7 @@ export function LoginAttemptsPanel() {
 												</TableCell>
 												<TableCell className="py-2 pr-3">{row.kind}</TableCell>
 												<TableCell className="py-2 pr-3">
-													<Badge variant={row.ok === 1 ? "success" : "destructive"}>
+													<Badge tone={row.ok === 1 ? "success" : "danger"}>
 														{row.ok === 1 ? "成功" : row.errorCode || "失败"}
 													</Badge>
 												</TableCell>

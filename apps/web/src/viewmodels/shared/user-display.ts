@@ -12,7 +12,7 @@ import { formatLocaleDate } from "./formatting";
 
 export interface RoleBadge {
 	label: string;
-	variant: "default" | "secondary" | "outline";
+	tone: "info" | "neutral";
 }
 
 /**
@@ -22,11 +22,11 @@ export interface RoleBadge {
 export function getRoleBadge(role: UserRole): RoleBadge | null {
 	switch (role) {
 		case 1:
-			return { label: "管理员", variant: "default" };
+			return { label: "管理员", tone: "info" };
 		case 2:
-			return { label: "超级版主", variant: "secondary" };
+			return { label: "超级版主", tone: "neutral" };
 		case 3:
-			return { label: "版主", variant: "secondary" };
+			return { label: "版主", tone: "neutral" };
 		default:
 			return null;
 	}

@@ -368,8 +368,8 @@ export function UserDetailPanel({
 				}
 				description={
 					<span className="flex flex-wrap items-center gap-2">
-						<Badge variant={userStatusVariant(user.status)}>{statusLabel(user.status)}</Badge>
-						<Badge variant={userRoleVariant(user.role)}>{roleLabel(user.role)}</Badge>
+						<Badge tone={userStatusVariant(user.status)}>{statusLabel(user.status)}</Badge>
+						<Badge tone={userRoleVariant(user.role)}>{roleLabel(user.role)}</Badge>
 						<span>ID: {user.id}</span>
 					</span>
 				}
@@ -763,7 +763,7 @@ const postColumns: ColumnDef<UserDetailPost>[] = [
 	{
 		key: "isFirst",
 		header: "首楼",
-		cell: (p) => (p.isFirst ? <Badge variant={FIRST_POST_VARIANT}>是</Badge> : "—"),
+		cell: (p) => (p.isFirst ? <Badge tone={FIRST_POST_VARIANT}>是</Badge> : "—"),
 	},
 	{
 		key: "createdAt",

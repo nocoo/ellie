@@ -157,20 +157,18 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 					    `threadHighlightVariant`. */}
 						<div className="flex flex-wrap gap-1.5">
 							{thread.sticky > 0 && (
-								<Badge variant={threadStickyVariant(thread.sticky)}>
+								<Badge tone={threadStickyVariant(thread.sticky)}>
 									{stickyLabel(thread.sticky)}
 								</Badge>
 							)}
-							{thread.closed > 0 && (
-								<Badge variant={threadClosedVariant(thread.closed)}>已锁定</Badge>
-							)}
+							{thread.closed > 0 && <Badge tone={threadClosedVariant(thread.closed)}>已锁定</Badge>}
 							{thread.digest > 0 && (
-								<Badge variant={threadDigestVariant(thread.digest)}>
+								<Badge tone={threadDigestVariant(thread.digest)}>
 									{digestLabel(thread.digest)}
 								</Badge>
 							)}
 							{thread.highlight > 0 && (
-								<Badge variant={threadHighlightVariant(thread.highlight)}>高亮</Badge>
+								<Badge tone={threadHighlightVariant(thread.highlight)}>高亮</Badge>
 							)}
 						</div>
 
@@ -180,7 +178,7 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 						{metaChips.length > 0 && (
 							<div className="flex flex-wrap gap-1.5">
 								{metaChips.map((chip) => (
-									<Badge key={chip.key} variant="secondary">
+									<Badge key={chip.key} tone="neutral">
 										{chip.label}
 									</Badge>
 								))}

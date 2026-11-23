@@ -31,7 +31,7 @@ import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
-import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
+import { formatLastActive, getRoleBadge, type RoleBadge } from "@/viewmodels/shared/user-display";
 import { useForumToast } from "./forum-toast";
 import { UserAvatar } from "./user-avatar";
 import {
@@ -427,7 +427,7 @@ function UserHeader({
 	onClose,
 }: {
 	user: PublicUser;
-	roleBadge: { label: string; variant: "default" | "secondary" | "outline" } | null;
+	roleBadge: RoleBadge | null;
 	isSelf: boolean;
 	userIsMuted: boolean;
 	userIsBanned: boolean;
@@ -463,7 +463,7 @@ function UserHeader({
 								{user.username}
 							</Link>
 							{roleBadge && (
-								<Badge variant={roleBadge.variant} className="text-xs">
+								<Badge tone={roleBadge.tone} className="text-xs">
 									{roleBadge.label}
 								</Badge>
 							)}
@@ -519,7 +519,7 @@ function UserStatusBadges({
 	return (
 		<div className="mt-1">
 			{userIsBanned && (
-				<Badge variant="destructive" className="text-xs">
+				<Badge tone="danger" className="text-xs">
 					已封禁
 				</Badge>
 			)}

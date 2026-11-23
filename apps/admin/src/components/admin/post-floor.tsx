@@ -62,7 +62,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 			<div className="flex items-center justify-between border-b border-basalt-border/50 px-4 py-2">
 				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-basalt-muted-foreground">
 					<span className="font-mono font-medium text-basalt-foreground">#{post.position}</span>
-					{post.isFirst && <Badge variant={FIRST_POST_VARIANT}>楼主</Badge>}
+					{post.isFirst && <Badge tone={FIRST_POST_VARIANT}>楼主</Badge>}
 					<span>{formatDate(post.createdAt)}</span>
 				</div>
 				<DropdownMenu>
@@ -121,7 +121,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 						{/* Role badge */}
 						{author && (
-							<Badge variant={userRoleVariant(author.role)} className="text-xs">
+							<Badge tone={userRoleVariant(author.role)} className="text-xs">
 								{author.role > 0 && <Shield className="mr-1 h-3 w-3" />}
 								{roleLabel(author.role)}
 							</Badge>
@@ -129,7 +129,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 						{/* User status (if banned/archived) */}
 						{author && statusIndicator(author.status) && (
-							<Badge variant={userStatusVariant(author.status)} className="text-xs">
+							<Badge tone={userStatusVariant(author.status)} className="text-xs">
 								{statusIndicator(author.status)}
 							</Badge>
 						)}

@@ -309,7 +309,7 @@ export default function IpBansPage() {
 			key: "state",
 			header: "状态",
 			cell: (row) => (
-				<Badge variant={ipBanStateVariant(!row.expiresAt || row.expiresAt * 1000 > Date.now())}>
+				<Badge tone={ipBanStateVariant(!row.expiresAt || row.expiresAt * 1000 > Date.now())}>
 					{row.expiresAt && row.expiresAt * 1000 <= Date.now() ? "已过期" : "生效中"}
 				</Badge>
 			),
@@ -318,7 +318,7 @@ export default function IpBansPage() {
 			key: "expiresAt",
 			header: "过期时间",
 			cell: (row) => {
-				if (!row.expiresAt) return <Badge variant={ipBanExpiryVariant(false)}>永久</Badge>;
+				if (!row.expiresAt) return <Badge tone={ipBanExpiryVariant(false)}>永久</Badge>;
 				const expired = row.expiresAt * 1000 < Date.now();
 				return (
 					<span className={expired ? "text-basalt-muted-foreground line-through" : ""}>
@@ -444,7 +444,7 @@ export default function IpBansPage() {
 					<div className="mt-3">
 						{checkResult.banned ? (
 							<div className="space-y-1">
-								<Badge variant={ipBanStateVariant(true)}>已封禁</Badge>
+								<Badge tone={ipBanStateVariant(true)}>已封禁</Badge>
 								{checkResult.matchingBans?.map((ban) => (
 									<p key={ban.id} className="text-sm text-basalt-muted-foreground">
 										匹配规则 <span className="font-mono">{ban.ip}</span>
@@ -454,7 +454,7 @@ export default function IpBansPage() {
 								))}
 							</div>
 						) : (
-							<Badge variant={ipBanStateVariant(false)}>未封禁</Badge>
+							<Badge tone={ipBanStateVariant(false)}>未封禁</Badge>
 						)}
 					</div>
 				)}

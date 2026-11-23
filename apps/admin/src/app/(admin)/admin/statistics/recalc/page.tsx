@@ -105,7 +105,7 @@ function RecalcCard({ config }: { config: CardConfig }) {
 						<h2 className="text-base font-medium">{config.title}</h2>
 					</div>
 					{status && (
-						<Badge variant={snapshotStatusVariant(status)}>{snapshotStatusLabel(status)}</Badge>
+						<Badge tone={snapshotStatusVariant(status)}>{snapshotStatusLabel(status)}</Badge>
 					)}
 				</div>
 				<p className="text-xs text-basalt-muted-foreground">{config.description}</p>
