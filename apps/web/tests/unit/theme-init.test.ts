@@ -16,7 +16,7 @@ function browserContext(root: { classList: { toggle: ReturnType<typeof vi.fn> } 
 			querySelectorAll: () => colors.map((meta) => ({ setAttribute: meta.set.bind(meta) })),
 			querySelector: () => ({ setAttribute: status.set.bind(status) }),
 		},
-		getComputedStyle: () => ({ getPropertyValue: () => (isDark() ? "0 0% 10.6%" : "0 0% 97%") }),
+		getComputedStyle: () => ({ getPropertyValue: () => (isDark() ? "0 0% 10%" : "0 0% 98%") }),
 	};
 }
 
@@ -40,7 +40,7 @@ describe("first-paint appearance", () => {
 		expect(root.style).toEqual({ colorScheme: expectedDark ? "dark" : "light" });
 		expect(root.dataset).toEqual({ widthMode: "full" });
 		for (const color of browser.colors) {
-			expect(color.get("content")).toBe(expectedDark ? "hsl(0 0% 10.6%)" : "hsl(0 0% 97%)");
+			expect(color.get("content")).toBe(expectedDark ? "hsl(0 0% 10%)" : "hsl(0 0% 98%)");
 		}
 		expect(browser.status.get("content")).toBe(expectedDark ? "black-translucent" : "default");
 	});
@@ -75,8 +75,8 @@ describe("first-paint appearance", () => {
 		const css = readFileSync(new URL("../../src/app/tailwind.css", import.meta.url), "utf8");
 		const layout = readFileSync(new URL("../../src/app/layout.tsx", import.meta.url), "utf8");
 		expect(css).toContain('@import "@nocoo/basalt/styles"');
-		expect(layout).toContain('color: "#f7f7f7"');
-		expect(layout).toContain('color: "#1b1b1b"');
+		expect(layout).toContain('color: "#fafafa"');
+		expect(layout).toContain('color: "#1a1a1a"');
 		expect(layout).toContain('viewportFit: "cover"');
 	});
 });

@@ -367,7 +367,8 @@ test.describe("Admin Basalt integration", () => {
 			});
 			expect(colors.map(({ color }) => color)).not.toContain("rgba(0, 0, 0, 0)");
 			expect(colors[0].channel).toBeLessThan(colors[1].channel);
-			expect(colors[1].channel).toBeLessThan(colors[2].channel);
+			expect(colors[2].channel).toBeLessThan(colors[1].channel);
+			expect(colors[2].channel).toBe(colors[0].channel);
 		}
 		await page.goto("/admin/users?search=testuser");
 		const trigger = page.getByRole("button", { name: "查看用户「testuser」详情" });
