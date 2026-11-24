@@ -24,7 +24,7 @@ jobs:
       - uses: nocoo/base-ci/.github/actions/setup-js@6424d395d36a815d931f10e557762eb635d511c0 # v2026.16
         with:
           package-manager: bun
-          bun-version: ${{ env.BUN_VERSION }}
+          runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
       - run: bun run typecheck
@@ -37,7 +37,7 @@ jobs:
       - uses: nocoo/base-ci/.github/actions/setup-js@6424d395d36a815d931f10e557762eb635d511c0 # v2026.16
         with:
           package-manager: bun
-          bun-version: ${{ env.BUN_VERSION }}
+          runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
       - run: bun run lint
@@ -101,7 +101,7 @@ jobs:
       - uses: nocoo/base-ci/.github/actions/setup-js@6424d395d36a815d931f10e557762eb635d511c0 # v2026.16
         with:
           package-manager: bun
-          bun-version: ${{ env.BUN_VERSION }}
+          runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
       - run: bun run test
@@ -121,7 +121,7 @@ jobs:
       - uses: nocoo/base-ci/.github/actions/setup-js@6424d395d36a815d931f10e557762eb635d511c0 # v2026.16
         with:
           package-manager: bun
-          bun-version: ${{ env.BUN_VERSION }}
+          runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
       - run: bun run test:e2e:api
@@ -136,7 +136,7 @@ jobs:
       - uses: nocoo/base-ci/.github/actions/setup-js@6424d395d36a815d931f10e557762eb635d511c0 # v2026.16
         with:
           package-manager: bun
-          bun-version: ${{ env.BUN_VERSION }}
+          runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
       - name: Configure apt mirrors for Playwright
