@@ -12,7 +12,7 @@
 		"test:coverage": "vitest run -c vitest.config.ts --coverage",
 		"test:e2e": "bunx playwright test -c ../../playwright.config.ts",
 		"typecheck": "tsc --noEmit",
-		"lint": "biome check .",
+		"lint": "biome check --error-on-warnings .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write ."
 	},
