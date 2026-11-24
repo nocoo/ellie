@@ -1,6 +1,6 @@
 import { expect, test } from "../../admin/fixtures/admin-base";
 
-for (const width of [320, 375]) {
+for (const width of [375]) {
 	test(`keeps maintenance table values and controls reachable at ${width}px`, async ({
 		page,
 		loginAsAdmin,

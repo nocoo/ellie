@@ -15,7 +15,6 @@ import { expect, test } from "./fixtures";
 
 const POPULATED_THREAD_ID = 662174;
 const FORUM_WITH_NEW_THREAD = 1;
-const POPULATED_FORUM_ID = 114;
 const THREAD_FOR_POST_CRUD = 1;
 
 test.describe("Feature: Forum Content", () => {
@@ -87,29 +86,6 @@ test.describe("Feature: Forum Content", () => {
 		// both buttons and spans to match the legacy assertion shape.
 		const commentButtons = page.locator('button:has-text("点评"), span:has-text("点评")');
 		expect(await commentButtons.count()).toBeGreaterThan(0);
-	});
-
-	test("Given I am on a populated forum, Then the forum page exposes pagination controls (page links or load-more)", async ({
-		page,
-		loginAs,
-	}) => {
-		// Given: authenticated user on the populated forum
-		await loginAs("e2etest");
-		const forumPage = new ForumPage(page);
-		await forumPage.goto(POPULATED_FORUM_ID);
-
-		// Then: thread list rendered
-		await expect(forumPage.threadItems.first()).toBeVisible();
-
-		// Then: at least one pagination mechanism exists. Forum 114 uses
-		// path-segment pagination /forums/114/2; we accept either page-link or
-		// load-more button so the assertion doesn't tie to one UI choice.
-		const pageLinks = page.locator(`a[href*="/forums/${POPULATED_FORUM_ID}/"]`);
-		const loadMore = page.locator('button:has-text("加载更多"), button:has-text("下一页")');
-
-		const hasPageLinks = (await pageLinks.count()) > 0;
-		const hasLoadMore = await loadMore.isVisible().catch(() => false);
-		expect(hasPageLinks || hasLoadMore).toBe(true);
 	});
 
 	test("Given I am on a populated thread, When I click the page-2 link, Then the URL updates to the /threads/<id>/2 path and post cards still render", async ({

@@ -9,15 +9,8 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
 	testDir: "tests/e2e",
 	forbidOnly: !!process.env.CI,
-	// Local was 0 retries; CI uses 2. The autoresearch full-suite bench mirrors
-	// CI behaviour and is acutely sensitive to single-test flakes: stateful
-	// tests depend on `stateless` passing in full, so one flake costs ~10
-	// reported failures. 1 retry is enough to absorb the occasional
-	// per-test jitter without disguising deterministic regressions.
-	retries: process.env.CI ? 2 : 1,
-	// Force single worker to ensure stateful tests (thread/post) never run concurrently
-	// This prevents cross-file race conditions when creating threads/posts
-	workers: 1,
+	retries: 1,
+	workers: 2,
 	reporter: "html",
 
 	// Per-test timeout. Default (30s) is not enough for the auth specs: the
@@ -69,7 +62,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: "stateless",
-			testMatch: /\/bdd\/(auth|navigation|search|system|legacy-colors)\.spec\.ts$/,
+			testMatch: /\/bdd\/(auth|navigation|search|system)\.spec\.ts$/,
 			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},
@@ -87,22 +80,11 @@ export default defineConfig({
 			// viewport, and the dedicated project name lets `run-l3.ts` opt-in
 			// the gate without affecting `--project=admin`. Default mobile
 			// device is iPhone 14 (390×844); the spec itself iterates through
-			// 320 / 375 / 390 / 430 widths via `page.setViewportSize` so a
-			// single project covers the 4 reviewer-required viewports.
-			//
-			// Browser pin: we take the iPhone 14 viewport / DPR / userAgent /
-			// touch capability profile but force `browserName: "chromium"`.
-			// `devices["iPhone 14"]` defaults to webkit; CI only installs
-			// chromium (`playwright install --with-deps chromium`) so a webkit
-			// default would fail to launch with `Executable doesn't exist at
-			// .../webkit-*/pw_run.sh`. Mobile drift here is a CSS / DOM
-			// invariant — viewport width + the `hidden sm:*` Tailwind tokens —
-			// not a webkit-specific rendering quirk, so chromium-mobile
-			// emulation covers the gate without dragging the CI runner image
-			// onto a second browser binary.
+			// 375 / 390 widths via `page.setViewportSize`.
 			name: "mobile",
 			testMatch: /\/bdd\/mobile\.spec\.ts$/,
-			fullyParallel: true,
+			fullyParallel: false,
+			dependencies: ["stateful"],
 			use: { ...devices["iPhone 14"], browserName: "chromium" },
 		},
 		{

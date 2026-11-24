@@ -163,7 +163,16 @@ jobs:
               /etc/apt/sources.list || true
           fi
           PLAYWRIGHT_SETUP
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
       - run: bunx playwright install --with-deps chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - run: bunx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
       - run: bun run test:e2e:bdd
 
   p1-package:

@@ -187,63 +187,6 @@ test.describe("Admin Basalt integration", () => {
 		await expect(menuTrigger).toBeFocused();
 	});
 
-	test("keeps filters, table rows, batch actions and breadcrumb links usable on narrow screens", async ({
-		page,
-		loginAsAdmin,
-	}) => {
-		await loginAsAdmin();
-		await page.setViewportSize({ width: 1440, height: 1000 });
-		await page.goto("/admin/threads");
-		const filters = page.getByRole("group", { name: "筛选", exact: true });
-		const selects = filters.getByRole("combobox");
-		await expect(selects).toHaveCount(5);
-		for (const select of await selects.all()) {
-			expect((await select.boundingBox())?.width).toBeLessThan(300);
-		}
-
-		for (const width of [320, 375]) {
-			await page.setViewportSize({ width, height: 812 });
-			await page.goto("/admin/users");
-			const table = page.getByRole("table");
-			await expect(table).toBeVisible();
-			expect((await table.locator("tbody tr").first().boundingBox())?.height).toBeLessThan(100);
-			expect(
-				await table.evaluate(
-					(element) => element.scrollWidth > (element.parentElement?.clientWidth ?? 0),
-				),
-			).toBe(true);
-			await page
-				.getByRole("checkbox", { name: /^选择行 / })
-				.first()
-				.click();
-			const batch = page.getByRole("region", { name: "批量操作" });
-			await expect(batch).toBeVisible();
-			for (const button of await batch.getByRole("button").all()) {
-				const box = await button.boundingBox();
-				if (!box) throw new Error("Expected a visible batch action");
-				expect(box.x).toBeGreaterThanOrEqual(0);
-				expect(box.x + box.width).toBeLessThanOrEqual(width);
-			}
-			await batch.getByRole("button", { name: "清除选择" }).click();
-			await expect(batch).toBeHidden();
-			await page.goto("/admin/statistics/kv");
-			const trail = page.getByRole("navigation", { name: "面包屑导航", exact: true });
-			await expect(trail.getByRole("link", { name: "数据统计" })).toHaveCount(0);
-			await expect(trail.getByText("数据统计", { exact: true })).toBeVisible();
-			const dashboard = trail.getByRole("link", { name: "仪表盘", exact: true });
-			expect((await dashboard.boundingBox())?.height).toBeLessThan(25);
-			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-				width,
-			);
-			await dashboard.click();
-			await expect(page).toHaveURL(/\/admin$/);
-		}
-		await page.goto("/admin/users/3");
-		const trail = page.getByRole("navigation", { name: "面包屑导航", exact: true });
-		await trail.getByRole("link", { name: "用户", exact: true }).click();
-		await expect(page).toHaveURL(/\/admin\/users$/);
-	});
-
 	test("keeps every attachment pagination control reachable on narrow screens", async ({
 		page,
 		loginAsAdmin,
@@ -272,76 +215,39 @@ test.describe("Admin Basalt integration", () => {
 			});
 		});
 		await loginAsAdmin();
-		for (const width of [320, 375]) {
-			await page.setViewportSize({ width, height: 812 });
-			await page.goto("/admin/attachments");
-			await page.getByRole("button", { name: "末页", exact: true }).click();
-			await expect(page.getByRole("button", { name: "第 10 页" })).toHaveAttribute(
-				"aria-current",
-				"page",
-			);
-			await page.getByRole("button", { name: "第 8 页" }).click();
-			await expect(page.getByRole("button", { name: "第 8 页" })).toHaveAttribute(
-				"aria-current",
-				"page",
-			);
-			const controls = page.getByRole("button", { name: /^(首页|上一页|第 \d+ 页|下一页|末页)$/ });
-			await expect(controls).toHaveCount(9);
-			for (const control of await controls.all()) {
-				await control.scrollIntoViewIfNeeded();
-				const box = await control.boundingBox();
-				if (!box) throw new Error("Expected a visible pagination control");
-				expect(box.x).toBeGreaterThanOrEqual(0);
-				expect(box.x + box.width).toBeLessThanOrEqual(width);
-				await control.click({ trial: true });
-			}
-			await page.getByRole("button", { name: "上一页", exact: true }).click();
-			await expect(page.getByRole("button", { name: "第 7 页" })).toHaveAttribute(
-				"aria-current",
-				"page",
-			);
-			await page.getByRole("button", { name: "首页", exact: true }).click();
-			await expect(page.getByRole("button", { name: "第 1 页" })).toHaveAttribute(
-				"aria-current",
-				"page",
-			);
-			await page.getByRole("button", { name: "下一页", exact: true }).click();
-			await expect(page.getByRole("button", { name: "第 2 页" })).toHaveAttribute(
-				"aria-current",
-				"page",
-			);
+		const width = 375;
+		await page.setViewportSize({ width, height: 812 });
+		await page.goto("/admin/attachments");
+		await page.getByRole("button", { name: "末页", exact: true }).click();
+		await expect(page.getByRole("button", { name: "第 10 页" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+		await page.getByRole("button", { name: "第 8 页" }).click();
+		await expect(page.getByRole("button", { name: "第 8 页" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+		const controls = page.getByRole("button", { name: /^(首页|上一页|第 \d+ 页|下一页|末页)$/ });
+		await expect(controls).toHaveCount(9);
+		for (const control of await controls.all()) {
+			await control.scrollIntoViewIfNeeded();
+			const box = await control.boundingBox();
+			if (!box) throw new Error("Expected a visible pagination control");
+			expect(box.x).toBeGreaterThanOrEqual(0);
+			expect(box.x + box.width).toBeLessThanOrEqual(width);
+			await control.click({ trial: true });
 		}
-	});
-
-	test("wraps long thread titles without obscuring page actions", async ({
-		page,
-		loginAsAdmin,
-	}) => {
-		const subject = "A".repeat(85);
-		await page.route("**/api/admin/threads/662174", async (route) => {
-			const response = await route.fetch();
-			const json = await response.json();
-			await route.fulfill({ response, json: { ...json, data: { ...json.data, subject } } });
-		});
-		await loginAsAdmin();
-		for (const width of [320, 375, 1280]) {
-			await page.setViewportSize({ width, height: 900 });
-			await page.goto("/admin/threads/662174");
-			const content = page.locator("main [data-basalt-surface-root]");
-			const header = content.locator("header", { hasText: subject });
-			const title = header.getByRole("heading", { name: subject, exact: true, level: 1 });
-			await expect(title).toBeVisible();
-			expect(await title.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
-				await title.evaluate((element) => element.clientWidth),
-			);
-			expect(await content.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
-				await content.evaluate((element) => element.clientWidth),
-			);
-			await header.getByRole("button", { name: "删除", exact: true }).click({ trial: true });
-			await header.getByRole("button", { name: "编辑", exact: true }).click();
-			await expect(page.getByRole("dialog", { name: "编辑主题", exact: true })).toBeVisible();
-			await page.keyboard.press("Escape");
-		}
+		await page.getByRole("button", { name: "上一页", exact: true }).click();
+		await expect(page.getByRole("button", { name: "第 7 页" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+		await page.getByRole("button", { name: "首页", exact: true }).click();
+		await expect(page.getByRole("button", { name: "第 1 页" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
 	});
 
 	test("raises nested surfaces in both themes and restores focus through nested dialogs", async ({

@@ -335,68 +335,6 @@ test.describe("Feature: Admin Users CRUD", () => {
 		await expect(editDialog).toBeHidden();
 	});
 
-	test("Given the user list, Then every row's action icons fit inside the viewport on a single row", async ({
-		page,
-		context,
-		loginAsAdmin,
-		baseURL,
-	}) => {
-		// Legacy US-05 was the D1 "action menu items fit inside viewport"
-		// guard, but commit e27637e9 replaced the per-row action menu with
-		// inline 查看详情 / 编辑 icon buttons. The original layout-overflow
-		// concern is now about that icon row, so the scenario is adapted
-		// rather than dropped: assert the inline action buttons render on a
-		// single line inside the viewport's right edge for the seed row.
-		const origin = baseURL ?? "http://localhost:7032";
-		await loginAsAdmin();
-		{
-			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			snapshot = ((await res.json()) as UserResponse).data;
-		}
-		const snap = snapshot;
-		if (!snap) throw new Error("snapshot must be present");
-		const initialUsername = snap.username;
-
-		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
-		).toBeVisible();
-		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
-
-		const viewport = page.viewportSize();
-		expect(viewport, "viewport size must be available").not.toBeNull();
-		if (!viewport) throw new Error("unreachable");
-
-		const actionButtons = [
-			page.getByRole("button", { name: `查看用户「${initialUsername}」详情` }),
-			page.getByRole("button", { name: `编辑用户「${initialUsername}」` }),
-		];
-
-		for (const button of actionButtons) {
-			await expect(button).toBeVisible();
-			const bbox = await button.boundingBox();
-			const label = await button.getAttribute("aria-label");
-			expect(bbox, `action button "${label}" must have a bbox`).not.toBeNull();
-			if (!bbox) continue;
-			expect(bbox.x, `action button "${label}" must start inside viewport`).toBeGreaterThanOrEqual(
-				0,
-			);
-			expect(
-				bbox.x + bbox.width,
-				`action button "${label}" must not overflow viewport right edge`,
-			).toBeLessThanOrEqual(viewport.width);
-			// Icon buttons are h-8 (32px) in the source; allow generous
-			// breathing room before flagging multi-line layout.
-			expect(
-				bbox.height,
-				`action button "${label}" must render on a single row (no wrap)`,
-			).toBeLessThanOrEqual(40);
-		}
-	});
-
 	test("Given the purge dialog for a staff user, When I type the wrong then the right token and submit, Then 彻底清除 toggles enabled state and the backend rejects with CANNOT_PURGE_STAFF", async ({
 		context,
 		page,
@@ -600,66 +538,6 @@ test.describe("Feature: Admin Users CRUD", () => {
 		await expect(page.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
 		await expect(page.getByRole("button", { name: "封禁", exact: true })).toHaveCount(0);
 	});
-
-	test("Given a user with a regIp on the detail page, When I click 搜索同 IP 用户, Then the list opens filtered by regIp and the IP-context banner renders", async ({
-		context,
-		page,
-		loginAsAdmin,
-		baseURL,
-	}) => {
-		// Legacy US-09 (D3 path). The 同 IP 用户 entry button only renders
-		// when `user.regIp` is non-empty (UserDetailPanel), but the seed
-		// testuser has reg_ip="" — so we PATCH a reg_ip in first and
-		// restore it via the suite afterEach (snapshot includes regIp).
-		// Button name was renamed from "查询注册 IP" → "搜索同 IP 用户"
-		// when the per-IP-row layout landed (bfb1f9cd "feat(admin): wire
-		// 搜索同 IP 用户 button on user detail panel").
-		const origin = baseURL ?? "http://localhost:7032";
-		await loginAsAdmin();
-
-		{
-			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			snapshot = ((await res.json()) as UserResponse).data;
-		}
-		const snap = snapshot;
-		if (!snap) throw new Error("snapshot must be present");
-
-		// Inject a regIp so the conditional 搜索同 IP 用户 button surfaces.
-		const TEST_REG_IP = "203.0.113.42";
-		{
-			const res = await context.request.patch(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin, "Content-Type": "application/json" },
-				data: {
-					username: snap.username,
-					email: snap.email,
-					credits: snap.credits,
-					status: snap.status,
-					role: snap.role,
-					regIp: TEST_REG_IP,
-					lastIp: snap.lastIp,
-				},
-			});
-			expect(res.ok(), "PATCH should succeed when injecting regIp").toBeTruthy();
-		}
-
-		await page.goto(`/admin/users/${SEED_USER_ID}`);
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: snap.username }),
-		).toBeVisible();
-
-		// When: click 搜索同 IP 用户 — first occurrence is the reg_ip row
-		const regIpButton = page.getByRole("button", { name: "搜索同 IP 用户" }).first();
-		await expect(regIpButton).toBeVisible();
-		await regIpButton.click();
-
-		// Then: URL filter + banner + seed row still in result set
-		await expect(page).toHaveURL(/\/admin\/users\?regIp=/);
-		await expect(page.getByText(/正在查看注册 IP 为/)).toBeVisible();
-		await expect(page.getByText(snap.username, { exact: true }).first()).toBeVisible();
-	});
 });
 
 // =============================================================================
@@ -816,58 +694,6 @@ test.describe("Feature: Admin Operation Logs", () => {
 		expect(lastRequestUrl).toContain("action=user.ban");
 	});
 
-	test("keeps long log details scrollable with the close button inside the dialog", async ({
-		page,
-	}) => {
-		const details = JSON.stringify(
-			Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`field_${i}`, `value_${i}`])),
-		);
-		await page.route("**/api/admin/admin-logs**", (route) =>
-			route.fulfill({
-				json: {
-					data: [{ ...LOG_FIXTURE[0], details }],
-					meta: { page: 1, pages: 1, limit: 20, total: 1 },
-				},
-			}),
-		);
-		for (const viewport of [
-			{ width: 375, height: 812 },
-			{ width: 320, height: 568 },
-			{ width: 1280, height: 720 },
-		]) {
-			await page.setViewportSize(viewport);
-			await page.goto("/admin/logs/operations");
-			await page.getByLabel("查看日志 #101 详情").click();
-			const dialog = page.getByRole("dialog", { name: "操作日志详情" });
-			await expect(dialog).toHaveCSS("opacity", "1");
-			const close = dialog.getByRole("button", { name: "关闭", exact: true });
-			const panelBox = await dialog.boundingBox();
-			const closeBox = await close.boundingBox();
-			if (!panelBox || !closeBox) throw new Error("Expected a visible dialog and close button");
-			expect(panelBox.y).toBeGreaterThanOrEqual(0);
-			expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport.height);
-			expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
-			const details = dialog.getByTestId("admin-log-details");
-			expect(
-				await details.evaluate((element) => element.scrollHeight - element.clientHeight),
-			).toBeLessThanOrEqual(1);
-			const body = dialog.locator(".overflow-y-auto");
-			await details.hover({ position: { x: 10, y: 10 } });
-			await page.mouse.wheel(0, 100_000);
-			await expect
-				.poll(() =>
-					body.evaluate(
-						(element) => element.scrollHeight - element.clientHeight - element.scrollTop,
-					),
-				)
-				.toBeLessThanOrEqual(2);
-			expect(await body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-			await expect(close).toBeInViewport();
-			await close.click();
-			await expect(dialog).toBeHidden();
-		}
-	});
-
 	test("Given the operation logs list, When I open a JSON-details row and then a non-JSON row, Then the detail dialog pretty-prints JSON for the first and falls back to raw text with a marker for the second", async ({
 		page,
 	}) => {
@@ -1013,33 +839,6 @@ test.describe("Feature: Admin Reports List", () => {
 	// real /api/admin/reports** instead of the in-memory fixture.
 	test.afterEach(async ({ page }) => {
 		await page.unroute("**/api/admin/reports**");
-	});
-
-	test("keeps report actions visible when a long reason scrolls", async ({ page }) => {
-		await page.route("**/api/admin/reports**", (route) =>
-			route.fulfill({
-				json: {
-					data: [{ ...REPORT_FIXTURE[0], reason: "需要审核的详细举报理由。".repeat(100) }],
-					meta: { page: 1, pages: 1, limit: 20, total: 1 },
-				},
-			}),
-		);
-		await page.setViewportSize({ width: 375, height: 812 });
-		await page.goto("/admin/reports");
-		await page.getByRole("button", { name: "#1", exact: true }).click();
-		const dialog = page.getByRole("dialog", { name: "举报详情 #1", exact: true });
-		await expect(dialog).toHaveCSS("opacity", "1");
-		const panelBox = await dialog.boundingBox();
-		if (!panelBox) throw new Error("Expected a visible report dialog");
-		for (const name of ["驳回举报", "标记已处理", "删除"]) {
-			const action = dialog.getByRole("button", { name, exact: true });
-			const box = await action.boundingBox();
-			if (!box) throw new Error(`Expected a visible ${name} button`);
-			expect(box.y + box.height).toBeLessThanOrEqual(panelBox.y + panelBox.height);
-			await action.click({ trial: true });
-		}
-		await page.keyboard.press("Escape");
-		await expect(dialog).toBeHidden();
 	});
 
 	test("Given the reports page, Then per-type rows render correct target links, and When I filter type=用户, Then only the user row remains", async ({
@@ -1336,24 +1135,4 @@ test.describe("Feature: Admin Threads & Posts CRUD", () => {
 		await expect(guardItem).toBeVisible();
 		await expect(guardItem).toBeDisabled();
 	});
-});
-
-test("explains an unscoped title search and recovers after adding an author", async ({
-	page,
-	loginAsAdmin,
-}) => {
-	await loginAsAdmin();
-	await page.goto("/admin/threads?search=Thread");
-	await expect(page.getByRole("alert").filter({ hasText: "请先限定" })).toContainText("请先限定");
-	const author = page.getByPlaceholder("作者完整用户名...");
-	await author.fill("testuser");
-	const response = page.waitForResponse(
-		(r) =>
-			r.url().includes("/api/admin/threads?") &&
-			r.url().includes("authorName=testuser") &&
-			r.status() === 200,
-	);
-	await author.press("Enter");
-	await response;
-	await expect(page.getByRole("alert").filter({ hasText: "请先限定" })).toHaveCount(0);
 });

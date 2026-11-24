@@ -31,14 +31,6 @@ test.describe("Feature: Authentication", () => {
 		await expect(loginPage.submitButton).toBeDisabled();
 	});
 
-	// Cap CAPTCHA gate — this scenario would need to either drive the real
-	// widget (fighting Cap's anti-automation defences) or dispatch the "solve"
-	// CustomEvent from a test (bypassing the gate entirely). Neither is a good
-	// L3 assertion. The button-enable transition is instead covered by unit
-	// tests against login-form.tsx.
-	// biome-ignore lint/suspicious/noSkippedTests: intentional — see block comment above.
-	test.skip("Given I am on the login form, When I fill username and password and Cap solves, Then the submit button becomes enabled", () => {});
-
 	test("Given I submit valid credentials via loginAs, When the credentials callback completes, Then I am redirected off /login and the user indicator is visible", async ({
 		page,
 		loginAs,
@@ -60,13 +52,6 @@ test.describe("Feature: Authentication", () => {
 		const userIndicator = page.locator('[data-testid="user-menu"]').or(page.getByText("e2etest"));
 		await expect(userIndicator.first()).toBeVisible({ timeout: 10_000 });
 	});
-
-	// Same rationale as the button-enable scenario above: exercising this
-	// path requires either fighting Cap or bypassing it, so keep the assertion
-	// at the unit layer (login-form.tsx renders errorMessage when signIn
-	// resolves with an error).
-	// biome-ignore lint/suspicious/noSkippedTests: intentional — see block comment above.
-	test.skip("Given I submit invalid credentials, When the API rejects them, Then I stay on /login and an error message renders", () => {});
 
 	test("Given I am already logged in, When I open /login, Then I see the 你已登录 card with a 前往首页 button that returns me to /", async ({
 		page,

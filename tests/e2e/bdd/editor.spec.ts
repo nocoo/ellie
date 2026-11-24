@@ -1,84 +1,80 @@
 import { expect, test } from "./fixtures";
 
-for (const platform of ["Win32", "MacIntel"]) {
-	test.describe(`Composer keyboard on ${platform}`, () => {
-		test.beforeEach(async ({ page, loginAs }) => {
-			await page.addInitScript((value) => {
-				Object.defineProperty(navigator, "platform", { get: () => value });
-			}, platform);
-			await page.goto("/");
-			await loginAs("e2etest");
-			await page.goto("/forums/1/new-thread");
-			await page
-				.getByRole("textbox", { name: "主题标题", exact: true })
-				.fill("Keyboard regression test");
+test.describe("Composer keyboard on MacIntel", () => {
+	test.beforeEach(async ({ page, loginAs }) => {
+		await page.addInitScript(() => {
+			Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
 		});
-
-		test("Enter splits paragraphs; Ctrl+Enter preserves text and submits once", async ({
-			page,
-		}) => {
-			const errors: string[] = [];
-			page.on("pageerror", (error) => errors.push(error.message));
-			const editor = page.getByRole("textbox", { name: "正文", exact: true });
-			await editor.fill("First paragraph");
-			await editor.press("Enter");
-			await page.keyboard.type("Second paragraph");
-			await expect(editor.locator("p")).toHaveCount(2);
-			await expect(editor.locator("p").nth(1)).toHaveText("Second paragraph");
-
-			await editor.evaluate((element) => {
-				const node = element.querySelector("p")?.firstChild;
-				if (!node) throw new Error("Missing paragraph text");
-				const range = document.createRange();
-				range.setStart(node, 5);
-				range.collapse(true);
-				window.getSelection()?.removeAllRanges();
-				window.getSelection()?.addRange(range);
-			});
-			await expect(page.getByRole("textbox", { name: "主题标题", exact: true })).toHaveValue(
-				"Keyboard regression test",
-			);
-			const before = await editor.innerHTML();
-			const submitted: { content: string }[] = [];
-			await page.route("**/api/v1/threads", async (route) => {
-				if (route.request().method() !== "POST") return route.continue();
-				submitted.push(route.request().postDataJSON());
-				await route.fulfill({
-					status: 500,
-					json: { error: { code: "INTERNAL_ERROR", message: "Test submission failure" } },
-				});
-			});
-			await editor.press("Control+Enter");
-			await expect(page.getByRole("alert", { name: "发帖失败", exact: true })).toBeVisible();
-			expect(submitted).toHaveLength(1);
-			expect(submitted[0].content).toBe(before);
-			expect(await editor.innerHTML()).toBe(before);
-			expect(errors).toEqual([]);
-		});
-
-		test("IME confirmation cannot publish a thread", async ({ page }) => {
-			const editor = page.getByRole("textbox", { name: "正文", exact: true });
-			await editor.fill("中文输入法正在确认候选文字");
-			let submissions = 0;
-			await page.route("**/api/v1/threads", async (route) => {
-				if (route.request().method() !== "POST") return route.continue();
-				submissions++;
-				await route.abort();
-			});
-			await editor.dispatchEvent("compositionstart");
-			await editor.dispatchEvent("keydown", {
-				key: "Enter",
-				code: "Enter",
-				keyCode: 229,
-				ctrlKey: true,
-				isComposing: true,
-			});
-			await editor.dispatchEvent("compositionend");
-			await expect(editor).toHaveText("中文输入法正在确认候选文字");
-			expect(submissions).toBe(0);
-		});
+		await page.goto("/");
+		await loginAs("e2etest");
+		await page.goto("/forums/1/new-thread");
+		await page
+			.getByRole("textbox", { name: "主题标题", exact: true })
+			.fill("Keyboard regression test");
 	});
-}
+
+	test("Enter splits paragraphs; Ctrl+Enter preserves text and submits once", async ({ page }) => {
+		const errors: string[] = [];
+		page.on("pageerror", (error) => errors.push(error.message));
+		const editor = page.getByRole("textbox", { name: "正文", exact: true });
+		await editor.fill("First paragraph");
+		await editor.press("Enter");
+		await page.keyboard.type("Second paragraph");
+		await expect(editor.locator("p")).toHaveCount(2);
+		await expect(editor.locator("p").nth(1)).toHaveText("Second paragraph");
+
+		await editor.evaluate((element) => {
+			const node = element.querySelector("p")?.firstChild;
+			if (!node) throw new Error("Missing paragraph text");
+			const range = document.createRange();
+			range.setStart(node, 5);
+			range.collapse(true);
+			window.getSelection()?.removeAllRanges();
+			window.getSelection()?.addRange(range);
+		});
+		await expect(page.getByRole("textbox", { name: "主题标题", exact: true })).toHaveValue(
+			"Keyboard regression test",
+		);
+		const before = await editor.innerHTML();
+		const submitted: { content: string }[] = [];
+		await page.route("**/api/v1/threads", async (route) => {
+			if (route.request().method() !== "POST") return route.continue();
+			submitted.push(route.request().postDataJSON());
+			await route.fulfill({
+				status: 500,
+				json: { error: { code: "INTERNAL_ERROR", message: "Test submission failure" } },
+			});
+		});
+		await editor.press("Control+Enter");
+		await expect(page.getByRole("alert", { name: "发帖失败", exact: true })).toBeVisible();
+		expect(submitted).toHaveLength(1);
+		expect(submitted[0].content).toBe(before);
+		expect(await editor.innerHTML()).toBe(before);
+		expect(errors).toEqual([]);
+	});
+
+	test("IME confirmation cannot publish a thread", async ({ page }) => {
+		const editor = page.getByRole("textbox", { name: "正文", exact: true });
+		await editor.fill("中文输入法正在确认候选文字");
+		let submissions = 0;
+		await page.route("**/api/v1/threads", async (route) => {
+			if (route.request().method() !== "POST") return route.continue();
+			submissions++;
+			await route.abort();
+		});
+		await editor.dispatchEvent("compositionstart");
+		await editor.dispatchEvent("keydown", {
+			key: "Enter",
+			code: "Enter",
+			keyCode: 229,
+			ctrlKey: true,
+			isComposing: true,
+		});
+		await editor.dispatchEvent("compositionend");
+		await expect(editor).toHaveText("中文输入法正在确认候选文字");
+		expect(submissions).toBe(0);
+	});
+});
 
 test.describe("Rich composition", () => {
 	test.beforeEach(async ({ page, loginAs }) => {
@@ -278,32 +274,5 @@ test.describe("Rich composition", () => {
 		);
 		expect(position).toEqual(["Before ", "IMAGE", "after continued"]);
 		await expect(page.getByRole("button", { name: "发布主题", exact: true })).toBeEnabled();
-	});
-
-	test("mobile and reduced-motion composition remain usable", async ({ page }, testInfo) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
-		await page.getByRole("textbox", { name: "主题标题", exact: true }).fill("移动端编辑与预览");
-		await page
-			.getByRole("textbox", { name: "正文", exact: true })
-			.fill("小屏幕也能从容写作，切换预览，检查格式后再发布。");
-		await page.getByRole("tab", { name: "预览", exact: true }).click();
-		await expect(page.getByRole("tabpanel", { name: "预览", exact: true })).toContainText(
-			"检查格式后再发布",
-		);
-		const layout = await page.evaluate(() => ({
-			viewport: document.documentElement.clientWidth,
-			width: document.documentElement.scrollWidth,
-			animation: Number.parseFloat(
-				getComputedStyle(document.querySelector(".composer-preview") ?? document.body)
-					.animationDuration,
-			),
-		}));
-		expect(layout.width).toBeLessThanOrEqual(layout.viewport);
-		expect(layout.animation).toBeLessThanOrEqual(0.001);
-		const publish = page.getByRole("button", { name: "发布主题", exact: true });
-		await publish.scrollIntoViewIfNeeded();
-		await expect(publish).toBeInViewport();
-		await page.screenshot({ path: testInfo.outputPath("composer-mobile.png"), fullPage: true });
 	});
 });

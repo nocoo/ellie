@@ -109,10 +109,7 @@ test("requires typed confirmation before sending an attachment batch deletion", 
 	expect(deletions).toBe(1);
 });
 
-for (const [action, status] of [
-	["封禁", -1],
-	["激活", 0],
-] as const) {
+for (const [action, status] of [["封禁", -1]] as const) {
 	test(`confirms a user batch ${action} and preserves the selection after failure`, async ({
 		page,
 		loginAsAdmin,

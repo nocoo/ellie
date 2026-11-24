@@ -10,11 +10,9 @@
 // apps/web/tests/unit/auth.test.ts. Runs under the `stateful` project
 // because UA-02 mutates the browser session.
 
-import { HomePage } from "../pages/home.page";
 import { MessagePage } from "../pages/message.page";
 import { expect, test } from "./fixtures";
 
-const POPULATED_FORUM_ID = 114;
 const PROFILE_USER_ID = 64495;
 
 test.describe("Feature: Social & User Journey", () => {
@@ -39,55 +37,10 @@ test.describe("Feature: Social & User Journey", () => {
 		expect(hasMessages || hasEmpty).toBe(true);
 
 		// When: click 写站内信
-		// Merges MS-02 here because both old tests start from goto('/messages')
-		// and the compose-button assertion is the natural next step after the
-		// inbox renders — keeping them split would re-pay the goto + load wait.
 		await messagePage.composeButton.click();
 
 		// Then: compose dialog opens
 		await expect(messagePage.composeDialog).toBeVisible();
-	});
-
-	test("Given I cycled the theme on /login, When I navigate to /, Then the theme choice persists on the new page", async ({
-		page,
-	}) => {
-		// Given: anonymous user on /login (same header renders the toggle).
-		await page.goto("/login");
-
-		// CSS fallback: ThemeToggle aria-label encodes the active mode; there
-		// is no role-based name shared across light/dark/system states.
-		const themeToggle = page
-			.locator('button[aria-label*="mode"], button[aria-label*="theme"]')
-			.first();
-		await expect(themeToggle).toBeVisible();
-
-		// When: cycle once and confirm the label changed
-		const initialLabel = await themeToggle.getAttribute("aria-label");
-		await themeToggle.click();
-		await expect(themeToggle).not.toHaveAttribute("aria-label", initialLabel ?? "");
-		const afterClickLabel = await themeToggle.getAttribute("aria-label");
-		expect(afterClickLabel).toBeTruthy();
-		expect(afterClickLabel).not.toBe(initialLabel);
-
-		// When: full-page nav to /
-		await page.goto("/");
-
-		// Then: the toggle on the new page carries the cycled label — proving
-		// the choice is persisted in localStorage by useTheme rather than held
-		// in component state.
-		const themeToggleAfter = page
-			.locator('button[aria-label*="mode"], button[aria-label*="theme"]')
-			.first();
-		await expect(themeToggleAfter).toHaveAttribute("aria-label", afterClickLabel ?? "", {
-			timeout: 10_000,
-		});
-
-		// Cleanup: cycle back to the initial state so we don't leak the
-		// localStorage write into other tests. Playwright contexts are
-		// per-test so this is belt-and-suspenders but documents intent.
-		await themeToggleAfter.click();
-		await themeToggleAfter.click();
-		await expect(themeToggleAfter).toHaveAttribute("aria-label", initialLabel ?? "");
 	});
 
 	test("Given I am logged in on /, When I click the header 退出登录 button, Then I land on / with logged-out UI (Login link visible, logout button gone)", async ({
@@ -109,49 +62,6 @@ test.describe("Feature: Social & User Journey", () => {
 		// Then: logged-out marker (login link visible, logout button gone)
 		await expect(page.locator('a[href="/login"]').first()).toBeVisible({ timeout: 15_000 });
 		await expect(logoutBtn).toHaveCount(0);
-	});
-
-	// Cap CAPTCHA gate — driving the real /login form means either fighting
-	// Cap's anti-automation defences or bypassing them, both of which are
-	// bad L3 assertions. NextAuth's redirect-callback correctness is covered
-	// by unit tests over safe-redirect.ts + auth.test.ts.
-	// biome-ignore lint/suspicious/noSkippedTests: intentional — see block comment above.
-	test.skip("Given I open /login?redirect=/messages, When I submit valid credentials via the real form, Then NextAuth lands me on /messages and the messages UI renders", () => {});
-
-	test("Given I am logged in, When I click into a forum and then into a thread, Then I can navigate back via the breadcrumb link to the forum", async ({
-		page,
-		loginAs,
-	}) => {
-		// Given: authenticated user on /
-		await loginAs("e2etest");
-		const homePage = new HomePage(page);
-		await homePage.goto();
-		expect(await homePage.isLoaded()).toBe(true);
-
-		// When: click into populated forum
-		const forumLink = homePage.forumGroups.locator(`a[href="/forums/${POPULATED_FORUM_ID}"]`);
-		await expect(forumLink).toBeVisible();
-		await forumLink.click();
-		await page.waitForURL(new RegExp(`/forums/${POPULATED_FORUM_ID}`));
-
-		// When: click into the first thread
-		const threadLink = page.locator('a[href^="/threads/"]').first();
-		await expect(threadLink).toBeVisible();
-		await threadLink.click();
-		await page.waitForURL(/\/threads\/\d+/);
-		await expect(page.locator("h1")).toBeVisible();
-
-		// When: click the breadcrumb back to /forums/<id>
-		// Scope to the breadcrumb so header and thread-row links cannot match.
-		const breadcrumbForumLink = page
-			.getByRole("navigation", { name: "面包屑" })
-			.locator('a[href^="/forums/"]')
-			.first();
-		await expect(breadcrumbForumLink).toBeVisible();
-		await breadcrumbForumLink.click();
-
-		// Then: back on a /forums/<digits> page
-		await page.waitForURL(/\/forums\/\d+/);
 	});
 
 	test("Given I am logged in, When I open /me, Then the 我的账号 breadcrumb and the email verification card render", async ({

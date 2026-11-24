@@ -157,14 +157,16 @@ async function prewarmRoutes(): Promise<void> {
 	];
 	const started = Date.now();
 	console.log("🔥 Prewarming routes…");
-	for (const route of routes) {
-		try {
-			const res = await fetch(`${BASE_URL}${route}`, { signal: AbortSignal.timeout(20_000) });
-			console.log(`   ${route} → ${res.status}`);
-		} catch (err) {
-			console.log(`   ${route} → ${err instanceof Error ? err.message : err}`);
-		}
-	}
+	await Promise.all(
+		routes.map(async (route) => {
+			try {
+				const res = await fetch(`${BASE_URL}${route}`, { signal: AbortSignal.timeout(20_000) });
+				console.log(`   ${route} → ${res.status}`);
+			} catch (err) {
+				console.log(`   ${route} → ${err instanceof Error ? err.message : err}`);
+			}
+		}),
+	);
 	console.log(`   prewarm done in ${Date.now() - started}ms`);
 }
 
