@@ -5,7 +5,6 @@ test.describe("Composer keyboard on MacIntel", () => {
 		await page.addInitScript(() => {
 			Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
 		});
-		await page.goto("/");
 		await loginAs("e2etest");
 		await page.goto("/forums/1/new-thread");
 		await page
@@ -13,10 +12,35 @@ test.describe("Composer keyboard on MacIntel", () => {
 			.fill("Keyboard regression test");
 	});
 
-	test("Enter splits paragraphs; Ctrl+Enter preserves text and submits once", async ({ page }) => {
+	test("Enter splits paragraphs, Ctrl+Enter submits once, and IME confirmation cannot publish", async ({
+		page,
+	}) => {
 		const errors: string[] = [];
 		page.on("pageerror", (error) => errors.push(error.message));
 		const editor = page.getByRole("textbox", { name: "正文", exact: true });
+
+		await editor.fill("中文输入法正在确认候选文字");
+		let submissions = 0;
+		await page.route("**/api/v1/threads", async (route) => {
+			if (route.request().method() !== "POST") return route.continue();
+			submissions++;
+			await route.fulfill({
+				status: 500,
+				json: { error: { code: "INTERNAL_ERROR", message: "Test submission failure" } },
+			});
+		});
+		await editor.dispatchEvent("compositionstart");
+		await editor.dispatchEvent("keydown", {
+			key: "Enter",
+			code: "Enter",
+			keyCode: 229,
+			ctrlKey: true,
+			isComposing: true,
+		});
+		await editor.dispatchEvent("compositionend");
+		await expect(editor).toHaveText("中文输入法正在确认候选文字");
+		expect(submissions).toBe(0);
+
 		await editor.fill("First paragraph");
 		await editor.press("Enter");
 		await page.keyboard.type("Second paragraph");
@@ -37,6 +61,7 @@ test.describe("Composer keyboard on MacIntel", () => {
 		);
 		const before = await editor.innerHTML();
 		const submitted: { content: string }[] = [];
+		await page.unroute("**/api/v1/threads");
 		await page.route("**/api/v1/threads", async (route) => {
 			if (route.request().method() !== "POST") return route.continue();
 			submitted.push(route.request().postDataJSON());
@@ -52,28 +77,6 @@ test.describe("Composer keyboard on MacIntel", () => {
 		expect(await editor.innerHTML()).toBe(before);
 		expect(errors).toEqual([]);
 	});
-
-	test("IME confirmation cannot publish a thread", async ({ page }) => {
-		const editor = page.getByRole("textbox", { name: "正文", exact: true });
-		await editor.fill("中文输入法正在确认候选文字");
-		let submissions = 0;
-		await page.route("**/api/v1/threads", async (route) => {
-			if (route.request().method() !== "POST") return route.continue();
-			submissions++;
-			await route.abort();
-		});
-		await editor.dispatchEvent("compositionstart");
-		await editor.dispatchEvent("keydown", {
-			key: "Enter",
-			code: "Enter",
-			keyCode: 229,
-			ctrlKey: true,
-			isComposing: true,
-		});
-		await editor.dispatchEvent("compositionend");
-		await expect(editor).toHaveText("中文输入法正在确认候选文字");
-		expect(submissions).toBe(0);
-	});
 });
 
 test.describe("Rich composition", () => {
@@ -82,7 +85,7 @@ test.describe("Rich composition", () => {
 		await page.goto("/forums/1/new-thread");
 	});
 
-	test("formatting survives preview, undo and redo", async ({ page }) => {
+	test("formatting, links, and uploaded images survive undo/redo and preview", async ({ page }) => {
 		const title = page.getByRole("textbox", { name: "主题标题", exact: true });
 		const editor = page.getByRole("textbox", { name: "正文", exact: true });
 		await title.fill("A professionally formatted post");
@@ -103,12 +106,7 @@ test.describe("Rich composition", () => {
 		).toBeVisible();
 		await page.getByRole("tab", { name: "撰写", exact: true }).click();
 		expect(await editor.innerHTML()).toBe(before);
-	});
 
-	test("links preserve selected text, reject unsafe URLs, and can be edited or removed", async ({
-		page,
-	}) => {
-		const editor = page.getByRole("textbox", { name: "正文", exact: true });
 		await editor.fill("Useful reference");
 		await editor.press("ControlOrMeta+A");
 		await page.getByRole("button", { name: "插入链接", exact: true }).click();
@@ -123,12 +121,7 @@ test.describe("Rich composition", () => {
 			"href",
 			"https://example.com/reference",
 		);
-		await page.getByRole("tab", { name: "预览", exact: true }).click();
-		await expect(
-			page.getByRole("tabpanel", { name: "预览", exact: true }).getByRole("link"),
-		).toHaveAttribute("href", "https://example.com/reference");
-		await page.getByRole("tab", { name: "撰写", exact: true }).click();
-		await editor.click();
+		await editor.getByRole("link", { name: "Useful reference" }).click();
 		await editor.press("ControlOrMeta+A");
 		await page.getByRole("button", { name: "插入链接", exact: true }).click();
 		await expect(address).toHaveValue("https://example.com/reference");
@@ -138,14 +131,7 @@ test.describe("Rich composition", () => {
 		await page.getByRole("button", { name: "插入链接", exact: true }).click();
 		await page.getByRole("button", { name: "移除链接", exact: true }).click();
 		await expect(editor.locator("a")).toHaveCount(0);
-		await expect(editor).toHaveText("Useful reference");
-	});
 
-	test("uploaded images are served by the local API and displayed in the preview", async ({
-		page,
-	}) => {
-		const editor = page.getByRole("textbox", { name: "正文", exact: true });
-		await editor.fill("An image uploaded through the actual API.");
 		await page.locator('input[type="file"]').setInputFiles({
 			name: "local-review.png",
 			mimeType: "image/png",

@@ -62,13 +62,13 @@ export default defineConfig({
 	projects: [
 		{
 			name: "stateless",
-			testMatch: /\/bdd\/(auth|navigation|search|system)\.spec\.ts$/,
+			testMatch: /\/bdd\/(auth|navigation|search|system|editor)\.spec\.ts$/,
 			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
 			name: "stateful",
-			testMatch: /\/bdd\/(content|social|editor|interactions)\.spec\.ts$/,
+			testMatch: /\/bdd\/(content|social|interactions)\.spec\.ts$/,
 			fullyParallel: false,
 			dependencies: ["stateless"], // Run after stateless completes
 			use: { ...devices["Desktop Chrome"] },
@@ -95,7 +95,7 @@ export default defineConfig({
 			name: "admin",
 			testDir: "tests/e2e/bdd/admin",
 			testMatch: /.*\.spec\.ts$/,
-			fullyParallel: false,
+			fullyParallel: true,
 			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:7032" },
 		},
 	],

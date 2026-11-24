@@ -23,139 +23,66 @@ test.describe("Feature: Forum Content", () => {
 	// describe.serial wrapper needed.
 	// -------------------------------------------------------------------------
 
-	test("Given I am logged in, When I open a populated thread, Then I see the subject heading, author info, and post cards with prose content", async ({
+	test("Given I am logged in, When I open a populated thread, Then I see the subject heading, author info, post cards, and seeded comments", async ({
 		page,
 		loginAs,
 	}) => {
-		// Given: authenticated user
 		await loginAs("e2etest");
-
-		// When: open the populated thread
 		const threadPage = new ThreadPage(page);
 		await threadPage.goto(POPULATED_THREAD_ID);
 
-		// Then: subject heading
 		await expect(threadPage.heading).toBeVisible();
-		const subject = await threadPage.heading.textContent();
-		expect(subject).toBeTruthy();
-
-		// Then: author info link in the sidebar
+		expect(await threadPage.heading.textContent()).toBeTruthy();
 		await expect(threadPage.authorInfo).toBeVisible();
 
-		// Then: ≥1 post card with prose content. Merges PO-01 here because
-		// both TH-01 (subject + author + first post visible) and PO-01 (post
-		// cards visible with author link + prose) land on the same thread and
-		// assert against the same first post card — splitting them would just
-		// re-pay the goto + post-load wait.
 		const firstPost = threadPage.postCards.first();
 		await expect(firstPost).toBeVisible();
+		await expect(firstPost.locator('a[href^="/users/"]').first()).toBeVisible();
+		await expect(firstPost.locator(".prose").first()).toBeVisible();
 
-		const authorLink = firstPost.locator('a[href^="/users/"]');
-		await expect(authorLink.first()).toBeVisible();
-
-		const postContent = firstPost.locator(".prose").first();
-		await expect(postContent).toBeVisible();
-	});
-
-	test("Given I am on a thread with seeded comments, When I expand comments, Then a 点评 section renders the comment text and a 点评 action button surfaces in the post action bar", async ({
-		page,
-		loginAs,
-	}) => {
-		// Given: authenticated user on the populated thread
-		await loginAs("e2etest");
-		const threadPage = new ThreadPage(page);
-		await threadPage.goto(POPULATED_THREAD_ID);
-
-		// Then: posts have loaded
-		await expect(threadPage.postCards.first()).toBeVisible();
-
-		// Then: seeded comment content loads with the thread context, without a separate click from PC-01 ("写得好！" by e2etest /
-		// e2eprofile on post 662174) is visible inside the 点评 section.
 		await expect(page.getByText("写得好！").first()).toBeVisible({ timeout: 10_000 });
-
-		// Then: comment author link to /users/100 exists. Merges PC-01 + PC-02
-		// because both load the same thread, both assert against the same
-		// rendered comment region, and the action-bar 点评 button is the
-		// natural sibling assertion to "comment text rendered" — kept as one
-		// scenario per docs/23 §4.3 stateful protection guidance.
-		const commentAuthorLink = page.locator('a[href="/users/100"]');
-		expect(await commentAuthorLink.count()).toBeGreaterThan(0);
-
-		// Then: ≥1 点评 action surface on a post action bar (PC-02). The
-		// 点评 string also appears inside the comment header, so we count
-		// both buttons and spans to match the legacy assertion shape.
-		const commentButtons = page.locator('button:has-text("点评"), span:has-text("点评")');
-		expect(await commentButtons.count()).toBeGreaterThan(0);
+		expect(await page.locator('a[href="/users/100"]').count()).toBeGreaterThan(0);
+		expect(
+			await page.locator('button:has-text("点评"), span:has-text("点评")').count(),
+		).toBeGreaterThan(0);
 	});
 
 	// -------------------------------------------------------------------------
 	// CRUD scenarios — docs/23 §4.3 mandates these sit in .serial blocks so
-	// the create → view (Thread) and reply → edit → delete (Post) ordering
-	// is preserved under the stateful project.
+	// reply → edit → delete ordering is preserved under the stateful project.
 	// -------------------------------------------------------------------------
 
-	test.describe
-		.serial("Thread CRUD", () => {
-			let createdThreadUrl = "";
+	test("Given I am logged in on a forum page, When I create a new thread and reload it, Then the heading and body persist", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(FORUM_WITH_NEW_THREAD);
 
-			test("Given I am logged in on a forum page, When I open the new-thread dialog, fill subject + content, and submit, Then I land on the new /threads/<id> page with my subject as the heading", async ({
-				page,
-				loginAs,
-			}) => {
-				// Given: authenticated user on the dialog-stable forum
-				await loginAs("e2etest");
-				const forumPage = new ForumPage(page);
-				await forumPage.goto(FORUM_WITH_NEW_THREAD);
+		await forumPage.newThreadButton.click();
+		const dialog = page.locator('[role="dialog"]');
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByText("发表新帖")).toBeVisible();
 
-				// When: open new-thread dialog
-				await forumPage.newThreadButton.click();
-				const dialog = page.locator('[role="dialog"]');
-				await expect(dialog).toBeVisible();
-				await expect(dialog.getByText("发表新帖")).toBeVisible();
+		const uniqueSubject = `E2E Thread ${Date.now()}`;
+		await dialog.locator('input[placeholder*="标题"]').fill(uniqueSubject);
+		const editor = dialog.locator('[contenteditable="true"]').first();
+		await editor.click();
+		await editor.pressSequentially("This is E2E test content, at least 10 chars long.");
 
-				// When: fill subject (validation min 4) + content (min 10)
-				const uniqueSubject = `E2E Thread ${Date.now()}`;
-				const subjectInput = dialog.locator('input[placeholder*="标题"]');
-				await subjectInput.fill(uniqueSubject);
+		await dialog.getByRole("button", { name: /发布主题/ }).click();
+		await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+		await page.waitForURL(/\/threads\/\d+/, { timeout: 15_000 });
+		await expect(page.locator("h1")).toContainText(uniqueSubject);
 
-				const editor = dialog.locator('[contenteditable="true"]').first();
-				await editor.click();
-				await editor.pressSequentially("This is E2E test content, at least 10 chars long.");
-
-				// When: submit
-				const submitButton = dialog.getByRole("button", { name: /发布主题/ });
-				await submitButton.click();
-
-				// Then: dialog closes, URL advances to /threads/<id>
-				await expect(dialog).not.toBeVisible({ timeout: 15_000 });
-				await page.waitForURL(/\/threads\/\d+/, { timeout: 15_000 });
-				createdThreadUrl = page.url();
-
-				// Then: subject renders as h1
-				await expect(page.locator("h1")).toContainText(uniqueSubject);
-			});
-
-			test("Given the thread I just created, When I navigate to it directly, Then the heading and the original body text both render", async ({
-				page,
-				loginAs,
-			}) => {
-				// biome-ignore lint/suspicious/noSkippedTests: serial dependency on TC-01
-				test.skip(!createdThreadUrl, "Thread create scenario must pass first");
-
-				// Given/When: log in and revisit the URL the create flow returned
-				await loginAs("e2etest");
-				await page.goto(createdThreadUrl);
-				await page.waitForLoadState("networkidle");
-
-				// Then: heading present
-				await expect(page.locator("h1")).toBeVisible();
-
-				// Then: post body contains the seeded text from TC-01
-				const postContent = page.locator(".prose").first();
-				await expect(postContent).toBeVisible();
-				await expect(postContent).toContainText("E2E test content");
-			});
-		});
+		await page.reload();
+		await page.waitForLoadState("networkidle");
+		await expect(page.locator("h1")).toContainText(uniqueSubject);
+		const postContent = page.locator(".prose").first();
+		await expect(postContent).toBeVisible();
+		await expect(postContent).toContainText("E2E test content");
+	});
 
 	test.describe
 		.serial("Post CRUD", () => {
@@ -191,80 +118,51 @@ test.describe("Feature: Forum Content", () => {
 				await expect(page.getByText(uniqueReply).first()).toBeVisible({ timeout: 10_000 });
 			});
 
-			test("Given my reply exists on the last page of the thread, When I click the 编辑 button on my post and submit new content, Then the edit dialog closes successfully", async ({
+			test("Given my reply exists on the last page of the thread, When I edit it and then delete it, Then the edit saves and post count decreases", async ({
 				page,
 				loginAs,
 			}) => {
-				// Given: authenticated user on the last page where our reply landed
-				await loginAs("e2etest");
-				await page.goto(`/threads/${THREAD_FOR_POST_CRUD}?last=1`);
-				await page.waitForLoadState("networkidle");
-
-				// When: find visible edit buttons (desktop + mobile dual-render)
-				const editButtons = page.locator('button:has-text("编辑"):visible');
-				const editCount = await editButtons.count();
-
-				// biome-ignore lint/suspicious/noSkippedTests: depends on PR-01 reply being authored by e2etest
-				test.skip(editCount === 0, "No editable posts found (PR-01 reply missing)");
-
-				// When: click the last visible 编辑 (our most recent reply)
-				await editButtons.last().click();
-
-				const dialog = page.locator('[role="dialog"]:visible');
-				await expect(dialog).toBeVisible();
-				await expect(dialog.getByText("编辑回复")).toBeVisible();
-
-				// When: replace content
-				const editor = dialog.locator(".ProseMirror[contenteditable='true']");
-				await expect(editor).toBeVisible();
-				await editor.click();
-				await page.keyboard.press("Meta+A");
-				const editedContent = `Edited E2E Reply ${Date.now()}`;
-				await page.keyboard.type(editedContent);
-
-				// When: submit (PostEditor exposes an internal 保存/提交 button)
-				const submitBtn = dialog.locator('button:has-text("保存"), button:has-text("提交")');
-				if (await submitBtn.isVisible()) {
-					await submitBtn.click();
-				}
-
-				// Then: edit dialog closes — closure is the proof the edit API succeeded
-				await expect(dialog).not.toBeVisible({ timeout: 15_000 });
-			});
-
-			test("Given my reply still exists on the last page, When I click 删除 and confirm, Then the post count decreases by one", async ({
-				page,
-				loginAs,
-			}) => {
-				// Given: authenticated user on the last page
 				await loginAs("e2etest");
 				const threadPage = new ThreadPage(page);
 				await page.goto(`/threads/${THREAD_FOR_POST_CRUD}?last=1`);
 				await page.waitForLoadState("networkidle");
 
-				// When: find visible delete buttons
+				const editButtons = page.locator('button:has-text("编辑"):visible');
+				const editCount = await editButtons.count();
+				// biome-ignore lint/suspicious/noSkippedTests: depends on PR-01 reply being authored by e2etest
+				test.skip(editCount === 0, "No editable posts found (PR-01 reply missing)");
+
+				await editButtons.last().click();
+				const dialog = page.locator('[role="dialog"]:visible');
+				await expect(dialog).toBeVisible();
+				await expect(dialog.getByText("编辑回复")).toBeVisible();
+
+				const editor = dialog.locator(".ProseMirror[contenteditable='true']");
+				await expect(editor).toBeVisible();
+				await editor.click();
+				await page.keyboard.press("Meta+A");
+				await page.keyboard.type(`Edited E2E Reply ${Date.now()}`);
+
+				const submitBtn = dialog.locator('button:has-text("保存"), button:has-text("提交")');
+				if (await submitBtn.isVisible()) {
+					await submitBtn.click();
+				}
+				await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+
 				const deleteButtons = page.locator('button:has-text("删除"):visible');
 				const deleteCount = await deleteButtons.count();
-
 				// biome-ignore lint/suspicious/noSkippedTests: depends on PR-01 reply still existing
 				test.skip(deleteCount === 0, "No deletable posts found (PR-01 reply missing)");
 
-				// Snapshot post count for the after-comparison
 				const postCountBefore = await threadPage.postCards.count();
-
-				// When: click the last 删除 and confirm in the alertdialog
 				await deleteButtons.last().click();
 				const confirmDialog = page
 					.locator('[role="alertdialog"]:visible, [role="dialog"]:visible')
 					.first();
 				await expect(confirmDialog).toBeVisible();
-				const confirmBtn = confirmDialog.getByRole("button", { name: "删除" });
-				await confirmBtn.click();
+				await confirmDialog.getByRole("button", { name: "删除" }).click();
 				await expect(confirmDialog).not.toBeVisible({ timeout: 15_000 });
 
-				// Then: re-fetch the last page (router.refresh is a soft RSC
-				// refresh that drops the ?last= query string) and verify count
-				// dropped by ≥1.
 				await page.goto(`/threads/${THREAD_FOR_POST_CRUD}?last=1`);
 				await page.waitForLoadState("networkidle");
 				const postCountAfter = await threadPage.postCards.count();

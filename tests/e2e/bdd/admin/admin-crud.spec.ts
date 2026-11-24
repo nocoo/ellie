@@ -69,6 +69,7 @@ interface UserResponse {
 }
 
 test.describe("Feature: Admin Users CRUD", () => {
+	test.describe.configure({ mode: "serial" });
 	let snapshot: AdminUser | null = null;
 
 	test.afterEach(async ({ context, baseURL }) => {
@@ -519,43 +520,15 @@ test.describe("Feature: Admin Operation Logs", () => {
 		await page.unroute("**/api/admin/admin-logs**");
 	});
 
-	test("Given the operation logs page, When I filter by action=user.ban, Then the request URL carries ?action= and only matching rows remain", async ({
+	test("Given the operation logs page, When I filter and open JSON/non-JSON details, Then filtering and detail rendering work", async ({
 		page,
 	}) => {
-		// Legacy LG-02
 		await page.goto("/admin/logs/operations");
 		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
 
-		// When: fill the search input and submit
-		const searchInput = page.getByPlaceholder("如 user.ban，回车提交");
-		await searchInput.fill("user.ban");
-		await searchInput.press("Enter");
-
-		// Then: list narrows to the matching row only
-		await expect(page.getByText("forum.reorder", { exact: true })).toHaveCount(0);
-		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
-
-		// Then: the mock observed the action filter on the request URL
-		expect(lastRequestUrl).toContain("action=user.ban");
-	});
-
-	test("Given the operation logs list, When I open a JSON-details row and then a non-JSON row, Then the detail dialog pretty-prints JSON for the first and falls back to raw text with a marker for the second", async ({
-		page,
-	}) => {
-		// Merges legacy LG-03 (JSON pretty-print on #101) + LG-04 (non-JSON
-		// fallback on #103). Both share the same /api/admin/admin-logs** mock
-		// and the same page. Splitting them would only re-pay the goto +
-		// initial-render wait — the dialog open/close interactions are the
-		// only differentiator.
-		await page.goto("/admin/logs/operations");
-		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
-
-		// When: open #101 (JSON-typed details)
 		await page.getByLabel("查看日志 #101 详情").click();
 		const dialog101 = page.getByRole("dialog", { name: "操作日志详情" });
 		await expect(dialog101).toBeVisible();
-
-		// Then: pretty-printed JSON (newlines + indentation), no parse-failure marker
 		const pre101 = dialog101.getByTestId("admin-log-details");
 		await expect(pre101).toBeVisible();
 		const text101 = (await pre101.textContent()) ?? "";
@@ -563,20 +536,26 @@ test.describe("Feature: Admin Operation Logs", () => {
 		expect(text101).toContain('"reason"');
 		expect(text101).toContain('"spam"');
 		await expect(dialog101.getByText("(原始文本，非 JSON)")).toHaveCount(0);
-
 		await dialog101.getByRole("button", { name: "关闭", exact: true }).click();
 		await expect(dialog101).toBeHidden();
 
-		// When: open #103 (non-JSON details)
 		await expect(page.getByText("setting.update", { exact: true })).toBeVisible();
 		await page.getByLabel("查看日志 #103 详情").click();
 		const dialog103 = page.getByRole("dialog", { name: "操作日志详情" });
 		await expect(dialog103).toBeVisible();
-
-		// Then: parse-failure annotation + raw payload preserved verbatim
 		await expect(dialog103.getByText("(原始文本，非 JSON)")).toBeVisible();
-		const pre103 = dialog103.getByTestId("admin-log-details");
-		await expect(pre103).toContainText("legacy plain text payload, not json");
+		await expect(dialog103.getByTestId("admin-log-details")).toContainText(
+			"legacy plain text payload, not json",
+		);
+		await dialog103.getByRole("button", { name: "关闭", exact: true }).click();
+		await expect(dialog103).toBeHidden();
+
+		const searchInput = page.getByPlaceholder("如 user.ban，回车提交");
+		await searchInput.fill("user.ban");
+		await searchInput.press("Enter");
+		await expect(page.getByText("forum.reorder", { exact: true })).toHaveCount(0);
+		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
+		expect(lastRequestUrl).toContain("action=user.ban");
 	});
 });
 

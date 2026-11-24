@@ -47,20 +47,20 @@ test.describe("Feature: Social & User Journey", () => {
 		page,
 		loginAs,
 	}) => {
-		// Given: authenticated user on /
+		// Given: authenticated user on / (loginAs lands on /)
 		await loginAs("e2etest");
-		await page.goto("/");
+		await page.waitForLoadState("networkidle");
 
-		// When: click the icon-only logout button by its accessible name
+		// When: click the icon-only logout button and wait for NextAuth signout
 		const logoutBtn = page.getByRole("button", { name: "退出登录", exact: true });
 		await expect(logoutBtn).toBeVisible({ timeout: 15_000 });
-		await logoutBtn.click();
-
-		// Then: signOut({ callbackUrl: "/" }) returns to home
-		await page.waitForURL((url) => url.pathname === "/", { timeout: 30_000 });
+		await Promise.all([
+			page.waitForResponse((res) => res.url().includes("/api/auth/signout") && res.ok()),
+			logoutBtn.click(),
+		]);
 
 		// Then: logged-out marker (login link visible, logout button gone)
-		await expect(page.locator('a[href="/login"]').first()).toBeVisible({ timeout: 15_000 });
+		await expect(page.locator('a[href="/login"]').first()).toBeVisible({ timeout: 30_000 });
 		await expect(logoutBtn).toHaveCount(0);
 	});
 

@@ -13,15 +13,13 @@ const POPULATED_USER_ID = 64495;
 const THREAD_WITH_FORUM_LINK = 1;
 
 test.describe("Feature: Forum Navigation", () => {
-	test("Given I am logged in, When I open the home page, Then I see forum groups, the digest showcase, and the site footer", async ({
+	test("Given I am logged in, When I open / and /digest, Then I see forum groups, showcases, footer, and digest stats", async ({
 		page,
 		loginAs,
 	}) => {
 		await loginAs("e2etest");
 
 		const homePage = new HomePage(page);
-		await homePage.goto();
-
 		expect(await homePage.isLoaded()).toBe(true);
 		await expect(homePage.digestShowcase).toBeVisible();
 		const discussions = page
@@ -39,9 +37,20 @@ test.describe("Feature: Forum Navigation", () => {
 		await expect(footer.getByText(/©|All rights reserved/).first()).toBeVisible({
 			timeout: 5_000,
 		});
+
+		await page.goto("/digest");
+		await page.waitForLoadState("networkidle");
+		await expect(page.getByText("精华帖列表")).toBeVisible();
+		await expect(page.getByRole("heading", { name: "论坛精华", exact: true })).toBeVisible();
+		for (const label of ["全部精华", "精华 I", "精华 II", "精华 III"]) {
+			const metric = page
+				.locator("dl > div")
+				.filter({ has: page.getByText(label, { exact: true }) });
+			await expect(metric.locator("dd")).toHaveText(/[\d,]+/);
+		}
 	});
 
-	test("Given I am logged in, When I open a populated forum page, Then I see the heading, thread list, breadcrumb, and pagination", async ({
+	test("Given I am logged in, When I open a forum, thread, and user profile, Then navigation, pagination, posts, and stats render", async ({
 		page,
 		loginAs,
 	}) => {
@@ -49,7 +58,6 @@ test.describe("Feature: Forum Navigation", () => {
 
 		const forumPage = new ForumPage(page);
 		await forumPage.goto(POPULATED_FORUM_ID);
-
 		await expect(forumPage.heading).toBeVisible();
 		await expect(forumPage.newThreadButton).toBeVisible();
 
@@ -78,17 +86,9 @@ test.describe("Feature: Forum Navigation", () => {
 		await pageTwoLink.click();
 		await page.waitForURL(/\?(.*&)?page=2/);
 		expect(page.url()).toMatch(/page=2/);
-	});
-
-	test("Given I am logged in, When I open a thread page, Then I see the title, breadcrumbs, post cards, and a link to the parent forum", async ({
-		page,
-		loginAs,
-	}) => {
-		await loginAs("e2etest");
 
 		const threadPage = new ThreadPage(page);
 		await threadPage.goto(POPULATED_THREAD_ID);
-
 		await expect(threadPage.heading).toBeVisible();
 		await expect(threadPage.breadcrumbs).toBeVisible();
 		await expect(threadPage.postCards.first()).toBeVisible();
@@ -98,39 +98,12 @@ test.describe("Feature: Forum Navigation", () => {
 		await expect(forumLink).toBeVisible({ timeout: 15_000 });
 		const href = await forumLink.getAttribute("href");
 		expect(href).toMatch(/^\/forums\/\d+/);
-	});
-
-	test("Given I am logged in, When I open a user profile, Then I see the username, five stats cards, and the tab navigation", async ({
-		page,
-		loginAs,
-	}) => {
-		await loginAs("e2etest");
 
 		const userPage = new UserPage(page);
 		await userPage.goto(POPULATED_USER_ID);
-
 		await expect(userPage.username).toBeVisible();
 		await expect(userPage.statsCards).toHaveCount(5);
 		await expect(userPage.tabNav).toBeVisible();
-	});
-
-	test("Given I am logged in, When I open the digest page, Then I see the 精华帖列表 heading and digest stats", async ({
-		page,
-		loginAs,
-	}) => {
-		await loginAs("e2etest");
-
-		await page.goto("/digest");
-		await page.waitForLoadState("networkidle");
-
-		await expect(page.getByText("精华帖列表")).toBeVisible();
-		await expect(page.getByRole("heading", { name: "论坛精华", exact: true })).toBeVisible();
-		for (const label of ["全部精华", "精华 I", "精华 II", "精华 III"]) {
-			const metric = page
-				.locator("dl > div")
-				.filter({ has: page.getByText(label, { exact: true }) });
-			await expect(metric.locator("dd")).toHaveText(/[\d,]+/);
-		}
 	});
 
 	test("Given missing or non-numeric thread, forum, or user IDs, Then soft-fail error cards render with recovery links", async ({

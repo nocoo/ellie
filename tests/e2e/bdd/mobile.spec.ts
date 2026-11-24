@@ -110,45 +110,7 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 				.first();
 			await expect(rowOrEmpty).toBeVisible({ timeout: 5_000 });
 		}
-	});
 
-	test("Given I open the homepage and a populated forum at 1280px desktop width, Then desktop-only chrome remains visible", async ({
-		page,
-		loginAs,
-	}) => {
-		await page.setViewportSize({ width: 1280, height: 800 });
-		await loginAs("e2etest");
-		await page.goto("/");
-		await expect(page.getByTestId("forum-search-stats-bar")).toBeVisible();
-
-		const forumPage = new ForumPage(page);
-		await forumPage.goto(POPULATED_FORUM_ID);
-		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
-
-		const navStrip = page.getByRole("navigation", { name: "论坛导航" });
-		await expect(navStrip).toBeVisible({ timeout: 15_000 });
-		const navBox = await navStrip.boundingBox();
-		expect(navBox).not.toBeNull();
-		if (navBox) {
-			expect(navBox.x).toBeGreaterThan(0);
-			expect(navBox.width).toBeLessThanOrEqual(1280 + 1);
-		}
-
-		const newPostBtn = page.getByTestId("forum-new-post-button");
-		if ((await newPostBtn.count()) > 0) {
-			await expect(newPostBtn.first()).toBeVisible({ timeout: 15_000 });
-		}
-
-		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-		await expect(page.getByTestId("site-footer-logo-wrap")).toBeVisible();
-	});
-
-	test("Given I am on a populated forum and thread at 375px, Then mobile row layout, avatar alignment, and hidden tokens hold", async ({
-		page,
-		loginAs,
-	}) => {
-		await page.setViewportSize({ width: 375, height: 667 });
-		await loginAs("e2etest");
 		const forumPage = new ForumPage(page);
 		await forumPage.goto(POPULATED_FORUM_ID);
 		await expect(page.getByTestId("thread-item").first()).toBeVisible({ timeout: 15_000 });
@@ -187,6 +149,37 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 		for (let i = 0; i < (await meta.count()); i++) {
 			await expect(meta.nth(i)).toBeHidden();
 		}
+	});
+
+	test("Given I open the homepage and a populated forum at 1280px desktop width, Then desktop-only chrome remains visible", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await loginAs("e2etest");
+		await page.goto("/");
+		await expect(page.getByTestId("forum-search-stats-bar")).toBeVisible();
+
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const navStrip = page.getByRole("navigation", { name: "论坛导航" });
+		await expect(navStrip).toBeVisible({ timeout: 15_000 });
+		const navBox = await navStrip.boundingBox();
+		expect(navBox).not.toBeNull();
+		if (navBox) {
+			expect(navBox.x).toBeGreaterThan(0);
+			expect(navBox.width).toBeLessThanOrEqual(1280 + 1);
+		}
+
+		const newPostBtn = page.getByTestId("forum-new-post-button");
+		if ((await newPostBtn.count()) > 0) {
+			await expect(newPostBtn.first()).toBeVisible({ timeout: 15_000 });
+		}
+
+		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+		await expect(page.getByTestId("site-footer-logo-wrap")).toBeVisible();
 	});
 });
 
