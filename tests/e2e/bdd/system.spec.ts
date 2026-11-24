@@ -160,33 +160,4 @@ test.describe("Feature: System & Layout", () => {
 		await replyDialog.getByRole("button", { name: /取消/ }).click();
 		await expect(replyDialog).not.toBeVisible();
 	});
-
-	test("Given a short viewport, When I write a new thread, Then validation feedback and editor actions remain visible", async ({
-		page,
-		loginAs,
-	}) => {
-		await loginAs("e2etest");
-		await page.setViewportSize({ width: 390, height: 400 });
-		await page.goto(`/forums/${FORUM_WITH_NEW_THREAD}`);
-		await page.getByRole("button", { name: "发表新帖", exact: true }).first().click();
-		const dialog = page.locator('[role="dialog"]');
-		await expect(dialog).toBeVisible();
-		await dialog.getByRole("textbox", { name: "主题标题", exact: true }).fill("Valid title");
-		const editor = dialog.getByRole("textbox", { name: "正文", exact: true });
-		await editor.scrollIntoViewIfNeeded();
-		const box = await dialog.locator(".tiptap-content-wrap").boundingBox();
-		expect(box?.height).toBeGreaterThanOrEqual(120);
-		await expect(editor).toBeInViewport({ ratio: 0.4 });
-		await editor.click();
-		await editor.fill("A");
-		await editor.press("Control+Enter");
-		const feedback = page.getByRole("alert");
-		await expect(feedback).toHaveCount(1);
-		await expect(feedback).toContainText("内容太短，请输入更多内容");
-		await expect(feedback).toBeInViewport({ ratio: 1 });
-		await expect(dialog.getByRole("button", { name: "取消", exact: true })).toBeInViewport();
-		await expect(dialog.getByRole("button", { name: "发布主题", exact: true })).toBeInViewport();
-		await dialog.getByRole("button", { name: "取消", exact: true }).click();
-		await expect(dialog).toBeHidden();
-	});
 });

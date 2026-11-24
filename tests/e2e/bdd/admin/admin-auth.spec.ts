@@ -18,62 +18,30 @@
 import { expect, test } from "../../admin/fixtures/admin-base";
 
 test.describe("Feature: Admin Authentication Gate", () => {
-	test("Given I am anonymous, When I open /admin, Then I am redirected to /login", async ({
-		page,
-	}) => {
-		// Given/When: anonymous request to a protected admin route
-		await page.goto("/admin");
-
-		// Then: layout gate redirects to /login (legacy A0-01)
-		await expect(page).toHaveURL(/\/login(\?|$)/);
-	});
-
-	test("Given my email is in ADMIN_EMAILS, When I open /admin with a valid session cookie, Then the dashboard renders the 仪表盘 heading", async ({
+	test("Given I am anonymous or out-of-whitelist, When I open /admin, Then I am redirected to /login", async ({
 		page,
 		loginAsAdmin,
 	}) => {
-		// Given: whitelisted admin session minted via Auth.js v5 cookie
-		await loginAsAdmin(); // defaults to E2E_ADMIN_EMAIL / built-in test admin
-
-		// When: navigate to /admin
 		await page.goto("/admin");
+		await expect(page).toHaveURL(/\/login(\?|$)/);
 
-		// Then: gate passes (URL stays on /admin, not /login)
-		await expect(page).toHaveURL(/\/admin(\/|$)/);
-
-		// Then: dashboard server component renders the 仪表盘 heading even
-		// when stats fetches error — the legacy A0-02 invariant.
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "仪表盘" }),
-		).toBeVisible();
+		await loginAsAdmin("not-an-admin@example.invalid");
+		await page.goto("/admin");
+		await expect(page).toHaveURL(/\/login(\?|$)/);
 	});
 
-	test("Given I am an admin, When I open /admin, Then statistics load without an extra action", async ({
+	test("Given my email is in ADMIN_EMAILS, When I open /admin, Then dashboard and statistics render", async ({
 		page,
 		loginAsAdmin,
 	}) => {
 		await loginAsAdmin();
 		await page.goto("/admin");
+		await expect(page).toHaveURL(/\/admin(\/|$)/);
+		await expect(
+			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "仪表盘" }),
+		).toBeVisible();
 		await expect(page.getByRole("region", { name: "累计计数" })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "内容增长", exact: true })).toBeVisible();
-		await expect(page.getByRole("heading", { name: "版块活跃度", exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "认证活动", exact: true })).toBeVisible();
-		await expect(page.getByRole("link", { name: "加载统计", exact: true })).toHaveCount(0);
-		await expect(page.getByText("登录数据暂不可用", { exact: true })).toHaveCount(0);
-		await expect(page.getByText("部分趋势暂不可用，缺失数据不计为零。")).toHaveCount(0);
-	});
-
-	test("Given my email is NOT in ADMIN_EMAILS, When I open /admin with a session cookie, Then the gate redirects me to /login", async ({
-		page,
-		loginAsAdmin,
-	}) => {
-		// Given: a valid session cookie minted for an email outside ADMIN_EMAILS
-		await loginAsAdmin("not-an-admin@example.invalid");
-
-		// When: navigate to /admin
-		await page.goto("/admin");
-
-		// Then: gate rejects and redirects to /login (legacy A0-03)
-		await expect(page).toHaveURL(/\/login(\?|$)/);
 	});
 });

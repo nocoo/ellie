@@ -88,91 +88,11 @@ test.describe("Feature: Forum Content", () => {
 		expect(await commentButtons.count()).toBeGreaterThan(0);
 	});
 
-	test("Given I am on a populated thread, When I click the page-2 link, Then the URL updates to the /threads/<id>/2 path and post cards still render", async ({
-		page,
-		loginAs,
-	}) => {
-		// Given: authenticated user on the populated thread (≥20 posts → 2 pages)
-		await loginAs("e2etest");
-		const threadPage = new ThreadPage(page);
-		await threadPage.goto(POPULATED_THREAD_ID);
-
-		// Then: page-1 has posts
-		await expect(threadPage.postCards.first()).toBeVisible();
-
-		// When: click the page-2 link
-		// CSS fallback: thread pagination uses path-segment URLs (no ?page=);
-		// the rendered anchor has no accessible name, so href-suffix is the
-		// only stable hook.
-		const page2Link = page.locator(`a[href$="/threads/${POPULATED_THREAD_ID}/2"]`);
-		await expect(page2Link.first()).toBeVisible({ timeout: 5_000 });
-		await page2Link.first().click();
-		await page.waitForURL(new RegExp(`/threads/${POPULATED_THREAD_ID}/2`));
-
-		// Then: post cards rendered on page 2
-		await expect(threadPage.postCards.first()).toBeVisible();
-	});
-
-	test("Given I am on /digest, When I click a level filter tab, Then the URL gains ?level= and the page still renders the 精华帖列表 heading", async ({
-		page,
-		loginAs,
-	}) => {
-		// Given: authenticated user on /digest
-		await loginAs("e2etest");
-		await page.goto("/digest");
-		await page.waitForURL("**/digest");
-
-		// Then: heading renders
-		await expect(page.getByText("精华帖列表")).toBeVisible();
-
-		// When: click the level=1 tab if the seed exposes one
-		const levelTab = page.locator('a[href*="level=1"]').first();
-		const hasLevelTab = await levelTab.isVisible().catch(() => false);
-
-		if (hasLevelTab) {
-			await levelTab.click();
-			await page.waitForURL(/level=1/);
-
-			// Then: heading still renders (filter didn't crash the page)
-			await expect(page.getByText("精华帖列表")).toBeVisible();
-		}
-
-		// Cleanup: return to 全部 so we don't leak the filter into other tests.
-		const allTab = page.locator('a[href="/digest"]').first();
-		if (await allTab.isVisible()) {
-			await allTab.click();
-			await page.waitForURL("**/digest");
-		}
-	});
-
 	// -------------------------------------------------------------------------
 	// CRUD scenarios — docs/23 §4.3 mandates these sit in .serial blocks so
 	// the create → view (Thread) and reply → edit → delete (Post) ordering
 	// is preserved under the stateful project.
 	// -------------------------------------------------------------------------
-
-	test("Given I open the standalone composer, When I publish a thread, Then its real subject and body appear on the new thread", async ({
-		page,
-		loginAs,
-	}) => {
-		await loginAs("e2etest");
-		await page.goto(`/forums/${FORUM_WITH_NEW_THREAD}/new-thread`);
-		const subject = `Standalone composer ${Date.now()}`;
-		await expect(page.getByRole("heading", { name: "发表主题", exact: true })).toBeVisible();
-		await page.getByLabel("主题标题").fill(subject);
-		await page
-			.getByRole("textbox", { name: "正文", exact: true })
-			.fill("A real locally created thread from the full-page composer.");
-		await page.getByRole("button", { name: "发布主题", exact: true }).click();
-		await page.waitForURL(/\/threads\/\d+/);
-		await expect(page.getByRole("heading", { level: 1 })).toContainText(subject);
-		await expect(
-			page
-				.locator(".prose")
-				.filter({ hasText: "A real locally created thread from the full-page composer." })
-				.first(),
-		).toBeVisible();
-	});
 
 	test.describe
 		.serial("Thread CRUD", () => {

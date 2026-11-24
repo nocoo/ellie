@@ -193,8 +193,9 @@ test.describe("Feature: Mobile Layout Drift Guards", () => {
 test.describe("Feature: Mobile UX Polish", () => {
 	test.describe.configure({ mode: "serial" });
 
-	test("Given the homepage at iPhone width, Then theme-color metadata matches computed header background under OS and stored themes", async ({
+	test("Given the homepage and a thread at iPhone width, Then theme-color metadata, 5-row showcases, card density, and horizontal-scroll toolbars hold", async ({
 		page,
+		baseURL,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.emulateMedia({ colorScheme: "light" });
@@ -217,14 +218,6 @@ test.describe("Feature: Mobile UX Polish", () => {
 		expect(dark.isDark).toBe(true);
 		expect(dark.effectiveNorm).toBe(dark.headerBgNorm);
 		expect(dark.effectiveNorm).not.toBe(light.headerBgNorm);
-	});
-
-	test("Given the homepage at iPhone width, Then section chips stay on one row, showcases show 5 rows, and wide/grid card density matches", async ({
-		page,
-	}) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await page.goto("/");
-		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
 
 		expect(await page.getByText(/\d+\s*个分区/).count()).toBe(0);
 		const sectionsNav = page.locator("[data-home-sections]");
@@ -257,13 +250,7 @@ test.describe("Feature: Mobile UX Polish", () => {
 		);
 		await expect(gridCards).toHaveCount(GRID_CHILDREN);
 		await expect(wideCards).toHaveCount(WIDE_CHILDREN);
-	});
 
-	test("Given I am logged in as a privileged user on a thread at iPhone width, Then toolbars stay on one line with horizontal scroll", async ({
-		page,
-		baseURL,
-	}) => {
-		await page.setViewportSize({ width: 390, height: 844 });
 		await loginPrivileged(page, baseURL ?? "http://localhost:27031");
 		await page.goto("/threads/662174");
 		await expect(page.getByTestId("thread-toolbar").first()).toBeVisible({ timeout: 15_000 });
