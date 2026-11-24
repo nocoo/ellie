@@ -4,10 +4,11 @@ export default defineConfig({
 	test: {
 		name: "migrate",
 		root: __dirname,
+		allowOnly: false,
 		pool: "threads",
 		isolate: false,
 		include: ["tests/**/*.test.ts"],
-		passWithNoTests: true,
+		passWithNoTests: false,
 		environment: "node",
 		// Migrate tests spawn bun subprocesses via execSync (30s internal timeout).
 		// Vitest's 5s test / 10s hook defaults get eaten by bun cold-start under

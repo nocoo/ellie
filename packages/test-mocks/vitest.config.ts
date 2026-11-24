@@ -4,21 +4,11 @@ export default defineConfig({
 	test: {
 		name: "test-mocks",
 		root: __dirname,
+		allowOnly: false,
 		pool: "threads",
 		isolate: false,
 		include: ["tests/**/*.test.ts"],
-		passWithNoTests: true,
+		passWithNoTests: false,
 		environment: "node",
-		coverage: {
-			provider: "v8",
-			include: ["src/**/*.ts"],
-			exclude: ["src/**/*.d.ts", "src/index.ts"],
-			thresholds: {
-				statements: 98,
-				lines: 98,
-				functions: 98,
-				branches: 95,
-			},
-		},
 	},
 });

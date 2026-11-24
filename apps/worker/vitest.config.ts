@@ -13,6 +13,8 @@ export default defineConfig({
 	test: {
 		name: "worker",
 		root: __dirname,
+		allowOnly: false,
+		passWithNoTests: false,
 		pool: "threads",
 		include: ["tests/**/*.test.ts"],
 		// *.bun.test.ts use bun:sqlite / bun:test and run under `bun test`,

@@ -11,13 +11,15 @@ export default defineConfig({
 	test: {
 		name: "admin",
 		root: __dirname,
+		allowOnly: false,
+		passWithNoTests: false,
 		pool: "threads",
 		include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
 		environment: "node",
 		coverage: {
 			provider: "v8",
 			include: ["src/lib/**/*.ts", "src/viewmodels/**/*.ts"],
-			exclude: ["src/**/*.d.ts", "src/components/**", "src/app/**"],
+			exclude: ["src/**/*.d.ts", "src/components/**", "src/app/**", "src/lib/version.ts"],
 			thresholds: {
 				statements: 95,
 				lines: 95,

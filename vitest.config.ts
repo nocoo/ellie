@@ -9,6 +9,8 @@ export default defineConfig({
 		},
 	},
 	test: {
+		allowOnly: false,
+		passWithNoTests: false,
 		pool: "threads",
 		isolate: false,
 		chaiConfig: { includeStack: false, truncateThreshold: 200 },

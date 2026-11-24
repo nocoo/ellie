@@ -4,10 +4,11 @@ export default defineConfig({
 	test: {
 		name: "shared",
 		root: __dirname,
+		allowOnly: false,
 		pool: "threads",
 		isolate: false,
 		include: ["tests/**/*.test.ts"],
-		passWithNoTests: true,
+		passWithNoTests: false,
 		environment: "node",
 		coverage: {
 			provider: "v8",

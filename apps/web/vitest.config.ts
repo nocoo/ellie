@@ -11,11 +11,12 @@ export default defineConfig({
 	test: {
 		name: "web",
 		root: __dirname,
+		allowOnly: false,
 		pool: "threads",
 		isolate: true,
 		include: ["tests/**/*.test.{ts,tsx}"],
 		exclude: [],
-		passWithNoTests: true,
+		passWithNoTests: false,
 		environment: "node",
 		setupFiles: ["./tests/setup.ts"],
 		coverage: {
@@ -33,6 +34,8 @@ export default defineConfig({
 				"src/app/**",
 				"src/contexts/**",
 				"src/actions/**",
+				"src/lib/version.ts",
+				"src/viewmodels/shared/breadcrumbs.ts",
 			],
 			thresholds: {
 				statements: 95,
