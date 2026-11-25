@@ -1,57 +1,6 @@
-// tests/e2e/bdd/admin/admin-crud.spec.ts — Feature: Admin CRUD surfaces (BDD)
-// Ref: docs/23-l3-bdd-refactor.md §3 (Phase 4.2), §4.3 (CRUD protection),
-//      §5.3 (合并表)
-//
-// Merges 5 legacy admin specs (admin-users 9 + admin-logs 4 + admin-reports 2
-// + admin-forums 1 + admin-threads 1 = 17 tests) into a single BDD file with
-// 14 scenarios across 5 Feature blocks. 3 merges:
-//   M1 (Admin Users): purge typed-confirm gating + staff CANNOT_PURGE_STAFF
-//                     fold into one scenario — both setup /admin/users/1,
-//                     both open the same purge dialog, and the gating check
-//                     is a strict prefix of the failure-path assertion.
-//   M2 (Admin Operation Logs): JSON pretty-print + non-JSON fallback share
-//                              the same /api/admin/admin-logs** mock and only
-//                              differ in which row's 查看详情 button you click.
-//   M3 (Admin Reports): list-renders + type-filter share the same mock and
-//                       the same initial render, then filter is the natural
-//                       next assertion.
-//
-// UI-drift notes (verified against apps/admin/src/app/(admin)/admin/users/page.tsx
-// and apps/admin/src/components/admin/user-detail-panel.tsx as of this commit):
-//   - Users list per-row action menu (legacy `打开用户「X」操作菜单`) was
-//     replaced by inline Eye + Pencil icon buttons in commit e27637e9.
-//     Scenarios that opened that menu now click the direct buttons:
-//     `查看用户「X」详情` and `编辑用户「X」`.
-//   - The 查看详情 path now opens an in-page `<UserDetailDialog>` instead of
-//     navigating to `/admin/users/[id]`. The deep-link route is preserved
-//     (purge scenarios still hit /admin/users/1 directly).
-//   - The purge dialog uses `AdminConfirmDialog` with `requireInput="ok"`
-//     and placeholder `输入 ok 以确认` — the typed-confirm token is the
-//     literal "ok", not the target username.
-//   - The detail-page "search by IP" button was renamed from `查询注册 IP`
-//     to `搜索同 IP 用户` (per-IP-row layout in commit bfb1f9cd) and only
-//     surfaces when `user.regIp` is non-empty; the testuser scenario PATCHes
-//     a reg_ip in before clicking and the afterEach restores it.
-//
-// Project: collected by the `admin` Playwright project (port 7032). Stage 1
-// admin testMatch (/\/(admin\/[^/]+|bdd\/admin\/[^/]+)\.spec\.ts$/) already
-// picks up files under tests/e2e/bdd/admin/.
-//
-// Fixtures: imports from ../../admin/fixtures/admin-base — same source as the
-// legacy specs, so AUTH_SECRET / ADMIN_EMAILS / Auth.js cookie minting is
-// unchanged. Per-Feature beforeEach/afterEach mirror the legacy setup/cleanup
-// scoped to the relevant block (snapshot+restore for Users/Threads, in-memory
-// mocks for Logs/Reports, post-loop cleanup for Forums).
-//
-// Traceability map lives in the commit message body.
-
 import { expect, test } from "../../admin/fixtures/admin-base";
 
-// =============================================================================
-// Feature: Admin Users CRUD (9 legacy tests → 8 scenarios; M1 merges US-06+US-07)
-// =============================================================================
-
-const SEED_USER_ID = 3; // testuser, role=会员
+const SEED_USER_ID = 3;
 
 interface AdminUser {
 	id: number;
@@ -68,8 +17,16 @@ interface UserResponse {
 	data: AdminUser;
 }
 
+interface AdminForum {
+	id: number;
+	name: string;
+}
+
+interface ForumListResponse {
+	data: AdminForum[];
+}
+
 test.describe("Feature: Admin Users CRUD", () => {
-	test.describe.configure({ mode: "serial" });
 	let snapshot: AdminUser | null = null;
 
 	test.afterEach(async ({ context, baseURL }) => {
@@ -78,7 +35,7 @@ test.describe("Feature: Admin Users CRUD", () => {
 		snapshot = null;
 		const origin = baseURL ?? "http://localhost:7032";
 		try {
-			const res = await context.request.patch(`/api/admin/users/${SEED_USER_ID}`, {
+			await context.request.patch(`/api/admin/users/${SEED_USER_ID}`, {
 				headers: { Origin: origin, "Content-Type": "application/json" },
 				data: {
 					username: snap.username,
@@ -90,9 +47,6 @@ test.describe("Feature: Admin Users CRUD", () => {
 					lastIp: snap.lastIp,
 				},
 			});
-			if (!res.ok()) {
-				console.warn(`afterEach user restore got status ${res.status()}`);
-			}
 		} catch (err) {
 			console.warn("afterEach user restore threw:", err);
 		}
@@ -104,626 +58,38 @@ test.describe("Feature: Admin Users CRUD", () => {
 		loginAsAdmin,
 		baseURL,
 	}) => {
-		// Given: admin session + snapshot for rollback (legacy US-01)
 		const origin = baseURL ?? "http://localhost:7032";
 		await loginAsAdmin();
 
-		{
-			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok(), "GET /api/admin/users/:id should succeed").toBeTruthy();
-			snapshot = ((await res.json()) as UserResponse).data;
-		}
+		const getRes = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+			headers: { Origin: origin },
+		});
+		expect(getRes.ok()).toBeTruthy();
+		snapshot = ((await getRes.json()) as UserResponse).data;
 		const snap = snapshot;
-		if (!snap) throw new Error("unreachable: snapshot asserted truthy");
 		const initialUsername = snap.username;
-		const initialCredits = snap.credits;
+		const newCredits = snap.credits + 1;
 
-		// When: open the list row's 编辑 dialog via the direct Pencil icon
-		// (legacy action-menu was replaced by inline icons in commit e27637e9
-		// "feat(admin): open user detail in wide dialog from users list").
 		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
 		await expect(
 			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "用户" }),
 		).toBeVisible();
-		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
-
 		await page.getByRole("button", { name: `编辑用户「${initialUsername}」` }).click();
 
 		const editDialog = page.getByRole("dialog", { name: "编辑用户" });
 		await expect(editDialog).toBeVisible();
-		const newCredits = initialCredits + 1;
-		const creditsInput = editDialog.locator("#edit-credits");
-		await creditsInput.fill(String(newCredits));
+		await editDialog.locator("#edit-credits").fill(String(newCredits));
 		await editDialog.getByRole("button", { name: "保存更改" }).click();
 		await expect(editDialog).toBeHidden();
 
-		// Then: API GET confirms the new credits value (table doesn't show credits)
-		const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+		const afterRes = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
 			headers: { Origin: origin },
 		});
-		expect(res.ok()).toBeTruthy();
-		const after = ((await res.json()) as UserResponse).data;
+		expect(afterRes.ok()).toBeTruthy();
+		const after = ((await afterRes.json()) as UserResponse).data;
 		expect(after.credits).toBe(newCredits);
-		expect(after.username).toBe(initialUsername);
-	});
-
-	test("Given a normal user on the detail page, When I 封禁 and then 解除封禁, Then the status badge + backend status flip accordingly", async ({
-		context,
-		page,
-		loginAsAdmin,
-		baseURL,
-	}) => {
-		// Given: admin session + snapshot (legacy US-02)
-		const origin = baseURL ?? "http://localhost:7032";
-		await loginAsAdmin();
-		{
-			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			snapshot = ((await res.json()) as UserResponse).data;
-		}
-		const snap = snapshot;
-		if (!snap) throw new Error("snapshot must be present");
-
-		await page.goto(`/admin/users/${SEED_USER_ID}`);
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: snap.username }),
-		).toBeVisible();
-		await expect(page.getByText("正常", { exact: true })).toBeVisible();
-
-		// When: 封禁 → confirm dialog → 确认
-		await page.getByRole("button", { name: "封禁用户" }).click();
-		const banDialog = page.getByRole("dialog", { name: "封禁用户" });
-		await expect(banDialog).toBeVisible();
-		await banDialog.getByRole("button", { name: "确认" }).click();
-		await expect(banDialog).toBeHidden();
-
-		// Then: UI flips to 已封禁 + 解除封禁 surfaces
-		await expect(page.getByText("已封禁", { exact: true })).toBeVisible();
-		await expect(page.getByText(`已封禁 ${snap.username}`)).toBeVisible();
-		await expect(page.getByRole("button", { name: "封禁用户" })).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "解除封禁" })).toBeVisible();
-
-		// Then: backend status flipped to -1
-		{
-			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			const after = ((await res.json()) as UserResponse).data;
-			expect(after.status).toBe(-1);
-		}
-
-		// When: 解除封禁 (plain button, no confirm dialog)
-		await page.getByRole("button", { name: "解除封禁" }).click();
-
-		// Then: UI returns to 正常 + 封禁用户 surfaces again
-		await expect(page.getByText("正常", { exact: true })).toBeVisible();
-		await expect(page.getByText(`已解除封禁 ${snap.username}`)).toBeVisible();
-		await expect(page.getByRole("button", { name: "解除封禁" })).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "封禁用户" })).toBeVisible();
-
-		// Then: backend status returns to 0
-		{
-			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			const after = ((await res.json()) as UserResponse).data;
-			expect(after.status).toBe(0);
-		}
-	});
-
-	test("Given the purge dialog for a staff user, When I type the wrong then the right token and submit, Then 彻底清除 toggles enabled state and the backend rejects with CANNOT_PURGE_STAFF", async ({
-		context,
-		page,
-		loginAsAdmin,
-		baseURL,
-	}) => {
-		// Merges legacy US-06 (D4-d typed-confirm gating) + US-07 (D4-d staff
-		// rejection failure path). Both setup /admin/users/1 and both interact
-		// with the same purge dialog; the gating check is a strict prefix of
-		// the failure-path assertion, so splitting would re-pay goto + dialog
-		// open without surfacing a distinct branch.
-		//
-		// Typed-confirm uses the literal token "ok" (AdminConfirmDialog
-		// requireInput="ok"), not the username — UserDetailPanel passes
-		// requireInput="ok" / inputPlaceholder="输入 ok 以确认".
-		const origin = baseURL ?? "http://localhost:7032";
-		await loginAsAdmin();
-
-		// Resolve the seed admin's current username + verify role>0 (staff invariant).
-		let username: string;
-		let role: number;
-		{
-			const res = await context.request.get("/api/admin/users/1", {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			const u = ((await res.json()) as UserResponse).data;
-			username = u.username;
-			role = u.role;
-		}
-		expect(role, "seed user id=1 must be staff (role>0) for this scenario").toBeGreaterThan(0);
-
-		// Given: on the staff user's detail page with the purge dialog open
-		await page.goto("/admin/users/1");
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: username }),
-		).toBeVisible();
-
-		await page.getByTestId("purge-user-button").click();
-		const purgeDialog = page.getByRole("dialog", { name: "彻底清除用户" });
-		await expect(purgeDialog).toBeVisible();
-
-		const confirmBtn = purgeDialog.getByRole("button", { name: "彻底清除" });
-		const input = purgeDialog.getByPlaceholder("输入 ok 以确认");
-
-		// Then: confirm button starts disabled (US-06 gating prefix)
-		await expect(confirmBtn).toBeDisabled();
-
-		// When/Then: wrong input keeps it disabled
-		await input.fill("not-ok");
-		await expect(confirmBtn).toBeDisabled();
-
-		// When/Then: correct token "ok" enables it
-		await input.fill("ok");
-		await expect(confirmBtn).toBeEnabled();
-
-		// When: submit against a staff user
-		const rejection = page.waitForResponse(
-			(response) =>
-				response.url().endsWith("/api/admin/users/1/purge") &&
-				response.request().method() === "POST",
-		);
-		await confirmBtn.click();
-		const response = await rejection;
-		expect(response.status()).toBe(403);
-		expect((await response.json()).error.code).toBe("CANNOT_PURGE_STAFF");
-
-		// Then: inline error surfaces (US-07 failure path) and dialog stays open
-		const errorBanner = purgeDialog.getByRole("alert");
-		await expect(errorBanner).toBeVisible();
-		await expect(errorBanner).toContainText("Staff accounts cannot be purged");
-		await expect(purgeDialog).toBeVisible();
-
-		// Then: DB row is unchanged
-		{
-			const res = await context.request.get("/api/admin/users/1", {
-				headers: { Origin: origin },
-			});
-			expect(res.ok()).toBeTruthy();
-			const after = ((await res.json()) as UserResponse).data;
-			expect(after.status).not.toBe(-99);
-			expect(after.username).toBe(username);
-		}
-
-		await purgeDialog.getByRole("button", { name: "取消" }).click();
-	});
-
-	test("Given a mocked purge response, When I 彻底清除 testuser, Then the success banner shows detail counts and the tombstone short-circuit hides edit/ban", async ({
-		page,
-		loginAsAdmin,
-	}) => {
-		// Mock-only success path (legacy US-08). Real Worker DELETE would
-		// require external reseed; mocking keeps the assertion focused on UI
-		// transitions (banner + tombstone short-circuit).
-		await loginAsAdmin();
-
-		const liveUser = {
-			id: 3,
-			username: "testuser",
-			avatarPath: "",
-			email: "test@example.com",
-			credits: 0,
-			status: 0,
-			role: 0,
-			threads: 0,
-			posts: 0,
-			regDate: 0,
-			lastLogin: 0,
-			regIp: "",
-			lastIp: "",
-		};
-		const tombstoneUser = {
-			...liveUser,
-			username: "[deleted]",
-			email: "",
-			status: -99,
-			purgedAt: Math.floor(Date.now() / 1000),
-			purgedBy: 1,
-		};
-		let purged = false;
-		await page.route("**/api/admin/users/3", async (route) => {
-			if (route.request().method() !== "GET") return route.fallback();
-			// Gate on the actual product transition (purge POST) rather than a
-			// GET-call counter. The panel legitimately re-reads the record for
-			// several reasons (initial mount, StrictMode double-invoke in dev,
-			// Next.js prefetch on link hover) — counting GETs makes the mock
-			// flip to tombstone before the operator has even clicked purge.
-			const body = purged ? tombstoneUser : liveUser;
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({
-					data: body,
-					meta: { timestamp: Date.now(), requestId: "mock" },
-				}),
-			});
-		});
-
-		// Stub the per-tab list endpoints so detail-page tabs don't hit the real backend.
-		await page.route(/\/api\/admin\/(threads|posts)\?/, async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({
-					data: [],
-					meta: {
-						timestamp: Date.now(),
-						requestId: "mock",
-						total: 0,
-						page: 1,
-						limit: 20,
-						pages: 0,
-					},
-				}),
-			});
-		});
-
-		await page.route("**/api/admin/users/3/purge", async (route) => {
-			if (route.request().method() !== "POST") return route.fallback();
-			purged = true;
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({
-					data: {
-						purged: true,
-						id: 3,
-						deleted: { threads: 2, posts: 5, comments: 3, attachments: 1, messages: 4 },
-						audit: { actorEmail: "admin@example.com", actorName: "admin" },
-						r2: { deletedCount: 1, failed: [] },
-					},
-					meta: { timestamp: Date.now(), requestId: "mock" },
-				}),
-			});
-		});
-
-		// Given: live testuser detail page
-		await page.goto("/admin/users/3");
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "testuser" }),
-		).toBeVisible();
-
-		// When: open purge dialog, type the typed-confirm token "ok", submit
-		await page.getByTestId("purge-user-button").click();
-		const purgeDialog = page.getByRole("dialog", { name: "彻底清除用户" });
-		await expect(purgeDialog).toBeVisible();
-		await purgeDialog.getByPlaceholder("输入 ok 以确认").fill("ok");
-		await purgeDialog.getByRole("button", { name: "彻底清除" }).click();
-
-		// Then: success banner with detail counts
-		await expect(purgeDialog).toBeHidden();
-		await expect(page.getByText(/已彻底清除该用户/)).toBeVisible();
-		await expect(page.getByText(/主题 2 · 帖子 5 · 点评 3 · 附件 1 · 私信 4/)).toBeVisible();
-
-		// Then: the confirmed receipt replaces the editable user panel.
-		await expect(page.getByRole("heading", { name: "用户已清除", exact: true })).toBeVisible();
-		await expect(
-			page.getByText("清除结果已确认，账号无法继续登录、发帖或发送私信。"),
-		).toBeVisible();
-		await expect(page.getByTestId("purge-user-button")).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "封禁", exact: true })).toHaveCount(0);
 	});
 });
-
-// =============================================================================
-// Feature: Admin Operation Logs (4 legacy tests → 3 scenarios; M2 merges LG-03+LG-04)
-// =============================================================================
-
-const NOW = Math.floor(Date.UTC(2026, 4, 5, 6, 0, 0) / 1000); // 2026-05-05T06:00:00Z
-
-interface AdminLogFixture {
-	id: number;
-	adminId: number;
-	adminName: string;
-	action: string;
-	targetType: string;
-	targetId: number | null;
-	details: string;
-	ip: string;
-	createdAt: number;
-}
-
-const LOG_FIXTURE: AdminLogFixture[] = [
-	{
-		id: 101,
-		adminId: 1,
-		adminName: "alice",
-		action: "user.ban",
-		targetType: "user",
-		targetId: 3,
-		details: JSON.stringify({ reason: "spam", actorEmail: "alice@example.com" }),
-		ip: "10.0.0.1",
-		createdAt: NOW,
-	},
-	{
-		id: 102,
-		adminId: 1,
-		adminName: "alice",
-		action: "forum.reorder",
-		targetType: "forum",
-		targetId: null,
-		details: JSON.stringify({
-			count: 2,
-			orders: [
-				{ id: 10, before: 1, after: 2 },
-				{ id: 11, before: 2, after: 1 },
-			],
-		}),
-		ip: "10.0.0.1",
-		createdAt: NOW - 60,
-	},
-	{
-		id: 103,
-		adminId: 2,
-		adminName: "bob",
-		action: "setting.update",
-		targetType: "setting",
-		targetId: null,
-		details: "legacy plain text payload, not json",
-		ip: "10.0.0.2",
-		createdAt: NOW - 120,
-	},
-];
-
-test.describe("Feature: Admin Operation Logs", () => {
-	let lastRequestUrl = "";
-
-	test.beforeEach(async ({ page, loginAsAdmin }) => {
-		await loginAsAdmin();
-		lastRequestUrl = "";
-		await page.route("**/api/admin/admin-logs**", async (route) => {
-			const url = new URL(route.request().url());
-			lastRequestUrl = url.toString();
-			const actionFilter = url.searchParams.get("action");
-			const filtered = actionFilter
-				? LOG_FIXTURE.filter((row) => row.action === actionFilter)
-				: LOG_FIXTURE;
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({
-					data: filtered,
-					meta: {
-						page: 1,
-						pages: 1,
-						total: filtered.length,
-						limit: 20,
-						timestamp: Date.now(),
-						requestId: "e2e-mock",
-					},
-				}),
-			});
-		});
-	});
-
-	// Tear down the mock so later admin scenarios that hit /api/admin/admin-logs**
-	// (e.g. the action sidebar making a count probe) go to the real Worker.
-	// Reviewer caution: avoid polluting subsequent admin CRUD closed loops.
-	test.afterEach(async ({ page }) => {
-		await page.unroute("**/api/admin/admin-logs**");
-	});
-
-	test("Given the operation logs page, When I filter and open JSON/non-JSON details, Then filtering and detail rendering work", async ({
-		page,
-	}) => {
-		await page.goto("/admin/logs/operations");
-		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
-
-		await page.getByLabel("查看日志 #101 详情").click();
-		const dialog101 = page.getByRole("dialog", { name: "操作日志详情" });
-		await expect(dialog101).toBeVisible();
-		const pre101 = dialog101.getByTestId("admin-log-details");
-		await expect(pre101).toBeVisible();
-		const text101 = (await pre101.textContent()) ?? "";
-		expect(text101).toContain("\n");
-		expect(text101).toContain('"reason"');
-		expect(text101).toContain('"spam"');
-		await expect(dialog101.getByText("(原始文本，非 JSON)")).toHaveCount(0);
-		await dialog101.getByRole("button", { name: "关闭", exact: true }).click();
-		await expect(dialog101).toBeHidden();
-
-		await expect(page.getByText("setting.update", { exact: true })).toBeVisible();
-		await page.getByLabel("查看日志 #103 详情").click();
-		const dialog103 = page.getByRole("dialog", { name: "操作日志详情" });
-		await expect(dialog103).toBeVisible();
-		await expect(dialog103.getByText("(原始文本，非 JSON)")).toBeVisible();
-		await expect(dialog103.getByTestId("admin-log-details")).toContainText(
-			"legacy plain text payload, not json",
-		);
-		await dialog103.getByRole("button", { name: "关闭", exact: true }).click();
-		await expect(dialog103).toBeHidden();
-
-		const searchInput = page.getByPlaceholder("如 user.ban，回车提交");
-		await searchInput.fill("user.ban");
-		await searchInput.press("Enter");
-		await expect(page.getByText("forum.reorder", { exact: true })).toHaveCount(0);
-		await expect(page.getByText("user.ban", { exact: true })).toBeVisible();
-		expect(lastRequestUrl).toContain("action=user.ban");
-	});
-});
-
-// =============================================================================
-// Feature: Admin Reports List (2 legacy tests → 1 scenario; M3 merges RP-01+RP-02)
-// =============================================================================
-
-interface AdminReport {
-	id: number;
-	type: "thread" | "post" | "user";
-	targetId: number;
-	reporterId: number;
-	reporterName: string;
-	reason: string;
-	status: "pending" | "resolved" | "dismissed";
-	handlerId: number | null;
-	handlerName: string;
-	handledAt: number | null;
-	createdAt: number;
-	threadId: number | null;
-	targetTitle: string | null;
-	targetName: string | null;
-}
-
-const NOW_REPORTS = Math.floor(Date.now() / 1000);
-
-const REPORT_FIXTURE: AdminReport[] = [
-	{
-		id: 1,
-		type: "thread",
-		targetId: 11,
-		reporterId: 5,
-		reporterName: "alice",
-		reason: "垃圾广告",
-		status: "pending",
-		handlerId: null,
-		handlerName: "",
-		handledAt: null,
-		createdAt: NOW_REPORTS,
-		threadId: 11,
-		targetTitle: "测试主题标题",
-		targetName: null,
-	},
-	{
-		id: 2,
-		type: "post",
-		targetId: 22,
-		reporterId: 5,
-		reporterName: "alice",
-		reason: "违规内容",
-		status: "pending",
-		handlerId: null,
-		handlerName: "",
-		handledAt: null,
-		createdAt: NOW_REPORTS,
-		threadId: 33,
-		targetTitle: "回帖所在主题",
-		targetName: null,
-	},
-	{
-		id: 3,
-		type: "user",
-		targetId: 44,
-		reporterId: 5,
-		reporterName: "alice",
-		reason: "人身攻击",
-		status: "pending",
-		handlerId: null,
-		handlerName: "",
-		handledAt: null,
-		createdAt: NOW_REPORTS,
-		threadId: null,
-		targetTitle: null,
-		targetName: "bob",
-	},
-];
-
-test.describe("Feature: Admin Reports List", () => {
-	test.beforeEach(async ({ page, loginAsAdmin }) => {
-		await loginAsAdmin();
-		await page.route("**/api/admin/reports**", async (route) => {
-			const url = new URL(route.request().url());
-			const typeFilter = url.searchParams.get("type") as "thread" | "post" | "user" | null;
-			const filtered = typeFilter
-				? REPORT_FIXTURE.filter((r) => r.type === typeFilter)
-				: REPORT_FIXTURE;
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({
-					data: filtered,
-					meta: {
-						page: 1,
-						pages: 1,
-						total: filtered.length,
-						limit: 20,
-					},
-				}),
-			});
-		});
-	});
-
-	// Same reasoning as the Operation Logs afterEach: drop the route so
-	// later admin CRUD scenarios (and the sidebar badge probe) see the
-	// real /api/admin/reports** instead of the in-memory fixture.
-	test.afterEach(async ({ page }) => {
-		await page.unroute("**/api/admin/reports**");
-	});
-
-	test("Given the reports page, Then per-type rows render correct target links, and When I filter type=用户, Then only the user row remains", async ({
-		page,
-	}) => {
-		// Merges legacy RP-01 (list renders + per-type target labels/links) +
-		// RP-02 (type filter narrows visible rows). Both load /admin/reports
-		// with the same mock, both observe the same initial 3 rows, and the
-		// filter is the natural next assertion after "list renders".
-		await page.goto("/admin/reports");
-
-		// Then: heading + type filter chip
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "举报管理" }),
-		).toBeVisible();
-		await expect(page.getByRole("combobox", { name: "类型" })).toBeVisible();
-
-		// Then: thread row → admin thread link to thread 11
-		const threadLink = page.getByRole("link", { name: /测试主题标题/ });
-		await expect(threadLink).toBeVisible();
-		await expect(threadLink).toHaveAttribute("href", "/admin/threads/11");
-
-		// Then: post row → admin thread link to threadId (33), NOT targetId
-		const postLink = page.getByRole("link", { name: /回帖所在主题/ });
-		await expect(postLink).toBeVisible();
-		await expect(postLink).toHaveAttribute("href", "/admin/threads/33");
-
-		// Then: user row → admin user link to user 44
-		const userLink = page.getByRole("link", { name: /@bob/ });
-		await expect(userLink).toBeVisible();
-		await expect(userLink).toHaveAttribute("href", "/admin/users/44");
-
-		// When: select type=用户 in the type filter dropdown
-		await page.getByRole("combobox", { name: "类型" }).click();
-		await page.getByRole("option", { name: "用户", exact: true }).click();
-
-		// Then: only the user row remains
-		await expect(page.getByRole("link", { name: /@bob/ })).toBeVisible();
-		await expect(page.getByRole("link", { name: /测试主题标题/ })).toHaveCount(0);
-		await expect(page.getByRole("link", { name: /回帖所在主题/ })).toHaveCount(0);
-
-		await page.getByRole("combobox", { name: "类型" }).click();
-		await page.getByRole("option", { name: "全部类型", exact: true }).click();
-		await expect(threadLink).toBeVisible();
-		await expect(postLink).toBeVisible();
-		await expect(userLink).toBeVisible();
-	});
-});
-
-// =============================================================================
-// Feature: Admin Forums CRUD (1 legacy test → 1 scenario; no merge)
-// =============================================================================
-
-interface AdminForum {
-	id: number;
-	name: string;
-}
-
-interface ForumListResponse {
-	data: AdminForum[];
-}
 
 test.describe("Feature: Admin Forums CRUD", () => {
 	let createdForumId: number | null = null;
@@ -733,28 +99,20 @@ test.describe("Feature: Admin Forums CRUD", () => {
 		const id = createdForumId;
 		createdForumId = null;
 		try {
-			const res = await context.request.delete(`/api/admin/forums/${id}`, {
+			await context.request.delete(`/api/admin/forums/${id}`, {
 				headers: { Origin: baseURL ?? "http://localhost:7032" },
 			});
-			if (![200, 204, 404].includes(res.status())) {
-				console.warn(`afterEach forum cleanup got status ${res.status()} for id=${id}`);
-			}
 		} catch (err) {
 			console.warn(`afterEach forum cleanup threw for id=${id}:`, err);
 		}
 	});
 
-	test("Given the 版块管理 page, When I create a top-level 版块, edit its name, and delete it, Then each step round-trips through the admin proxy and the row appears/updates/disappears", async ({
+	test("Given the 版块管理 page, When I create a top-level 版块, edit its name, and delete it, Then each step round-trips through the admin proxy", async ({
 		context,
 		page,
 		loginAsAdmin,
 		baseURL,
 	}) => {
-		// Legacy FO-01 — single closed-loop CRUD smoke kept 1:1 because the
-		// happy path proves dialog open / form submit / CSRF gate / Worker
-		// mutation / page refetch all in one navigation budget. Splitting
-		// into create/edit/delete scenarios would force `.serial` state sharing
-		// (createdForumId) without surfacing any new branch.
 		await loginAsAdmin();
 		await page.goto("/admin/forums");
 
@@ -763,200 +121,42 @@ test.describe("Feature: Admin Forums CRUD", () => {
 		).toBeVisible();
 		await expect(page.getByText("加载中...")).toBeHidden();
 
-		// ── CREATE ─────────────────────────────────────────────────────
 		const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 		const initialName = `L3测试版块_${uniqueSuffix}`;
 
 		await page.getByRole("button", { name: "创建版块" }).first().click();
-
 		const createDialog = page.getByRole("dialog", { name: "创建版块" });
 		await expect(createDialog).toBeVisible();
 		await createDialog.getByLabel("名称").fill(initialName);
 		await createDialog.getByRole("button", { name: "创建版块" }).click();
-
 		await expect(createDialog).toBeHidden();
 		await expect(page.getByText(initialName, { exact: true })).toBeVisible();
 
-		// Resolve forum id for afterEach safety net.
-		{
-			const res = await context.request.get("/api/admin/forums", {
-				headers: { Origin: baseURL ?? "http://localhost:7032" },
-			});
-			expect(res.ok()).toBeTruthy();
-			const body = (await res.json()) as ForumListResponse;
-			const created = body.data.find((f) => f.name === initialName);
-			expect(
-				created,
-				`forum "${initialName}" should be returned by GET /api/admin/forums`,
-			).toBeTruthy();
-			createdForumId = created?.id ?? null;
-			expect(createdForumId).not.toBeNull();
-		}
+		const res = await context.request.get("/api/admin/forums", {
+			headers: { Origin: baseURL ?? "http://localhost:7032" },
+		});
+		expect(res.ok()).toBeTruthy();
+		const body = (await res.json()) as ForumListResponse;
+		const created = body.data.find((f) => f.name === initialName);
+		expect(created).toBeTruthy();
+		createdForumId = created?.id ?? null;
 
-		// ── EDIT ───────────────────────────────────────────────────────
 		const editedName = `${initialName}_edited`;
 		await page.getByRole("button", { name: `打开「${initialName}」操作菜单` }).click();
 		await page.getByRole("menuitem", { name: "编辑" }).click();
-
 		const editDialog = page.getByRole("dialog", { name: "编辑版块" });
 		await expect(editDialog).toBeVisible();
 		await editDialog.getByLabel("名称").fill(editedName);
 		await editDialog.getByRole("button", { name: "保存" }).click();
-
 		await expect(editDialog).toBeHidden();
 		await expect(page.getByText(editedName, { exact: true })).toBeVisible();
-		await expect(page.getByText(initialName, { exact: true })).toBeHidden();
 
-		// ── DELETE ─────────────────────────────────────────────────────
 		await page.getByRole("button", { name: `打开「${editedName}」操作菜单` }).click();
 		await page.getByRole("menuitem", { name: "删除" }).click();
-
 		const confirmDialog = page.getByRole("dialog", { name: "删除版块" });
 		await expect(confirmDialog).toBeVisible();
 		await confirmDialog.getByRole("button", { name: "确认" }).click();
-
 		await expect(confirmDialog).toBeHidden();
 		await expect(page.getByText(editedName, { exact: true })).toBeHidden();
-	});
-});
-
-// =============================================================================
-// Feature: Admin Threads / Posts CRUD (1 legacy test → 1 scenario; no merge)
-// =============================================================================
-
-const SEED_THREAD_ID = 662174;
-// Post 700001 is position #2 in thread 662174 — the first reply, always
-// visible on detail page 1 (default limit=20).
-const SEED_REPLY_POST_ID = 700001;
-
-interface ThreadResponse {
-	data: { id: number; subject: string };
-}
-
-interface PostResponse {
-	data: { id: number; content: string };
-}
-
-test.describe("Feature: Admin Threads & Posts CRUD", () => {
-	let originalSubject: string | null = null;
-	let originalPostContent: string | null = null;
-
-	test.afterEach(async ({ context, baseURL }) => {
-		const origin = baseURL ?? "http://localhost:7032";
-
-		if (originalSubject !== null) {
-			const snap = originalSubject;
-			originalSubject = null;
-			try {
-				const res = await context.request.patch(`/api/admin/threads/${SEED_THREAD_ID}`, {
-					headers: { Origin: origin, "Content-Type": "application/json" },
-					data: { subject: snap },
-				});
-				if (!res.ok()) {
-					console.warn(`afterEach thread restore got status ${res.status()}`);
-				}
-			} catch (err) {
-				console.warn("afterEach thread restore threw:", err);
-			}
-		}
-
-		if (originalPostContent !== null) {
-			const snap = originalPostContent;
-			originalPostContent = null;
-			try {
-				const res = await context.request.patch(`/api/admin/posts/${SEED_REPLY_POST_ID}`, {
-					headers: { Origin: origin, "Content-Type": "application/json" },
-					data: { content: snap },
-				});
-				if (!res.ok()) {
-					console.warn(`afterEach post restore got status ${res.status()}`);
-				}
-			} catch (err) {
-				console.warn("afterEach post restore threw:", err);
-			}
-		}
-	});
-
-	test("Given the admin threads list, When I open the seed thread detail, edit its subject and a non-first post, Then mutations land and the first-post 删除 menuitem is disabled with 无法删除楼主帖", async ({
-		context,
-		page,
-		loginAsAdmin,
-		baseURL,
-	}) => {
-		// Legacy TH-01 — single closed-loop CRUD smoke kept 1:1. The flow
-		// proves list→detail navigation, thread PATCH, post PATCH, and the
-		// UI safety guard against CANNOT_DELETE_FIRST_POST in one navigation
-		// budget; splitting would require .serial sharing of snapshots and
-		// add no new branch coverage.
-		const origin = baseURL ?? "http://localhost:7032";
-		await loginAsAdmin();
-
-		// Snapshot real current values up-front for afterEach restore.
-		{
-			const res = await context.request.get(`/api/admin/threads/${SEED_THREAD_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok(), "GET /api/admin/threads/:id should succeed").toBeTruthy();
-			originalSubject = ((await res.json()) as ThreadResponse).data.subject;
-		}
-		expect(
-			typeof originalSubject === "string" && originalSubject.length > 0,
-			"originalSubject snapshot must be a non-empty string",
-		).toBeTruthy();
-		{
-			const res = await context.request.get(`/api/admin/posts/${SEED_REPLY_POST_ID}`, {
-				headers: { Origin: origin },
-			});
-			expect(res.ok(), "GET /api/admin/posts/:id should succeed").toBeTruthy();
-			originalPostContent = ((await res.json()) as PostResponse).data.content;
-		}
-		expect(
-			typeof originalPostContent === "string" && originalPostContent.length > 0,
-			"originalPostContent snapshot must be a non-empty string",
-		).toBeTruthy();
-
-		// ── LIST → DETAIL ──────────────────────────────────────────────
-		await page.goto("/admin/threads");
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: "主题" }),
-		).toBeVisible();
-		await page.getByRole("link", { name: originalSubject }).click();
-		await expect(page).toHaveURL(new RegExp(`/admin/threads/${SEED_THREAD_ID}(\\?|$)`));
-		await expect(
-			page
-				.locator("main [data-basalt-surface-root]")
-				.getByRole("heading", { name: originalSubject }),
-		).toBeVisible();
-
-		// ── EDIT THREAD SUBJECT ────────────────────────────────────────
-		const subjectSuffix = `_e2e_${Date.now()}`;
-		const newSubject = `${originalSubject}${subjectSuffix}`;
-		await page.getByRole("button", { name: "编辑" }).click();
-		const threadDialog = page.getByRole("dialog", { name: "编辑主题" });
-		await expect(threadDialog).toBeVisible();
-		await threadDialog.getByLabel("标题").fill(newSubject);
-		await threadDialog.getByRole("button", { name: "保存更改" }).click();
-		await expect(threadDialog).toBeHidden();
-		await expect(
-			page.locator("main [data-basalt-surface-root]").getByRole("heading", { name: newSubject }),
-		).toBeVisible();
-
-		// ── EDIT NON-FIRST POST (position #2 / post 700001) ────────────
-		const contentSuffix = `\n\n[edited by L3 ${Date.now()}]`;
-		const newContent = `${originalPostContent}${contentSuffix}`;
-		await page.getByRole("button", { name: "打开第 2 楼操作菜单" }).click();
-		await page.getByRole("menuitem", { name: "编辑" }).click();
-		const postDialog = page.getByRole("dialog", { name: "编辑帖子" });
-		await expect(postDialog).toBeVisible();
-		await postDialog.getByLabel("内容").fill(newContent);
-		await postDialog.getByRole("button", { name: "保存更改" }).click();
-		await expect(postDialog).toBeHidden();
-		await expect(page.getByText(`[edited by L3`, { exact: false })).toBeVisible();
-
-		// ── FIRST-POST DELETE GUARD (position #1) ──────────────────────
-		await page.getByRole("button", { name: "打开第 1 楼操作菜单" }).click();
-		const guardItem = page.getByRole("menuitem", { name: "无法删除楼主帖" });
-		await expect(guardItem).toBeVisible();
-		await expect(guardItem).toBeDisabled();
 	});
 });

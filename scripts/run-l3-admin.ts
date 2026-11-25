@@ -193,13 +193,16 @@ async function runPlaywright(adminEnv: {
 	email: string;
 	whitelist: string;
 }): Promise<GuardedPlaywrightResult> {
-	console.log("🎭 Running Playwright (admin project only)…");
+	console.log("🎭 Running Playwright (admin suite)…");
 	const handle = workerHandle;
+	const extraArgs = process.argv.slice(2);
+	const hasSpecFilter = extraArgs.some((arg) => !arg.startsWith("-"));
 	return runPlaywrightGuarded({
 		cwd: REPO_ROOT,
 		env: {
 			...process.env,
 			NODE_ENV: "test",
+			PLAYWRIGHT_BASE_URL: BASE_URL,
 			AUTH_SECRET: L3_JWT_SECRET,
 			ADMIN_EMAILS: adminEnv.whitelist,
 			E2E_ADMIN_EMAIL: adminEnv.email,
@@ -207,10 +210,9 @@ async function runPlaywright(adminEnv: {
 		args: [
 			"-c",
 			"playwright.config.ts",
-			"--project=admin",
-			// Forward extra CLI args (file filters, --reporter=json, etc.) so
-			// callers can target a single spec like the forum runner does.
-			...process.argv.slice(2),
+			"--project=chromium",
+			...(hasSpecFilter ? [] : ["tests/e2e/bdd/admin/"]),
+			...extraArgs,
 		],
 		isWorkerHealthy: async () => {
 			if (!handle || handle.hasExited()) return false;

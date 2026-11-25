@@ -175,25 +175,17 @@ async function prewarmRoutes(): Promise<void> {
 async function runPlaywright(): Promise<GuardedPlaywrightResult> {
 	console.log("🎭 Running Playwright…");
 	const handle = workerHandle;
+	const extraArgs = process.argv.slice(2);
+	const hasSpecFilter = extraArgs.some((arg) => !arg.startsWith("-"));
 	return runPlaywrightGuarded({
 		cwd: REPO_ROOT,
 		env: process.env,
-		// Forum L3 only boots apps/web on 27031. The admin project lives
-		// in its own runner (scripts/run-l3-admin.ts) and is excluded here
-		// so a stray admin spec can't be sent against the forum dev server.
-		// The `mobile` project covers the iPhone layout drift guard and
-		// targets the same forum dev server, so it is included here.
 		args: [
 			"-c",
 			"playwright.config.ts",
-			"--project=stateless",
-			"--project=stateful",
-			"--project=mobile",
-			// Forward any extra CLI args (e.g. --reporter=json, file filters) that
-			// were passed to run-l3.ts itself. Lets the autoresearch bench harness
-			// (scripts/bench-l3.ts) ask for the JSON reporter without duplicating
-			// server lifecycle code here.
-			...process.argv.slice(2),
+			"--project=chromium",
+			...(hasSpecFilter ? [] : ["tests/e2e/bdd/[^/]+\\.spec\\.ts$"]),
+			...extraArgs,
 		],
 		isWorkerHealthy: async () => {
 			if (!handle || handle.hasExited()) return false;
