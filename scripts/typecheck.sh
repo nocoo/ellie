@@ -3,10 +3,10 @@ set -euo pipefail
 
 # scripts/typecheck.sh — Typecheck with route type freshness guarantee.
 #
-# Next.js generates route types (.next/types/routes.d.ts) only during
-# `next dev` or `next build`. If app/ source is newer than the generated
-# types, tsc silently skips route type validation. This script detects
-# staleness and rebuilds types before running tsc.
+# Next.js generates route types (.next/types/routes.d.ts) during `next typegen`,
+# `next dev`, or `next build`. If app/ source is newer than the generated types,
+# tsc silently skips route type validation. This script detects staleness and
+# regenerates route types via `next typegen` before running tsc.
 #
 # Also gates: INIT_SQL freshness — when migrations change without a
 # matching `bun run prepare:test-sql`, fail here so L2-fast keeps in sync.
@@ -25,36 +25,26 @@ check_route_types() {
   fi
 
   if [ ! -f "$routes_dts" ]; then
-    echo "⚠️  $app_dir/.next/types/routes.d.ts not found — rebuild needed."
+    echo "⚠️  $app_dir/.next/types/routes.d.ts not found — generating..."
     return 1
   fi
 
   # POSIX-portable: find any app source file newer than routes.d.ts.
   # `find -newer` works on macOS (BSD) and Linux (GNU) without stat format differences.
   if find "$app_dir/src/app" -type f \( -name '*.ts' -o -name '*.tsx' \) -newer "$routes_dts" 2>/dev/null | grep -q .; then
-    echo "⚠️  $app_dir/.next/types/routes.d.ts is stale — rebuilding..."
+    echo "⚠️  $app_dir/.next/types/routes.d.ts is stale — regenerating..."
     return 1
   fi
   return 0
 }
 
-rebuild_needed=false
-
 for app in apps/web apps/admin; do
   if [ -d "$app/src/app" ]; then
     if ! check_route_types "$app"; then
-      rebuild_needed=true
+      echo "   Generating route types via next typegen in $app..."
+      (cd "$app" && bunx next typegen)
     fi
   fi
 done
-
-if [ "$rebuild_needed" = true ]; then
-  if [ "${ELLIE_INDEX_TYPECHECK:-}" = 1 ]; then
-    echo "⚠️  index typecheck: stale/missing route types — skipping next build in snapshot"
-  else
-    echo "   Rebuilding route types via next build..."
-    bun run build
-  fi
-fi
 
 exec bunx tsc --build
