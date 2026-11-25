@@ -51,8 +51,8 @@ cargo test --locked --workspace --manifest-path packages/cli-rs/Cargo.toml
 
 Follows `system1-quality`; CI slot definitions and pinned `base-ci` revision live in `.github/workflows/quality-slots.yml` (invoked by `.github/workflows/ci.yml`; `quality / Z1: Gate` required on `main`). `S2` enforces both JS/TS/CSS/Markdown linting (`s2-lint` via Biome) and Rust `cargo fmt --check` + `clippy -D warnings` (`s2-rust-lint`). Status vocabulary: `enforced`, `planned`, `manual`, `N/A`.
 
-- **Exceptions / gaps**: `B1 Build` is `planned` (Docker images build in `release.yml`); `L2 Runtime` is `N/A` (Worker unit tests run in Vitest; HTTP verified in `L3`); `P1 Package` is `N/A` (private monorepo).
-- **L1 & G2 scope**: CI `L1` runs `bun run test`; `test:coverage` enforces 95% statements/lines/functions and 90% branches (pure View `src/components/**`, `src/app/**`, and test-double `packages/test-mocks` excluded). `G2` scans `bun.lock` and `packages/cli-rs/Cargo.lock`.
+- **Exceptions / gaps**: `B1 Build` is `enforced` (`bun run build` for `web` + `admin`); `L2 Runtime` is `N/A` (Worker unit tests run in Vitest; HTTP verified in `L3`); `P1 Package` is `N/A` (private monorepo).
+- **L1 & G2 scope**: CI `L1` runs `bun run test:coverage` plus `bun:sqlite` migration tests; `test:coverage` enforces 80% statements/lines/functions/branches (pure View `src/components/**`, `src/app/**`, and test-double `packages/test-mocks` excluded). `G2` scans `bun.lock` and `packages/cli-rs/Cargo.lock`.
 - **Local hooks**: Installed via `bun run prepare` (`.husky/`). Check-only policy: never bypass hooks or use autofix in checks.
 - **Pre-commit**: Runs `gitleaks protect --staged`, exports the staged index snapshot (symlinking deps), then runs parallel `typecheck`, `lint`, `test:coverage`, `test:l2`, and Rust fmt/clippy/test.
 - **Pre-push**: Runs Phase 1 (`typecheck`, `lint`, `test:coverage`, Bun migration tests), then Phase 2 (`test:l2`, `osv-scanner`, `gitleaks`, Rust `osv-scanner`, and optional Rust integration tests).
