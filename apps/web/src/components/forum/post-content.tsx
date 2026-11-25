@@ -95,6 +95,7 @@ export function PostContent({
 					className="forum-content mt-4 prose prose-sm max-w-none text-[15px] leading-7 text-basalt-foreground whitespace-pre-line min-h-[80px] break-words [overflow-wrap:anywhere] [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&>*:first-child]:mt-0"
 					suppressHydrationWarning
 				>
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Pre-sanitized forum post HTML. */}
 					<div dangerouslySetInnerHTML={{ __html: post.content }} suppressHydrationWarning />
 				</article>
 
@@ -146,6 +147,7 @@ export function PostContent({
 							suppressHydrationWarning
 						>
 							<div
+								// biome-ignore lint/security/noDangerouslySetInnerHtml: Pre-sanitized author signature HTML.
 								dangerouslySetInnerHTML={{ __html: author.signature }}
 								suppressHydrationWarning
 							/>

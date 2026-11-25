@@ -42,6 +42,31 @@ jobs:
           install-policy: project
       - run: bun run lint
 
+  s2-rust-lint:
+    name: "S2: Rust Lint"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            packages/cli-rs/target
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('packages/cli-rs/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-lint-
+      - name: Install rustfmt and clippy
+        run: rustup component add rustfmt clippy
+      - name: Run cargo fmt and clippy
+        run: |
+          cargo fmt --manifest-path packages/cli-rs/Cargo.toml --all -- --check
+          cargo clippy --manifest-path packages/cli-rs/Cargo.toml --workspace --all-targets --all-features --locked -- -D warnings
+
   s3-workflow:
     name: "S3: Workflow"
     runs-on: ubuntu-latest
@@ -189,6 +214,7 @@ jobs:
     needs:
       - s1-types
       - s2-lint
+      - s2-rust-lint
       - s3-workflow
       - g1-secrets
       - g2-dependencies
@@ -205,6 +231,7 @@ jobs:
         run: |
           echo "s1-types: ${{ needs.s1-types.result }}"
           echo "s2-lint: ${{ needs.s2-lint.result }}"
+          echo "s2-rust-lint: ${{ needs.s2-rust-lint.result }}"
           echo "s3-workflow: ${{ needs.s3-workflow.result }}"
           echo "g1-secrets: ${{ needs.g1-secrets.result }}"
           echo "g2-dependencies: ${{ needs.g2-dependencies.result }}"
@@ -217,6 +244,7 @@ jobs:
           for r in \
             "${{ needs.s1-types.result }}" \
             "${{ needs.s2-lint.result }}" \
+            "${{ needs.s2-rust-lint.result }}" \
             "${{ needs.s3-workflow.result }}" \
             "${{ needs.g1-secrets.result }}" \
             "${{ needs.g2-dependencies.result }}" \

@@ -24,6 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={`${inter.variable} ${dmSans.variable}`} suppressHydrationWarning>
 			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Static inline theme FOUC-prevention script. */}
 				<script dangerouslySetInnerHTML={{ __html: foucPreventionScript }} />
 			</head>
 			<body className="bg-basalt-background text-basalt-foreground antialiased">

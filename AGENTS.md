@@ -30,6 +30,8 @@ bun run test:coverage             # local L1 coverage gate
 bun run test:l2                   # managed local real-HTTP API lane (alias: test:e2e:api)
 bun run gate:l2                   # adds strict route-coverage audit
 bun run test:e2e:bdd              # forum then admin Playwright Chromium runners
+cargo fmt --manifest-path packages/cli-rs/Cargo.toml --all -- --check
+cargo clippy --manifest-path packages/cli-rs/Cargo.toml --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --locked --workspace --manifest-path packages/cli-rs/Cargo.toml
 ```
 
@@ -47,7 +49,7 @@ cargo test --locked --workspace --manifest-path packages/cli-rs/Cargo.toml
 
 ## Quality & Local Gates
 
-Follows `system1-quality`; CI slot definitions and pinned `base-ci` revision live in `.github/workflows/quality-slots.yml` (invoked by `.github/workflows/ci.yml`; `quality / Z1: Gate` required on `main`). Status vocabulary: `enforced`, `planned`, `manual`, `N/A`.
+Follows `system1-quality`; CI slot definitions and pinned `base-ci` revision live in `.github/workflows/quality-slots.yml` (invoked by `.github/workflows/ci.yml`; `quality / Z1: Gate` required on `main`). `S2` enforces both JS/TS/CSS/Markdown linting (`s2-lint` via Biome) and Rust `cargo fmt --check` + `clippy -D warnings` (`s2-rust-lint`). Status vocabulary: `enforced`, `planned`, `manual`, `N/A`.
 
 - **Exceptions / gaps**: `B1 Build` is `planned` (Docker images build in `release.yml`); `L2 Runtime` is `N/A` (Worker unit tests run in Vitest; HTTP verified in `L3`); `P1 Package` is `N/A` (private monorepo).
 - **L1 & G2 scope**: CI `L1` runs `bun run test`; `test:coverage` enforces 95% statements/lines/functions and 90% branches (pure View `src/components/**`, `src/app/**`, and test-double `packages/test-mocks` excluded). `G2` scans `bun.lock` and `packages/cli-rs/Cargo.lock`.

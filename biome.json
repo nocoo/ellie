@@ -27,7 +27,7 @@
 				"useConst": "error"
 			},
 			"suspicious": {
-				"noExplicitAny": "warn"
+				"noExplicitAny": "error"
 			}
 		}
 	},
@@ -74,20 +74,6 @@
 		]
 	},
 	"overrides": [
-		{
-			"includes": [
-				"**/src/components/forum/post-content.tsx",
-				"**/apps/web/src/components/forum/post-content.tsx",
-				"**/apps/admin/src/app/layout.tsx"
-			],
-			"linter": {
-				"rules": {
-					"security": {
-						"noDangerouslySetInnerHtml": "off"
-					}
-				}
-			}
-		},
 		{
 			"includes": ["**/apps/web/src/components/**"],
 			"linter": {
