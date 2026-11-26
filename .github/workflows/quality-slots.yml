@@ -200,11 +200,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
       - run: |
-          bun run test:coverage:web
-          bun run test:coverage:admin
-          bun run test:coverage:shared
-          bun run test:coverage:types
-          bun run test:coverage:migrate
+          set -euo pipefail
+          bun run test:coverage:web &
+          pid_web=$!
+          (
+            bun run test:coverage:admin
+            bun run test:coverage:shared
+            bun run test:coverage:types
+            bun run test:coverage:migrate
+          ) &
+          pid_pkgs=$!
+          rc=0
+          wait "$pid_web" || rc=1
+          wait "$pid_pkgs" || rc=1
+          exit "$rc"
       - name: Record tested SHA
         id: record-sha
         if: always()
