@@ -8,7 +8,7 @@
         "@base-ui/react": "1.9.0",
         "@cap.js/widget": "0.1.64",
         "@cloudflare/workers-types": "5.20261120.1",
-        "fast-uri": "4.2.3",
+        "fast-uri": "4.2.4",
         "tailwind-merge": "3.7.1",
       },
       "devDependencies": {
@@ -179,7 +179,7 @@
     "cookie": "^0.7.2",
     "defu": "^6.1.7",
     "esbuild": "^0.28.1",
-    "fast-uri": "4.2.3",
+    "fast-uri": "4.2.4",
     "ip-address": "^10.1.1",
     "minimatch": "^11.0.2",
     "nanoid": "3.3.20",
@@ -1078,7 +1078,7 @@
 
     "fast-string-width": ["fast-string-width@3.0.2", "", { "dependencies": { "fast-string-truncated-width": "^3.0.2" } }, "sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg=="],
 
-    "fast-uri": ["fast-uri@4.2.3", "", {}, "sha512-I1PXwP5eAhlNlcdpjt9CgB59op2ZvZfxw+BkqGFVIUOgNpCVTcTqp3HhTX7brxj5vsip+nSY4nTvff+eIA76hg=="],
+    "fast-uri": ["fast-uri@4.2.4", "", {}, "sha512-ARrctoImibWG27hlPe0Gc93d6HwZBYipqd9QhnXyYzS101vKmqx2J/1R8kzhnnYTph0umtJqu9rqIuYtVDaAOg=="],
 
     "fast-wrap-ansi": ["fast-wrap-ansi@0.2.2", "", { "dependencies": { "fast-string-width": "^3.0.2" } }, "sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q=="],
 
