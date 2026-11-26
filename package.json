@@ -101,7 +101,7 @@
 	},
 	"dependencies": {
 		"@base-ui/react": "1.9.0",
-		"@cap.js/widget": "0.1.63",
+		"@cap.js/widget": "0.1.64",
 		"@cloudflare/workers-types": "5.20261120.1",
 		"fast-uri": "4.2.3",
 		"tailwind-merge": "3.7.1"
