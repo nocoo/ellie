@@ -10,9 +10,12 @@ describe("Docker build runtimes", () => {
 		);
 		expect(dockerfile).not.toContain("BUN_BUILD_IMAGE");
 		expect(dockerfile).not.toContain("build-runtime");
-		expect(dockerfile.match(/FROM \$\{BUN_STABLE_IMAGE\}/g)).toHaveLength(3);
+		expect(dockerfile.match(/FROM \$\{BUN_STABLE_IMAGE\}/g)).toHaveLength(2);
+		expect(dockerfile).toContain("FROM deps AS builder");
 
-		const stableInstall = dockerfile.lastIndexOf("RUN bun install --frozen-lockfile");
+		const installs = dockerfile.match(/RUN bun install --frozen-lockfile/g) ?? [];
+		expect(installs).toHaveLength(1);
+		const stableInstall = dockerfile.indexOf("RUN bun install --frozen-lockfile");
 		const appBuild = dockerfile.indexOf("bun run build:admin");
 
 		expect(stableInstall).toBeGreaterThan(-1);

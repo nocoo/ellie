@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Ellie — unified multi-stage Dockerfile
 # Usage:
 #   docker build --build-arg APP=web  -t ellie-web .
@@ -25,15 +26,11 @@ COPY packages/migrate/package.json ./packages/migrate/
 RUN bun install --frozen-lockfile
 
 # ── Stage 2: Build ─────────────────────────────────────────────────
-FROM ${BUN_STABLE_IMAGE} AS builder
+FROM deps AS builder
 ARG APP
 WORKDIR /app
 
 COPY . .
-COPY --from=deps /app/node_modules ./node_modules
-
-# Re-run install to link workspace packages properly
-RUN bun install --frozen-lockfile
 
 # Fail fast if APP is not web or admin
 RUN case "$APP" in web|admin) ;; *) echo "ERROR: APP must be 'web' or 'admin', got '$APP'" >&2; exit 1;; esac
@@ -47,7 +44,8 @@ ENV AUTH_SECRET=placeholder
 ENV AUTH_GOOGLE_ID=placeholder
 ENV AUTH_GOOGLE_SECRET=placeholder
 
-RUN if [ "$APP" = "admin" ]; then \
+RUN --mount=type=cache,id=ellie-${APP}-next,target=/app/apps/${APP}/.next/cache \
+    if [ "$APP" = "admin" ]; then \
       bun run build:admin; \
     else \
       bun run build:forum; \

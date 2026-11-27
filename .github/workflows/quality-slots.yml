@@ -23,7 +23,7 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
@@ -42,7 +42,7 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
@@ -94,7 +94,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: nocoo/base-ci/.github/actions/lint-workflows@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/lint-workflows@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
       - name: Record tested SHA
         id: record-sha
         if: always()
@@ -110,7 +110,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-      - uses: nocoo/base-ci/.github/actions/scan-secrets@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/scan-secrets@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
       - name: Record tested SHA
         id: record-sha
         if: always()
@@ -125,7 +125,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: nocoo/base-ci/.github/actions/scan-dependencies@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/scan-dependencies@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           lockfiles: |
             bun.lock
@@ -142,7 +142,7 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
@@ -161,7 +161,7 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
@@ -193,7 +193,7 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
@@ -233,7 +233,7 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
@@ -254,13 +254,13 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
-      - uses: nocoo/base-ci/.github/actions/setup-playwright@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-playwright@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           browsers: chromium
@@ -279,13 +279,13 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
-      - uses: nocoo/base-ci/.github/actions/setup-playwright@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-playwright@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           browsers: chromium
@@ -304,13 +304,13 @@ jobs:
       tested-sha: ${{ steps.record-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: nocoo/base-ci/.github/actions/setup-js@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-js@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           runtime-version: ${{ env.BUN_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
           install-policy: project
-      - uses: nocoo/base-ci/.github/actions/setup-playwright@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+      - uses: nocoo/base-ci/.github/actions/setup-playwright@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           package-manager: bun
           browsers: chromium
@@ -373,7 +373,7 @@ jobs:
     steps:
       - name: Verify quality slots
         id: gate
-        uses: nocoo/base-ci/.github/actions/z1-gate@1bf0b015de41d57d6a620773b955b5c386c387de # v2026.21
+        uses: nocoo/base-ci/.github/actions/z1-gate@3703a073693d598159e87f77f99587e586c14cfe # v2026.24
         with:
           needs-json: ${{ toJSON(needs) }}
           expected-sha: ${{ github.sha }}
