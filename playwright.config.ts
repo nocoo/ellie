@@ -7,7 +7,7 @@ export default defineConfig({
 	testDir: "tests/e2e",
 	forbidOnly: !!process.env.CI,
 	retries: 1,
-	workers: 3,
+	workers: 4,
 	reporter: "html",
 	timeout: 90_000,
 
