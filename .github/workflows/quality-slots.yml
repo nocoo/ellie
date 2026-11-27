@@ -245,8 +245,8 @@ jobs:
         if: always()
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  l4-e2e:
-    name: "L4: E2E"
+  l4-e2e-web:
+    name: "L4: E2E (Web)"
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_CAP_API_ENDPOINT: ${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
@@ -264,7 +264,32 @@ jobs:
         with:
           package-manager: bun
           browsers: chromium
-      - run: bun run test:e2e:bdd
+      - run: bun run test:e2e:browser
+      - name: Record tested SHA
+        id: record-sha
+        if: always()
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  l4-e2e-admin:
+    name: "L4: E2E (Admin)"
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_CAP_API_ENDPOINT: ${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
+    outputs:
+      tested-sha: ${{ steps.record-sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: nocoo/base-ci/.github/actions/setup-js@e5876a604547b1ddb0916f16dd841a4f832609a0 # v2026.20
+        with:
+          package-manager: bun
+          runtime-version: ${{ env.BUN_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+          install-policy: project
+      - uses: nocoo/base-ci/.github/actions/setup-playwright@e5876a604547b1ddb0916f16dd841a4f832609a0 # v2026.20
+        with:
+          package-manager: bun
+          browsers: chromium
+      - run: bun run test:e2e:admin
       - name: Record tested SHA
         id: record-sha
         if: always()
@@ -280,10 +305,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Docker context and deps image smoke
-        run: |
-          docker build --target deps --build-arg APP=web --tag "ellie-ci-smoke:${GITHUB_SHA}" .
-          docker run --rm "ellie-ci-smoke:${GITHUB_SHA}" bun --version
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          target: deps
+          build-args: |
+            APP=web
+          tags: ellie-ci-smoke:${{ github.sha }}
+          push: false
+          load: false
+          cache-from: type=gha,scope=ellie-p1
+          cache-to: type=gha,mode=max,scope=ellie-p1
       - name: Record tested SHA
         id: record-sha
         if: always()
@@ -305,7 +339,8 @@ jobs:
       - l1-unit-web-packages
       - l2-runtime
       - l3-integration
-      - l4-e2e
+      - l4-e2e-web
+      - l4-e2e-admin
       - p1-package
     outputs:
       tested-sha: ${{ steps.gate.outputs.tested-sha }}
@@ -327,7 +362,8 @@ jobs:
             l1-unit-worker=L1: Unit (Worker)
             l1-unit-web-packages=L1: Unit (Web & Packages)
             l3-integration=L3: Integration
-            l4-e2e=L4: E2E
+            l4-e2e-web=L4: E2E (Web)
+            l4-e2e-admin=L4: E2E (Admin)
             p1-package=P1: Package
           skipped-jobs: |
             l2-runtime=L2: Runtime
