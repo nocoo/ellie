@@ -341,8 +341,10 @@ jobs:
           tags: ellie-ci-smoke:${{ github.sha }}
           push: false
           load: false
-          cache-from: type=gha,scope=ellie-web
-          cache-to: type=gha,mode=max,scope=ellie-web
+          cache-from: |
+            type=gha,scope=ellie-deps
+            type=gha,scope=ellie-web
+          cache-to: type=gha,mode=max,scope=ellie-deps
       - name: Record tested SHA
         id: record-sha
         if: always()
