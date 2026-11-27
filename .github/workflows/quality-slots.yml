@@ -245,8 +245,8 @@ jobs:
         if: always()
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  l4-e2e-web:
-    name: "L4: E2E (Web)"
+  l4-e2e-web-1:
+    name: "L4: E2E (Web 1/2)"
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_CAP_API_ENDPOINT: ${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
@@ -264,7 +264,32 @@ jobs:
         with:
           package-manager: bun
           browsers: chromium
-      - run: bun run test:e2e:browser
+      - run: bun run test:e2e:browser -- --shard=1/2
+      - name: Record tested SHA
+        id: record-sha
+        if: always()
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  l4-e2e-web-2:
+    name: "L4: E2E (Web 2/2)"
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_CAP_API_ENDPOINT: ${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
+    outputs:
+      tested-sha: ${{ steps.record-sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: nocoo/base-ci/.github/actions/setup-js@e5876a604547b1ddb0916f16dd841a4f832609a0 # v2026.20
+        with:
+          package-manager: bun
+          runtime-version: ${{ env.BUN_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+          install-policy: project
+      - uses: nocoo/base-ci/.github/actions/setup-playwright@e5876a604547b1ddb0916f16dd841a4f832609a0 # v2026.20
+        with:
+          package-manager: bun
+          browsers: chromium
+      - run: bun run test:e2e:browser -- --shard=2/2
       - name: Record tested SHA
         id: record-sha
         if: always()
@@ -339,7 +364,8 @@ jobs:
       - l1-unit-web-packages
       - l2-runtime
       - l3-integration
-      - l4-e2e-web
+      - l4-e2e-web-1
+      - l4-e2e-web-2
       - l4-e2e-admin
       - p1-package
     outputs:
@@ -362,7 +388,8 @@ jobs:
             l1-unit-worker=L1: Unit (Worker)
             l1-unit-web-packages=L1: Unit (Web & Packages)
             l3-integration=L3: Integration
-            l4-e2e-web=L4: E2E (Web)
+            l4-e2e-web-1=L4: E2E (Web 1/2)
+            l4-e2e-web-2=L4: E2E (Web 2/2)
             l4-e2e-admin=L4: E2E (Admin)
             p1-package=P1: Package
           skipped-jobs: |
