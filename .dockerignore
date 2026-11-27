@@ -1,5 +1,5 @@
-node_modules
-.next
+**/node_modules
+**/.next
 .git
 .github
 .husky
@@ -14,4 +14,7 @@ tests
 e2e
 coverage
 reference
+docs
+AGENTS.md
+apps/*/AGENTS.md
 packages/cli-rs
