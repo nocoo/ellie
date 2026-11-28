@@ -12,46 +12,11 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 import { apiClient } from "@/lib/api-client";
-import { stripHtmlTags } from "@/lib/text";
 import {
 	buildQuotedContent,
 	submitReply,
 	validateReplyContent,
 } from "@/viewmodels/forum/use-reply-submit";
-
-// ---------------------------------------------------------------------------
-// stripHtmlTags
-// ---------------------------------------------------------------------------
-
-describe("stripHtmlTags", () => {
-	it("removes simple HTML tags", () => {
-		expect(stripHtmlTags("<p>Hello</p>")).toBe("Hello");
-	});
-
-	it("removes nested HTML tags", () => {
-		expect(stripHtmlTags("<div><p>Hello</p></div>")).toBe("Hello");
-	});
-
-	it("removes self-closing tags", () => {
-		expect(stripHtmlTags("Hello<br/>World")).toBe("HelloWorld");
-	});
-
-	it("removes tags with attributes", () => {
-		expect(stripHtmlTags('<a href="test">Link</a>')).toBe("Link");
-	});
-
-	it("handles empty string", () => {
-		expect(stripHtmlTags("")).toBe("");
-	});
-
-	it("preserves plain text", () => {
-		expect(stripHtmlTags("Plain text")).toBe("Plain text");
-	});
-
-	it("handles multiple tags", () => {
-		expect(stripHtmlTags("<p>First</p><p>Second</p>")).toBe("FirstSecond");
-	});
-});
 
 // ---------------------------------------------------------------------------
 // validateReplyContent
@@ -170,26 +135,6 @@ describe("buildQuotedContent", () => {
 	it("ends with empty paragraph for cursor placement", () => {
 		const result = buildQuotedContent("<p>Content</p>", "Author");
 		expect(result).toMatch(/<p><\/p>$/);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// State management contracts (documentation)
-// ---------------------------------------------------------------------------
-
-describe("useReplySubmit state contracts", () => {
-	it("defines expected initial state shape", () => {
-		const expectedInitialState = {
-			submitting: false,
-			error: null,
-		};
-
-		expect(Object.keys(expectedInitialState)).toEqual(["submitting", "error"]);
-	});
-
-	it("defines expected callbacks shape", () => {
-		const expectedCallbacks = ["handleSubmit", "clearError"];
-		expect(expectedCallbacks.length).toBe(2);
 	});
 });
 

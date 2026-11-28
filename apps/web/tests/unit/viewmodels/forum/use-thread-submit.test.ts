@@ -142,27 +142,6 @@ describe("canSubmitThread", () => {
 });
 
 // ---------------------------------------------------------------------------
-// State contracts (documentation)
-// ---------------------------------------------------------------------------
-
-describe("useThreadSubmit state contracts", () => {
-	it("defines expected state shape", () => {
-		const expectedStateKeys = ["submitting", "error", "subject"];
-		expect(expectedStateKeys.length).toBe(3);
-	});
-
-	it("defines expected actions shape", () => {
-		const expectedActionKeys = ["setSubject", "handleSubmit", "clearError", "reset"];
-		expect(expectedActionKeys.length).toBe(4);
-	});
-
-	it("defines expected validation shape", () => {
-		const expectedValidationKeys = ["subjectError", "canSubmit"];
-		expect(expectedValidationKeys.length).toBe(2);
-	});
-});
-
-// ---------------------------------------------------------------------------
 // Error message integration
 // ---------------------------------------------------------------------------
 

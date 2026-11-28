@@ -295,44 +295,6 @@ describe("GENDER_OPTIONS", () => {
 });
 
 // ---------------------------------------------------------------------------
-// State contracts (documentation)
-// ---------------------------------------------------------------------------
-
-describe("useProfileEdit state contracts", () => {
-	it("defines expected state shape", () => {
-		const expectedStateKeys = ["submitting", "error", "form"];
-		expect(expectedStateKeys.length).toBe(3);
-	});
-
-	it("defines expected actions shape", () => {
-		const expectedActionKeys = ["setField", "handleSave", "clearError", "resetForm"];
-		expect(expectedActionKeys.length).toBe(4);
-	});
-
-	it("defines expected form data shape", () => {
-		const expectedFormKeys = [
-			"gender",
-			"birthYear",
-			"birthMonth",
-			"birthDay",
-			"resideProvince",
-			"resideCity",
-			"graduateSchool",
-			"campus",
-			"bio",
-			"interest",
-			"qq",
-			"site",
-			"signature",
-		];
-		expect(expectedFormKeys.length).toBe(13);
-		// Email is intentionally absent — it's only editable from the
-		// dedicated email verification page (msg=c0ddbe6d).
-		expect(expectedFormKeys).not.toContain("email");
-	});
-});
-
-// ---------------------------------------------------------------------------
 // submitProfileUpdate
 // ---------------------------------------------------------------------------
 

@@ -868,82 +868,18 @@ describe("admin user handlers", () => {
 			expect(body.error.details.message).toBe("bio must be a string");
 		});
 
-		it("rejects purgedAt as read-only (explicit 400)", async () => {
+		it.each([
+			{ purgedAt: 9999 },
+			{ purgedBy: 1 },
+			{ passwordHash: "x" },
+			{ purged_at: 1 },
+			{ signature: "hi", purgedAt: 9999 },
+		])("rejects read-only field payload %j as 400", async (payload) => {
 			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-				},
-			});
-			// purgedAt is now an explicit read-only guard, not silently
-			// ignored. The validation error fires before beforeUpdate runs.
-			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", { purgedAt: 9999 }),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toContain("read-only");
-		});
-
-		it("rejects purgedBy as read-only", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-				},
+				firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 			});
 			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", { purgedBy: 1 }),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toContain("read-only");
-		});
-
-		it("rejects passwordHash as read-only", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-				},
-			});
-			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", { passwordHash: "x" }),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toContain("read-only");
-		});
-
-		it("rejects snake_case purged_at as read-only", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-				},
-			});
-			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", { purged_at: 1 }),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toContain("read-only");
-		});
-
-		it("rejects mixed legitimate field + forbidden field with 400", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
-				},
-			});
-			// Mixed body: signature is legitimate, purgedAt is forbidden.
-			// The whole request must be rejected — never silently apply
-			// signature while dropping purgedAt.
-			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", {
-					signature: "hi",
-					purgedAt: 9999,
-				}),
+				createAdminRequest("PATCH", "/api/admin/users/42", payload),
 				adminEnv(db),
 			);
 			expect(res.status).toBe(400);
@@ -1739,106 +1675,83 @@ describe("admin user handlers", () => {
 	describe("ALREADY_PURGED cross-handler guards (D4-a)", () => {
 		const purgedRow = makeD1UserRow({ id: 42, status: -99 });
 
-		it("update rejects with 409 ALREADY_PURGED on tombstoned user", async () => {
-			const { db } = createMockDb({
-				firstResults: { "SELECT * FROM users WHERE id": purgedRow },
-			});
-			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", { credits: 1 }),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
-		});
+		it.each([
+			[
+				"update",
+				update,
+				"PATCH",
+				"/api/admin/users/42",
+				{ credits: 1 },
+				{ "SELECT * FROM users WHERE id": purgedRow },
+				{},
+			],
+			[
+				"ban",
+				ban,
+				"POST",
+				"/api/admin/users/42/ban",
+				undefined,
+				{ "SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 } },
+				{},
+			],
+			[
+				"nuke",
+				nuke,
+				"POST",
+				"/api/admin/users/42/nuke",
+				undefined,
+				{ "SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 } },
+				{},
+			],
+			[
+				"recalcCounters",
+				recalcCounters,
+				"POST",
+				"/api/admin/users/42/recalc-counters",
+				undefined,
+				{ "SELECT id, status FROM users WHERE id": { id: 42, status: -99 } },
+				{},
+			],
+			[
+				"batchRole",
+				batchRole,
+				"POST",
+				"/api/admin/users/batch-role",
+				{ ids: [42, 43], role: 0 },
+				{},
+				{ "SELECT id FROM users WHERE id IN": [{ id: 42 }] },
+			],
+			[
+				"batchRecalcCounters",
+				batchRecalcCounters,
+				"POST",
+				"/api/admin/users/batch-recalc-counters",
+				{ ids: [42, 43] },
+				{},
+				{ "SELECT id FROM users WHERE id IN": [{ id: 42 }] },
+			],
+		])(
+			"%s rejects with 409 ALREADY_PURGED on tombstoned user",
+			async (_name, handler, method, path, payload, firstResults, allResults) => {
+				const { db } = createMockDb({ firstResults, allResults });
+				const res = await handler(createAdminRequest(method, path, payload), adminEnv(db));
+				expect(res.status).toBe(409);
+				expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+			},
+		);
 
-		it("ban rejects with 409 ALREADY_PURGED on tombstoned user", async () => {
+		it("batchStatus rejects with 409 and returns tombstoneIds", async () => {
 			const { db } = createMockDb({
-				firstResults: {
-					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 },
-				},
-			});
-			const res = await ban(createAdminRequest("POST", "/api/admin/users/42/ban"), adminEnv(db));
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
-		});
-
-		it("nuke rejects with 409 ALREADY_PURGED on tombstoned user", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 },
-				},
-			});
-			const res = await nuke(createAdminRequest("POST", "/api/admin/users/42/nuke"), adminEnv(db));
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
-		});
-
-		// D4-b additions: batch endpoints + recalcCounters.
-
-		it("batchStatus rejects with 409 when any id is tombstoned", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT id FROM users WHERE id IN": [{ id: 42 }],
-				},
+				allResults: { "SELECT id FROM users WHERE id IN": [{ id: 42 }] },
 			});
 			const res = await batchStatus(
-				createAdminRequest("POST", "/api/admin/users/batch-status", {
-					ids: [42, 43],
-					status: 0,
-				}),
+				createAdminRequest("POST", "/api/admin/users/batch-status", { ids: [42, 43], status: 0 }),
 				adminEnv(db),
 			);
 			expect(res.status).toBe(409);
 			const body = await res.json();
 			expect(body.error.code).toBe("ALREADY_PURGED");
 			expect(body.error.details.tombstoneIds).toEqual([42]);
-		});
-
-		it("batchRole rejects with 409 when any id is tombstoned", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT id FROM users WHERE id IN": [{ id: 42 }],
-				},
-			});
-			const res = await batchRole(
-				createAdminRequest("POST", "/api/admin/users/batch-role", {
-					ids: [42, 43],
-					role: 0,
-				}),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
-		});
-
-		it("recalcCounters rejects with 409 on tombstoned user", async () => {
-			const { db } = createMockDb({
-				firstResults: {
-					"SELECT id, status FROM users WHERE id": { id: 42, status: -99 },
-				},
-			});
-			const res = await recalcCounters(
-				createAdminRequest("POST", "/api/admin/users/42/recalc-counters"),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
-		});
-
-		it("batchRecalcCounters rejects with 409 on explicit tombstoned id", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT id FROM users WHERE id IN": [{ id: 42 }],
-				},
-			});
-			const res = await batchRecalcCounters(
-				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {
-					ids: [42, 43],
-				}),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(409);
-			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
 		});
 	});
 

@@ -1400,229 +1400,88 @@ describe("GET /api/v1/moderation/users/:id/status", () => {
 // setSticky — edge cases
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("setSticky — edge cases", () => {
-	it("should return 400 for invalid thread ID (non-numeric path)", async () => {
+describe("edge cases across moderation handlers", () => {
+	it.each([
+		["setSticky", setSticky, "PATCH", "/api/v1/moderation/threads/abc/sticky", { level: "forum" }],
+		["setDigest", setDigest, "PATCH", "/api/v1/moderation/threads/abc/digest", { level: 1 }],
+		["setClose", setClose, "PATCH", "/api/v1/moderation/threads/abc/close", { closed: true }],
+		[
+			"moveThread",
+			moveThread,
+			"PATCH",
+			"/api/v1/moderation/threads/abc/move",
+			{ targetForumId: 2 },
+		],
+		["deletePost", deletePost, "DELETE", "/api/v1/moderation/posts/abc", undefined],
+		["getUserStatus", getUserStatus, "GET", "/api/v1/moderation/users/abc/status", undefined],
+		["muteUser", muteUser, "POST", "/api/v1/moderation/users/abc/mute", undefined],
+		["unmuteUser", unmuteUser, "POST", "/api/v1/moderation/users/abc/unmute", undefined],
+		["banUser", banUser, "POST", "/api/v1/moderation/users/abc/ban", undefined],
+		["unbanUser", unbanUser, "POST", "/api/v1/moderation/users/abc/unban", undefined],
+		["nukeUser", nukeUser, "POST", "/api/v1/moderation/users/abc/nuke", undefined],
+	])("%s returns 400 for invalid ID", async (_name, handler, method, path, body) => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/abc/sticky", token, {
-			level: "forum",
-		});
-		const res = await setSticky(req, env);
+		const res = await handler(modRequest(method, path, token, body), makeEnv({ DB: db }));
 		expect(res.status).toBe(400);
 	});
 
-	it("should return 500 when user or forum fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockAuthUser(1),
-				"SELECT id, forum_id, author_id FROM threads": { id: 1, forum_id: 1, author_id: 10 },
-				// getUserForPermission and getForumForPermission return null
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
-			level: "forum",
-		});
-		const res = await setSticky(req, env);
-		expect(res.status).toBe(500);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// setDigest — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("setDigest — edge cases", () => {
-	it("should return 400 for invalid thread ID", async () => {
+	it.each([
+		["setDigest", setDigest, "/api/v1/moderation/threads/1/digest"],
+		["setClose", setClose, "/api/v1/moderation/threads/1/close"],
+		["moveThread", moveThread, "/api/v1/moderation/threads/1/move"],
+	])("%s returns 400 for invalid JSON body", async (_name, handler, path) => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/abc/digest", token, { level: 1 });
-		const res = await setDigest(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 400 for invalid JSON body", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = new Request("https://api.example.com/api/v1/moderation/threads/1/digest", {
+		const req = new Request(`https://api.example.com${path}`, {
 			method: "PATCH",
 			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
 			body: "not json",
 		});
-		const res = await setDigest(req, env);
+		const res = await handler(req, makeEnv({ DB: db }));
 		expect(res.status).toBe(400);
 	});
 
-	it("should return 500 when user or forum fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockAuthUser(1),
-				"SELECT id, forum_id, author_id FROM threads": { id: 1, forum_id: 1, author_id: 10 },
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/digest", token, { level: 2 });
-		const res = await setDigest(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 403 for Mod out of scope", async () => {
-		const token = await makeModToken(3, 2);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockThread(1, 1, 10),
-				...mockUser(2, 3, "moduser"),
-				...mockForum(1, "othermod"),
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/digest", token, { level: 1 });
-		const res = await setDigest(req, env);
-		expect(res.status).toBe(403);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// setClose — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("setClose — edge cases", () => {
-	it("should return 400 for invalid thread ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/abc/close", token, {
-			closed: true,
-		});
-		const res = await setClose(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 400 for invalid JSON body", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = new Request("https://api.example.com/api/v1/moderation/threads/1/close", {
-			method: "PATCH",
-			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-			body: "not json",
-		});
-		const res = await setClose(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user or forum fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockAuthUser(1),
-				"SELECT id, forum_id, author_id FROM threads": { id: 1, forum_id: 1, author_id: 10 },
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/close", token, { closed: true });
-		const res = await setClose(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 403 for Mod out of scope", async () => {
-		const token = await makeModToken(3, 2);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockThread(1, 1, 10),
-				...mockUser(2, 3, "moduser"),
-				...mockForum(1, "othermod"),
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/close", token, { closed: true });
-		const res = await setClose(req, env);
-		expect(res.status).toBe(403);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// moveThread — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("moveThread — edge cases", () => {
-	it("should return 400 for invalid thread ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/abc/move", token, {
-			targetForumId: 2,
-		});
-		const res = await moveThread(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 400 for invalid JSON body", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = new Request("https://api.example.com/api/v1/moderation/threads/1/move", {
-			method: "PATCH",
-			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-			body: "not json",
-		});
-		const res = await moveThread(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: { ...mockAuthUser(1) },
-		});
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, {
-			targetForumId: 2,
-		});
-		const res = await moveThread(req, env);
-		// getUserForPermission returns null → 500
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 400 for negative targetForumId", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, {
-			targetForumId: -1,
-		});
-		const res = await moveThread(req, env);
-		expect(res.status).toBe(400);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// deletePost — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("deletePost — edge cases", () => {
-	it("should return 400 for invalid post ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = new Request("https://api.example.com/api/v1/moderation/posts/abc", {
-			method: "DELETE",
-			headers: { Authorization: `Bearer ${token}` },
-		});
-		const res = await deletePost(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user or forum fetch fails for permission check", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockAuthUser(1),
+	it.each([
+		[
+			"setSticky",
+			setSticky,
+			"PATCH",
+			"/api/v1/moderation/threads/1/sticky",
+			{ level: "forum" },
+			{ "SELECT id, forum_id, author_id FROM threads": { id: 1, forum_id: 1, author_id: 10 } },
+		],
+		[
+			"setDigest",
+			setDigest,
+			"PATCH",
+			"/api/v1/moderation/threads/1/digest",
+			{ level: 2 },
+			{ "SELECT id, forum_id, author_id FROM threads": { id: 1, forum_id: 1, author_id: 10 } },
+		],
+		[
+			"setClose",
+			setClose,
+			"PATCH",
+			"/api/v1/moderation/threads/1/close",
+			{ closed: true },
+			{ "SELECT id, forum_id, author_id FROM threads": { id: 1, forum_id: 1, author_id: 10 } },
+		],
+		[
+			"moveThread",
+			moveThread,
+			"PATCH",
+			"/api/v1/moderation/threads/1/move",
+			{ targetForumId: 2 },
+			{},
+		],
+		[
+			"deletePost",
+			deletePost,
+			"DELETE",
+			"/api/v1/moderation/posts/5",
+			undefined,
+			{
 				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
 					id: 5,
 					thread_id: 1,
@@ -1630,16 +1489,48 @@ describe("deletePost — edge cases", () => {
 					author_id: 10,
 					is_first: 0,
 				},
-				// No user/forum results → null
+			},
+		],
+		["getUserStatus", getUserStatus, "GET", "/api/v1/moderation/users/10/status", undefined, {}],
+		["muteUser", muteUser, "POST", "/api/v1/moderation/users/10/mute", undefined, {}],
+		["unmuteUser", unmuteUser, "POST", "/api/v1/moderation/users/10/unmute", undefined, {}],
+		["banUser", banUser, "POST", "/api/v1/moderation/users/10/ban", undefined, {}],
+		["unbanUser", unbanUser, "POST", "/api/v1/moderation/users/10/unban", undefined, {}],
+		["nukeUser", nukeUser, "POST", "/api/v1/moderation/users/10/nuke", undefined, {}],
+	])(
+		"%s returns 500 when permission user/forum fetch fails",
+		async (_name, handler, method, path, body, extra) => {
+			const token = await makeModToken(1);
+			const { db } = createMockDb({ firstResults: { ...mockAuthUser(1), ...extra } });
+			const res = await handler(modRequest(method, path, token, body), makeEnv({ DB: db }));
+			expect(res.status).toBe(500);
+		},
+	);
+
+	it.each([
+		["setDigest", setDigest, "/api/v1/moderation/threads/1/digest", { level: 1 }],
+		["setClose", setClose, "/api/v1/moderation/threads/1/close", { closed: true }],
+	])("%s returns 403 for Mod out of scope", async (_name, handler, path, body) => {
+		const token = await makeModToken(3, 2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockThread(1, 1, 10),
+				...mockUser(2, 3, "moduser"),
+				...mockForum(1, "othermod"),
 			},
 		});
-		const env = makeEnv({ DB: db });
-		const req = new Request("https://api.example.com/api/v1/moderation/posts/5", {
-			method: "DELETE",
-			headers: { Authorization: `Bearer ${token}` },
-		});
-		const res = await deletePost(req, env);
-		expect(res.status).toBe(500);
+		const res = await handler(modRequest("PATCH", path, token, body), makeEnv({ DB: db }));
+		expect(res.status).toBe(403);
+	});
+
+	it("moveThread returns 400 for negative targetForumId", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
+		const res = await moveThread(
+			modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, { targetForumId: -1 }),
+			makeEnv({ DB: db }),
+		);
+		expect(res.status).toBe(400);
 	});
 });
 
@@ -2263,69 +2154,41 @@ describe("GET /api/v1/moderation/users/:id/ip-records", () => {
 // getUserStatus — edge cases
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("getUserStatus — edge cases", () => {
-	it("should return 400 for invalid user ID", async () => {
+describe("user moderation — remaining edge cases", () => {
+	it.each([
+		["unmuteUser", unmuteUser, "/api/v1/moderation/users/999/unmute"],
+		["banUser", banUser, "/api/v1/moderation/users/999/ban"],
+		["unbanUser", unbanUser, "/api/v1/moderation/users/999/unban"],
+		["nukeUser", nukeUser, "/api/v1/moderation/users/999/nuke"],
+	])("%s returns 404 when target user not found", async (_name, handler, path) => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("GET", "/api/v1/moderation/users/abc/status", token);
-		const res = await getUserStatus(req, env);
-		expect(res.status).toBe(400);
+		const { db } = createMockDb({ firstResults: { ...mockUser(1, 1, "admin") } });
+		const res = await handler(userModRequest("POST", path, token), makeEnv({ DB: db }));
+		expect(res.status).toBe(404);
 	});
 
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("GET", "/api/v1/moderation/users/10/status", token);
-		const res = await getUserStatus(req, env);
-		expect(res.status).toBe(500);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// muteUser — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("muteUser — edge cases", () => {
-	it("should return 400 for invalid user ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/abc/mute", token);
-		const res = await muteUser(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
-		const res = await muteUser(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 403 when trying to mute SuperMod", async () => {
+	it.each([
+		["muteUser vs SuperMod", muteUser, "/api/v1/moderation/users/10/mute", 2],
+		["banUser vs Admin", banUser, "/api/v1/moderation/users/10/ban", 1],
+		["nukeUser vs SuperMod", nukeUser, "/api/v1/moderation/users/10/nuke", 2],
+	])("%s returns 403 for protected staff target", async (_name, handler, path, targetRole) => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
 				"SELECT id, username, status, role FROM users": {
 					id: 10,
-					username: "supermod",
+					username: "staff",
 					status: 0,
-					role: 2,
+					role: targetRole,
 				},
 			},
 		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
-		const res = await muteUser(req, env);
+		const res = await handler(userModRequest("POST", path, token), makeEnv({ DB: db }));
 		expect(res.status).toBe(403);
 	});
 
-	it("should mute with optional duration in body", async () => {
+	it("muteUser accepts optional duration in body", async () => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({
 			firstResults: {
@@ -2338,148 +2201,21 @@ describe("muteUser — edge cases", () => {
 				},
 			},
 		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token, {
-			duration: "7d",
-		});
-		const res = await muteUser(req, env);
+		const res = await muteUser(
+			userModRequest("POST", "/api/v1/moderation/users/10/mute", token, { duration: "7d" }),
+			makeEnv({ DB: db }),
+		);
 		expect(res.status).toBe(200);
-		const data = await res.json();
-		expect(data.data.duration).toBe("7d");
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// unmuteUser — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("unmuteUser — edge cases", () => {
-	it("should return 400 for invalid user ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/abc/unmute", token);
-		const res = await unmuteUser(req, env);
-		expect(res.status).toBe(400);
+		expect((await res.json()).data.duration).toBe("7d");
 	});
 
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/unmute", token);
-		const res = await unmuteUser(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 404 when target user not found", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: { ...mockUser(1, 1, "admin") },
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/999/unmute", token);
-		const res = await unmuteUser(req, env);
-		expect(res.status).toBe(404);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// banUser — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("banUser — edge cases", () => {
-	it("should return 400 for invalid user ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/abc/ban", token);
-		const res = await banUser(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/ban", token);
-		const res = await banUser(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 404 when target user not found", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: { ...mockUser(1, 1, "admin") },
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/999/ban", token);
-		const res = await banUser(req, env);
-		expect(res.status).toBe(404);
-	});
-
-	it("should return 403 when trying to ban Admin", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": {
-					id: 10,
-					username: "otheradmin",
-					status: 0,
-					role: 1,
-				},
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/ban", token);
-		const res = await banUser(req, env);
-		expect(res.status).toBe(403);
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// unbanUser — edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("unbanUser — edge cases", () => {
-	it("should return 400 for invalid user ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/abc/unban", token);
-		const res = await unbanUser(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/unban", token);
-		const res = await unbanUser(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 404 when target user not found", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: { ...mockUser(1, 1, "admin") },
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/999/unban", token);
-		const res = await unbanUser(req, env);
-		expect(res.status).toBe(404);
-	});
-
-	it("should return 403 for regular user", async () => {
+	it("unbanUser returns 403 for regular user", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb({
-			firstResults: { ...mockAuthUser(0) },
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/unban", token);
-		const res = await unbanUser(req, env);
+		const { db } = createMockDb({ firstResults: { ...mockAuthUser(0) } });
+		const res = await unbanUser(
+			userModRequest("POST", "/api/v1/moderation/users/10/unban", token),
+			makeEnv({ DB: db }),
+		);
 		expect(res.status).toBe(403);
 	});
 });
@@ -2531,55 +2267,7 @@ describe("nukeUser — atomic batch failures", () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("nukeUser — edge cases", () => {
-	it("should return 400 for invalid user ID", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/abc/nuke", token);
-		const res = await nukeUser(req, env);
-		expect(res.status).toBe(400);
-	});
-
-	it("should return 500 when user fetch fails", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({ firstResults: { ...mockAuthUser(1) } });
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
-		const res = await nukeUser(req, env);
-		expect(res.status).toBe(500);
-	});
-
-	it("should return 404 when target user not found", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: { ...mockUser(1, 1, "admin") },
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/999/nuke", token);
-		const res = await nukeUser(req, env);
-		expect(res.status).toBe(404);
-	});
-
-	it("should return 403 when trying to nuke SuperMod", async () => {
-		const token = await makeModToken(1);
-		const { db } = createMockDb({
-			firstResults: {
-				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": {
-					id: 10,
-					username: "supermod",
-					status: 0,
-					role: 2,
-				},
-			},
-		});
-		const env = makeEnv({ DB: db });
-		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
-		const res = await nukeUser(req, env);
-		expect(res.status).toBe(403);
-	});
-
+describe("nukeUser — with threads and standalone posts", () => {
 	it("should nuke user with threads and standalone posts", async () => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({

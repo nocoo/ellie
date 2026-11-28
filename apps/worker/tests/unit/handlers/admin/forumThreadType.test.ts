@@ -881,145 +881,48 @@ describe("admin/forumThreadType.updateConfig", () => {
 
 // ─── Edge / branch coverage ──────────────────────────────────────
 
+function jsonReq(method: string, path: string, rawBody: string | Record<string, unknown>) {
+	return new Request(`https://api.example.com${path}`, {
+		method,
+		headers: { "Content-Type": "application/json" },
+		body: typeof rawBody === "string" ? rawBody : JSON.stringify(rawBody),
+	});
+}
+
 describe("admin/forumThreadType.create — extra validation branches", () => {
-	it("rejects invalid JSON body", async () => {
+	it.each([
+		["invalid JSON body", "/api/admin/forums/1/thread-types", "{not-json"],
+		["non-numeric forum id", "/api/admin/forums/abc/thread-types", { name: "X" }],
+		["non-string name", "/api/admin/forums/1/thread-types", { name: 42 }],
+		["oversized name", "/api/admin/forums/1/thread-types", { name: "a".repeat(101) }],
+		["negative displayOrder", "/api/admin/forums/1/thread-types", { name: "X", displayOrder: -1 }],
+		["non-string icon", "/api/admin/forums/1/thread-types", { name: "X", icon: 5 }],
+		["oversized icon", "/api/admin/forums/1/thread-types", { name: "X", icon: "a".repeat(201) }],
+		[
+			"non-boolean moderatorOnly",
+			"/api/admin/forums/1/thread-types",
+			{ name: "X", moderatorOnly: "yes" },
+		],
+		["negative sourceTypeid", "/api/admin/forums/1/thread-types", { name: "X", sourceTypeid: -1 }],
+	])("rejects %s (400)", async (_label, path, body) => {
 		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: "{not-json",
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("400 when forum id segment is non-numeric", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/abc/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X" }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects non-string name (number)", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: 42 }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects oversized name (> MAX_NAME_LEN)", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "a".repeat(101) }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects negative displayOrder", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X", displayOrder: -1 }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects non-string icon", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X", icon: 5 }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects oversized icon (> MAX_ICON_LEN)", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X", icon: "a".repeat(201) }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects non-boolean moderatorOnly", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X", moderatorOnly: "yes" }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects negative sourceTypeid", async () => {
-		const { db } = createMockDb({});
-		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X", sourceTypeid: -1 }),
-			}),
-			adminEnv(db),
-		);
+		const res = await create(jsonReq("POST", path, body), adminEnv(db));
 		expect(res.status).toBe(400);
 	});
 
 	it("500 when INSERT meta.last_row_id is missing", async () => {
 		const { db } = createMockDb({
 			firstResults: { "FROM forums WHERE id": forumGateRow() },
-			runResults: {
-				"INSERT INTO forum_thread_types": { success: true, meta: {} },
-			},
+			runResults: { "INSERT INTO forum_thread_types": { success: true, meta: {} } },
 		});
 		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X" }),
-			}),
+			jsonReq("POST", "/api/admin/forums/1/thread-types", { name: "X" }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(500);
 	});
 
 	it("500 when re-read after INSERT returns null", async () => {
-		// firstResults only stubs the forum gate; the loadTypeRow re-read
-		// goes against an unstubbed key → returns null.
 		const { db } = createMockDb({
 			firstResults: { "FROM forums WHERE id": forumGateRow() },
 			runResults: {
@@ -1030,11 +933,7 @@ describe("admin/forumThreadType.create — extra validation branches", () => {
 			},
 		});
 		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X" }),
-			}),
+			jsonReq("POST", "/api/admin/forums/1/thread-types", { name: "X" }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(500);
@@ -1042,104 +941,19 @@ describe("admin/forumThreadType.create — extra validation branches", () => {
 });
 
 describe("admin/forumThreadType.update — extra validation branches", () => {
-	it("rejects invalid JSON body", async () => {
-		const { db } = createMockDb({});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: "{nope",
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("400 when id segment is non-numeric", async () => {
-		const { db } = createMockDb({});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/abc", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "x" }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects invalid displayOrder (negative)", async () => {
+	it.each([
+		["invalid JSON body", "/api/admin/forum-thread-types/11", "{nope"],
+		["non-numeric id", "/api/admin/forum-thread-types/abc", { name: "x" }],
+		["negative displayOrder", "/api/admin/forum-thread-types/11", { displayOrder: -1 }],
+		["non-string icon", "/api/admin/forum-thread-types/11", { icon: 5 }],
+		["non-boolean moderatorOnly", "/api/admin/forum-thread-types/11", { moderatorOnly: "no" }],
+		["non-boolean enabled", "/api/admin/forum-thread-types/11", { enabled: "yes" }],
+		["empty name", "/api/admin/forum-thread-types/11", { name: "" }],
+	])("rejects %s (400)", async (_label, path, body) => {
 		const { db } = createMockDb({
 			firstResults: { "FROM forum_thread_types WHERE id": typeRow({ id: 11 }) },
 		});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ displayOrder: -1 }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects invalid icon (non-string)", async () => {
-		const { db } = createMockDb({
-			firstResults: { "FROM forum_thread_types WHERE id": typeRow({ id: 11 }) },
-		});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ icon: 5 }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects invalid moderatorOnly (non-boolean)", async () => {
-		const { db } = createMockDb({
-			firstResults: { "FROM forum_thread_types WHERE id": typeRow({ id: 11 }) },
-		});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ moderatorOnly: "no" }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects invalid enabled (non-boolean)", async () => {
-		const { db } = createMockDb({
-			firstResults: { "FROM forum_thread_types WHERE id": typeRow({ id: 11 }) },
-		});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ enabled: "yes" }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("rejects invalid name (empty)", async () => {
-		const { db } = createMockDb({
-			firstResults: { "FROM forum_thread_types WHERE id": typeRow({ id: 11 }) },
-		});
-		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "" }),
-			}),
-			adminEnv(db),
-		);
+		const res = await update(jsonReq("PATCH", path, body), adminEnv(db));
 		expect(res.status).toBe(400);
 	});
 
@@ -1150,11 +964,7 @@ describe("admin/forumThreadType.update — extra validation branches", () => {
 			},
 		});
 		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ displayOrder: 5 }),
-			}),
+			jsonReq("PATCH", "/api/admin/forum-thread-types/11", { displayOrder: 5 }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(200);
@@ -1169,11 +979,7 @@ describe("admin/forumThreadType.update — extra validation branches", () => {
 			},
 		});
 		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ moderatorOnly: true }),
-			}),
+			jsonReq("PATCH", "/api/admin/forum-thread-types/11", { moderatorOnly: true }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(200);
@@ -1186,11 +992,7 @@ describe("admin/forumThreadType.update — extra validation branches", () => {
 			firstResults: { "FROM forum_thread_types WHERE id": typeRow({ id: 11 }) },
 		});
 		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			}),
+			jsonReq("PATCH", "/api/admin/forum-thread-types/11", {}),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(200);
@@ -1199,8 +1001,8 @@ describe("admin/forumThreadType.update — extra validation branches", () => {
 	});
 });
 
-describe("admin/forumThreadType.list — invalid id branch", () => {
-	it("400 when forum id segment is non-numeric", async () => {
+describe("admin/forumThreadType.list & remove — invalid id branch", () => {
+	it("list returns 400 when forum id segment is non-numeric", async () => {
 		const { db } = createMockDb({});
 		const res = await list(
 			new Request("https://api.example.com/api/admin/forums/abc/thread-types"),
@@ -1208,15 +1010,11 @@ describe("admin/forumThreadType.list — invalid id branch", () => {
 		);
 		expect(res.status).toBe(400);
 	});
-});
 
-describe("admin/forumThreadType.remove — invalid id branch", () => {
-	it("400 when id segment is non-numeric", async () => {
+	it("remove returns 400 when id segment is non-numeric", async () => {
 		const { db } = createMockDb({});
 		const res = await remove(
-			new Request("https://api.example.com/api/admin/forum-thread-types/abc", {
-				method: "DELETE",
-			}),
+			new Request("https://api.example.com/api/admin/forum-thread-types/abc", { method: "DELETE" }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
@@ -1224,29 +1022,15 @@ describe("admin/forumThreadType.remove — invalid id branch", () => {
 });
 
 describe("admin/forumThreadType.reorder — extra branches", () => {
-	it("rejects invalid JSON body", async () => {
+	it.each([
+		["invalid JSON body", "/api/admin/forums/1/thread-types/reorder", "{nope"],
+		["non-numeric forum id", "/api/admin/forums/abc/thread-types/reorder", { ids: [1] }],
+		["non-positive-integer id", "/api/admin/forums/1/thread-types/reorder", { ids: ["x"] }],
+		["zero id", "/api/admin/forums/1/thread-types/reorder", { ids: [0] }],
+		["non-array ids", "/api/admin/forums/1/thread-types/reorder", { ids: "nope" }],
+	])("rejects %s (400)", async (_label, path, body) => {
 		const { db } = createMockDb({});
-		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: "{nope",
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("400 when forum id segment is non-numeric", async () => {
-		const { db } = createMockDb({});
-		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/abc/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ ids: [1] }),
-			}),
-			adminEnv(db),
-		);
+		const res = await reorder(jsonReq("PATCH", path, body), adminEnv(db));
 		expect(res.status).toBe(400);
 	});
 
@@ -1254,55 +1038,12 @@ describe("admin/forumThreadType.reorder — extra branches", () => {
 		const { db } = createMockDb({});
 		const ids = Array.from({ length: 201 }, (_, i) => i + 1);
 		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ ids }),
-			}),
+			jsonReq("PATCH", "/api/admin/forums/1/thread-types/reorder", { ids }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
 		const body = await res.json<{ error: { code: string } }>();
 		expect(body.error.code).toBe("BATCH_LIMIT_EXCEEDED");
-	});
-
-	it("400 when an id is not a positive integer (string)", async () => {
-		const { db } = createMockDb({});
-		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ ids: ["x"] }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("400 when id is 0 (must be positive)", async () => {
-		const { db } = createMockDb({});
-		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ ids: [0] }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("400 on non-array ids", async () => {
-		const { db } = createMockDb({});
-		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ ids: "nope" }),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(400);
 	});
 });
 
@@ -1310,11 +1051,7 @@ describe("admin/forumThreadType — unknown field rejection (P2)", () => {
 	it("create rejects unknown fields", async () => {
 		const { db } = createMockDb({});
 		const res = await create(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: "X", bogus: 1 }),
-			}),
+			jsonReq("POST", "/api/admin/forums/1/thread-types", { name: "X", bogus: 1 }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
@@ -1325,11 +1062,7 @@ describe("admin/forumThreadType — unknown field rejection (P2)", () => {
 	it("update rejects sourceTypeid (structural identity, never editable)", async () => {
 		const { db } = createMockDb({});
 		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ sourceTypeid: 99 }),
-			}),
+			jsonReq("PATCH", "/api/admin/forum-thread-types/11", { sourceTypeid: 99 }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
@@ -1340,11 +1073,7 @@ describe("admin/forumThreadType — unknown field rejection (P2)", () => {
 	it("update rejects unknown fields generally", async () => {
 		const { db } = createMockDb({});
 		const res = await update(
-			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ bogus: true }),
-			}),
+			jsonReq("PATCH", "/api/admin/forum-thread-types/11", { bogus: true }),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
